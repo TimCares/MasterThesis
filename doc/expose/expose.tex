@@ -1,0 +1,112 @@
+\documentclass[fontsize=12pt,paper=a4,twoside=semi,parskip=half-,headsepline,headinclude]{scrreprt}
+% Grundgröße 12pt, zweiseitig
+\usepackage[headsepline,automark]{scrlayer-scrpage}
+% Seitenköpfe automatisch 
+\usepackage[ngerman]{babel}
+% Sprachpaket für Deutsch (Umlaute, Trennung,deutsche Überschriften)
+\usepackage{blindtext}
+% macht nur den Blindtext, den Sie aktuell sehen
+\usepackage{lmodern}
+% schöne PDF-Schrift
+\usepackage{graphicx,hyperref,amssymb}
+%Graphikeinbindung, Hyperref (alles klickbar, Bookmarks),
+%Math. Symbole aus AmsTeX
+\usepackage[utf8]{inputenc}
+% Umlaute und über Tastatur einzugeben
+\usepackage{listings}
+% nette Listing-Formatierung
+\usepackage{xcolor}
+\pagecolor{white}
+
+% Festlegung Kopf- und Fußzeile     
+\defpagestyle{meinstil}{%
+{\headmark \hfill}
+{\hfill \headmark}
+{\hfill \headmark\hfill }
+(\textwidth,.4pt)
+}{%
+(\textwidth,.4pt)
+{\pagemark\hfill Vorname Name}
+{\today \hfill \pagemark}
+{\today\hfill\pagemark} 
+}
+\pagestyle{meinstil} 
+
+\raggedbottom
+\renewcommand{\topfraction}{1}
+\renewcommand{\bottomfraction}{1}
+
+ 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}    % hier gehts los
+  \thispagestyle{empty} % Titelseite
+\includegraphics[width=0.2\textwidth]{Wortmarke_WI_schwarz}
+
+   {  ~ \sffamily
+  \vfill
+  {\Huge\bfseries Exposé}
+  \bigskip
+
+  {\Large 
+  Tim Cares \\[2ex]
+ Master-Arbeit im Studiengang "`Angewandte Informatik"' 
+ \\[5ex]
+   \today } 
+}
+ \vfill
+  
+  ~ \hfill
+  \includegraphics[height=0.3\paperheight]{H_WI_Pantone1665} 
+
+\vspace*{-3cm}
+
+  \newpage \thispagestyle{empty}
+ \begin{tabular}{ll}
+{\bfseries\sffamily Autor} &  Vorname Name \\ 
+            & Matrikelnummer \\
+            & dauerhafte email-Adresse \\[5ex]
+{\bfseries\sffamily Erstprüferin:} & Prof. Dr. Vorname Name \\
+          & Abteilung Informatik, Fakultät IV \\
+         & Hochschule Hannover \\
+        & email-Adresse \\[5ex]
+{\bfseries\sffamily Zweitprüfer:} &Prof. Dr. Vorname Name \\
+          & Abteilung Informatik, Fakultät IV \\
+         & Hochschule Hannover \\
+        & email-Adresse
+\end{tabular}
+
+\vfill
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Die folgende Lizenz kann die weitere Verwertung Ihrer Arbeit vereinfachen.
+% Wenn Sie Ihre Arbeit nicht unter dem genannten Lizenzvertrag lizenzieren
+% möchten, können Sie diesen Abschnitt entfernen.
+% Dies hat keinerlei Einfluss auf die Bewertung Ihrer Arbeit.
+Soweit nicht anders gekennzeichnet, ist dieses Werk unter einem
+Creative-Commons-Lizenzvertrag Namensnennung 4.0 lizenziert.
+Dies gilt nicht für Zitate und Werke, die aufgrund einer anderen Erlaubnis
+genutzt werden.
+Um die Bedingungen der Lizenz einzusehen, folgen Sie bitte dem Hyperlink:\\
+\url{https://creativecommons.org/licenses/by/4.0/deed.de}
+
+\vfill
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{center} \sffamily\bfseries Selbständigkeitserklärung \end{center}
+% fett und zentriert in der minipage
+
+Hiermit erkläre ich, dass ich die eingereichte Bachelor-Arbeit
+selbständig und ohne fremde Hilfe verfasst, andere als die von mir angegebenen Quellen
+und Hilfsmittel nicht benutzt und die den benutzten Werken wörtlich oder
+inhaltlich entnommenen Stellen als solche kenntlich gemacht habe. 
+\vspace*{7ex}
+
+Hannover, den \today \hfill Unterschrift
+  \pdfbookmark[0]{Inhalt}{contents}
+  \tableofcontents  % Inhaltsverzeichnis
+
+\include{./content.tex}
+
+\end{document}
+
+
