@@ -2,7 +2,7 @@
 % Grundgröße 12pt, zweiseitig
 \usepackage[headsepline,automark]{scrlayer-scrpage}
 % Seitenköpfe automatisch 
-\usepackage[ngerman]{babel}
+\usepackage[english]{babel}
 % Sprachpaket für Deutsch (Umlaute, Trennung,deutsche Überschriften)
 \usepackage{blindtext}
 % macht nur den Blindtext, den Sie aktuell sehen
@@ -17,6 +17,8 @@
 % nette Listing-Formatierung
 \usepackage{xcolor}
 \pagecolor{white}
+
+\graphicspath{ {./images/} } 
 
 % Festlegung Kopf- und Fußzeile     
 \defpagestyle{meinstil}{%
@@ -95,7 +97,7 @@ Um die Bedingungen der Lizenz einzusehen, folgen Sie bitte dem Hyperlink:\\
 \begin{center} \sffamily\bfseries Selbständigkeitserklärung \end{center}
 % fett und zentriert in der minipage
 
-Hiermit erkläre ich, dass ich die eingereichte Bachelor-Arbeit
+Hiermit erkläre ich, dass ich das eingereichte Exposé
 selbständig und ohne fremde Hilfe verfasst, andere als die von mir angegebenen Quellen
 und Hilfsmittel nicht benutzt und die den benutzten Werken wörtlich oder
 inhaltlich entnommenen Stellen als solche kenntlich gemacht habe. 
@@ -106,6 +108,16 @@ Hannover, den \today \hfill Unterschrift
   \tableofcontents  % Inhaltsverzeichnis
 
 \include{./content.tex}
+\begin{thebibliography}{00}
+  \bibitem{geron} Aurelien Geron. Hands-On Machine Learning with Scikit-Learn, Keras, and Ten- sorFlow: Concepts, Tools, and Techniques to Build Intelligent Systems. O’Reilly Media, Inc., Sebastopol, 2 edition, 2019.
+  \bibitem{lecun} Yann LeCun and Ishan Misra. Meta AI. (n.d.). Self-Supervised Learning: The Dark Matter of Intelligence. AI Meta Blog. Retrieved December 29, 2023, from https://ai.meta.com/blog/self-supervised-learning-the-dark-matter-of-intelligence/
+  \bibitem{wu} Z. Wu, Y. Xiong, S. X. Yu and D. Lin, "Unsupervised Feature Learning via Non-parametric Instance Discrimination," 2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition, Salt Lake City, UT, USA, 2018, pp. 3733-3742, doi: 10.1109/CVPR.2018.00393.
+  \bibitem{he} K. He, H. Fan, Y. Wu, S. Xie and R. Girshick, "Momentum Contrast for Unsupervised Visual Representation Learning," 2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), Seattle, WA, USA, 2020, pp. 9726-9735, doi: 10.1109/CVPR42600.2020.00975.
+  \bibitem{chen} X. Chen and K. He, "Exploring Simple Siamese Representation Learning," 2021 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), Nashville, TN, USA, 2021, pp. 15745-15753, doi: 10.1109/CVPR46437.2021.01549.
+  \bibitem{ling} LING, Shaoshi, et al. Deep contextualized acoustic representations for semi-supervised speech recognition. In: ICASSP 2020-2020 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP). IEEE, 2020. S. 6429-6433.
+  \bibitem{wang} Wenhui Wang et al. Image as a Foreign Language: BEiT Pretraining for Vision and Vision-Language Tasks. Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), 2023, pp. 19175-19186
+  \bibitem{baevski} Baevski, Alexei, et al. Data2vec: A general framework for self-supervised learning in speech, vision and language. In: International Conference on Machine Learning. PMLR, 2022. S. 1298-1312.
+\end{thebibliography}
 
 \end{document}
 

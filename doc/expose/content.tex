@@ -1,12 +1,115 @@
-\chapter{Problem Definition}
+\section{Introduction}
+Ever since the development of the Backpropagation
+algorithm Supervised Learning has been the most fundamental technique for
+training Deep Learning Models. This is not surprising, as it provides a model with clear domain specific
+learning signals, which is the most direct and efficient way of solving a problem
+or learning a task, respectively \cite{geron}.
 
-\chapter{Objectives and Research Question}
+However, the philosophy of developing artificial intelligences using labeled
+data has its limits. In order for Machine Learning models, and especially Deep Learning models, 
+to learn increasingly complex tasks requires increasingly more (labeled) data.
+Obviously, creating millions of labeled examples is both costly and becomes more infeasible
+the more complex the underlying task gets.
 
-\chapter{Methodology}
+Because of this, Self-Supervised Learning has received an increased attention from the scientific
+community over the last few years. This is because Self-Supervised Learning does not
+rely on creating labeled data by hand, e.g. through human annotation, but receives it
+from the context of the data. To train a Large-Language Model (LLM) to understand 
+written text, for example, words in example sentences are masked or
+deleted, respectively. The task of the model is then to predict those missing words.
 
-\chapter{Solution Ideas and Contributions}
 
-\chapter{Preliminary Structure}
+\begin{figure}[htbp]
+	\includegraphics[width=12cm]{language_masking}
+	\centering
+    \label{language_masking}
+	\caption{An example for creating labels out of raw data. Any word in a sentence can
+    potentially be masked, which is why training examples (including labels) can be created
+    just from the data itself, without any human annotation (adapted from \cite{lecun}).}
+\end{figure}
+
+This has three advantages: Firstly, labels do not need to be created by hand, as it is easy
+to randomly mask words in a sentence and use them as the targets to predict during training.
+Secondly, because there are massive amounts of text available on the internet, a massive amount of training
+data can be generated.
+And lastly but most importantly, the model learns to write text that represents the world we live in.
+This becomes clear with the example seen in Figure \ref{language_masking}.
+Here the model would have to predict the words "moon" and "bright" based on the context/words
+remaining after masking. In order to do so successfully, the model has to learn that only the moon shines at night, not the
+sun, and that if the moon shines, it is usually bright.
+
+The aforementioned example illustrates an important characteristic of Self-Supervised Learning:
+It forces the model to learn common sense and the world that we humans live in \cite{lecun}.
+In some setting like vision and sound, or even natural language, this is characterized by
+creating a representation of the respective input, similar to word embeddings. So for an image
+the network might produce a vector that represents the semantic content of that image \cite{wu}\cite{he}\cite{chen},
+which is called Representation Learning.
+
+This makes Self-Supervised Learning suitable as a generic pre-training task: If a model
+can understand text, images, or sound that reflects the world we live in, then it
+can be fine-tuned to various downstream tasks.
+A model that has learned to extract the content of an image can be used
+to detect cats and dogs with only little fine-tuning, which is significantly simpler than
+training a model from scratch.
+It follows that for supervised tasks such pre-trained models needs less human annotated examples because they
+already understand the data itself.
+
+Up until now only few models have been developed that combine Self-Supervised Learning
+of different modalities, most prominently natural language, vision and sound, into one single model.
+This by some called "big convergence" \cite{wang} has its foundation in the fact
+that concepts of the real world are not bound to a specific modality, but rather
+expressed in one.
+Continuing the previous example (Figure \ref{language_masking}): The concept of the moon shining at night does not change
+when expressed as text, photographed in an image, or spoken using sound.
+Therefore, the same concept should always have the same representation regardless of the modality
+in which the network receives it.
+
+In order for this to work, a model is required that can process multiple modalities and create
+representations for the concepts that are expressed using those modalities, which is called Multimodal
+Representation Learning.
+
+\section{Objectives and Research Question}
+
+The research in the master thesis focuses on Multimodal Representation Learning and will consist of three parts.
+
+At first, the goal is to construct a Multimodal model based on the learning tasks developed
+in the paper Data2Vec \cite{baevski}. Joined with those efforts, the thesis will evaluate the effect
+of the model size on the quality of the representations, as there has been a trend to 
+scale language and vision models to billions of parameters, making it infeasible to train
+them outside of big corporations.
+The paper will test different architecture to evaluate which provides the best trade-off between size,
+training speed and performance. Regarding performance, it will especially be interesting
+if a pre-trained multimodal model is able to achieve the same performance on
+downstream tasks (e.g. ImageNet-1k) as an unimodal model of the same size would.
+
+The second part or the research will investigate the properties of
+representations generated by a multimodal model. This includes a thorough analysis on if
+the representations are modality-invariant, so if, for example, the text "The moon shines bright at night"
+and a corresponding image of the moon at night will have similar, or even the same, representations.
+
+The last part will include an investigation of latent-space arithmetic for Representation Learning.
+The goal here is to create representations with which one can perform arithmetic similar to word embeddings.
+This includes for example: Creating a representation of an image with a persons face, and creating
+a representation of a sentence about sunglasses. If one now adds the representation of the sunglasses to
+the representation of the face, and generates text from the resulting representation, then the resulting text
+should be about a person wearing sunglasses.
+In order for this to be successful, it might be necessary to develop a Multimodal Autoencoder that is both
+able to create representations of its input data, and to generate new data from those representations.
+
+In summary, the contributions and research questions of the master thesis are as follows:
+
+\begin{itemize}
+	\item Construction of a Multimodal Model based on Data2Vec.
+	\item How do smaller models impact Representation Learning?
+    \item Do multimodal representations match across modalities?
+	\item Is latent-space arithmetic possible across modalities?
+\end{itemize}
+
+\section{Methodology}
+
+\section{Solution Ideas and Contributions}
+
+\section{Preliminary Structure}
 
 \begin{enumerate}
     \item Introduction
@@ -18,7 +121,6 @@
     \item Representation Learning
     \item Multimodal Learning
         \begin{enumerate}
-            \item Alignment of Input Data
             \item Pre-training Tasks and Requirements
             \item Data2Vec
             \item VLMo
@@ -27,16 +129,20 @@
         \end{enumerate}
     \item Methodology
         \begin{enumerate}
-            \item Curated and Uncurated Datasets
+            \item Relevance of Uncurated Datasets
             \item Datasets
             \item Metrics and Benchmarks
         \end{enumerate}
     \item Research
-    \item Analysis and Resulting Behaviour
+        \begin{enumerate}
+            \item Experiments on Multimodal Data2Vec
+            \item Study on Multimodal Latent Space
+        \end{enumerate}
+    \item Analysis and Resulting Behavior
     \item Outlook
     \item Conclusion
 \end{enumerate}
 
-\chapter{Timeline}
+\section{Timeline}
 
-\chapter{Bibliography}
+\section{Bibliography}
