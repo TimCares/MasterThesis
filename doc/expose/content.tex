@@ -7,7 +7,7 @@ or learning a task, respectively \cite{geron}.
 
 However, the philosophy of developing artificial intelligences using labeled
 data has its limits. In order for Machine Learning models, and especially Deep Learning models, 
-to learn increasingly complex tasks requires increasingly more (labeled) data.
+to learn increasingly complex tasks, increasingly more (labeled) data is required.
 Obviously, creating millions of labeled examples is both costly and becomes more infeasible
 the more complex the underlying task gets.
 
@@ -25,7 +25,8 @@ deleted, respectively. The task of the model is then to predict those missing wo
     \label{language_masking}
 	\caption{An example for creating labels out of raw data. Any word in a sentence can
     potentially be masked, which is why training examples (including labels) can be created
-    just from the data itself, without any human annotation (adapted from \cite{lecun}).}
+    just from the data itself, without any human annotation. The labels for this example would
+    be "moon" and "bright" (adapted from \cite{lecun}).}
 \end{figure}
 
 This has three advantages: Firstly, labels do not need to be created by hand, as it is easy
@@ -40,29 +41,33 @@ sun, and that if the moon shines, it is usually bright.
 
 The aforementioned example illustrates an important characteristic of Self-Supervised Learning:
 It forces the model to learn common sense and the world that we humans live in \cite{lecun}.
-In some setting like vision and sound, or even natural language, this is characterized by
-creating a representation of the respective input, similar to word embeddings. So for an image
-the network might produce a vector that represents the semantic content of that image \cite{wu}\cite{he}\cite{chen},
-which is called Representation Learning.
+This idea is directly related to another learning task called Representation Learning.
 
-This makes Self-Supervised Learning suitable as a generic pre-training task: If a model
-can understand text, images, or sound that reflects the world we live in, then it
-can be fine-tuned to various downstream tasks.
-A model that has learned to extract the content of an image can be used
+This learning task is characterized by creating a representation of the respective input,
+which can be understood as a kind of interpretation of the concept that is represented using 
+the input modality. So for an image the network might produce a vector that represents the semantic 
+content of that image \cite{wu}\cite{he}\cite{chen}. Other common modalities for which representations
+are also commonly created are text or even sound.
+
+Combining the idea of Representation Learning with Self-Supervised Learning, namely masking
+some parts of the input and using the masked parts as a prediction target, we get 
+a generic pre-trained model: If a model can understand text, images, or sound that reflect 
+the world that we live in, then that model can be fine-tuned to various downstream tasks.
+For example, a model that has learned to extract the content of an image can be used
 to detect cats and dogs with only little fine-tuning, which is significantly simpler than
 training a model from scratch.
-It follows that for supervised tasks such pre-trained models needs less human annotated examples because they
-already understand the data itself.
+It follows that for supervised tasks such pre-trained models needs less human annotated examples, 
+because they already understand the data itself.
 
-Up until now only few models have been developed that combine Self-Supervised Learning
+Up until now only few models have been developed that combine Representation Learning
 of different modalities, most prominently natural language, vision and sound, into one single model.
 This by some called "big convergence" \cite{wang} has its foundation in the fact
 that concepts of the real world are not bound to a specific modality, but rather
 expressed in one.
-Continuing the previous example (Figure \ref{language_masking}): The concept of the moon shining at night does not change
-when expressed as text, photographed in an image, or spoken using sound.
+To stay with the example given above (Figure \ref{language_masking}): The concept of the moon shining 
+at night does not change when expressed as text, photographed in an image, or spoken using sound.
 Therefore, the same concept should always have the same representation regardless of the modality
-in which the network receives it.
+in which the network receives it, or in which it is generally expressed, respectively.
 
 In order for this to work, a model is required that can process multiple modalities and create
 representations for the concepts that are expressed using those modalities, which is called Multimodal
@@ -85,7 +90,7 @@ them outside big corporations. Therefore, the thesis will test which procedure p
 training speed and performance.
 Regarding performance, it will be interesting if a pre-trained multimodal model is able to 
 achieve the same performance on downstream tasks (e.g. ImageNet-1k) as an 
-unimodal (one that has learned only e.g. image representation) model of the same size would.
+unimodal (one that has learned only e.g. image representation) of the same size would.
 
 The second part or the research will investigate the properties of
 representations generated by a multimodal model. This includes a thorough analysis on a modality-invariance
@@ -121,8 +126,7 @@ to examine the properties of the produced representations in the second part of 
 them with the representations produced by a multimodal Variational Autoencoder.
 Another reason behind this order is to first get hands-on experience with Multimodal Representation Learning,
 as the examination of a multimodal latent space, using a Variational Autoencoder, has seen considerable less
-attention from the scientific community, which induces more risk regarding the success of such a multimodal
-Variational Autoencoder.
+attention from the scientific community, which induces more risk regarding the success of such a model.
 
 \section{Solution Ideas}
 As may have become apparent in the previous chapters, the development will be based on Data2Vec \cite{baevski}
