@@ -171,6 +171,7 @@ cython_debug/
 
 # open MS Office documents
 *~$*.docx
+*~$*.xlsx
 
 # Apple specific
 *.DS_Store

@@ -1,4 +1,4 @@
-\section{Introduction}
+\chapter{Introduction}
 Ever since the development of the Backpropagation
 algorithm Supervised Learning has been the most fundamental technique for
 training Deep Learning Models. This is not surprising, as it provides a model with clear domain specific
@@ -73,7 +73,7 @@ In order for this to work, a model is required that can process multiple modalit
 representations for the concepts that are expressed using those modalities, which is called Multimodal
 Representation Learning.
 
-\section{Objectives and Research Question}
+\chapter{Objectives and Research Question}
 
 The research in the master thesis focuses on Multimodal Representation Learning, and will consist of three research parts.
 
@@ -116,7 +116,7 @@ In summary, the contributions and research questions of the master thesis are as
 	\item Does latent-space arithmetic work between representations created from different modalities?
 \end{itemize}
 
-\section{Methodology}
+\chapter{Methodology}
 The research will start with the selection of appropriate datasets, some of which will be used to
 train the multimodal models, while others will be used for fine-tuning the pre-trained models to receive
 benchmarks on which the models developed can be compared with others of the scientific community.
@@ -128,7 +128,7 @@ Another reason behind this order is to first get hands-on experience with Multim
 as the examination of a multimodal latent space, using a Variational Autoencoder, has seen considerable less
 attention from the scientific community, which induces more risk regarding the success of such a model.
 
-\section{Solution Ideas}
+\chapter{Solution Ideas}
 As may have become apparent in the previous chapters, the development will be based on Data2Vec \cite{baevski}
 for the training tasks, and the architecture will be oriented on VLMo \cite{bao}, BEiT \cite{wang} and FLAVA \cite{singh}.
 Because all models developed will be multimodal, it is inevitable that the general architecture will be
@@ -140,7 +140,7 @@ produce new samples, namely text, images and sound, from the latent space in whi
 For this a Variational Autoencoder is suitable, which is usually trained as an unimodal model, but will be
 adapted as a multimodal model in this thesis.
 
-\section{Preliminary Structure}
+\chapter{Preliminary Structure}
 
 \begin{enumerate}
     \item Introduction
@@ -178,4 +178,10 @@ adapted as a multimodal model in this thesis.
     \item Conclusion
 \end{enumerate}
 
-\section{Timeline}
+\chapter{Timeline}
+
+\begin{figure}[htbp]
+	\includegraphics[width=18cm]{timeline_compact}
+	\centering
+    \label{timeline_compact}
+\end{figure}
