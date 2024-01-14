@@ -137,8 +137,24 @@ based on the (Vision \cite{dosovitskiy}) Transformer \cite{vaswani}.
 To evaluate the success of the latent-space arithmetic, covered in the last section of the thesis, it is necessary
 to develop a model which is not only able to create semantic representation of its inputs, but also able to
 produce new samples, namely text, images and sound, from the latent space in which the representations exist.
+This is necessary, because the arithmetic will be performed in the latent space, and the results 
+have to be verified by generating new samples from the resulting representations, as one can not deduce
+the correctness of latent-space arithmetic from the representations alone.
 For this a Variational Autoencoder is suitable, which is usually trained as an unimodal model, but will be
 adapted as a multimodal model in this thesis.
+Using this model, it becomes possible to generate those new samples (image, text or sound) simply by passing the result of the arithmetic
+through the decoder. Those samples can then be visualized and therefore evaluated.
+
+Interestingly, a Multimodal Autoencoder also provides the possibility to use it as a model
+that can change the modality of its input, like translating text to images, as in text-to-image models.
+This in itself is nothing new, but if the model is able to handle images, text and sound, and can also
+generate images, text and sound, then it becomes possible to translate a training example
+back and forth between the different modalities, using just one model. Consequently, one wouldn't need
+a text-to-image and an image-to-text model, but instead just one that does all.
+
+So apart from the Representation Learning
+aspect of a Multimodal Autoencoder, the goal of the thesis is also to examine if the aforementioned might
+be feasible, even if this just includes a proof of concept.
 
 \chapter{Preliminary Structure}
 
