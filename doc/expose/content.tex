@@ -1,15 +1,15 @@
 \chapter{Introduction}
-Ever since the development of the Backpropagation
-algorithm Supervised Learning has been the most fundamental technique for
-training Deep Learning Models. This is not surprising, as it provides a model with clear domain specific
-learning signals, which is the most direct and efficient way of solving a problem
-or learning a task, respectively \cite{geron}.
+Supervised Learning has been the most fundamental technique for
+training Deep Learning Models since the development of the backpropagation
+algorithm. This is not surprising, as it provides a model with clear domain-specific learning signals, which is the most
+direct and efficient way of solving a problem or learning a task, respectively \cite{geron}.
 
-However, the philosophy of developing artificial intelligences using labeled
-data has its limits. In order for Machine Learning models, and especially Deep Learning models, 
-to learn increasingly complex tasks, increasingly more (labeled) data is required.
-Obviously, creating millions of labeled examples is both costly and becomes more infeasible
-the more complex the underlying task gets.
+The development of artificial intelligence using labelled
+data, however, has its limitations. To teach Machine Learning models, particularly Deep Learning models,
+increasingly complex tasks, more labelled data is required.
+Naturally, generating millions of labelled examples becomes 
+more difficult as the underlying tasks become more complex, making the development of
+such models more expensive and less feasible.
 
 Because of this, Self-Supervised Learning has received an increased attention from the scientific
 community over the last few years. This is because Self-Supervised Learning does not
@@ -41,22 +41,30 @@ sun, and that if the moon shines, it is usually bright.
 
 The aforementioned example illustrates an important characteristic of Self-Supervised Learning:
 It forces the model to learn common sense and the world that we humans live in \cite{lecun}.
-This idea is directly related to another learning task called Representation Learning.
+This idea is directly related to another learning task, called Representation Learning.
 
 This learning task is characterized by creating a representation of the respective input,
 which can be understood as a kind of interpretation of the concept that is represented using 
 the input modality. So for an image the network might produce a vector that represents the semantic 
 content of that image \cite{wu}\cite{he}\cite{chen}. Other common modalities for which representations
-are also commonly created are text or even sound.
+are also commonly created are text (like the sentence seen in Figure \ref{language_masking}) or even sound.
 
-Combining the idea of Representation Learning with Self-Supervised Learning, namely masking
-some parts of the input and using the masked parts as a prediction target, we get 
-a generic pre-trained model: If a model can understand text, images, or sound that reflect 
-the world that we live in, then that model can be fine-tuned to various downstream tasks.
+When Representation Learning is integrated with Self-Supervised Learning,
+the approach enables models to interpret and create semantic representations
+of data by utilizing the context found within the data itself.
+This synergy significantly reduces the dependency on externally labeled data,
+as the model learns from the structures and patterns present in the data.
+Because generating the data is cheap, it allows us to create massive amounts of
+training data and scale the models to much larger sizes than before.
+Such models can comprehend their input modality (e.g. vision, text or sound) in a way that
+closely mirrors their interpretation by humans. This capability makes them excellent candidates for
+generic pre-trained models, which can be tailored for specific tasks
+through minimal fine-tuning.
+
 For example, a model that has learned to extract the content of an image can be used
 to detect cats and dogs with only little fine-tuning, which is significantly simpler than
 training a model from scratch.
-It follows that for supervised tasks such pre-trained models needs less human annotated examples, 
+It follows that for supervised tasks, such pre-trained models need less human annotated examples 
 because they already understand the data itself.
 
 Up until now only few models have been developed that combine Representation Learning
@@ -68,10 +76,8 @@ To stay with the example given above (Figure \ref{language_masking}): The concep
 at night does not change when expressed as text, photographed in an image, or spoken using sound.
 Therefore, the same concept should always have the same representation regardless of the modality
 in which the network receives it, or in which it is generally expressed, respectively.
-
-In order for this to work, a model is required that can process multiple modalities and create
-representations for the concepts that are expressed using those modalities, which is called Multimodal
-Representation Learning.
+To make this work, a model that can process multiple modalities is necessary which is
+commonly referred to as Multimodal Representation Learning.
 
 \chapter{Objectives and Research Question}
 
@@ -150,11 +156,9 @@ that can change the modality of its input, like translating text to images, as i
 This in itself is nothing new, but if the model is able to handle images, text and sound, and can also
 generate images, text and sound, then it becomes possible to translate a training example
 back and forth between the different modalities, using just one model. Consequently, one wouldn't need
-a text-to-image and an image-to-text model, but instead just one that does all.
-
-So apart from the Representation Learning
-aspect of a Multimodal Autoencoder, the goal of the thesis is also to examine if the aforementioned might
-be feasible, even if this just includes a proof of concept.
+a text-to-image and an image-to-text model, but instead just one that does it all.
+Consequently, apart from Representation Learning aspect, the goal of the thesis is also to examine if the aforementioned 
+modality-translator might be feasible, even if this just includes a proof of concept.
 
 \chapter{Preliminary Structure}
 
