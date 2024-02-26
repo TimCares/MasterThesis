@@ -5,6 +5,7 @@ from torchtext.datasets import WikiText103
 from torchaudio.datasets import LIBRISPEECH
 import torchaudio.transforms as T
 from torch.utils.data import Dataset, DataLoader
+from torch.nn.utils.rnn import pad_sequence
 import IPython.display as ipd
 import matplotlib.pyplot as plt
 import math
@@ -13,6 +14,29 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+class RawLibrispeechDataset(Dataset):
+    def __init__(self, dataset:str="train-clean-100"):
+        self.data = LIBRISPEECH(root="./data", url=dataset, download=True)
+
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        waveform = self.data[idx][0][0] # idx, waveform, first batch element (only one element there)
+        
+        # after "https://arxiv.org/pdf/2006.11477.pdf#page10" Section 2, Feature Encoder
+        mean = waveform.mean()
+        std = waveform.std()
+        waveform = (waveform - mean) / std
+        return waveform
+    
+def _raw_padding_collate_fn(batch):
+    return pad_sequence(batch, batch_first=True, padding_value=0)[:, None, :] # create channel (first) dimension
+
+def get_raw_librispeech_dataset(dataset:str="train-clean-100", batch_size:int=32, shuffle:bool=True, num_workers:int=1):
+    librispeech = RawLibrispeechDataset(dataset=dataset)
+    return DataLoader(librispeech, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, collate_fn=_raw_padding_collate_fn)
 
 class SpectrogramConsequitiveMasking():
     def __init__(self, scale:bool=False, mask_percentage:float=0.05):
