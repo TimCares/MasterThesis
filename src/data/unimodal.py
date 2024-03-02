@@ -47,7 +47,7 @@ class RawPaddingCollateFn():
 
         padded_batch = torch.stack(padded_batch)
 
-        return batch, padded_batch
+        return padded_batch, padding_mask
 
 def get_raw_librispeech_dataset(dataset:str="train-clean-100", batch_size:int=32, shuffle:bool=True, num_workers:int=1):
     librispeech = RawLibrispeechDataset(dataset=dataset)
