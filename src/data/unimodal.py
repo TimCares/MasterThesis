@@ -29,14 +29,29 @@ class RawLibrispeechDataset(Dataset):
         mean = waveform.mean()
         std = waveform.std()
         waveform = (waveform - mean) / std
-        return waveform
+        return waveform, waveform.shape[-1]
     
-def _raw_padding_collate_fn(batch):
-    return pad_sequence(batch, batch_first=True, padding_value=0)[:, None, :] # create channel (first) dimension
+class RawPaddingCollateFn():
+    def __init__(self, batch_size:int=32):
+        self.batch_size = batch_size
+
+    def __call__(self, batch):
+        max_len = max(batch, key=lambda x: x[1])[1]
+
+        padding_mask = torch.zeros(self.batch_size, max_len)
+
+        padded_batch = []
+        for idx, (x, waveform_length) in enumerate(batch):
+            padding_mask[idx, waveform_length:] = 1 # belongs to padding -> 1 (true)
+            padded_batch.append(torch.nn.functional.pad(x, (0, max_len - x.shape[-1]), value=-100))
+
+        padded_batch = torch.stack(padded_batch)
+
+        return batch, padded_batch
 
 def get_raw_librispeech_dataset(dataset:str="train-clean-100", batch_size:int=32, shuffle:bool=True, num_workers:int=1):
     librispeech = RawLibrispeechDataset(dataset=dataset)
-    return DataLoader(librispeech, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, collate_fn=_raw_padding_collate_fn)
+    return DataLoader(librispeech, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, collate_fn=RawPaddingCollateFn(batch_size))
 
 class SpectrogramConsequitiveMasking():
     def __init__(self, scale:bool=False, mask_percentage:float=0.05):
