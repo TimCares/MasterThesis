@@ -339,7 +339,7 @@ class Data2VecAudioModel(BaseFairseqModel):
                     output_lengths - 1,
                 )
             ] = 1
-            padding_mask = (1 - padding_mask.flip([-1]).cumsum(-1).flip([-1])).bool()
+            padding_mask = (1 - padding_mask.flip([-1]).cumsum(-1).flip([-1])).bool() # padding mask of the output of the conv layers, i.e. audio feature extractor
         else:
             padding_mask = None
 
