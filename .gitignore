@@ -1,4 +1,4 @@
-src/notebooks/data
+data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -180,3 +180,5 @@ cython_debug/
 
 # vscode
 .vscode
+
+!*.md

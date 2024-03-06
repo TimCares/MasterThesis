@@ -15,7 +15,7 @@ PATH_TO_MODEL = '' + os.sep
 MODEL_NAME = "data2vec_audio.pt"
 EPOCHS = 50
 BATCH_SIZE = 128
-PRINT_STATS_EVERY = 100 # ... batchs
+PRINT_STATS_EVERY = 100 # ... batches
 DATASET = "train-clean-100"
 
 def train():

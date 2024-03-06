@@ -1,1 +1,1 @@
-DATA_PATH = 'data/'
+DATA_PATH = '/Users/timcares/CompSci/Uni/Projects/MasterThesis/data'

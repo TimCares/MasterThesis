@@ -2,22 +2,24 @@ import logging
 import torch
 import torchtext
 from torchtext.datasets import WikiText103
-from torchaudio.datasets import LIBRISPEECH
+from torchaudio.datasets import LIBRISPEECH, LibriLightLimited
 import torchaudio.transforms as T
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
 import IPython.display as ipd
 import matplotlib.pyplot as plt
 import math
+from config import DATA_PATH
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-class RawLibrispeechDataset(Dataset):
-    def __init__(self, dataset:str="train-clean-100"):
-        self.data = LIBRISPEECH(root="./data", url=dataset, download=True)
+class RawLibriLightDataset(Dataset):
+    def __init__(self, dataset:str="1h", normalize:bool=True):
+        self.data = LibriLightLimited(root=DATA_PATH, subset=dataset, download=True)
+        self.normalize = normalize
 
     def __len__(self):
         return len(self.data)
@@ -26,9 +28,28 @@ class RawLibrispeechDataset(Dataset):
         waveform = self.data[idx][0][0] # idx, waveform, first batch element (only one element there)
         
         # after "https://arxiv.org/pdf/2006.11477.pdf#page10" Section 2, Feature Encoder
-        mean = waveform.mean()
-        std = waveform.std()
-        waveform = (waveform - mean) / std
+        if self.normalize:
+            mean = waveform.mean()
+            std = waveform.std()
+            waveform = (waveform - mean) / std
+        return waveform, waveform.shape[-1]
+
+class RawLibrispeechDataset(Dataset):
+    def __init__(self, dataset:str="train-clean-100", normalize:bool=True):
+        self.data = LIBRISPEECH(root=DATA_PATH, url=dataset, download=True)
+        self.normalize = normalize
+
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        waveform = self.data[idx][0][0] # idx, waveform, first batch element (only one element there)
+        
+        # after "https://arxiv.org/pdf/2006.11477.pdf#page10" Section 2, Feature Encoder
+        if self.normalize:
+            mean = waveform.mean()
+            std = waveform.std()
+            waveform = (waveform - mean) / std
         return waveform, waveform.shape[-1]
     
 class RawPaddingCollateFn():
@@ -48,9 +69,13 @@ class RawPaddingCollateFn():
         padded_batch = torch.stack(padded_batch)
 
         return padded_batch, padding_mask
+    
+def get_raw_libri_light_dataset(dataset:str="1h", batch_size:int=32, shuffle:bool=True, num_workers:int=1, normalize_waveform:bool=True):
+    libri_light = RawLibriLightDataset(dataset=dataset, normalize=normalize_waveform)
+    return DataLoader(libri_light, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, collate_fn=RawPaddingCollateFn(batch_size))
 
-def get_raw_librispeech_dataset(dataset:str="train-clean-100", batch_size:int=32, shuffle:bool=True, num_workers:int=1):
-    librispeech = RawLibrispeechDataset(dataset=dataset)
+def get_raw_librispeech_dataset(dataset:str="train-clean-100", batch_size:int=32, shuffle:bool=True, num_workers:int=1, normalize_waveform:bool=True):
+    librispeech = RawLibrispeechDataset(dataset=dataset, normalize=normalize_waveform)
     return DataLoader(librispeech, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, collate_fn=RawPaddingCollateFn(batch_size))
 
 class SpectrogramConsequitiveMasking():
