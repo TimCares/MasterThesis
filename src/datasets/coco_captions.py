@@ -201,7 +201,7 @@ class RandomResizedCropAndInterpolationWithTwoPic:
             )
 
 
-class COCOCaptions(FairseqDataset):
+class COCOCaptionsPlots(FairseqDataset):
     def __init__(
         self,
         root: str,
@@ -381,6 +381,228 @@ class COCOCaptions(FairseqDataset):
             return {}
 
         collated_img = torch.stack([s[self.key] for s in samples], dim=0)
+
+        res = {
+            "id": torch.LongTensor([s["id"] for s in samples]),
+            "net_input": {
+                self.key: collated_img,
+            },
+        }
+
+        if "target" in samples[0]:
+            collated_target = torch.stack([s["target"] for s in samples], dim=0)
+            res["net_input"]["target"] = collated_target
+
+        if "precomputed_mask" in samples[0]:
+            collated_mask = torch.cat([s["precomputed_mask"] for s in samples], dim=0)
+            res["net_input"]["precomputed_mask"] = collated_mask
+
+        return res
+
+    def num_tokens(self, index):
+        return 1
+
+    def size(self, index):
+        return 1
+
+    @property
+    def sizes(self):
+        return np.full((len(self),), 1)
+
+    def ordered_indices(self):
+        """Return an ordered list of indices. Batches will be constructed based
+        on this order."""
+        if self.shuffle:
+            order = [np.random.permutation(len(self))]
+        else:
+            order = [np.arange(len(self))]
+
+        return order[0]
+    
+
+class COCOCaptions(FairseqDataset):
+    def __init__(
+        self,
+        root: str,
+        split: str,
+        input_size,
+        local_cache_path=None,
+        shuffle=True,
+        key="imgs",
+        beit_transforms=False,
+        no_transform=False,
+        compute_mask=False,
+        patch_size: int = 16,
+        mask_prob: float = 0.75,
+        mask_prob_adjust: float = 0,
+        mask_length: int = 1,
+        inverse_mask: bool = False,
+        expand_adjacent: bool = False,
+        mask_dropout: float = 0,
+        non_overlapping: bool = False,
+        require_same_masks: bool = True,
+        clone_batch: int = 1,
+        crop_scale:Tuple[float, float]=(0.08, 1.0),
+    ):
+        FairseqDataset.__init__(self)
+
+        self.shuffle = shuffle
+        self.key = key
+
+        self.loader = caching_loader(local_cache_path, datasets.folder.default_loader)
+
+        self.transform_source = None
+
+        # self.transform_source = transforms.ColorJitter(0.4, 0.4, 0.4)
+
+        if no_transform:
+            if input_size <= 224:
+                crop_pct = 224 / 256
+            else:
+                crop_pct = 1.0
+            size = int(input_size / crop_pct)
+
+            self.transform_train = transforms.Compose(
+                [
+                    transforms.Resize(size, interpolation=3),
+                    transforms.CenterCrop(input_size),
+                ]
+            )
+
+            self.transform_train = transforms.Resize((input_size, input_size))
+        elif beit_transforms:
+            beit_transform_list = []
+            beit_transform_list.append(transforms.ColorJitter(0.4, 0.4, 0.4))
+            beit_transform_list.extend(
+                [
+                    transforms.RandomHorizontalFlip(p=0.5),
+                    RandomResizedCropAndInterpolationWithTwoPic(
+                        size=input_size,
+                        second_size=None,
+                        interpolation="bicubic",
+                        second_interpolation=None,
+                        scale=crop_scale
+                    ),
+                ]
+            )
+            self.transform_train = transforms.Compose(beit_transform_list)
+        else:
+            self.transform_train = transforms.Compose(
+                [
+                    transforms.RandomResizedCrop(
+                        input_size, scale=crop_scale, interpolation=3
+                    ),  # 3 is bicubic
+                    transforms.RandomHorizontalFlip(),
+                ]
+            )
+        self.final_transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+            ]
+        )
+
+        assert '/karpathy' in root, 'Folder containing the images needs to start with "karpathy"!'
+        root = root + split + '/' # for 'karpathy_<dataset>' folder structure
+        folder_path = root.split('/karpathy')[0]
+
+        assert os.path.exists(folder_path + '/dataset_coco_karpathy.json'), f'File "dataset_coco_karpathy.json"\
+        not found in the folder {folder_path}!'
+
+        with open(folder_path + '/dataset_coco_karpathy.json') as f:
+            raw_meta_data = json.load(f)['images']
+
+        assert root[0]=='/', 'root should be an absolute path'
+        self.meta_data = []
+        for meta_for_example in raw_meta_data:
+            if meta_for_example['split'] == split:
+                # convert the absolute path for reading
+                meta_for_example['full_path'] = root + meta_for_example['filename']
+                self.meta_data.append(meta_for_example)
+
+        logger.info(
+            f"initial transform: {self.transform_train}, "
+            f"source transform: {self.transform_source}, "
+            f"final transform: {self.final_transform}"
+        )
+        logger.info(f"loaded {len(self.meta_data)} examples")
+
+        self.is_compute_mask = compute_mask
+        self.patches = (input_size // patch_size) ** 2
+        self.mask_prob = mask_prob
+        self.mask_prob_adjust = mask_prob_adjust
+        self.mask_length = mask_length
+        self.inverse_mask = inverse_mask
+        self.expand_adjacent = expand_adjacent
+        self.mask_dropout = mask_dropout
+        self.non_overlapping = non_overlapping
+        self.require_same_masks = require_same_masks
+        self.clone_batch = clone_batch
+
+    def __getitem__(self, index):
+        path = self.meta_data[index]['full_path']
+
+        if self.loader is not None:
+            img = self.loader(path)
+        else:
+            img = Image.open(path).convert("RGB")
+
+        captions = self.meta_data[index]['sentences']
+
+        img = self.transform_train(img)
+
+        source = None
+        if self.transform_source is not None:
+            source = self.final_transform(self.transform_source(img))
+
+        if source is None:
+            img = self.final_transform(img)
+
+        v = {"id": index, self.key: source if source is not None else img}
+        v["captions"] = captions
+
+        if self.is_compute_mask:
+            if self.mask_length == 1:
+                mask = compute_block_mask_1d(
+                    shape=(self.clone_batch, self.patches),
+                    mask_prob=self.mask_prob,
+                    mask_length=self.mask_length,
+                    mask_prob_adjust=self.mask_prob_adjust,
+                    inverse_mask=self.inverse_mask,
+                    require_same_masks=True,
+                )
+            else:
+                mask = compute_block_mask_2d(
+                    shape=(self.clone_batch, self.patches),
+                    mask_prob=self.mask_prob,
+                    mask_length=self.mask_length,
+                    mask_prob_adjust=self.mask_prob_adjust,
+                    inverse_mask=self.inverse_mask,
+                    require_same_masks=True,
+                    expand_adjcent=self.expand_adjacent,
+                    mask_dropout=self.mask_dropout,
+                    non_overlapping=self.non_overlapping,
+                )
+
+            v["precomputed_mask"] = mask
+
+        return v
+
+    def __len__(self):
+        return len(self.meta_data)
+
+    def collater(self, samples):
+        n_samples = len(samples)
+        if n_samples == 0:
+            return {}
+
+        collated_img = torch.stack([s[self.key] for s in samples], dim=0)
+
+        caption_idx = torch.randint(low=0, high=5, size=(n_samples,))
+
+        collated_tokens = [samples[i]['captions']['tokens'][caption_idx[i]] for i in range(n_samples)]
 
         res = {
             "id": torch.LongTensor([s["id"] for s in samples]),
