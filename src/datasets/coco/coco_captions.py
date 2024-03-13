@@ -285,8 +285,7 @@ class COCOCaptionsPlots(FairseqDataset):
             ]
         )
 
-        assert '/karpathy' in root, 'Folder containing the images needs to start with "karpathy"!'
-        root = root + split + '/' # for 'karpathy_<dataset>' folder structure
+        root = root + f'/karpathy_{split}/' # for 'karpathy_<dataset>' folder structure
         folder_path = root.split('/karpathy')[0]
 
         assert os.path.exists(folder_path + '/dataset_coco_karpathy.json'), f'File "dataset_coco_karpathy.json"\
@@ -503,9 +502,8 @@ class COCOCaptions(FairseqDataset):
                 ),
             ]
         )
-
-        assert '/karpathy' in root, 'Folder containing the images needs to start with "karpathy"!'
-        root = root + split + '/' # for 'karpathy_<dataset>' folder structure
+        
+        root = root + f'/karpathy_{split}/' # for 'karpathy_<dataset>' folder structure
         folder_path = root.split('/karpathy')[0]
 
         assert os.path.exists(folder_path + '/dataset_coco_karpathy.json'), f'File "dataset_coco_karpathy.json"\
@@ -602,7 +600,7 @@ class COCOCaptions(FairseqDataset):
 
         caption_idx = torch.randint(low=0, high=5, size=(n_samples,))
 
-        collated_tokens = [samples[i]['captions']['tokens'][caption_idx[i]] for i in range(n_samples)]
+        collated_tokens = [samples[i]['captions']['raw'][caption_idx[i]] for i in range(n_samples)]
 
         res = {
             "id": torch.LongTensor([s["id"] for s in samples]),
