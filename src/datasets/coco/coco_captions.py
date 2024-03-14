@@ -17,11 +17,12 @@ import os
 
 import torch
 
-from torchvision import datasets, transforms
+from torchvision import datasets
+from torchvision.transforms import v2 as transforms
 import torchvision.transforms.functional as F
 from PIL import Image
-from fairseq.data import FairseqDataset
-from data_utils import compute_block_mask_1d, compute_block_mask_2d
+from fairseq.data import FairseqDataset, Dictionary, data_utils
+from multiprocessing_bpe_encoder import BPEEncoder
 
 from shutil import copyfile
 
@@ -347,7 +348,7 @@ class COCOCaptionsPlots(FairseqDataset):
 
         if self.is_compute_mask:
             if self.mask_length == 1:
-                mask = compute_block_mask_1d(
+                mask = data_utils.compute_block_mask_1d(
                     shape=(self.clone_batch, self.patches),
                     mask_prob=self.mask_prob,
                     mask_length=self.mask_length,
@@ -356,7 +357,7 @@ class COCOCaptionsPlots(FairseqDataset):
                     require_same_masks=True,
                 )
             else:
-                mask = compute_block_mask_2d(
+                mask = data_utils.compute_block_mask_2d(
                     shape=(self.clone_batch, self.patches),
                     mask_prob=self.mask_prob,
                     mask_length=self.mask_length,
@@ -428,6 +429,7 @@ class COCOCaptions(FairseqDataset):
         local_cache_path=None,
         shuffle=True,
         key="imgs",
+        transform_jitter=False,
         beit_transforms=False,
         no_transform=False,
         compute_mask=False,
@@ -442,6 +444,7 @@ class COCOCaptions(FairseqDataset):
         require_same_masks: bool = True,
         clone_batch: int = 1,
         crop_scale:Tuple[float, float]=(0.08, 1.0),
+        tokens_per_sample: int = 512,
     ):
         FairseqDataset.__init__(self)
 
@@ -450,9 +453,9 @@ class COCOCaptions(FairseqDataset):
 
         self.loader = caching_loader(local_cache_path, datasets.folder.default_loader)
 
-        self.transform_source = None
-
-        # self.transform_source = transforms.ColorJitter(0.4, 0.4, 0.4)
+        self.transform_jitter = None
+        if transform_jitter:
+            self.transform_jitter = transforms.ColorJitter(0.4, 0.4, 0.4)
 
         if no_transform:
             if input_size <= 224:
@@ -496,13 +499,16 @@ class COCOCaptions(FairseqDataset):
             )
         self.final_transform = transforms.Compose(
             [
-                transforms.ToTensor(),
+                transforms.ToDtype(torch.float32, scale=True),
                 transforms.Normalize(
                     mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
                 ),
             ]
         )
-        
+
+        self.to_tensor = transforms.ToImage()
+
+        root_original = root
         root = root + f'/karpathy_{split}/' # for 'karpathy_<dataset>' folder structure
         folder_path = root.split('/karpathy')[0]
 
@@ -522,7 +528,7 @@ class COCOCaptions(FairseqDataset):
 
         logger.info(
             f"initial transform: {self.transform_train}, "
-            f"source transform: {self.transform_source}, "
+            f"jitter transform: {self.transform_jitter}, "
             f"final transform: {self.final_transform}"
         )
         logger.info(f"loaded {len(self.meta_data)} examples")
@@ -539,6 +545,12 @@ class COCOCaptions(FairseqDataset):
         self.require_same_masks = require_same_masks
         self.clone_batch = clone_batch
 
+        encoder_json_path = os.path.join(root_original, "encoder.json")
+        vocab_bpe_path = os.path.join(root_original, "vocab.bpe")
+        self.bpe_encoder = BPEEncoder(encoder_json_path, vocab_bpe_path)
+        self.dictionary = Dictionary.load(os.path.join(root_original, "dict.txt"))
+        self.tokens_per_sample = tokens_per_sample
+
     def __getitem__(self, index):
         path = self.meta_data[index]['full_path']
 
@@ -551,19 +563,13 @@ class COCOCaptions(FairseqDataset):
 
         img = self.transform_train(img)
 
-        source = None
-        if self.transform_source is not None:
-            source = self.final_transform(self.transform_source(img))
 
-        if source is None:
-            img = self.final_transform(img)
-
-        v = {"id": index, self.key: source if source is not None else img}
+        v = {"id": index, self.key: img}
         v["captions"] = captions
 
         if self.is_compute_mask:
             if self.mask_length == 1:
-                mask = compute_block_mask_1d(
+                mask = data_utils.compute_block_mask_1d(
                     shape=(self.clone_batch, self.patches),
                     mask_prob=self.mask_prob,
                     mask_length=self.mask_length,
@@ -572,7 +578,7 @@ class COCOCaptions(FairseqDataset):
                     require_same_masks=True,
                 )
             else:
-                mask = compute_block_mask_2d(
+                mask = data_utils.compute_block_mask_2d(
                     shape=(self.clone_batch, self.patches),
                     mask_prob=self.mask_prob,
                     mask_length=self.mask_length,
@@ -596,26 +602,55 @@ class COCOCaptions(FairseqDataset):
         if n_samples == 0:
             return {}
 
-        collated_img = torch.stack([s[self.key] for s in samples], dim=0)
+        collated_img = torch.stack([self.to_tensor(s[self.key]) for s in samples], dim=0)
+
+        collated_img = self.transform_train(collated_img)
+
+        if self.transform_jitter is not None:
+            collated_img = self.final_transform(self.transform_jitter(collated_img))
+        else:
+            collated_img = self.final_transform(collated_img)
 
         caption_idx = torch.randint(low=0, high=5, size=(n_samples,))
 
-        collated_tokens = [samples[i]['captions']['raw'][caption_idx[i]] for i in range(n_samples)]
+        text = [samples[i]['captions'][caption_idx[i]]['raw'] for i in range(n_samples)]
+        text_encoded = self.bpe_encoder.encode_lines(text, tokens_per_sample=self.tokens_per_sample-1) # one less for beginning-of-sentence token
+        # text_encoded is now a list of tensors, each tensor is a list of token ids
+
+        # padding
+        text_encoded = data_utils.collate_tokens(text_encoded, self.dictionary.pad(), left_pad=False)
+        
+        bos_tensor = torch.full((n_samples, 1), self.dictionary.bos())
+
+        text_encoded = torch.cat([bos_tensor, text_encoded], dim=1) # add beginning-of-sentence token
+
+        padding_mask = text_encoded == self.dictionary.pad()
+
+        switch = torch.randint(low=0, high=2, size=(1,)).bool().item() # 2 is exclusive
+
+        
+        if switch:
+            net_input = {
+                "teacher": text_encoded,
+                "student": collated_img,
+                "padding_mask": padding_mask,
+                "teacher_caption": switch,
+        }
+        else:
+            net_input = {
+                "teacher": collated_img,
+                "student": text_encoded,
+                "padding_mask": padding_mask,
+                "teacher_caption": switch,
+        }
+        if self.is_compute_mask:
+            collated_mask = torch.cat([s["precomputed_mask"] for s in samples], dim=0)
+            net_input["precomputed_mask"] = collated_mask
 
         res = {
             "id": torch.LongTensor([s["id"] for s in samples]),
-            "net_input": {
-                self.key: collated_img,
-            },
+            "net_input": net_input,
         }
-
-        if "target" in samples[0]:
-            collated_target = torch.stack([s["target"] for s in samples], dim=0)
-            res["net_input"]["target"] = collated_target
-
-        if "precomputed_mask" in samples[0]:
-            collated_mask = torch.cat([s["precomputed_mask"] for s in samples], dim=0)
-            res["net_input"]["precomputed_mask"] = collated_mask
 
         return res
 
