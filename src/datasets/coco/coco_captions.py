@@ -445,6 +445,7 @@ class COCOCaptions(FairseqDataset):
         clone_batch: int = 1,
         crop_scale:Tuple[float, float]=(0.08, 1.0),
         tokens_per_sample: int = 512,
+        switch_target: bool = False,
     ):
         FairseqDataset.__init__(self)
 
@@ -551,6 +552,8 @@ class COCOCaptions(FairseqDataset):
         self.dictionary = Dictionary.load(os.path.join(root_original, "dict.txt"))
         self.tokens_per_sample = tokens_per_sample
 
+        self.switch_target = switch_target
+
     def __getitem__(self, index):
         path = self.meta_data[index]['full_path']
 
@@ -626,23 +629,31 @@ class COCOCaptions(FairseqDataset):
 
         padding_mask = text_encoded == self.dictionary.pad()
 
-        switch = torch.randint(low=0, high=2, size=(1,)).bool().item() # 2 is exclusive
+        if self.switch_target:
+            switch = torch.randint(low=0, high=2, size=(1,)).bool().item() # 2 is exclusive
 
-        
-        if switch:
-            net_input = {
-                "teacher": text_encoded,
-                "student": collated_img,
-                "padding_mask": padding_mask,
-                "teacher_caption": switch,
-        }
+            if switch:
+                net_input = {
+                    "teacher": text_encoded,
+                    "student": collated_img,
+                    "padding_mask": padding_mask,
+                    "teacher_caption": switch,
+                }
+            else:
+                net_input = {
+                    "teacher": collated_img,
+                    "student": text_encoded,
+                    "padding_mask": padding_mask,
+                    "teacher_caption": switch,
+                }
         else:
             net_input = {
                 "teacher": collated_img,
                 "student": text_encoded,
                 "padding_mask": padding_mask,
-                "teacher_caption": switch,
-        }
+                "teacher_caption": False,
+            }
+
         if self.is_compute_mask:
             collated_mask = torch.cat([s["precomputed_mask"] for s in samples], dim=0)
             net_input["precomputed_mask"] = collated_mask
