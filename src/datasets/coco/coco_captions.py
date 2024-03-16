@@ -445,12 +445,13 @@ class COCOCaptions(FairseqDataset):
         clone_batch: int = 1,
         crop_scale:Tuple[float, float]=(0.08, 1.0),
         tokens_per_sample: int = 512,
-        switch_target: bool = False,
     ):
         FairseqDataset.__init__(self)
 
         self.shuffle = shuffle
         self.key = key
+
+        self.split = split
 
         self.loader = caching_loader(local_cache_path, datasets.folder.default_loader)
 
@@ -510,7 +511,7 @@ class COCOCaptions(FairseqDataset):
         self.to_tensor = transforms.ToImage()
 
         root_original = root
-        root = root + f'/karpathy_{split}/' # for 'karpathy_<dataset>' folder structure
+        root = root + f'/karpathy_{self.split}/' # for 'karpathy_<dataset>' folder structure
         folder_path = root.split('/karpathy')[0]
 
         assert os.path.exists(folder_path + '/dataset_coco_karpathy.json'), f'File "dataset_coco_karpathy.json"\
@@ -522,7 +523,7 @@ class COCOCaptions(FairseqDataset):
         assert root[0]=='/', 'root should be an absolute path'
         self.meta_data = []
         for meta_for_example in raw_meta_data:
-            if meta_for_example['split'] == split:
+            if meta_for_example['split'] == self.split:
                 # convert the absolute path for reading
                 meta_for_example['full_path'] = root + meta_for_example['filename']
                 self.meta_data.append(meta_for_example)
@@ -551,8 +552,6 @@ class COCOCaptions(FairseqDataset):
         self.bpe_encoder = BPEEncoder(encoder_json_path, vocab_bpe_path)
         self.dictionary = Dictionary.load(os.path.join(root_original, "dict.txt"))
         self.tokens_per_sample = tokens_per_sample
-
-        self.switch_target = switch_target
 
     def __getitem__(self, index):
         path = self.meta_data[index]['full_path']
@@ -629,30 +628,11 @@ class COCOCaptions(FairseqDataset):
 
         padding_mask = text_encoded == self.dictionary.pad()
 
-        if self.switch_target:
-            switch = torch.randint(low=0, high=2, size=(1,)).bool().item() # 2 is exclusive
-
-            if switch:
-                net_input = {
-                    "teacher": text_encoded,
-                    "student": collated_img,
-                    "padding_mask": padding_mask,
-                    "teacher_caption": switch,
-                }
-            else:
-                net_input = {
-                    "teacher": collated_img,
-                    "student": text_encoded,
-                    "padding_mask": padding_mask,
-                    "teacher_caption": switch,
-                }
-        else:
-            net_input = {
-                "teacher": collated_img,
-                "student": text_encoded,
-                "padding_mask": padding_mask,
-                "teacher_caption": False,
-            }
+        net_input = {
+            "text": text_encoded,
+            "image": collated_img,
+            "padding_mask": padding_mask,
+        }
 
         if self.is_compute_mask:
             collated_mask = torch.cat([s["precomputed_mask"] for s in samples], dim=0)
