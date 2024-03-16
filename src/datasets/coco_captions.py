@@ -7,7 +7,6 @@
 from functools import partial
 from typing import Tuple
 import logging
-import math
 import random
 import time
 import json
@@ -19,10 +18,10 @@ import torch
 
 from torchvision import datasets
 from torchvision.transforms import v2 as transforms
-import torchvision.transforms.functional as F
 from PIL import Image
 from fairseq.data import FairseqDataset, Dictionary, data_utils
-from multiprocessing_bpe_encoder import BPEEncoder
+from bpe_encoder import BPEEncoder
+from multimodal import BaseImageText
 
 from shutil import copyfile
 
@@ -68,138 +67,6 @@ def caching_loader(cache_root: str, loader):
         cache_root += "/"
 
     return partial(load, loader=loader, cache=cache_root)
-
-
-class RandomResizedCropAndInterpolationWithTwoPic:
-    """Crop the given PIL Image to random size and aspect ratio with random interpolation.
-
-    A crop of random size (default: of 0.08 to 1.0) of the original size and a random
-    aspect ratio (default: of 3/4 to 4/3) of the original aspect ratio is made. This crop
-    is finally resized to given size.
-    This is popularly used to train the Inception networks.
-
-    Args:
-        size: expected output size of each edge
-        scale: range of size of the origin size cropped
-        ratio: range of aspect ratio of the origin aspect ratio cropped
-        interpolation: Default: PIL.Image.BILINEAR
-    """
-
-    def __init__(
-        self,
-        size,
-        second_size=None,
-        scale=(0.08, 1.0),
-        ratio=(3.0 / 4.0, 4.0 / 3.0),
-        interpolation="bilinear",
-        second_interpolation="lanczos",
-    ):
-        if isinstance(size, tuple):
-            self.size = size
-        else:
-            self.size = (size, size)
-        if second_size is not None:
-            if isinstance(second_size, tuple):
-                self.second_size = second_size
-            else:
-                self.second_size = (second_size, second_size)
-        else:
-            self.second_size = None
-        if (scale[0] > scale[1]) or (ratio[0] > ratio[1]):
-            logger.warning("range should be of kind (min, max)")
-
-        if interpolation == "random":
-            from PIL import Image
-
-            self.interpolation = (Image.BILINEAR, Image.BICUBIC)
-        else:
-            self.interpolation = self._pil_interp(interpolation)
-
-        self.second_interpolation = (
-            self._pil_interp(second_interpolation)
-            if second_interpolation is not None
-            else None
-        )
-        self.scale = scale
-        self.ratio = ratio
-
-    def _pil_interp(self, method):
-        from PIL import Image
-
-        if method == "bicubic":
-            return Image.BICUBIC
-        elif method == "lanczos":
-            return Image.LANCZOS
-        elif method == "hamming":
-            return Image.HAMMING
-        else:
-            # default bilinear, do we want to allow nearest?
-            return Image.BILINEAR
-
-    @staticmethod
-    def get_params(img, scale, ratio):
-        """Get parameters for ``crop`` for a random sized crop.
-
-        Args:
-            img (PIL Image): Image to be cropped.
-            scale (tuple): range of size of the origin size cropped
-            ratio (tuple): range of aspect ratio of the origin aspect ratio cropped
-
-        Returns:
-            tuple: params (i, j, h, w) to be passed to ``crop`` for a random
-                sized crop.
-        """
-        area = img.size[0] * img.size[1]
-
-        for attempt in range(10):
-            target_area = random.uniform(*scale) * area
-            log_ratio = (math.log(ratio[0]), math.log(ratio[1]))
-            aspect_ratio = math.exp(random.uniform(*log_ratio))
-
-            w = int(round(math.sqrt(target_area * aspect_ratio)))
-            h = int(round(math.sqrt(target_area / aspect_ratio)))
-
-            if w <= img.size[0] and h <= img.size[1]:
-                i = random.randint(0, img.size[1] - h)
-                j = random.randint(0, img.size[0] - w)
-                return i, j, h, w
-
-        # Fallback to central crop
-        in_ratio = img.size[0] / img.size[1]
-        if in_ratio < min(ratio):
-            w = img.size[0]
-            h = int(round(w / min(ratio)))
-        elif in_ratio > max(ratio):
-            h = img.size[1]
-            w = int(round(h * max(ratio)))
-        else:  # whole image
-            w = img.size[0]
-            h = img.size[1]
-        i = (img.size[1] - h) // 2
-        j = (img.size[0] - w) // 2
-        return i, j, h, w
-
-    def __call__(self, img):
-        """
-        Args:
-            img (PIL Image): Image to be cropped and resized.
-
-        Returns:
-            PIL Image: Randomly cropped and resized image.
-        """
-        i, j, h, w = self.get_params(img, self.scale, self.ratio)
-        if isinstance(self.interpolation, (tuple, list)):
-            interpolation = random.choice(self.interpolation)
-        else:
-            interpolation = self.interpolation
-        if self.second_size is None:
-            return F.resized_crop(img, i, j, h, w, self.size, interpolation)
-        else:
-            return F.resized_crop(
-                img, i, j, h, w, self.size, interpolation
-            ), F.resized_crop(
-                img, i, j, h, w, self.second_size, self.second_interpolation
-            )
 
 
 class COCOCaptionsPlots(FairseqDataset):
@@ -420,7 +287,7 @@ class COCOCaptionsPlots(FairseqDataset):
         return order[0]
     
 
-class COCOCaptions(FairseqDataset):
+class COCOCaptions_(FairseqDataset):
     def __init__(
         self,
         root: str,
@@ -428,7 +295,6 @@ class COCOCaptions(FairseqDataset):
         input_size,
         local_cache_path=None,
         shuffle=True,
-        key="imgs",
         transform_jitter=False,
         beit_transforms=False,
         no_transform=False,
@@ -449,7 +315,6 @@ class COCOCaptions(FairseqDataset):
         FairseqDataset.__init__(self)
 
         self.shuffle = shuffle
-        self.key = key
 
         self.split = split
 
@@ -528,11 +393,6 @@ class COCOCaptions(FairseqDataset):
                 meta_for_example['full_path'] = root + meta_for_example['filename']
                 self.meta_data.append(meta_for_example)
 
-        logger.info(
-            f"initial transform: {self.transform_train}, "
-            f"jitter transform: {self.transform_jitter}, "
-            f"final transform: {self.final_transform}"
-        )
         logger.info(f"loaded {len(self.meta_data)} examples")
 
         self.is_compute_mask = compute_mask
@@ -563,10 +423,7 @@ class COCOCaptions(FairseqDataset):
 
         captions = self.meta_data[index]['sentences']
 
-        img = self.transform_train(img)
-
-
-        v = {"id": index, self.key: img}
+        v = {"id": index, 'img': img}
         v["captions"] = captions
 
         if self.is_compute_mask:
@@ -604,14 +461,9 @@ class COCOCaptions(FairseqDataset):
         if n_samples == 0:
             return {}
 
-        collated_img = torch.stack([self.to_tensor(s[self.key]) for s in samples], dim=0)
+        collated_img = torch.stack([self.to_tensor(s['img']) for s in samples], dim=0)
 
-        collated_img = self.transform_train(collated_img)
-
-        if self.transform_jitter is not None:
-            collated_img = self.final_transform(self.transform_jitter(collated_img))
-        else:
-            collated_img = self.final_transform(collated_img)
+        collated_img = self.transform(collated_img)
 
         caption_idx = torch.randint(low=0, high=5, size=(n_samples,))
 
@@ -664,3 +516,38 @@ class COCOCaptions(FairseqDataset):
             order = [np.arange(len(self))]
 
         return order[0]
+    
+
+class COCOCaptions(BaseImageText):
+
+    def __init__(self, data_path, split, num_max_bpe_tokens, task, crop_scale=(0.6, 1.0)):
+        super().__init__(
+            data_path=data_path, split=split,
+            num_max_bpe_tokens=num_max_bpe_tokens, task=task, crop_scale=crop_scale
+        )
+
+    @staticmethod
+    def get_index_files(split, task=None):
+        if split == "train":
+            return ("coco_captioning.train.jsonl", )
+        elif split == "val":
+            return (f"{task}.val.jsonl", )
+        elif split == "test":
+            return (f"{task}.test.jsonl", )
+        else:
+            raise RuntimeError("split %s is not found!" % split)
+
+    def __getitem__(self, index: int):
+        data = dict()
+        item = self.items[index]
+        img_path = item["image_path"]
+        img = self._get_image(img_path)
+        data["image"] = img
+        data["image_id"] = item["image_id"]
+
+        text_segment = item["text_segment"]
+        if text_segment is not None:
+            language_tokens, padding_mask, _ = self._get_text_segment(text_segment)
+            data["language_tokens"] = language_tokens
+            data["padding_mask"] = padding_mask
+        return data
