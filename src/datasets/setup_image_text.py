@@ -227,6 +227,48 @@ def make_nocaps_captioning_dataset_index(data_path):
     _make_nocaps_dataset_index(data_path, split="val")
     _make_nocaps_dataset_index(data_path, split="test")
 
+
+def _get_index_files(split, task=None):
+    if split == "train":
+        return ("nlvr2.train.index.jsonl", )
+    elif split == "val":
+        return ("nlvr2.dev.index.jsonl", )
+    elif split == "test":
+        return ("nlvr2.test-P.index.jsonl", )
+    else:
+        raise RuntimeError("split %s is not found!" % split)
+
+def _preprocess_json(preifx, json_file, bpe_encoder, index_file):
+    items = []
+    with open(json_file, mode="r", encoding="utf-8") as reader:
+        for line in reader:
+            data = json.loads(line)
+            path = os.path.join(preifx, str(data["directory"])) if "directory" in data else preifx
+            path = os.path.join(path, "-".join(data["identifier"].split("-")[:-1]))
+            token_ids = bpe_encoder.encode(data["sentence"])
+            items.append({
+                "image_path": path + "-img0.png",
+                "image2_path": path + "-img1.png",
+                "text_segment": token_ids,
+                "label": 1 if data["label"] == "True" else 0,
+                "identifier": data["identifier"], 
+            })
+    _write_data_into_jsonl(items, index_file)
+
+def make_dataset_index(data_path, bpe_encoder, nlvr_repo_path):
+    _preprocess_json(
+        preifx="images/train", json_file=os.path.join(nlvr_repo_path, "nlvr2/data/train.json"), 
+        bpe_encoder=bpe_encoder, index_file=os.path.join(data_path, _get_index_files("train")[0]), 
+    )
+    _preprocess_json(
+        preifx="dev", json_file=os.path.join(nlvr_repo_path, "nlvr2/data/dev.json"), 
+        bpe_encoder=bpe_encoder, index_file=os.path.join(data_path, _get_index_files("val")[0]), 
+    )
+    _preprocess_json(
+        preifx="test1", json_file=os.path.join(nlvr_repo_path, "nlvr2/data/test1.json"), 
+        bpe_encoder=bpe_encoder, index_file=os.path.join(data_path, _get_index_files("test")[0]), 
+    )
+
 if __name__ == "__main__":
     encoder_json_path = os.path.join(COCO_CAPTIONS_PATH, "encoder.json")
     vocab_bpe_path = os.path.join(COCO_CAPTIONS_PATH, "vocab.bpe")
