@@ -15,3 +15,14 @@ ImageNet Subset:
 
 Russakovsky, O., Deng, J., Su, H. et al. ImageNet Large Scale Visual Recognition Challenge. Int J Comput Vis 115, 211–252 (2015). https://doi.org/10.1007/s11263-015-0816-y
 
+
+GLUE:
+
+@inproceedings{wang2019glue,
+     title={{GLUE}: A Multi-Task Benchmark and Analysis Platform for Natural Language Understanding},
+     author={Wang, Alex and Singh, Amanpreet and Michael, Julian and Hill, Felix and Levy, Omer and Bowman, Samuel R.},
+     note={In the Proceedings of ICLR.},
+     year={2019}
+ }
+
+Datasets of GLUE:
