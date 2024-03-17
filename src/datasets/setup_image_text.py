@@ -4,14 +4,16 @@ import json
 import random
 import glob
 from collections import defaultdict, Counter
+from tqdm import tqdm
 
 import sys
 sys.path.append('../../')
-from config import COCO_CAPTIONS_PATH
+from config import COCO_CAPTIONS_PATH, VG_PATH
 from src.datasets.bpe_encoder import BPEEncoder
 from src.datasets.data_utils import _write_data_into_jsonl
 from src.datasets.vqa.glossary import normalize_word
 
+# --------------------- VQA ---------------------
 
 def get_score(occurences):
     if occurences == 0:
@@ -180,6 +182,7 @@ def make_vqa_dataset_index(data_path, bpe_encoder, annotation_data_path):
                 }
                 writer.write("%s\n" % json.dumps(to_json))
 
+# --------------------- COCO ---------------------
 
 def _make_captioning_coco_karpathy_dataset_index(
         data_path, 
@@ -228,6 +231,8 @@ def make_nocaps_captioning_dataset_index(data_path):
     _make_nocaps_dataset_index(data_path, split="test")
 
 
+# --------------------- NLVR2 ---------------------
+
 def _get_index_files(split, task=None):
     if split == "train":
         return ("nlvr2.train.index.jsonl", )
@@ -269,9 +274,38 @@ def make_dataset_index(data_path, bpe_encoder, nlvr_repo_path):
         bpe_encoder=bpe_encoder, index_file=os.path.join(data_path, _get_index_files("test")[0]), 
     )
 
+# --------------------- Visual Genome ---------------------
+    
+def make_visual_genome_dataset_index(data_path, bpe_encoder, visual_genome_path):
+    with open(os.path.join(data_path, "region_descriptions.json"), "r") as fp:
+        region_descriptions = json.load(fp)
+
+    items = []
+
+    for image_meta in tqdm(region_descriptions, total=len(region_descriptions)):
+        image_path = os.path.join(visual_genome_path, "VG_100K", f"{image_meta["id"]}.jpg")
+        caption = ""
+        for region in image_meta["regions"]:
+            caption += region["phrase"] + " "
+        
+        token_ids = bpe_encoder.encode(region["phrase"])
+        # truncation will also be done when reading the data, but there we also substract 2 for the special tokens
+        # so we already do it here to save time and memory
+        token_ids = token_ids[:512 - 2]
+        items.append({
+            "image_path": image_path, 
+            "text_segment": token_ids,
+            "image_id": image_meta["id"], 
+        })
+
+    _write_data_into_jsonl(items, os.path.join(data_path, "visual_genome.jsonl"))
+    
+
 if __name__ == "__main__":
     encoder_json_path = os.path.join(COCO_CAPTIONS_PATH, "encoder.json")
     vocab_bpe_path = os.path.join(COCO_CAPTIONS_PATH, "vocab.bpe")
     bpe_encoder = BPEEncoder(encoder_json_path, vocab_bpe_path)
     # make_vqa_dataset_index(data_path=COCO_CAPTIONS_PATH, bpe_encoder=bpe_encoder, annotation_data_path=VQA_CAPTIONS_PATH)
     make_coco_captioning_dataset_index(data_path=COCO_CAPTIONS_PATH, bpe_encoder=bpe_encoder)
+
+    make_visual_genome_dataset_index(data_path=VG_PATH, bpe_encoder=bpe_encoder, visual_genome_path=VG_PATH)

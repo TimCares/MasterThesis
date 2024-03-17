@@ -1,0 +1,17 @@
+Visual Genome:
+
+Krishna, R., Zhu, Y., Groth, O. et al. Visual Genome: Connecting Language and Vision Using Crowdsourced Dense Image Annotations. Int J Comput Vis 123, 32–73 (2017). https://doi.org/10.1007/s11263-016-0981-7
+
+OpenWebTextCorpus:
+
+@misc{Gokaslan2019OpenWeb,  
+	title={OpenWebText Corpus},
+	author={Aaron Gokaslan and Vanya Cohen},
+	howpublished={\url{http://Skylion007.github.io/OpenWebTextCorpus}}, 
+	year={2019}
+}
+
+ImageNet Subset:
+
+Russakovsky, O., Deng, J., Su, H. et al. ImageNet Large Scale Visual Recognition Challenge. Int J Comput Vis 115, 211–252 (2015). https://doi.org/10.1007/s11263-015-0816-y
+
