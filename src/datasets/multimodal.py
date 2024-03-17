@@ -3,7 +3,6 @@ import json
 import torch
 import numpy as np
 from fairseq.data import FairseqDataset, Dictionary
-from torchvision.transforms import v2 as transforms
 from torchvision.datasets.folder import default_loader
 from data_utils import get_transforms
 from bpe_encoder import BPEEncoder
@@ -14,7 +13,6 @@ class BaseImageText(FairseqDataset):
         data_path,
         split,
         num_max_bpe_tokens,
-        input_size,
         transform_jitter=False,
         beit_transforms=False,
         no_transform=False,
@@ -48,12 +46,10 @@ class BaseImageText(FairseqDataset):
         self.eos_token_id = self.dictionary.eos()
         self.pad_token_id = self.dictionary.pad()
         self.loader = default_loader
-        self.transform = get_transforms(input_size=input_size,
-                                        no_transform=no_transform,
+        self.transform = get_transforms(no_transform=no_transform,
                                         beit_transforms=beit_transforms,
                                         transform_jitter=transform_jitter,
                                         crop_scale=crop_scale)
-        self.to_image = transforms.ToImage()
         self.split = split
 
     @staticmethod
@@ -125,7 +121,6 @@ class BaseImageText(FairseqDataset):
             else:
                 batch_tensors[tensor_key] = torch.tensor([d[tensor_key] for d in samples], dtype=torch.long)
 
-        batch_tensors['image'] = self.transform(batch_tensors['image'])
         return batch_tensors
     
     def num_tokens(self, index):

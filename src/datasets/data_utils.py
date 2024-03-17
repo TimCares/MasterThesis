@@ -145,28 +145,21 @@ class RandomResizedCropAndInterpolationWithTwoPic:
                 img, i, j, h, w, self.second_size, self.second_interpolation
             )
 
-def get_transforms(input_size, no_transform=False, beit_transforms=False,
+def get_transforms(no_transform=False, beit_transforms=False,
                    transform_jitter=False, crop_scale=(0.08, 1.0)):
-    to_image = transforms.ToImage()
+    
+    transform_prepare = transforms.Compose(
+            [
+                transforms.ToImage(),
+                transforms.ToDtype(torch.uint8, scale=True),
+            ]
+    )
 
     if transform_jitter:
         transform_jitter = transforms.ColorJitter(0.4, 0.4, 0.4)
 
     if no_transform:
-        if input_size <= 224:
-            crop_pct = 224 / 256
-        else:
-            crop_pct = 1.0
-        size = int(input_size / crop_pct)
-
-        transform_train = transforms.Compose(
-            [
-                transforms.Resize(size, interpolation=3),
-                transforms.CenterCrop(input_size),
-            ]
-        )
-
-        transform_train = transforms.Resize((input_size, input_size))
+        transform_train = transforms.Resize((224, 224))
     elif beit_transforms:
         beit_transform_list = []
         beit_transform_list.append(transforms.ColorJitter(0.4, 0.4, 0.4))
@@ -174,7 +167,7 @@ def get_transforms(input_size, no_transform=False, beit_transforms=False,
             [
                 transforms.RandomHorizontalFlip(p=0.5),
                 RandomResizedCropAndInterpolationWithTwoPic(
-                    size=input_size,
+                    size=(224, 224),
                     second_size=None,
                     interpolation="bicubic",
                     second_interpolation=None,
@@ -187,7 +180,7 @@ def get_transforms(input_size, no_transform=False, beit_transforms=False,
         transform_train = transforms.Compose(
             [
                 transforms.RandomResizedCrop(
-                    input_size, scale=crop_scale, interpolation=3
+                    size=(224, 224), scale=crop_scale, interpolation=3
                 ),  # 3 is bicubic
                 transforms.RandomHorizontalFlip(),
             ]
@@ -204,11 +197,11 @@ def get_transforms(input_size, no_transform=False, beit_transforms=False,
     if transform_jitter:
         return transforms.Compose(
             [
-                to_image,
+                transform_prepare,
                 transform_train,
                 transform_jitter,
                 final_transform,
             ]
         )
     else:
-        return transforms.Compose([to_image, transform_train, final_transform])
+        return transforms.Compose([transform_prepare, transform_train, final_transform])
