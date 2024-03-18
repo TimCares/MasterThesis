@@ -10,6 +10,10 @@ import IPython.display as ipd
 import matplotlib.pyplot as plt
 import math
 from config import DATA_PATH
+import os
+import json
+import numpy as np
+from fairseq.data import FairseqDataset
 
 logging.basicConfig(
     level=logging.INFO,
@@ -191,3 +195,55 @@ def get_librispeech_dataset(spectrogram:bool=True, scale:bool=False, dataset:str
             return X, batch
         
         return DataLoader(librispeech, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, collate_fn=collate_fn)
+    
+
+
+
+class SeperateModalitiesDataset(FairseqDataset):
+    def __init__(
+        self,
+    ):
+        FairseqDataset.__init__(self)
+        image_dataset = None
+        text_dataset = None
+        audio_dataset = None
+        self.datasets = [image_dataset, text_dataset, audio_dataset]
+        self.total_length = sum([len(d) for d in self.datasets])
+        self.dataset_index = 0
+        self.batch_size = None
+        
+
+    def __getitem__(self, index):
+        dataset = self.datasets[self.dataset_index]
+        self.dataset_index = self.dataset_index % 3
+        item = dataset[index % len(dataset)]
+        return item
+    
+    def collater(self, samples):
+        return self.datasets[self.dataset_index].collater(samples)
+
+    def __len__(self) -> int:
+        return self.total_length
+
+    def __repr__(self) -> str:
+        pass
+    
+    def num_tokens(self, index):
+        return 1
+
+    def size(self, index):
+        return 1
+
+    @property
+    def sizes(self):
+        return np.full((len(self),), 1)
+
+    def ordered_indices(self):
+        """Return an ordered list of indices. Batches will be constructed based
+        on this order."""
+        if self.shuffle:
+            order = [np.random.permutation(len(self))]
+        else:
+            order = [np.arange(len(self))]
+
+        return order[0]
