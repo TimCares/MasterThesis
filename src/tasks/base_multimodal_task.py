@@ -8,7 +8,7 @@ import numpy as np
 
 from fairseq.data.round_robin_zip_datasets import RoundRobinZipDatasets
 from fairseq.dataclass import FairseqDataclass
-from fairseq.tasks import FairseqTask, register_task
+from fairseq.tasks import FairseqTask, register_task, MaskedLMTask
 from fairseq.examples.data2vec.tasks.mae_image_pretraining import MaeImageDataset
 from fairseq.data import (
     Dictionary,
@@ -45,7 +45,7 @@ class ImageMaskingConfig:
 
 
 @dataclass
-class MultimodalPretrainingConfig(FairseqDataclass):
+class MultimodalPretrainingConfig(MaskedLMConfig):
     data: str = field(default=MISSING, metadata={"help": "path to data directory"})
     multi_data: Optional[List[str]] = None
     input_size: int = 224
@@ -66,7 +66,7 @@ class MultimodalPretrainingConfig(FairseqDataclass):
 
 
 @register_task("multi_modal_pretraining", dataclass=MultimodalPretrainingConfig)
-class MultimodalPretrainingTask(FairseqTask):
+class MultimodalPretrainingTask(MaskedLMTask):
     """ 
     Task for multimodal pretraining of data2vec in a round-robin fashion.
     """
@@ -74,7 +74,7 @@ class MultimodalPretrainingTask(FairseqTask):
     cfg: MultimodalPretrainingConfig
 
     @classmethod
-    def setup_task(cls, cfg: MultimodalPretrainingConfig, **kwargs):
+    def setup_task(cls, cfg: MultimodalPretrainingConfig, dictionary=None):
         """Setup the task (e.g., load dictionaries).
 
         Args:
@@ -153,9 +153,10 @@ class MultimodalPretrainingTask(FairseqTask):
         )
         logger.info("loaded {} blocks from: {}".format(len(dataset), split_path))
 
-        # prepend beginning-of-sentence token (<s>, equiv. to [CLS] in BERT)
+        # prepend beginning-of-sentence token
         dataset = PrependTokenDataset(dataset, self.source_dictionary.bos())
 
+        # append end-of-sentence token
         dataset = AppendTokenDataset(dataset, self.source_dictionary.eos())
 
         with data_utils.numpy_seed(self.cfg.seed):
