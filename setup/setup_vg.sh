@@ -1,6 +1,6 @@
 #!/bin/bash
 
-vg_dir="../../../data/vg"
+vg_dir="../data/vg"
 
 mkdir -p ${vg_dir}
 

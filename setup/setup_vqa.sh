@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "If not done already, please first run coco/setup.sh to download the COCO dataset."
+echo "If not done already, please first run setup_coco.sh to download the COCO dataset."
 
 curl -O http://images.cocodataset.org/zips/test2015.zip
 
@@ -38,8 +38,8 @@ unzip v2_Annotations_Val_mscoco.zip
 
 rm v2_Annotations_Val_mscoco.zip
 
-mkdir -p ../../../data/vqa
+mkdir -p ../data/vqa
 
-mv v2_* ../../../data/vqa
+mv v2_* ../data/vqa
 
-mv test2015 ../../../data/coco
+mv test2015 ../data/coco

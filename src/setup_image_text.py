@@ -11,7 +11,7 @@ sys.path.append('../../')
 from config import COCO_CAPTIONS_PATH, VG_PATH
 from src.datasets.bpe_encoder import BPEEncoder
 from src.datasets.data_utils import _write_data_into_jsonl
-from src.datasets.vqa.glossary import normalize_word
+from utils.glossary import normalize_word
 
 # --------------------- VQA ---------------------
 

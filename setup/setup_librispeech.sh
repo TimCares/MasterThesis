@@ -1,8 +1,6 @@
 #!/bin/bash
 
-data_dir="../../../data/"
-
-mkdir -p ${data_dir}
+data_dir="../data/"
 
 curl -O https://openslr.elda.org/resources/12/train-clean-100.tar.gz
 # curl -O https://openslr.elda.org/resources/12/train-clean-360.tar.gz
@@ -22,4 +20,4 @@ rm train-clean-100.tar.gz
 
 mv LibriSpeech ${data_dir}
 
-python wav2vec_manifest.py ${data_dir}LibriSpeech --dest ${data_dir}LibriSpeech --seed 42 --valid-percent 0
+python ../utils/wav2vec_manifest.py ${data_dir}LibriSpeech --dest ${data_dir}LibriSpeech --seed 42 --valid-percent 0

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-coco_dir="../../../data/coco"
+coco_dir="../data/coco"
 
 # Download the COCO dataset
 echo "Downloading the COCO dataset..."

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-coco_dir="../../../data/coco"
+coco_dir="../data/coco"
 
 # ----------- cc-100 dataset -----------
 
@@ -8,7 +8,7 @@ coco_dir="../../../data/coco"
 
 # ----------- enwik9 dataset -----------
 
-mkdir -p ../../../data/language/enwik9
+mkdir -p ../data/language/enwik9
 
 curl -O http://mattmahoney.net/dc/enwik9.zip
 
