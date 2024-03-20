@@ -261,9 +261,7 @@ class MaeImageDataset(FairseqDataset):
             raise Exception(f"invalid dataset type {dataset_type}")
 
         logger.info(
-            f"initial transform: {self.transform_train}, "
-            f"source transform: {self.transform_source}, "
-            f"final transform: {self.final_transform}"
+            f"transform: {self.transform}"
         )
         logger.info(f"loaded {len(self.dataset)} examples")
 
