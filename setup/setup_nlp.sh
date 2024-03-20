@@ -49,7 +49,7 @@ rm enwik9.bpe
 
 # tar -xvf openwebtext/*.xz
 
-python remove_empty_lines.py
+python clean_openwebtext.py
 
 python multiprocessing_bpe_encoder.py \
         --encoder-json ${coco_dir}/encoder.json \
