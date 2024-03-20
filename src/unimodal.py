@@ -256,8 +256,6 @@ class MaeImageDataset(FairseqDataset):
                 loader,
                 None,
                 None,
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225],
             )
         else:
             raise Exception(f"invalid dataset type {dataset_type}")
