@@ -149,7 +149,7 @@ class ImageDataset(BaseDataset):
             mask_args = precompute_mask_config  
         
         self.dataset = MaeImageDataset(
-                root=data_path if cfg.multi_data is None else cfg.multi_data,
+                root=data_path,
                 split=split,
                 input_size=(244, 244),
                 local_cache_path=local_cache_path,
