@@ -263,7 +263,6 @@ class MaeImageDataset(FairseqDataset):
         logger.info(
             f"initial transform: {self.transform_train}, "
             f"source transform: {self.transform_source}, "
-            f"target transform: {self.transform_target}, "
             f"final transform: {self.final_transform}"
         )
         logger.info(f"loaded {len(self.dataset)} examples")
