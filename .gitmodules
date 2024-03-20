@@ -4,3 +4,6 @@
 [submodule "src/facebook-mmf"]
 	path = src/facebook-mmf
 	url = https://github.com/TimCares/facebook-mmf.git
+[submodule "src/facebook-multimodal"]
+	path = src/facebook-multimodal
+	url = https://github.com/TimCares/facebook-multimodal.git
