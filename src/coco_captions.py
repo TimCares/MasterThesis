@@ -516,38 +516,3 @@ class COCOCaptions_(FairseqDataset):
             order = [np.arange(len(self))]
 
         return order[0]
-    
-
-class COCOCaptions(BaseImageText):
-
-    def __init__(self, data_path, split, num_max_bpe_tokens, task, crop_scale=(0.6, 1.0)):
-        super().__init__(
-            data_path=data_path, split=split,
-            num_max_bpe_tokens=num_max_bpe_tokens, task=task, crop_scale=crop_scale
-        )
-
-    @staticmethod
-    def get_index_files(split, task=None):
-        if split == "train":
-            return ("coco_captioning.train.jsonl", )
-        elif split == "val":
-            return (f"{task}.val.jsonl", )
-        elif split == "test":
-            return (f"{task}.test.jsonl", )
-        else:
-            raise RuntimeError("split %s is not found!" % split)
-
-    def __getitem__(self, index: int):
-        data = dict()
-        item = self.items[index]
-        img_path = item["image_path"]
-        img = self._get_image(img_path)
-        data["image"] = img
-        data["image_id"] = item["image_id"]
-
-        text_segment = item["text_segment"]
-        if text_segment is not None:
-            language_tokens, padding_mask, _ = self._get_text_segment(text_segment)
-            data["language_tokens"] = language_tokens
-            data["padding_mask"] = padding_mask
-        return data
