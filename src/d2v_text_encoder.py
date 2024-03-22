@@ -6,7 +6,7 @@
 import math
 from dataclasses import dataclass
 from functools import partial
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict
 
 import torch.nn as nn
 import torch.nn.functional as F

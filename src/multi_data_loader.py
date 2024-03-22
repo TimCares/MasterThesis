@@ -101,7 +101,7 @@ class MultiDataLoader:
             self.current_iterator = iterator
             next_batch = next(self.current_iterator)
 
-        return {"batch": next_batch, "datamodule_name": self.loaders_names[self.current_index]}
+        return {"batch": next_batch, "mode": self.loaders_names[self.current_index]}
 
     def change_dataloader(self):
         choice = 0
