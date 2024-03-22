@@ -12,10 +12,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from fairseq.modules import PositionalEmbedding, FairseqDropout, LayerNorm
-from fairseq.tasks import FairseqTask
-from .base import D2vModalityConfig, ModalitySpecificEncoder, get_alibi_bias
-from .modules import BlockEncoder, Decoder1d
+from fairseq.examples.data2vec.models.modalities.base import D2vModalityConfig, ModalitySpecificEncoder, get_alibi_bias
+from fairseq.examples.data2vec.models.modalities.modules import BlockEncoder, Decoder1d
 from examples.data2vec.data.modality import Modality
+from fairseq.data import Dictionary
 
 
 @dataclass
@@ -42,10 +42,10 @@ class TextEncoder(ModalitySpecificEncoder):
         norm_layer: Callable[[int], nn.LayerNorm],
         layer_norm_first: bool,
         alibi_biases: Dict,
-        task: Optional[FairseqTask],
+        dictionary: Dictionary,
     ):
-        self.pad_idx = task.source_dictionary.pad()
-        self.vocab_size = len(task.source_dictionary)
+        self.pad_idx = dictionary.pad()
+        self.vocab_size = len(dictionary)
 
         local_encoder = TextLocalEncoder(
             vocab_size=self.vocab_size,

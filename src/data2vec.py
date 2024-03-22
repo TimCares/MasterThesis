@@ -50,6 +50,7 @@ from examples.data2vec.models.modalities.text import (
     D2vTextConfig,
     TextEncoder,
 )
+from fairseq.data import Dictionary
 
 logger = logging.getLogger(__name__)
 
@@ -163,34 +164,45 @@ class MultiModalData2Vec(BaseFairseqModel):
         norm_layer: Callable[[int], nn.LayerNorm],
         layer_norm_first: bool,
         alibi_biases,
-        task,
     ) -> ModalitySpecificEncoder:
         if cfg.type == Modality.AUDIO:
-            enc_cls = AudioEncoder
+            enc = AudioEncoder(
+                cfg,
+                embed_dim,
+                make_block,
+                norm_layer,
+                layer_norm_first,
+                alibi_biases,
+            )
         elif cfg.type == Modality.IMAGE:
-            enc_cls = ImageEncoder
+            enc = ImageEncoder(
+                cfg,
+                embed_dim,
+                make_block,
+                norm_layer,
+                layer_norm_first,
+                alibi_biases,
+            )
         elif cfg.type == Modality.TEXT:
-            enc_cls = TextEncoder
-            if hasattr(task, "text_task"):
-                task = task.text_task
+            enc = TextEncoder(
+                cfg,
+                embed_dim,
+                make_block,
+                norm_layer,
+                layer_norm_first,
+                alibi_biases,
+                self.nlp_dict,
+            )
         else:
             raise Exception(f"unsupported modality {cfg.type}")
 
-        return enc_cls(
-            cfg,
-            embed_dim,
-            make_block,
-            norm_layer,
-            layer_norm_first,
-            alibi_biases,
-            task,
-        )
+        return enc
 
-    def __init__(self, cfg: MultiModalData2VecConfig, modalities, skip_ema=False, task=None):
+    def __init__(self, cfg: MultiModalData2VecConfig, modalities, nlp_dict:Dictionary, skip_ema=False):
         super().__init__()
         self.cfg = cfg
         self.modalities = modalities
-        self.task = task
+        self.nlp_dict = nlp_dict
 
         make_layer_norm = partial(
             nn.LayerNorm, eps=cfg.norm_eps, elementwise_affine=cfg.norm_affine
@@ -223,7 +235,6 @@ class MultiModalData2Vec(BaseFairseqModel):
                 make_layer_norm,
                 cfg.layer_norm_first,
                 self.alibi_biases,
-                task,
             )
             self.modality_encoders[mod.name] = enc
 
@@ -307,7 +318,7 @@ class MultiModalData2Vec(BaseFairseqModel):
         logger.info("making target model")
 
         model_copy = MultiModalData2Vec(
-            self.cfg, self.modalities, skip_ema=True, task=self.task
+            self.cfg, modalities=self.modalities, nlp_dict=self.nlp_dict, skip_ema=True,
         )
 
         if self.cfg.ema_encoder_only:
@@ -373,9 +384,9 @@ class MultiModalData2Vec(BaseFairseqModel):
         return super()._load_from_state_dict(state_dict, prefix, *args, **kwargs)
 
     @classmethod
-    def build_model(cls, cfg: MultiModalData2VecConfig):
+    def build_model(cls, cfg: MultiModalData2VecConfig, nlp_dict:Dictionary):
         """Build a new model instance."""
-        return cls(cfg, cfg.supported_modalities, skip_ema=cfg.skip_ema)
+        return cls(cfg, modalities=cfg.supported_modalities, nlp_dict=nlp_dict, skip_ema=cfg.skip_ema)
 
     def forward(
         self,
@@ -704,7 +715,7 @@ class MultiModalData2Vec(BaseFairseqModel):
 
         return reg_loss
 
-    def make_targets(self, y, num_layers):
+    def make_targets(self, y, num_layers): # TODO: adjust accordingly
 
         with torch.no_grad():
             target_layer_results = y[-num_layers:]
