@@ -46,7 +46,7 @@ from examples.data2vec.models.modalities.images import (
     D2vImageConfig,
     ImageEncoder,
 )
-from examples.data2vec.models.modalities.text import (
+from d2v_text_encoder import (
     D2vTextConfig,
     TextEncoder,
 )
