@@ -2,6 +2,7 @@
 import warnings
 from typing import Callable, List, Optional, Dict
 import torch
+from pytorch_lightning import LightningDataModule
 
 class MultiDataLoader:
     def __init__(
@@ -88,9 +89,9 @@ class MultiDataLoader:
 
 
         Returns:
-            Dict: Contains two keys, one "batch" containing the batch from current
-                selected dataloader and "datamodule_index" which is index of
-                currently selected dataloader.
+            Dict: Contains three keys, one "batch" containing the batch from current
+                selected dataloader, "datamodule_index" which is index of
+                currently selected dataloader and "mode" which is the modality of the input.
         """
         self.change_dataloader()
         try:
@@ -101,7 +102,7 @@ class MultiDataLoader:
             self.current_iterator = iterator
             next_batch = next(self.current_iterator)
 
-        return {"batch": next_batch, "mode": self.loaders_names[self.current_index]}
+        return {"batch": next_batch, "mode": self.loaders_names[self.current_index], 'datamodule_index': self.current_index}
 
     def change_dataloader(self):
         choice = 0
@@ -130,3 +131,62 @@ class MultiDataLoader:
             for sampler in self.samplers:
                 if sampler is not None and hasattr(sampler, "set_epoch"):
                     sampler.set_epoch(epoch)
+
+
+class MultiDataModule(LightningDataModule):
+    """MultiDataModule is just an abstraction over MultiDataLoader
+    that will allow us to integrate it with Lightning.
+    """
+
+    # NOTE: Add rest of the functions that should be called on child datamodules
+    # as required
+    def __init__(
+        self,
+        datamodules: List[LightningDataModule],
+        sampling_func: Optional[Callable] = None,
+    ):
+        super().__init__()
+        self.datamodules = datamodules
+        self.sampling_func = sampling_func
+        self.current_datamodule_idx = 0
+
+    def setup(self, stage=None):
+        for datamodule in self.datamodules:
+            datamodule.setup(stage)
+
+    def prepare_data(self):
+        for datamodule in self.datamodules:
+            datamodule.prepare_data()
+
+    def train_dataloader(self) -> MultiDataLoader:
+        # TODO: Fix assign inconsistency
+        return self._build_multi_dataloader("train")
+
+    def val_dataloader(self) -> MultiDataLoader:
+        return self._build_multi_dataloader("val")
+
+    def test_dataloader(self) -> MultiDataLoader:
+        return self._build_multi_dataloader("test")
+
+    def _build_multi_dataloader(self, split="train"):
+        dataloaders = []
+        for datamodule in self.datamodules:
+            dataloaders.append(getattr(datamodule, f"{split}_dataloader")())
+
+        return MultiDataLoader(dataloaders, self.sampling_func)
+
+    def on_before_batch_transfer(self, batch, *args):
+        batch, index = batch["batch"], batch["datamodule_index"]
+        self.current_datamodule_idx = index
+        return self.datamodules[self.current_datamodule_idx].on_before_batch_transfer(
+            batch, *args
+        )
+
+    def on_after_batch_transfer(self, batch, *args):
+        return self.datamodules[self.current_datamodule_idx].on_after_batch_transfer(
+            batch, *args
+        )
+
+    def teardown(self, stage):
+        for datamodule in self.datamodules:
+            datamodule.teardown(stage)

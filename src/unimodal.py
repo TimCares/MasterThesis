@@ -4,10 +4,12 @@ import torch
 from torchvision import datasets
 import random
 import time
+import subprocess
 from shutil import copyfile
 from functools import partial
-from data_utils import get_transforms
-from torch.utils.data import Dataset, DataLoader
+from config import DATA_PATH
+from data_utils import get_transforms, curl_dataset
+from torch.utils.data import DataLoader
 from fairseq.data import (
     Dictionary,
     NestedDictionaryDataset,
@@ -24,26 +26,39 @@ from fairseq.examples.data2vec.data import PathDataset
 
 from fairseq.data import FairseqDataset
 from fairseq.data.data_utils import compute_block_mask_1d, compute_block_mask_2d
+from setup.multiprocessing_bpe_encoder import encode
+
+from pytorch_lightning import LightningDataModule
 
 logger = logging.getLogger(__name__)
 
-class BaseDataset(Dataset):
-    def get_dataloader(self, split:str='train', **kwargs) -> DataLoader:
-        pass
+class BaseDataset(LightningDataModule):
+    def __init__(self, data_path:str, batch_size:int, num_workers:int):
+        self.data_path = data_path
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.dataset = None
 
+    def train_dataloader(self):
+        return DataLoader(self.dataset,
+                          collate_fn=self.dataset.collater,
+                          batch_size=self.batch_size,
+                          num_workers=self.num_workers,
+                          sampler=None,
+                          shuffle=True,
+                          drop_last=True,)
 
 class NLPDataset(BaseDataset):
     def __init__(
             self,
-            data_path,
-            num_max_bpe_tokens,
-            sample_break_mode:str='none',):
+            data_path:str,
+            batch_size:int,
+            num_workers:int,
+            num_max_bpe_tokens:int,):
+        super().__init__(data_path, batch_size, num_workers)
         
-        self.data_path = data_path
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
-
-        self._load_dataset('train', sample_break_mode)
           
     def _load_dataset(self, split, sample_break_mode):
         """Load a given dataset split.
@@ -72,7 +87,7 @@ class NLPDataset(BaseDataset):
             eos=self.dictionary.eos(),
             break_mode=sample_break_mode,
         )
-        print("loaded {} blocks from: {}".format(len(dataset), split_path))
+        logger.info("loaded {} blocks from: {}".format(len(dataset), split_path))
 
         # prepend beginning-of-sentence and append end-of-sentence tokens
         dataset = PrependTokenDataset(dataset, self.dictionary.bos())
@@ -92,21 +107,46 @@ class NLPDataset(BaseDataset):
             },
         )
 
-    def get_dataloader(self, split:str='train', **kwargs) -> DataLoader:
-        return DataLoader(self.dataset, collate_fn=self.dataset.collater, **kwargs)
+class EnWik9Dataset(NLPDataset):
+    def __init__(
+            self,
+            data_path:str,
+            batch_size:int,
+            num_workers:int,
+            num_max_bpe_tokens:int,
+            sample_break_mode:str='none',):
+        super().__init__(data_path, batch_size, num_workers, num_max_bpe_tokens)
+        self.sample_break_mode = sample_break_mode
+
+    def prepare_data(self):
+        os.makedirs(self.data_path, exist_ok=True)
+        name = curl_dataset("http://mattmahoney.net/dc/enwik9.zip")
+        os.system(f"unzip {name}")
+        os.remove(name)
+        os.system(f"perl ../setup/clean_enwik9.pl enwik9 > enwik9.txt")
+        os.remove("enwik9")
+        encode(f'{DATA_PATH}/encoder.json', f'{DATA_PATH}/vocab.bpe', ['enwik9.txt'], ['enwik9.bpe'], keep_empty=True)
+        os.remove("enwik9.txt")
+        process = ['fairseq-preprocess', '--only-source', '--srcdict', f'{DATA_PATH}/dict.txt',
+                    '--trainpref', 'enwik9.bpe', '--destdir', f'{self.data_path}', '--workers', f'{self.num_workers}']
+        subprocess.run(process)
+        os.remove("enwik9.bpe")
+        
 
 
 class AudioDataset(BaseDataset):
     def __init__(
             self,
-            data_path,
-            sample_rate,
-            max_sample_size,
-            min_sample_size,
+            data_path:str,
+            batch_size:int,
+            num_workers:int,
+            sample_rate:int,
+            max_sample_size:int,
+            min_sample_size:int,
             precompute_mask_config
             ):
+        super().__init__(data_path, batch_size, num_workers)
         
-        self.data_path = data_path
         manifest_path = os.path.join(data_path, "{}.tsv".format('train'))
 
         compute_mask = precompute_mask_config is not None
@@ -127,13 +167,13 @@ class AudioDataset(BaseDataset):
             **mask_args,
         )
 
-    def get_dataloader(self, split:str='train', **kwargs) -> DataLoader:
-        return DataLoader(self.dataset, collate_fn=self.dataset.collater, **kwargs)
     
 class ImageDataset(BaseDataset):
     def __init__(
             self,
-            data_path,
+            data_path:str,
+            batch_size:int,
+            num_workers:int,
             split,
             beit_transforms,
             no_transform,
@@ -142,6 +182,7 @@ class ImageDataset(BaseDataset):
             crop_scale,
             dataset_type,
             local_cache_path):
+        super().__init__(data_path, batch_size, num_workers)
         
         compute_mask = precompute_mask_config is not None
         mask_args = {}
@@ -162,9 +203,6 @@ class ImageDataset(BaseDataset):
                 dataset_type=dataset_type,
                 **mask_args,
         )
-
-    def get_dataloader(self, split:str='train', **kwargs) -> DataLoader:
-        return DataLoader(self.dataset, collate_fn=self.dataset.collater, **kwargs)
 
 
 def load(path, loader, cache):

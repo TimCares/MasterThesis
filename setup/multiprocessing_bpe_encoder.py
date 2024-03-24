@@ -54,22 +54,24 @@ def main():
     assert len(args.inputs) == len(
         args.outputs
     ), "number of input and output paths should match"
+    encode(args.encoder_json, args.vocab_bpe, args.inputs, args.outputs, args.keep_empty)
 
+def encode(encoder_path, vocab_path, inputs_arg, outputs_arg, keep_empty):
     with contextlib.ExitStack() as stack:
         inputs = [
             stack.enter_context(open(input, "r", encoding="utf-8"))
             if input != "-"
             else sys.stdin
-            for input in args.inputs
+            for input in inputs_arg
         ]
         outputs = [
             stack.enter_context(open(output, "w", encoding="utf-8"))
             if output != "-"
             else sys.stdout
-            for output in args.outputs
+            for output in outputs_arg
         ]
 
-        encoder = MultiprocessingEncoder(args)
+        encoder = MultiprocessingEncoder(encoder_path, vocab_path, keep_empty)
         pool = Pool(initializer=encoder.initializer)
         encoded_lines = pool.imap(encoder.encode_lines, zip(*inputs), 100)
 
@@ -88,12 +90,14 @@ def main():
 
 
 class MultiprocessingEncoder(object):
-    def __init__(self, args):
-        self.args = args
+    def __init__(self, encoder_path, vocab_path, keep_empty):
+        self.encoder_path = encoder_path
+        self.vocab_path = vocab_path
+        self.keep_empty = keep_empty
 
     def initializer(self):
         global bpe
-        bpe = get_encoder(self.args.encoder_json, self.args.vocab_bpe)
+        bpe = get_encoder(self.encoder_path, self.vocab_path)
 
     def encode(self, line):
         global bpe
@@ -111,7 +115,7 @@ class MultiprocessingEncoder(object):
         enc_lines = []
         for line in lines:
             line = line.strip()
-            if len(line) == 0 and not self.args.keep_empty:
+            if len(line) == 0 and not self.keep_empty:
                 return ["EMPTY", None]
             tokens = self.encode(line)
             enc_lines.append(" ".join(tokens))

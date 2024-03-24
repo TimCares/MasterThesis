@@ -1,2 +1,0 @@
-conda create --solver=libmamba -n rapids-24.02 -c rapidsai -c conda-forge -c nvidia  \
-    rapids=24.02 python=3.9 cuda-version=12.0

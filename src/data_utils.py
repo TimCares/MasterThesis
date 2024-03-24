@@ -6,8 +6,22 @@ import random
 import math
 import json
 from PIL import Image
+import requests
 
 logger = logging.getLogger(__name__)
+
+def curl_dataset(url:str) -> str:
+    # Make a GET request to the URL
+    logger.info(f"Downloading dataset from {url}")
+    response = requests.get(url)
+
+    # Open a local file with the same name as in the URL
+    filename = url.split('/')[-1]
+    with open(filename, 'wb') as file:
+        # Write the content of the response to the file
+        file.write(response.content)
+    logger.info(f"Dataset from {url} downloaded to {filename}")
+    return filename
 
 def _write_data_into_jsonl(items, jsonl_file):
     with open(jsonl_file, mode="w", encoding="utf-8") as writer:
