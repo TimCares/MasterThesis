@@ -43,23 +43,23 @@ def get_parser():
     )
     return parser
 
-def main(args):
-    assert args.valid_percent >= 0 and args.valid_percent <= 1.0
+def create_manifests(root, valid_percent, dest='.', ext='flac', seed=42, path_must_contain=None):
+    assert valid_percent >= 0 and valid_percent <= 1.0
 
-    if not os.path.exists(args.dest):
-        os.makedirs(args.dest)
+    if not os.path.exists(dest):
+        os.makedirs(dest)
 
-    dir_path = os.path.realpath(args.root)
-    search_path = os.path.join(dir_path, "**/*." + args.ext)
-    rand = random.Random(args.seed)
+    dir_path = os.path.realpath(root)
+    search_path = os.path.join(dir_path, "**/*." + ext)
+    rand = random.Random(seed)
 
     valid_f = (
-        open(os.path.join(args.dest, "valid.tsv"), "w")
-        if args.valid_percent > 0
+        open(os.path.join(dest, "valid.tsv"), "w")
+        if valid_percent > 0
         else None
     )
 
-    with open(os.path.join(args.dest, "train.tsv"), "w") as train_f:
+    with open(os.path.join(dest, "train.tsv"), "w") as train_f:
         print(dir_path, file=train_f)
 
         if valid_f is not None:
@@ -68,11 +68,11 @@ def main(args):
         for fname in glob.iglob(search_path, recursive=True):
             file_path = os.path.realpath(fname)
 
-            if args.path_must_contain and args.path_must_contain not in file_path:
+            if path_must_contain and path_must_contain not in file_path:
                 continue
 
             frames = soundfile.info(fname).frames
-            dest = train_f if rand.random() > args.valid_percent else valid_f
+            dest = train_f if rand.random() > valid_percent else valid_f
             print(
                 "{}\t{}".format(os.path.relpath(file_path, dir_path), frames), file=dest
             )
@@ -83,4 +83,4 @@ def main(args):
 if __name__ == "__main__":
     parser = get_parser()
     args = parser.parse_args()
-    main(args)
+    create_manifests(**vars(args))

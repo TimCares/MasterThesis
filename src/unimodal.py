@@ -4,11 +4,13 @@ import torch
 from torchvision import datasets
 import random
 import time
+from typing import *
 import subprocess
 from shutil import copyfile
 from functools import partial
 from config import DATA_PATH
 from data_utils import get_transforms, curl_dataset
+from utils.wav2vec_manifest import create_manifests
 from torch.utils.data import DataLoader
 from fairseq.data import (
     Dictionary,
@@ -23,10 +25,10 @@ from fairseq.data import (
 from fairseq.data.audio.raw_audio_dataset import FileAudioDataset
 from fairseq.data.text_compressor import TextCompressionLevel
 from fairseq.examples.data2vec.data import PathDataset
-
 from fairseq.data import FairseqDataset
 from fairseq.data.data_utils import compute_block_mask_1d, compute_block_mask_2d
-from setup.multiprocessing_bpe_encoder import encode
+from bpe_encoder import encode
+from torchaudio.datasets import LIBRISPEECH
 
 from pytorch_lightning import LightningDataModule
 
@@ -56,7 +58,7 @@ class NLPDataset(BaseDataset):
             num_workers:int,
             num_max_bpe_tokens:int,):
         super().__init__(data_path, batch_size, num_workers)
-        
+        self.nlp_dir_path = os.path.join(data_path, 'language')
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
           
@@ -119,7 +121,8 @@ class EnWik9Dataset(NLPDataset):
         self.sample_break_mode = sample_break_mode
 
     def prepare_data(self):
-        os.makedirs(self.data_path, exist_ok=True)
+        dataset_path = os.path.join(self.nlp_dir_path, 'enwik9')
+        os.makedirs(dataset_path, exist_ok=True)
         name = curl_dataset("http://mattmahoney.net/dc/enwik9.zip")
         os.system(f"unzip {name}")
         os.remove(name)
@@ -128,9 +131,12 @@ class EnWik9Dataset(NLPDataset):
         encode(f'{DATA_PATH}/encoder.json', f'{DATA_PATH}/vocab.bpe', ['enwik9.txt'], ['enwik9.bpe'], keep_empty=True)
         os.remove("enwik9.txt")
         process = ['fairseq-preprocess', '--only-source', '--srcdict', f'{DATA_PATH}/dict.txt',
-                    '--trainpref', 'enwik9.bpe', '--destdir', f'{self.data_path}', '--workers', f'{self.num_workers}']
+                    '--trainpref', 'enwik9.bpe', '--destdir', f'{dataset_path}', '--workers', f'{self.num_workers}']
         subprocess.run(process)
         os.remove("enwik9.bpe")
+
+    def setup(self, stage):
+        self._load_dataset('train', self.sample_break_mode)
         
 
 
@@ -146,19 +152,57 @@ class AudioDataset(BaseDataset):
             precompute_mask_config
             ):
         super().__init__(data_path, batch_size, num_workers)
-        
-        manifest_path = os.path.join(data_path, "{}.tsv".format('train'))
+        self.sample_rate = sample_rate
+        self.max_sample_size = max_sample_size
+        self.min_sample_size = min_sample_size
+        self.precompute_mask_config = precompute_mask_config
 
-        compute_mask = precompute_mask_config is not None
+
+class LibriSpeechDataset(AudioDataset):
+    def __init__(
+            self,
+            data_path:str,
+            batch_size:int,
+            num_workers:int,
+            sample_rate:int,
+            max_sample_size:int,
+            min_sample_size:int,
+            precompute_mask_config,
+            types:List[str],
+            ):
+        super().__init__(data_path, batch_size, num_workers, sample_rate, max_sample_size, min_sample_size, precompute_mask_config)
+        self.types = types
+
+    def prepare_data(self):
+        os.makedirs(self.data_path, exist_ok=True)
+
+        for type in self.types:
+            LIBRISPEECH(root=self.data_path, url=type, download=True)
+
+            os.system(f"tar -xvf {type}.tar.gz")
+            os.remove(f"{type}.tar.gz")
+
+        os.system(f"mv LibriSpeech {self.data_path}")
+        os.system(f"rm -r LibriSpeech")
+
+        self.manifest_path = os.path.join(self.data_path, 'LibriSpeech')
+    
+        create_manifests(root=self.manifest_path, valid_percent=0, dest=self.manifest_path)
+        
+
+    def setup(self, stage):
+        manifest_path = os.path.join(self.manifest_path, "{}.tsv".format('train'))
+
+        compute_mask = self.precompute_mask_config is not None
         mask_args = {}
         if compute_mask:
-            mask_args = precompute_mask_config    
+            mask_args = self.precompute_mask_config    
 
         self.dataset = FileAudioDataset(
             manifest_path=manifest_path,
-            sample_rate=sample_rate,
-            max_sample_size=max_sample_size,
-            min_sample_size=min_sample_size,
+            sample_rate=self.sample_rate,
+            max_sample_size=self.max_sample_size,
+            min_sample_size=self.min_sample_size,
             pad=False,
             normalize=True,
             num_buckets=0,
@@ -183,26 +227,96 @@ class ImageDataset(BaseDataset):
             dataset_type,
             local_cache_path):
         super().__init__(data_path, batch_size, num_workers)
+        self.split = split
+        self.beit_transforms = beit_transforms
+        self.no_transform = no_transform
+        self.transform_jitter = transform_jitter
+        self.precompute_mask_config = precompute_mask_config
+        self.crop_scale = crop_scale
+        self.dataset_type = dataset_type
+        self.local_cache_path = local_cache_path
+
+
+class ImageNetDataset(ImageDataset):
+    def __init__(
+            self,
+            data_path:str,
+            batch_size:int,
+            num_workers:int,
+            split,
+            beit_transforms,
+            no_transform,
+            transform_jitter,
+            precompute_mask_config,
+            crop_scale,
+            dataset_type,
+            local_cache_path):
+        super().__init__(data_path, batch_size, num_workers,
+                         split, beit_transforms, no_transform,
+                         transform_jitter, precompute_mask_config,
+                         crop_scale, dataset_type, local_cache_path)
         
-        compute_mask = precompute_mask_config is not None
+        self.datasets = dict()
+        
+    def prepare_data(self):
+        os.makedirs(self.data_path, exist_ok=True)
+        name = "imagenet-object-localization-challenge"
+        command = ["kaggle", "competitions", "download", "-c", name]
+        subprocess.run(command)
+        os.system(f"unzip {name}.zip")
+        os.remove(f"{name}.zip")
+        os.remove("LOC*")
+        os.system(f"mv ILSVRC/Data/CLS-LOC/* {self.data_path}")
+        os.system(f"mv ILSVRC/ImageSets/CLS-LOC/* {self.data_path}")
+        os.system(f"rm -r ILSVRC")
+
+    def setup(self, stage):
+        compute_mask = self.precompute_mask_config is not None
         mask_args = {}
         if compute_mask:
-            mask_args = precompute_mask_config  
+            mask_args = self.precompute_mask_config
         
-        self.dataset = MaeImageDataset(
-                root=data_path,
-                split=split,
-                input_size=(244, 244),
-                local_cache_path=local_cache_path,
-                key='image',
-                beit_transforms=beit_transforms,
-                no_transform=no_transform,
-                transform_jitter=transform_jitter,
-                crop_scale=crop_scale,
-                compute_mask=compute_mask,
-                dataset_type=dataset_type,
-                **mask_args,
+        self.datasets[stage] = MaeImageDataset(
+            root=self.data_path,
+            split=stage,
+            input_size=(244, 244),
+            local_cache_path=self.local_cache_path,
+            key='image',
+            beit_transforms=self.beit_transforms,
+            no_transform=self.no_transform,
+            transform_jitter=self.transform_jitter,
+            crop_scale=self.crop_scale,
+            compute_mask=compute_mask,
+            dataset_type=self.dataset_type,
+            **mask_args,
         )
+
+    def train_dataloader(self):
+        return DataLoader(self.dataset['train'],
+                          collate_fn=self.dataset['train'].collater,
+                          batch_size=self.batch_size,
+                          num_workers=self.num_workers,
+                          sampler=None,
+                          shuffle=True,
+                          drop_last=True,)
+    
+    def val_dataloader(self):
+        return DataLoader(self.dataset['val'],
+                          collate_fn=self.dataset['val'].collater,
+                          batch_size=self.batch_size,
+                          num_workers=self.num_workers,
+                          sampler=None,
+                          shuffle=True,
+                          drop_last=True,)
+    
+    def test_dataloader(self):
+        return DataLoader(self.dataset['test'],
+                          collate_fn=self.dataset['val'].collater,
+                          batch_size=self.batch_size,
+                          num_workers=self.num_workers,
+                          sampler=None,
+                          shuffle=True,
+                          drop_last=True,)
 
 
 def load(path, loader, cache):
