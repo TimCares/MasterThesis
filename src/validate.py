@@ -8,8 +8,6 @@ from torch.utils.data import DataLoader
 from pytorch_lightning import Callback, LightningDataModule
 from pytorch_lightning.utilities import rank_zero_only
 from typing import Dict
-from torchvision.transforms import v2 as transforms
-from torchvision.datasets import CIFAR10, CIFAR100
 
 
 logger = logging.getLogger(__name__)
@@ -24,26 +22,24 @@ def make_knn_predictions(model:Callable,
     X_train = []
     y_train = []
     for batch in train_loader:
-        X_train.append(batch[0])
+        X_train.append(model(batch[0])) # TODO add parameters
         y_train.append(batch[1])
-    X_train = torch.cat(X_train, dim=0)
-    y_train = torch.cat(y_train, dim=0)
+    X_train = torch.cat(X_train, dim=0).cpu().numpy()
+    y_train = torch.cat(y_train, dim=0).cpu().numpy()
 
     X_test = []
     y_test = []
     for batch in test_loader:
-        X_test.append(batch[0])
+        X_test.append(model(batch[0])) # TODO add parameters
         y_test.append(batch[1])
-    X_test = torch.cat(X_test, dim=0)
-    y_test = torch.cat(y_test, dim=0)
-
-    y_train = y_train.cpu().numpy()
-    y_test = y_test.cpu().numpy()       
+    X_test = torch.cat(X_test, dim=0).cpu().numpy()
+    y_test = torch.cat(y_test, dim=0).cpu().numpy()
+ 
     knn = KNeighborsClassifier(n_neighbors=n_neighbors)
     logger.info(f"Training KNN with {n_neighbors} neighbors")
-    knn.fit(model(X_train).cpu().numpy(), y_train)
+    knn.fit(X_train, y_train)
     logger.info(f"Predicting with KNN")
-    y_hat_test = knn.predict_proba(model(X_test).cpu().numpy())
+    y_hat_test = knn.predict_proba(X_test)
     acc = accuracy_score(y_test, y_hat_test.argmax(axis=1)) # .argmax(axis=1) -> convert class scores to class labels
     acc5 = top_k_accuracy_score(y_test, y_hat_test, k=5)
     logger.info(f"{name}, zero-shot: top1-accuracy: {acc}, top5-accuracy: {acc5}")
@@ -82,52 +78,3 @@ class ZeroShotCallback(Callback):
                         logger=True,
                         rank_zero_only=True,
                     )
-
-
-class CIFARDataModule(LightningDataModule):
-    def __init__(self, data_dir: str = "./data", batch_size: int = 32, type: str = "cifar10"):
-        super().__init__()
-        self.data_dir = data_dir
-        self.batch_size = batch_size
-        self.type = type
-        self.transform = transforms.Compose(
-            [
-                transforms.PILToTensor(),
-                transforms.Resize((224, 224)),
-                transforms.ToDtype(torch.float32, scale=True),
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-                ),
-            ]
-        )
-
-    def prepare_data(self):
-        if self.type == "cifar10":
-            CIFAR10(self.data_dir, train=True, download=True)
-            CIFAR10(self.data_dir, train=False, download=True)
-        else:
-            CIFAR100(self.data_dir, train=True, download=True)
-            CIFAR100(self.data_dir, train=False, download=True)
-
-    def setup(self, stage=None):
-        if stage == "fit" or stage is None:
-            if self.type == "cifar10":
-                self.train = CIFAR10(self.data_dir, train=True, transform=self.transform)
-                self.val = CIFAR10(self.data_dir, train=False, transform=self.transform)
-            else:
-                self.train = CIFAR100(self.data_dir, train=True, transform=self.transform)
-                self.val = CIFAR100(self.data_dir, train=False, transform=self.transform)
-        if stage == "test" or stage is None:
-            if self.type == "cifar10":
-                self.test = CIFAR10(self.data_dir, train=False, transform=self.transform)
-            else:
-                self.test = CIFAR100(self.data_dir, train=False, transform=self.transform)
-
-    def train_dataloader(self):
-        return DataLoader(self.train, batch_size=self.batch_size)
-
-    def val_dataloader(self):
-        return DataLoader(self.val, batch_size=self.batch_size)
-
-    def test_dataloader(self):
-        return DataLoader(self.test, batch_size=self.batch_size)

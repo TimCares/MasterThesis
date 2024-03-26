@@ -29,6 +29,8 @@ from fairseq.data import FairseqDataset
 from fairseq.data.data_utils import compute_block_mask_1d, compute_block_mask_2d
 from bpe_encoder import encode
 from torchaudio.datasets import LIBRISPEECH
+from torchvision.transforms import v2 as transforms
+from torchvision.datasets import CIFAR10, CIFAR100
 
 from pytorch_lightning import LightningDataModule
 
@@ -317,6 +319,69 @@ class ImageNetDataset(ImageDataset):
                           sampler=None,
                           shuffle=True,
                           drop_last=True,)
+    
+class CIFARDataModule(BaseDataset):
+    def __init__(self, data_path: str = "../data", batch_size: int = 32, type: str = "cifar10"
+                 , num_workers:int=4):
+        super().__init__(data_path, batch_size, num_workers)
+        self.batch_size = batch_size
+        self.type = type
+        self.transform = transforms.Compose(
+            [
+                transforms.PILToTensor(),
+                transforms.Resize((224, 224)),
+                transforms.ToDtype(torch.float32, scale=True),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+            ]
+        )
+
+    def prepare_data(self):
+        if self.type == "cifar10":
+            CIFAR10(self.data_path, train=True, download=True)
+            CIFAR10(self.data_dir, train=False, download=True)
+        else:
+            CIFAR100(self.data_path, train=True, download=True)
+            CIFAR100(self.data_path, train=False, download=True)
+
+    def setup(self, stage=None):
+        if stage == "fit" or stage is None:
+            if self.type == "cifar10":
+                self.train = CIFAR10(self.data_path, train=True, transform=self.transform)
+                self.val = CIFAR10(self.data_path, train=False, transform=self.transform)
+            else:
+                self.train = CIFAR100(self.data_path, train=True, transform=self.transform)
+                self.val = CIFAR100(self.data_path, train=False, transform=self.transform)
+        if stage == "test" or stage is None:
+            if self.type == "cifar10":
+                self.test = CIFAR10(self.data_path, train=False, transform=self.transform)
+            else:
+                self.test = CIFAR100(self.data_path, train=False, transform=self.transform)
+
+    def train_dataloader(self):
+        return DataLoader(self.train,
+                          batch_size=self.batch_size,
+                          num_workers=self.num_workers,
+                          sampler=None,
+                          shuffle=False,
+                          drop_last=True,)
+
+    def val_dataloader(self):
+        return DataLoader(self.val,
+                          batch_size=self.batch_size,
+                          num_workers=self.num_workers,
+                          sampler=None,
+                          shuffle=False,
+                          drop_last=True,)
+
+    def test_dataloader(self):
+        return DataLoader(self.test,
+                          batch_size=self.batch_size,
+                          num_workers=self.num_workers,
+                          sampler=None,
+                          shuffle=False,
+                          drop_last=True,)
 
 
 def load(path, loader, cache):
@@ -473,18 +538,16 @@ class MaeImageDataset(FairseqDataset):
         collated_img = torch.stack([s[self.key] for s in samples], dim=0)
 
         res = {
-            "id": torch.LongTensor([s["id"] for s in samples]),
-            "net_input": {
-                self.key: collated_img,
-            },
+            # "id": torch.LongTensor([s["id"] for s in samples]),
+            self.key: collated_img,
         }
 
         if "target" in samples[0]:
             collated_target = torch.stack([s["target"] for s in samples], dim=0)
-            res["net_input"]["target"] = collated_target
+            res["target"] = collated_target
 
         if "precomputed_mask" in samples[0]:
             collated_mask = torch.cat([s["precomputed_mask"] for s in samples], dim=0)
-            res["net_input"]["precomputed_mask"] = collated_mask
+            res["precomputed_mask"] = collated_mask
 
         return res

@@ -1,36 +1,69 @@
 import os
 import json
 import torch
-import numpy as np
 from fairseq.data import Dictionary
 from torchvision.datasets.folder import default_loader
-from data_utils import get_transforms
+from data_utils import get_transforms, _write_data_into_jsonl, curl_dataset
 from bpe_encoder import BPEEncoder
 from unimodal import BaseDataset
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 class BaseImageText(BaseDataset):
     def __init__(
         self,
         data_path,
-        split,
+        batch_size,
+        num_workers,
         num_max_bpe_tokens,
         transform_jitter=False,
         beit_transforms=False,
         no_transform=False,
-        task=None,
         crop_scale=(0.6, 1.0),
     ):
-        self.split = split
-        index_files = self.get_index_files(self.split, task=task)
+        super().__init__(data_path, batch_size, num_workers)
         self.num_max_bpe_tokens = num_max_bpe_tokens
-        self.data_path = data_path
+        self.transform_jitter = transform_jitter
+        self.beit_transforms = beit_transforms
+        self.no_transform = no_transform
+        self.crop_scale = crop_scale
+        self.path_to_data = None
+        
+    def prepare_data(self):
+        if not os.path.isfile(os.path.join(self.data_path, "dict.txt")):
+            filename = curl_dataset("https://dl.fbaipublicfiles.com/fairseq/data2vec2/dict.txt")
+            os.rename(filename, os.path.join(self.data_path, "dict.txt"))
+
+        if not os.path.isfile(os.path.join(self.data_path, "encoder.json")):
+            filename = curl_dataset("https://dl.fbaipublicfiles.com/fairseq/data2vec2/encoder.json")
+            os.rename(filename, os.path.join(self.data_path, "encoder.json"))
+
+        if not os.path.isfile(os.path.join(self.data_path, "vocab.bpe")):
+            filename = curl_dataset("https://dl.fbaipublicfiles.com/fairseq/data2vec2/vocab.bpe")
+            os.rename(filename, os.path.join(self.data_path, "vocab.bpe"))
+
+        encoder_json_path = os.path.join(self.data_path, "encoder.json")
+        vocab_bpe_path = os.path.join(self.data_path, "vocab.bpe")
+        self.bpe_encoder = BPEEncoder(encoder_json_path, vocab_bpe_path)
+        self.dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
+
+        self.bos_token_id = self.dictionary.bos()
+        self.eos_token_id = self.dictionary.eos()
+        self.pad_token_id = self.dictionary.pad()
+        self.loader = default_loader
+        self.transform = get_transforms(no_transform=self.no_transform,
+                                        beit_transforms=self.beit_transforms,
+                                        transform_jitter=self.transform_jitter,
+                                        crop_scale=self.crop_scale)
+
+    def setup(self, stage):
+        index_files = self.get_index_files(stage)
         items = []
         self.index_files = index_files
 
         offset = 0
         for _index_file in index_files:
-            index_file = os.path.join(data_path, _index_file)
+            index_file = os.path.join(self.path_to_data, _index_file)
             with open(index_file, mode="r", encoding="utf-8") as reader:
                 for line in reader:
                     data = json.loads(line)
@@ -39,19 +72,6 @@ class BaseImageText(BaseDataset):
                 offset = len(items)
         self.items = items
 
-        encoder_json_path = os.path.join(data_path, "encoder.json")
-        vocab_bpe_path = os.path.join(data_path, "vocab.bpe")
-        self.bpe_encoder = BPEEncoder(encoder_json_path, vocab_bpe_path)
-        self.dictionary = Dictionary.load(os.path.join(data_path, "dict.txt"))
-
-        self.bos_token_id = self.dictionary.bos()
-        self.eos_token_id = self.dictionary.eos()
-        self.pad_token_id = self.dictionary.pad()
-        self.loader = default_loader
-        self.transform = get_transforms(no_transform=no_transform,
-                                        beit_transforms=beit_transforms,
-                                        transform_jitter=transform_jitter,
-                                        crop_scale=crop_scale)
 
     @staticmethod
     def get_index_files(split):
@@ -107,7 +127,7 @@ class BaseImageText(BaseDataset):
         body += "\n  dataset index files = %s" % str(self.index_files)
         body += "\n  num max bpe tokens = %s" % self.num_max_bpe_tokens
         body += "\n  transforms = ["
-        for t in self.transform.transforms:
+        for t in self.transform:
             body += "\n    %s" % str(t)
         body += "\n  ]"
         body += "\n}"
@@ -123,29 +143,59 @@ class BaseImageText(BaseDataset):
                 batch_tensors[tensor_key] = torch.tensor([d[tensor_key] for d in samples], dtype=torch.long)
 
         return batch_tensors
-
-    def get_dataloader(self, split:str='train', **kwargs) -> DataLoader:
-        return DataLoader(self, collate_fn=self.collater, **kwargs)
+    
+    def train_dataloader(self):
+        return DataLoader(self.dataset['train'],
+                          collate_fn=self.collater,
+                          batch_size=self.batch_size,
+                          num_workers=self.num_workers,
+                          sampler=None,
+                          shuffle=True,
+                          drop_last=True,)
+    
+    def val_dataloader(self):
+        return DataLoader(self.dataset['val'],
+                          collate_fn=self.collater,
+                          batch_size=self.batch_size,
+                          num_workers=self.num_workers,
+                          sampler=None,
+                          shuffle=True,
+                          drop_last=True,)
+    
+    def test_dataloader(self):
+        return DataLoader(self.dataset['test'],
+                          collate_fn=self.collater,
+                          batch_size=self.batch_size,
+                          num_workers=self.num_workers,
+                          sampler=None,
+                          shuffle=True,
+                          drop_last=True,)
     
 
-class COCOCaptions(BaseImageText):
+class COCOCaptions(BaseImageText):        
+    def prepare_data(self):
+        self.path_to_data = os.path.join(self.data_path, "coco")
+        super().prepare_data()
 
-    def __init__(self, data_path, split, num_max_bpe_tokens, task, crop_scale=(0.6, 1.0)):
-        super().__init__(
-            data_path=data_path, split=split,
-            num_max_bpe_tokens=num_max_bpe_tokens, task=task, crop_scale=crop_scale
-        )
+        os.makedirs(self.path_to_data, exist_ok=True)
+        for url in ["http://images.cocodataset.org/zips/train2014.zip",
+                    "http://images.cocodataset.org/zips/val2014.zip",
+                    "https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"]:
+        
+            filename = curl_dataset(url)
+            os.system(f"unzip {filename} -d {self.path_to_data}")
+            os.remove(filename)
+        os.remove('dataset_flickr8k.json')
+        os.remove('dataset_flickr30k.json')
+
+        self.make_coco_captioning_dataset_index()
+
+    def setup(self, stage):
+        super().setup(stage)
 
     @staticmethod
-    def get_index_files(split, task=None):
-        if split == "train":
-            return ("coco_captioning.train.jsonl", )
-        elif split == "val":
-            return (f"{task}.val.jsonl", )
-        elif split == "test":
-            return (f"{task}.test.jsonl", )
-        else:
-            raise RuntimeError("split %s is not found!" % split)
+    def get_index_files(split):
+        return (f"coco_captioning.{split}.jsonl", )
 
     def __getitem__(self, index: int):
         data = dict()
@@ -162,8 +212,98 @@ class COCOCaptions(BaseImageText):
             data["padding_mask"] = padding_mask
         return data
     
+    def _make_captioning_coco_karpathy_dataset_index(
+            self,
+            split=("train", "restval"), 
+            split_name="train",
+        ):
+        coco_karpathy_split_json_file = os.path.join(self.path_to_data, "dataset_coco.json")
+        items = []
+        image_counter = set()
+        print("read %s" % coco_karpathy_split_json_file)
+        with open(coco_karpathy_split_json_file, mode="r", encoding="utf-8") as reader:
+            data = json.loads(reader.read())
+            for item in data["images"]:
+                if item["split"] in split:
+                    image_path = os.path.join(item["filepath"], item["filename"])
+                    if item["split"] in ["train", "restval"]:
+                        for sent in item["sentences"]:
+                            token_ids = self.bpe_encoder.encode(sent["raw"])
+                            items.append({
+                                    "image_path": image_path, 
+                                    "text_segment": token_ids, 
+                                    "image_id": item["cocoid"], 
+                            })
+                    else:
+                        items.append({
+                                    "image_path": image_path, 
+                                    "text_segment": None, 
+                                    "image_id": item["cocoid"], 
+                        })
+                    if image_path not in image_counter:
+                        image_counter.add(image_path)
+        print("Find %d images and %d image-text pairs for karpathy dataset %s split !" % \
+            (len(image_counter), len(items), split_name))
+        index_file = os.path.join(self.path_to_data, "coco_captioning.%s.jsonl" % split_name)
+        _write_data_into_jsonl(items, index_file)
+
+
+    def make_coco_captioning_dataset_index(self):
+        self._make_captioning_coco_karpathy_dataset_index(split=("train", "restval"), split_name="train")
+        self._make_captioning_coco_karpathy_dataset_index(split=("val", ), split_name="val")
+        self._make_captioning_coco_karpathy_dataset_index(split=("test", ), split_name="test")
+
+    # def make_nocaps_captioning_dataset_index(self):
+    #     _make_nocaps_dataset_index(split="val")
+    #     _make_nocaps_dataset_index(split="test")
+    
 
 class VisualGenome(BaseImageText):
+
+    def prepare_data(self):
+        super().prepare_data()
+        self.path_to_data = os.path.join(self.data_path, "vg")
+        os.makedirs(self.path_to_data, exist_ok=True)
+        for url in ["https://cs.stanford.edu/people/rak248/VG_100K_2/images.zip",
+                    "https://cs.stanford.edu/people/rak248/VG_100K_2/images2.zip",
+                    "https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/region_descriptions.json.zip"]:
+            filename = curl_dataset(url)
+            os.system(f"unzip {filename} -d {self.path_to_data}")
+            os.remove(filename)
+
+        self.make_visual_genome_dataset_index()
+
+    def setup(self, stage):
+        super().setup(stage)
+
+    @staticmethod
+    def get_index_files(split):
+        return (f"visual_genome.jsonl", ) # only for pretraining, so no splits
+
+    def make_visual_genome_dataset_index(self):
+        with open(os.path.join(self.path_to_data, "region_descriptions.json"), "r") as fp:
+            region_descriptions = json.load(fp)
+
+        items = []
+
+        for image_meta in tqdm(region_descriptions, total=len(region_descriptions)):
+            image_path = os.path.join(self.path_to_data, "VG_100K", f"{image_meta["id"]}.jpg")
+            caption = ""
+            for region in image_meta["regions"]:
+                caption += region["phrase"] + " "
+            
+            token_ids = self.bpe_encoder.encode(caption.strip())
+            # truncation will also be done when reading the data, but there we also substract 2 for the special tokens
+            # so we already do it here to save time and memory
+            token_ids = token_ids[:self.num_max_bpe_tokens - 2]
+            items.append({
+                "image_path": image_path, 
+                "text_segment": token_ids,
+                "image_id": image_meta["id"], 
+            })
+
+        _write_data_into_jsonl(items, os.path.join(self.path_to_data, "visual_genome.jsonl"))
+
     def __getitem__(self, index: int):
         data = dict()
         item = self.items[index]

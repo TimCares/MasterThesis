@@ -273,33 +273,7 @@ def make_dataset_index(data_path, bpe_encoder, nlvr_repo_path):
         preifx="test1", json_file=os.path.join(nlvr_repo_path, "nlvr2/data/test1.json"), 
         bpe_encoder=bpe_encoder, index_file=os.path.join(data_path, _get_index_files("test")[0]), 
     )
-
-# --------------------- Visual Genome ---------------------
-    
-def make_visual_genome_dataset_index(data_path, bpe_encoder, visual_genome_path):
-    with open(os.path.join(data_path, "region_descriptions.json"), "r") as fp:
-        region_descriptions = json.load(fp)
-
-    items = []
-
-    for image_meta in tqdm(region_descriptions, total=len(region_descriptions)):
-        image_path = os.path.join(visual_genome_path, "VG_100K", f"{image_meta["id"]}.jpg")
-        caption = ""
-        for region in image_meta["regions"]:
-            caption += region["phrase"] + " "
-        
-        token_ids = bpe_encoder.encode(region["phrase"])
-        # truncation will also be done when reading the data, but there we also substract 2 for the special tokens
-        # so we already do it here to save time and memory
-        token_ids = token_ids[:512 - 2]
-        items.append({
-            "image_path": image_path, 
-            "text_segment": token_ids,
-            "image_id": image_meta["id"], 
-        })
-
-    _write_data_into_jsonl(items, os.path.join(data_path, "visual_genome.jsonl"))
-    
+   
 
 if __name__ == "__main__":
     encoder_json_path = os.path.join(COCO_CAPTIONS_PATH, "encoder.json")
