@@ -6,7 +6,7 @@ from torchvision.datasets.folder import default_loader
 from data_utils import get_transforms, _write_data_into_jsonl, curl_dataset
 from utils.glossary import normalize_word
 from bpe_encoder import BPEEncoder
-from unimodal import BaseDataset
+from datasets.unimodal_datasets import BaseDataset
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import os
@@ -294,7 +294,7 @@ class VisualGenome(BaseImageText):
         items = []
 
         for image_meta in tqdm(region_descriptions, total=len(region_descriptions)):
-            image_path = os.path.join(self.path_to_data, "VG_100K", f"{image_meta["id"]}.jpg")
+            image_path = os.path.join(self.path_to_data, "VG_100K", f"{image_meta['id']}.jpg")
             caption = ""
             for region in image_meta["regions"]:
                 caption += region["phrase"] + " "

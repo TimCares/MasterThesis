@@ -3,14 +3,15 @@ import logging
 import torch
 import random
 import time
+import json
 from typing import *
 import subprocess
+import shutil
 from shutil import copyfile
 from functools import partial
-from config import DATA_PATH
-from data_utils import get_transforms, curl_dataset
+from data_utils import get_transforms, curl_dataset, _write_data_into_jsonl
+from bpe_encoder import BPEEncoder
 from utils.wav2vec_manifest import create_manifests
-from torch.utils.data import DataLoader
 from fairseq.data import (
     Dictionary,
     NestedDictionaryDataset,
@@ -27,49 +28,57 @@ from fairseq.examples.data2vec.data import PathDataset
 from fairseq.data import FairseqDataset
 from fairseq.data.data_utils import compute_block_mask_1d, compute_block_mask_2d
 from bpe_encoder import encode
+from torchaudio.datasets import LIBRISPEECH
 from torchvision.transforms import v2 as transforms
 from torchvision import datasets
-from torchvision.datasets import CIFAR10, CIFAR100, LIBRISPEECH, ImageFolder
-
-from pytorch_lightning import LightningDataModule
+import torchtext
+from torchvision.datasets import CIFAR10, CIFAR100, ImageFolder
 
 logger = logging.getLogger(__name__)
 
-class BaseDataset(LightningDataModule):
-    def __init__(self, data_path:str, batch_size:int, num_workers:int):
+class BaseDataset(torch.utils.data.Dataset):
+    def __init__(self, data_path:str, split:str):
         self.data_path = data_path
-        self.batch_size = batch_size
-        self.num_workers = num_workers
-        self.dataset = None
+        self.split = split
 
-    def train_dataloader(self):
-        return DataLoader(self.dataset,
-                          collate_fn=self.dataset.collater,
-                          batch_size=self.batch_size,
-                          num_workers=self.num_workers,
-                          sampler=None,
-                          shuffle=True,
-                          drop_last=True,)
+    def load(self):
+        raise NotImplementedError
+    
+    def __len__(self):
+        return len(self.items)
+
+    def collater(self, samples):
+        batch_tensors = {}
+        for tensor_key in samples[0]:
+            if isinstance(samples[0][tensor_key], torch.Tensor):
+                batch_tensors[tensor_key] = torch.stack([d[tensor_key] for d in samples])
+            else:
+                batch_tensors[tensor_key] = torch.tensor([d[tensor_key] for d in samples], dtype=torch.long)
+
+        return batch_tensors
 
 class NLPDataset(BaseDataset):
     def __init__(
             self,
             data_path:str,
-            batch_size:int,
-            num_workers:int,
-            num_max_bpe_tokens:int,):
-        super().__init__(data_path, batch_size, num_workers)
-        self.nlp_dir_path = os.path.join(data_path, 'language')
+            split:str,
+            num_max_bpe_tokens:int,
+            sample_break_mode:str='none',):
+        super().__init__(data_path, split)
+        self.nlp_dir_path = os.path.join(self.data_path, 'language')
+        os.makedirs(self.nlp_dir_path, exist_ok=True)
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
+        self.sample_break_mode = sample_break_mode
+
           
-    def _load_dataset(self, split, sample_break_mode):
+    def load(self):
         """Load a given dataset split.
 
         Args:
             split (str): name of the split (e.g., train, valid, test)
         """
-        split_path = os.path.join(self.data_path, split)
+        split_path = os.path.join(self.data_path, self.split)
 
         dataset = data_utils.load_indexed_dataset(
             split_path,
@@ -78,7 +87,7 @@ class NLPDataset(BaseDataset):
         )
         if dataset is None:
             raise FileNotFoundError(
-                "Dataset not found: {} ({})".format(split, split_path)
+                "Dataset not found: {} ({})".format(self.split, split_path)
             )
 
         # create continuous blocks of tokens
@@ -88,7 +97,7 @@ class NLPDataset(BaseDataset):
             self.num_max_bpe_tokens - 2,  # two less for bos and eos
             pad=self.dictionary.pad(),
             eos=self.dictionary.eos(),
-            break_mode=sample_break_mode,
+            break_mode=self.sample_break_mode,
         )
         logger.info("loaded {} blocks from: {}".format(len(dataset), split_path))
 
@@ -129,30 +138,83 @@ class EnWik9Dataset(NLPDataset):
         os.remove(name)
         os.system(f"perl ../setup/clean_enwik9.pl enwik9 > enwik9.txt")
         os.remove("enwik9")
-        encode(f'{DATA_PATH}/encoder.json', f'{DATA_PATH}/vocab.bpe', ['enwik9.txt'], ['enwik9.bpe'], keep_empty=True)
+        encode(f'{self.data_path}/encoder.json', f'{self.data_path}/vocab.bpe', ['enwik9.txt'], ['enwik9.bpe'], keep_empty=True)
         os.remove("enwik9.txt")
-        process = ['fairseq-preprocess', '--only-source', '--srcdict', f'{DATA_PATH}/dict.txt',
+        process = ['fairseq-preprocess', '--only-source', '--srcdict', f'{self.data_path}/dict.txt',
                     '--trainpref', 'enwik9.bpe', '--destdir', f'{dataset_path}', '--workers', f'{self.num_workers}']
         subprocess.run(process)
         os.remove("enwik9.bpe")
 
     def setup(self, stage):
         self._load_dataset('train', self.sample_break_mode)
+
+
+class IMDBDataset(BaseDataset):
+    def __init__(
+            self,
+            data_path:str,
+            split:str,
+            num_max_bpe_tokens:int,):
+        super().__init__(data_path, split)
+        self.num_max_bpe_tokens = num_max_bpe_tokens
+        self.path_to_data = os.path.join(self.data_path, 'language', 'imdb')
+        self.out_jsonl_path = os.path.join(self.path_to_data, f'{self.split}.jsonl')
+
+        encoder_json_path = os.path.join(self.data_path, 'encoder.json')
+        vocab_bpe_path = os.path.join(self.data_path, 'vocab.bpe')
+        dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
+        bpe_encoder = BPEEncoder(encoder_json_path, vocab_bpe_path)
+
+        bos_token_id = dictionary.bos()
+        eos_token_id = dictionary.eos()
+        pad_token_id = dictionary.pad()
+                
+        os.makedirs(self.path_to_data, exist_ok=True)
         
+        if os.path.exists(self.out_jsonl_path):
+            print(f'Data already exists. Skip creating it.')
+            return
+        
+        items = []
+        data_loader = iter(torchtext.datasets.IMDB(root=self.path_to_data, split=self.split))
+        for label, text in data_loader:
+            tokens = bpe_encoder.encode(text)
+            if len(tokens) > self.num_max_bpe_tokens - 2:
+                tokens = tokens[:self.num_max_bpe_tokens - 2]
+            tokens = [bos_token_id] + tokens + [eos_token_id]
+            num_tokens = len(tokens)
+            padding_mask = [0] * num_tokens + [1] * (self.num_max_bpe_tokens - num_tokens)
+            language_tokens =  tokens + [pad_token_id] * (self.num_max_bpe_tokens - num_tokens)
+            items.append({'language_tokens': language_tokens, 'padding_mask': padding_mask, 'label': label})
 
+        _write_data_into_jsonl(items, self.out_jsonl_path)
+        shutil.rmtree(f'{self.path_to_data}/datasets')
+                
+    def load(self):
+        items = []
+        with open(self.out_jsonl_path, mode="r", encoding="utf-8") as reader:
+            for line in reader:
+                data = json.loads(line)
+                items.append(data)
+            print("Load %d text examples." % len(items))
+        self.items = items
 
+    def __getitem__(self, index):
+        item = self.items[index]
+        return item
+
+    
 class AudioDataset(BaseDataset):
     def __init__(
             self,
             data_path:str,
-            batch_size:int,
-            num_workers:int,
+            split:str,
             sample_rate:int,
             max_sample_size:int,
             min_sample_size:int,
             precompute_mask_config
             ):
-        super().__init__(data_path, batch_size, num_workers)
+        super().__init__(data_path, split)
         self.sample_rate = sample_rate
         self.max_sample_size = max_sample_size
         self.min_sample_size = min_sample_size
@@ -163,35 +225,29 @@ class LibriSpeechDataset(AudioDataset):
     def __init__(
             self,
             data_path:str,
-            batch_size:int,
-            num_workers:int,
+            split:str,
             sample_rate:int,
             max_sample_size:int,
             min_sample_size:int,
             precompute_mask_config,
-            types:List[str],
+            type:str,
             ):
-        super().__init__(data_path, batch_size, num_workers, sample_rate, max_sample_size, min_sample_size, precompute_mask_config)
-        self.types = types
-
-    def prepare_data(self):
+        super().__init__(data_path, split, sample_rate, max_sample_size, min_sample_size, precompute_mask_config)
+        
         os.makedirs(self.data_path, exist_ok=True)
 
-        for type in self.types:
-            LIBRISPEECH(root=self.data_path, url=type, download=True)
+        LIBRISPEECH(root=self.data_path, url=type, download=True)
 
-            os.system(f"tar -xvf {type}.tar.gz")
-            os.remove(f"{type}.tar.gz")
+        tar_file_path = os.path.join(self.data_path, f"{type}.tar.gz")
+        if os.path.exists(tar_file_path):
+            os.remove(tar_file_path)
 
-        os.system(f"mv LibriSpeech {self.data_path}")
-        os.system(f"rm -r LibriSpeech")
-
-        self.manifest_path = os.path.join(self.data_path, 'LibriSpeech')
+        self.manifest_path = os.path.join(self.data_path, 'LibriSpeech', type)
     
         create_manifests(root=self.manifest_path, valid_percent=0, dest=self.manifest_path)
         
 
-    def setup(self, stage):
+    def load(self):
         manifest_path = os.path.join(self.manifest_path, "{}.tsv".format('train'))
 
         compute_mask = self.precompute_mask_config is not None
@@ -212,13 +268,26 @@ class LibriSpeechDataset(AudioDataset):
             **mask_args,
         )
 
+    def __getitem__(self, index):
+        return self.dataset[index]
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def collater(self, samples):
+        collater_res = self.dataset.collater(samples)
+        res = {
+            'id': collater_res['id'],
+            'audio': collater_res['net_input']['source'],
+            'precomputed_mask': collater_res['net_input']['precomputed_mask'],
+        }
+        return res
+
     
 class ImageDataset(BaseDataset):
     def __init__(
             self,
             data_path:str,
-            batch_size:int,
-            num_workers:int,
             split,
             beit_transforms,
             no_transform,
@@ -227,8 +296,7 @@ class ImageDataset(BaseDataset):
             crop_scale,
             dataset_type,
             local_cache_path):
-        super().__init__(data_path, batch_size, num_workers)
-        self.split = split
+        super().__init__(data_path, split)
         self.beit_transforms = beit_transforms
         self.no_transform = no_transform
         self.transform_jitter = transform_jitter
@@ -242,8 +310,6 @@ class ImageNetDataset(ImageDataset):
     def __init__(
             self,
             data_path:str,
-            batch_size:int,
-            num_workers:int,
             split,
             beit_transforms,
             no_transform,
@@ -252,34 +318,30 @@ class ImageNetDataset(ImageDataset):
             crop_scale,
             dataset_type,
             local_cache_path):
-        super().__init__(data_path, batch_size, num_workers,
-                         split, beit_transforms, no_transform,
+        super().__init__(data_path, split, beit_transforms, no_transform,
                          transform_jitter, precompute_mask_config,
                          crop_scale, dataset_type, local_cache_path)
-        
-        self.datasets = dict()
-        
-    def prepare_data(self):
-        os.makedirs(self.data_path, exist_ok=True)
+        self.path_to_data = os.path.join(self.data_path, 'imagenet')
+        os.makedirs(self.path_to_data, exist_ok=True)
         name = "imagenet-object-localization-challenge"
         command = ["kaggle", "competitions", "download", "-c", name]
         subprocess.run(command)
         os.system(f"unzip {name}.zip")
         os.remove(f"{name}.zip")
         os.remove("LOC*")
-        os.system(f"mv ILSVRC/Data/CLS-LOC/* {self.data_path}")
-        os.system(f"mv ILSVRC/ImageSets/CLS-LOC/* {self.data_path}")
+        os.system(f"mv ILSVRC/Data/CLS-LOC/* {self.path_to_data}")
+        os.system(f"mv ILSVRC/ImageSets/CLS-LOC/* {self.path_to_data}")
         os.system(f"rm -r ILSVRC")
 
-    def setup(self, stage):
+    def load(self):
         compute_mask = self.precompute_mask_config is not None
         mask_args = {}
         if compute_mask:
             mask_args = self.precompute_mask_config
         
-        self.datasets[stage] = MaeImageDataset(
-            root=self.data_path,
-            split=stage,
+        self.dataset = MaeImageDataset(
+            root=self.path_to_data,
+            split=self.split,
             input_size=(244, 244),
             local_cache_path=self.local_cache_path,
             key='image',
@@ -292,40 +354,31 @@ class ImageNetDataset(ImageDataset):
             **mask_args,
         )
 
-    def train_dataloader(self):
-        return DataLoader(self.dataset['train'],
-                          collate_fn=self.dataset['train'].collater,
-                          batch_size=self.batch_size,
-                          num_workers=self.num_workers,
-                          sampler=None,
-                          shuffle=True,
-                          drop_last=True,)
+    def __getitem__(self, index):
+        return self.dataset[index]
     
-    def val_dataloader(self):
-        return DataLoader(self.dataset['val'],
-                          collate_fn=self.dataset['val'].collater,
-                          batch_size=self.batch_size,
-                          num_workers=self.num_workers,
-                          sampler=None,
-                          shuffle=True,
-                          drop_last=True,)
+    def __len__(self):
+        return len(self.dataset)
     
-    def test_dataloader(self):
-        return DataLoader(self.dataset['test'],
-                          collate_fn=self.dataset['val'].collater,
-                          batch_size=self.batch_size,
-                          num_workers=self.num_workers,
-                          sampler=None,
-                          shuffle=True,
-                          drop_last=True,)
+    def collater(self, samples):
+        return self.dataset.collater(samples)
     
-class CIFARDataModule(BaseDataset):
-    def __init__(self, data_path: str = "../data", batch_size: int = 32, type: str = "cifar10"
-                 , num_workers:int=4):
-        super().__init__(data_path, batch_size, num_workers)
-        self.batch_size = batch_size
+class CIFARDataset(BaseDataset):
+    def __init__(self, 
+                 data_path:str,
+                 split:str,
+                 type:str="cifar10",
+                 ):
+        super().__init__(data_path, split)
         self.type = type
-        self.transform = transforms.Compose(
+
+        if self.type == "cifar10":
+            CIFAR10(self.data_path, train=self.split == "train", download=True)
+        else:
+            CIFAR100(self.data_path, train=self.split == "train", download=True)
+
+    def load(self):
+        transform = transforms.Compose(
             [
                 transforms.PILToTensor(),
                 transforms.Resize((224, 224)),
@@ -336,51 +389,14 @@ class CIFARDataModule(BaseDataset):
             ]
         )
 
-    def prepare_data(self):
         if self.type == "cifar10":
-            CIFAR10(self.data_path, train=True, download=True)
-            CIFAR10(self.data_dir, train=False, download=True)
+            self.items = CIFAR10(self.data_path, train=self.split == "train", transform=transform)
         else:
-            CIFAR100(self.data_path, train=True, download=True)
-            CIFAR100(self.data_path, train=False, download=True)
+            self.items = CIFAR100(self.data_path, train=self.split == "train", transform=transform)
 
-    def setup(self, stage=None):
-        if stage == "fit" or stage is None:
-            if self.type == "cifar10":
-                self.train = CIFAR10(self.data_path, train=True, transform=self.transform)
-                self.val = CIFAR10(self.data_path, train=False, transform=self.transform)
-            else:
-                self.train = CIFAR100(self.data_path, train=True, transform=self.transform)
-                self.val = CIFAR100(self.data_path, train=False, transform=self.transform)
-        if stage == "test" or stage is None:
-            if self.type == "cifar10":
-                self.test = CIFAR10(self.data_path, train=False, transform=self.transform)
-            else:
-                self.test = CIFAR100(self.data_path, train=False, transform=self.transform)
-
-    def train_dataloader(self):
-        return DataLoader(self.train,
-                          batch_size=self.batch_size,
-                          num_workers=self.num_workers,
-                          sampler=None,
-                          shuffle=False,
-                          drop_last=True,)
-
-    def val_dataloader(self):
-        return DataLoader(self.val,
-                          batch_size=self.batch_size,
-                          num_workers=self.num_workers,
-                          sampler=None,
-                          shuffle=False,
-                          drop_last=True,)
-
-    def test_dataloader(self):
-        return DataLoader(self.test,
-                          batch_size=self.batch_size,
-                          num_workers=self.num_workers,
-                          sampler=None,
-                          shuffle=False,
-                          drop_last=True,)
+    def __getitem__(self, index):
+        item = self.items[index]
+        return {"image": item[0], "target": item[1]}
 
 
 def load(path, loader, cache):
@@ -432,7 +448,7 @@ class MaeImageDataset(FairseqDataset):
         input_size,
         local_cache_path=None,
         shuffle=True,
-        key="imgs",
+        key="image",
         beit_transforms=False,
         no_transform=False,
         transform_jitter=False,
@@ -498,7 +514,7 @@ class MaeImageDataset(FairseqDataset):
 
         img = self.transform(img)
 
-        v = {"id": index, 'img': img}
+        v = {"id": index, self.key: img}
 
         if self.is_compute_mask:
             if self.mask_length == 1:
@@ -543,7 +559,7 @@ class MaeImageDataset(FairseqDataset):
 
         if "target" in samples[0]:
             collated_target = torch.stack([s["target"] for s in samples], dim=0)
-            res["target"] = collated_target
+            res["label"] = collated_target
 
         if "precomputed_mask" in samples[0]:
             collated_mask = torch.cat([s["precomputed_mask"] for s in samples], dim=0)

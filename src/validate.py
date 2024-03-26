@@ -56,17 +56,20 @@ class ZeroShotCallback(Callback):
     """
     def __init__(self, n_neighbors:int, datasets: Dict[str, LightningDataModule], *args, **kwargs):
         super().__init__()
-        self.dataset = datasets
+        self.datasets = datasets
         self.n_neighbors = n_neighbors
 
     @torch.no_grad()
     def on_validation_start(self, trainer, pl_module, **kwargs) -> None:
-        for name_key in self.dataset:
+        for name_key in self.datasets.keys():
+            self.datasets[name_key].prepare_data()
+            self.datasets[name_key].setup(stage='train')
+            self.datasets[name_key].setup(stage='test')
             _, metrics = make_knn_predictions(
                 model=pl_module.model,
                 n_neighbors=self.n_neighbors,
-                train_loader=self.dataset.train_dataloader(),
-                test_loader=self.dataset.val_dataloader(),
+                train_loader=self.datasets[name_key].train_dataloader(),
+                test_loader=self.datasets[name_key].test_dataloader(),
                 name=name_key,
             )
             if metrics is not None:
