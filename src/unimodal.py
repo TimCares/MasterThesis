@@ -1,7 +1,6 @@
 import os
 import logging
 import torch
-from torchvision import datasets
 import random
 import time
 from typing import *
@@ -28,9 +27,9 @@ from fairseq.examples.data2vec.data import PathDataset
 from fairseq.data import FairseqDataset
 from fairseq.data.data_utils import compute_block_mask_1d, compute_block_mask_2d
 from bpe_encoder import encode
-from torchaudio.datasets import LIBRISPEECH
 from torchvision.transforms import v2 as transforms
-from torchvision.datasets import CIFAR10, CIFAR100
+from torchvision import datasets
+from torchvision.datasets import CIFAR10, CIFAR100, LIBRISPEECH, ImageFolder
 
 from pytorch_lightning import LightningDataModule
 
@@ -98,7 +97,7 @@ class NLPDataset(BaseDataset):
         dataset = AppendTokenDataset(dataset, self.dictionary.eos())
 
         input_dict = {
-            "source": RightPadDataset(
+            "language_tokens": RightPadDataset(
                 dataset,
                 pad_idx=self.dictionary.pad(),
             ),
@@ -464,7 +463,7 @@ class MaeImageDataset(FairseqDataset):
                                         crop_scale=crop_scale)
 
         if dataset_type == "imagefolder":
-            self.dataset = datasets.ImageFolder(
+            self.dataset = ImageFolder(
                 os.path.join(root, split), loader=loader
             )
         elif dataset_type == "path":

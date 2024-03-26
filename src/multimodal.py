@@ -4,9 +4,16 @@ import torch
 from fairseq.data import Dictionary
 from torchvision.datasets.folder import default_loader
 from data_utils import get_transforms, _write_data_into_jsonl, curl_dataset
+from utils.glossary import normalize_word
 from bpe_encoder import BPEEncoder
 from unimodal import BaseDataset
 from torch.utils.data import DataLoader
+from tqdm import tqdm
+import os
+import json
+import random
+import glob
+from collections import defaultdict, Counter
 from tqdm import tqdm
 
 class BaseImageText(BaseDataset):
@@ -339,8 +346,33 @@ class VQAv2(BaseImageText):
                          no_transform,
                          task,
                          crop_scale)
-        
-        ans2label_file = os.path.join(data_path, "answer2label.txt")
+
+    def prepare_data(self):
+        self.path_to_data = os.path.join(self.data_path, "coco")
+        os.makedirs(self.path_to_data, exist_ok=True)
+        super().prepare_data()
+
+        filename = curl_dataset("http://images.cocodataset.org/zips/test2015.zip")
+        os.system(f"unzip {filename} -d {self.path_to_data}")
+        os.remove(filename)
+
+        self.path_to_data = os.path.join(self.data_path, "vqa")
+        os.makedirs(self.path_to_data, exist_ok=True)
+        for url in ["https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Questions_Train_mscoco.zip",
+                    "https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Questions_Val_mscoco.zip",
+                    "https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Questions_Test_mscoco.zip",
+                    "https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Annotations_Train_mscoco.zip",
+                    "https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Annotations_Val_mscoco.zip"]:
+            filename = curl_dataset(url)
+            os.system(f"unzip {filename} -d {self.path_to_data}")
+            os.remove(filename)
+
+        self.make_vqa_dataset_index()
+
+    def setup(self, stage):
+        super().setup(stage)
+
+        ans2label_file = os.path.join(self.path_to_data, "answer2label.txt")
         ans2label = {}
         label2ans = []
         with open(ans2label_file, mode="r", encoding="utf-8") as reader:
@@ -357,7 +389,7 @@ class VQAv2(BaseImageText):
         self.label2ans = label2ans
 
     @staticmethod
-    def get_index_files(split, task=None):
+    def get_index_files(split):
         if split == "train":
             return ("vqa.train.jsonl", "vqa.trainable_val.jsonl")
         elif split == "val":
@@ -380,8 +412,187 @@ class VQAv2(BaseImageText):
             data["qid"] = self.items[index]["qid"]
         return data
     
+    def get_score(self, occurences):
+        if occurences == 0:
+            return 0.0
+        elif occurences == 1:
+            return 0.3
+        elif occurences == 2:
+            return 0.6
+        elif occurences == 3:
+            return 0.9
+        else:
+            return 1.0
+
+    def make_vqa_dataset_index(self):
+        with open(os.path.join(self.path_to_data, "v2_OpenEnded_mscoco_train2014_questions.json"), "r") as fp:
+            questions_train2014 = json.load(fp)["questions"]
+        with open(os.path.join(self.path_to_data, "v2_OpenEnded_mscoco_val2014_questions.json"), "r") as fp:
+            questions_val2014 = json.load(fp)["questions"]
+        with open(os.path.join(self.path_to_data, "v2_OpenEnded_mscoco_test2015_questions.json"), "r") as fp:
+            questions_test2015 = json.load(fp)["questions"]
+        with open(os.path.join(self.path_to_data, "v2_OpenEnded_mscoco_test-dev2015_questions.json"), "r") as fp:
+            questions_test_dev2015 = json.load(fp)["questions"]
+
+        with open(os.path.join(self.path_to_data, "v2_mscoco_train2014_annotations.json"), "r") as fp:
+            annotations_train2014 = json.load(fp)["annotations"]
+        with open(os.path.join(self.path_to_data, "v2_mscoco_val2014_annotations.json"), "r") as fp:
+            annotations_val2014 = json.load(fp)["annotations"]
+
+        annotations = dict()
+
+        for split, questions in zip(
+            ["train", "val", "test", "test-dev"],
+            [questions_train2014, questions_val2014, questions_test2015, questions_test_dev2015],
+        ):
+            _annot = defaultdict(dict)
+            for q in questions:
+                question_text = q["question"]
+                token_ids = self.bpe_encoder.encode(question_text)
+
+                assert q["question_id"] not in _annot[q["image_id"]]
+                _annot[q["image_id"]][q["question_id"]] = {
+                    "question": question_text, 
+                    "token_ids": token_ids, 
+                }
+
+            annotations[split] = _annot
+
+        all_major_answers = list()
+
+        for split, annots in zip(
+            ["train", "val"], [annotations_train2014, annotations_val2014],
+        ):
+            # _annot = annotations[split]
+            for q in annots:
+                all_major_answers.append(q["multiple_choice_answer"])
+
+        all_major_answers = [normalize_word(word) for word in all_major_answers]
+        counter = {k: v for k, v in Counter(all_major_answers).items() if v >= 9}
+        ans2label = {k: i for i, k in enumerate(counter.keys())}
+        label2ans = list(counter.keys())
+
+        for split, annots in zip(
+            ["train", "val"], [annotations_train2014, annotations_val2014],
+        ):
+            _annot = annotations[split]
+            for q in annots:
+                answers = q["answers"]
+                answer_count = {}
+                for answer in answers:
+                    answer_ = answer["answer"]
+                    answer_count[answer_] = answer_count.get(answer_, 0) + 1
+
+                labels = []
+                scores = []
+                for answer in answer_count:
+                    if answer not in ans2label:
+                        continue
+                    labels.append(ans2label[answer])
+                    score = self.get_score(answer_count[answer])
+                    scores.append(score)
+
+                assert "labels" not in _annot[q["image_id"]][q["question_id"]]
+                assert "question" in _annot[q["image_id"]][q["question_id"]]
+                _annot[q["image_id"]][q["question_id"]]["labels"] = labels
+                _annot[q["image_id"]][q["question_id"]]["scores"] = scores
+
+        for split in ["train", "val"]:
+            filtered_annot = dict()
+            for ik, iv in annotations[split].items():
+                new_q = dict()
+                for qk, qv in iv.items():
+                    if len(qv["labels"]) != 0:
+                        new_q[qk] = qv
+                if len(new_q) != 0:
+                    filtered_annot[ik] = new_q
+            annotations[split] = filtered_annot
+
+        split2items = {}
+        for split in ["train", "val", "test", "test-dev"]:
+            annot = annotations[split]
+            split_name = {
+                "train": "train2014",
+                "val": "val2014",
+                "test": "test2015",
+                "test-dev": "test2015",
+            }[split]
+            paths = list(glob.glob(f"{os.path.join(self.data_path, 'coco')}/{split_name}/*.jpg"))
+            random.shuffle(paths)
+            annot_paths = [path for path in paths \
+                if int(path.split("/")[-1].split("_")[-1][:-4]) in annot]
+
+            if len(paths) == len(annot_paths):
+                print("all images have caption annotations")
+            else:
+                print("not all images have caption annotations")
+            print(len(paths), len(annot_paths), len(annot))
+
+            items = []
+            for path in annot_paths:
+                iid = int(path.split("/")[-1].split("_")[-1][:-4])
+                _annot = annotations[split][iid]
+                for qid in _annot:
+                    q = _annot[qid]
+                    if split in ["train", "val"]:
+                        labels = q["labels"]
+                        scores = q["scores"]
+                    else:
+                        labels, scores = [], []
+
+                    items.append({
+                        "image_path": os.path.join(split_name, path.split('/')[-1]), 
+                        "text_segment": q["token_ids"], 
+                        "labels": labels, 
+                        "scores": scores, 
+                        "qid": qid, 
+                    })
+            split2items[split] = items
+
+            _write_data_into_jsonl(items=items, jsonl_file=os.path.join(self.path_to_data, "vqa.%s.jsonl" % split))
+
+        # Following ViLT, we use 1000 images of the original val set as the final val set        
+        val_image2items = defaultdict(list)
+        for item in split2items["val"]:
+            val_image2items[item["image_path"]].append(item)
+        
+        print("Contains %d image and %d pairs for val set!" % (len(val_image2items), len(split2items["val"])))
+
+        val_images = list(val_image2items.keys())
+        random.shuffle(val_images)
+        trainable_val = []
+        rest_val = []
+        for i, image_id in enumerate(val_images):
+            if i < 1000:
+                rest_val += val_image2items[image_id]
+            else:
+                trainable_val += val_image2items[image_id]
+        
+        _write_data_into_jsonl(items=trainable_val, jsonl_file=os.path.join(self.path_to_data, "vqa.trainable_val.jsonl"))
+        _write_data_into_jsonl(items=rest_val, jsonl_file=os.path.join(self.path_to_data, "vqa.rest_val.jsonl"))
+
+        with open(os.path.join(self.path_to_data, "answer2label.txt"), mode="w", encoding="utf-8") as writer:
+            for ans in ans2label:
+                to_json = {
+                    "answer": ans, 
+                    "label": ans2label[ans]
+                }
+                writer.write("%s\n" % json.dumps(to_json))
+    
 
 class NLVR2Dataset(BaseImageText):
+
+    def prepare_data(self):
+        super().prepare_data()
+        self.path_to_data = os.path.join(self.data_path, "nlvr2")
+        os.makedirs(self.path_to_data, exist_ok=True)
+        # TODO: download and unzip the data
+        #
+        # self.make_dataset_index(nlvr_repo_path)
+
+    def setup(self, stage):
+        super().setup(stage)
+
     def __getitem__(self, index: int):
         data = super().__getitem__(index)
         item = self.items[index]
@@ -390,3 +601,45 @@ class NLVR2Dataset(BaseImageText):
         data["image2"] = img
         data["label"] = self.items[index]["label"]
         return data
+    
+    @staticmethod
+    def get_index_files(split):
+        if split == "train":
+            return ("nlvr2.train.index.jsonl", )
+        elif split == "val":
+            return ("nlvr2.dev.index.jsonl", )
+        elif split == "test":
+            return ("nlvr2.test-P.index.jsonl", )
+        else:
+            raise RuntimeError("split %s is not found!" % split)
+
+    def _preprocess_json(self, prefix, json_file, index_file):
+        items = []
+        with open(json_file, mode="r", encoding="utf-8") as reader:
+            for line in reader:
+                data = json.loads(line)
+                path = os.path.join(prefix, str(data["directory"])) if "directory" in data else prefix
+                path = os.path.join(path, "-".join(data["identifier"].split("-")[:-1]))
+                token_ids = self.bpe_encoder.encode(data["sentence"])
+                items.append({
+                    "image_path": path + "-img0.png",
+                    "image2_path": path + "-img1.png",
+                    "text_segment": token_ids,
+                    "label": 1 if data["label"] == "True" else 0,
+                    "identifier": data["identifier"], 
+                })
+        _write_data_into_jsonl(items, index_file)
+
+    def make_dataset_index(self, nlvr_repo_path):
+        self._preprocess_json(
+            prefix="images/train", json_file=os.path.join(nlvr_repo_path, "nlvr2/data/train.json"), 
+            index_file=os.path.join(self.path_to_data, NLVR2Dataset.get_index_files("train")[0]), 
+        )
+        self._preprocess_json(
+            prefix="dev", json_file=os.path.join(nlvr_repo_path, "nlvr2/data/dev.json"), 
+            index_file=os.path.join(self.path_to_data, NLVR2Dataset.get_index_files("val")[0]), 
+        )
+        self._preprocess_json(
+            prefix="test1", json_file=os.path.join(nlvr_repo_path, "nlvr2/data/test1.json"), 
+            index_file=os.path.join(self.path_to_data, NLVR2Dataset.get_index_files("test")[0]), 
+        )
