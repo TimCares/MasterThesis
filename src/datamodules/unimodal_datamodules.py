@@ -1,9 +1,10 @@
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
-from datasets import IMDBDataset, CIFARDataset, ImageNetDataset, LibriSpeechDataset
+from datasets import IMDBDataset, CIFARDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset
 
 class BaseDataModule(LightningDataModule):
     def __init__(self,
+                 data_path:str,
                  batch_size:int,
                  num_workers:int,
                  shuffle:bool=True,
@@ -11,15 +12,12 @@ class BaseDataModule(LightningDataModule):
                  *args,
                  **kwargs):
         super().__init__(*args, **kwargs)
+        self.data_path = data_path
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.shuffle = shuffle
         self.drop_last = drop_last
         self.prepared = False
-
-    @property
-    def dataset_cls(self):
-        raise NotImplementedError("return dataset class")
     
     def set_train_dataset(self):
         raise NotImplementedError("set train dataset")
@@ -79,8 +77,7 @@ class IMDBDataModule(BaseDataModule):
                  num_max_bpe_tokens:int,
                  *args,
                  **kwargs):
-        super().__init__(*args, **kwargs)
-        self.data_path = data_path
+        super().__init__(data_path, *args, **kwargs)
         self.num_max_bpe_tokens = num_max_bpe_tokens
 
     def prepare_data(self):
@@ -109,8 +106,7 @@ class CIFARDataModule(BaseDataModule):
                  type:str,
                  *args,
                  **kwargs):
-        super().__init__(*args, **kwargs)
-        self.data_path = data_path
+        super().__init__(data_path, *args, **kwargs)
         self.type = type
 
     def prepare_data(self):
@@ -144,8 +140,7 @@ class ImageNetDataModule(BaseDataModule):
                  local_cache_path,
                  *args,
                  **kwargs):
-        super().__init__(*args, **kwargs)
-        self.data_path = data_path
+        super().__init__(data_path, *args, **kwargs)
         self.beit_transforms = beit_transforms
         self.no_transform = no_transform
         self.transform_jitter = transform_jitter
@@ -194,8 +189,7 @@ class LibriSpeechDataModule(BaseDataModule):
                  type:str,
                  *args,
                  **kwargs):
-        super().__init__(*args, **kwargs)
-        self.data_path = data_path
+        super().__init__(data_path, *args, **kwargs)
         self.sample_rate = sample_rate
         self.max_sample_size = max_sample_size
         self.min_sample_size = min_sample_size
@@ -232,3 +226,37 @@ class LibriSpeechDataModule(BaseDataModule):
                                                min_sample_size=self.min_sample_size,
                                                precompute_mask_config=self.precompute_mask_config,
                                                type='test-other',)
+        
+
+class SpeechCommandsDataModule(BaseDataModule):
+    def __init__(self,
+                 data_path:str,
+                 feature_encoder_spec:str,
+                 *args,
+                 **kwargs
+                 ):
+        super().__init__(data_path, *args, **kwargs)
+        self.feature_encoder_spec = feature_encoder_spec
+
+    def prepare_data(self):
+        if not self.prepared:
+            self.set_train_dataset()
+            self.set_test_dataset()
+
+            self.prepared = True
+
+    def setup(self, stage=None):
+        if stage == 'fit' or stage is None:
+            self.train_dataset.load()
+        if stage == 'test' or stage is None:
+            self.test_dataset.load()
+
+    def set_train_dataset(self):
+        self.train_dataset = SpeechCommandsDataset(data_path=self.data_path,
+                                                   split='train',
+                                                   feature_encoder_spec=self.feature_encoder_spec,)
+
+    def set_test_dataset(self):
+        self.test_dataset = SpeechCommandsDataset(data_path=self.data_path,
+                                                  split='test',
+                                                  feature_encoder_spec=self.feature_encoder_spec,)

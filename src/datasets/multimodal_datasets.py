@@ -7,28 +7,25 @@ from data_utils import get_transforms, _write_data_into_jsonl, curl_dataset
 from utils.glossary import normalize_word
 from bpe_encoder import BPEEncoder
 from datasets.unimodal_datasets import BaseDataset
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 import os
 import json
 import random
 import glob
 from collections import defaultdict, Counter
-from tqdm import tqdm
 
 class BaseImageText(BaseDataset):
     def __init__(
         self,
         data_path,
-        batch_size,
-        num_workers,
+        split,
         num_max_bpe_tokens,
         transform_jitter=False,
         beit_transforms=False,
         no_transform=False,
         crop_scale=(0.6, 1.0),
     ):
-        super().__init__(data_path, batch_size, num_workers)
+        super().__init__(data_path, split)
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.transform_jitter = transform_jitter
         self.beit_transforms = beit_transforms
@@ -36,7 +33,6 @@ class BaseImageText(BaseDataset):
         self.crop_scale = crop_scale
         self.path_to_data = None
         
-    def prepare_data(self):
         if not os.path.isfile(os.path.join(self.data_path, "dict.txt")):
             filename = curl_dataset("https://dl.fbaipublicfiles.com/fairseq/data2vec2/dict.txt")
             os.rename(filename, os.path.join(self.data_path, "dict.txt"))
@@ -63,8 +59,8 @@ class BaseImageText(BaseDataset):
                                         transform_jitter=self.transform_jitter,
                                         crop_scale=self.crop_scale)
 
-    def setup(self, stage):
-        index_files = self.get_index_files(stage)
+    def load(self):
+        index_files = self.get_index_files(self.split)
         items = []
         self.index_files = index_files
 
@@ -141,48 +137,20 @@ class BaseImageText(BaseDataset):
 
         return head + body
     
-    def collater(self, samples):
-        batch_tensors = {}
-        for tensor_key in samples[0]:
-            if isinstance(samples[0][tensor_key], torch.Tensor):
-                batch_tensors[tensor_key] = torch.stack([d[tensor_key] for d in samples])
-            else:
-                batch_tensors[tensor_key] = torch.tensor([d[tensor_key] for d in samples], dtype=torch.long)
-
-        return batch_tensors
-    
-    def train_dataloader(self):
-        return DataLoader(self.dataset['train'],
-                          collate_fn=self.collater,
-                          batch_size=self.batch_size,
-                          num_workers=self.num_workers,
-                          sampler=None,
-                          shuffle=True,
-                          drop_last=True,)
-    
-    def val_dataloader(self):
-        return DataLoader(self.dataset['val'],
-                          collate_fn=self.collater,
-                          batch_size=self.batch_size,
-                          num_workers=self.num_workers,
-                          sampler=None,
-                          shuffle=True,
-                          drop_last=True,)
-    
-    def test_dataloader(self):
-        return DataLoader(self.dataset['test'],
-                          collate_fn=self.collater,
-                          batch_size=self.batch_size,
-                          num_workers=self.num_workers,
-                          sampler=None,
-                          shuffle=True,
-                          drop_last=True,)
-    
 
 class COCOCaptions(BaseImageText):        
-    def prepare_data(self):
+    def __init__(
+            self,
+            data_path,
+            split,
+            num_max_bpe_tokens,
+            transform_jitter=False,
+            beit_transforms=False,
+            no_transform=False,
+            crop_scale=(0.6, 1.0),
+            ):
+        super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
         self.path_to_data = os.path.join(self.data_path, "coco")
-        super().prepare_data()
 
         os.makedirs(self.path_to_data, exist_ok=True)
         for url in ["http://images.cocodataset.org/zips/train2014.zip",
@@ -195,10 +163,7 @@ class COCOCaptions(BaseImageText):
         os.remove('dataset_flickr8k.json')
         os.remove('dataset_flickr30k.json')
 
-        self.make_coco_captioning_dataset_index()
-
-    def setup(self, stage):
-        super().setup(stage)
+        self._make_captioning_coco_karpathy_dataset_index()
 
     @staticmethod
     def get_index_files(split):
@@ -219,11 +184,16 @@ class COCOCaptions(BaseImageText):
             data["padding_mask"] = padding_mask
         return data
     
-    def _make_captioning_coco_karpathy_dataset_index(
-            self,
-            split=("train", "restval"), 
-            split_name="train",
-        ):
+    def _make_captioning_coco_karpathy_dataset_index(self):
+        if self.split == "train":
+            karpathy_split = ("train", "restval")
+        elif self.split == "val":
+            karpathy_split = ("val", )
+        elif self.split == "test":
+            karpathy_split = ("test", )
+        else:
+            raise RuntimeError("split %s is not found!" % self.split)
+        
         coco_karpathy_split_json_file = os.path.join(self.path_to_data, "dataset_coco.json")
         items = []
         image_counter = set()
@@ -231,7 +201,7 @@ class COCOCaptions(BaseImageText):
         with open(coco_karpathy_split_json_file, mode="r", encoding="utf-8") as reader:
             data = json.loads(reader.read())
             for item in data["images"]:
-                if item["split"] in split:
+                if item["split"] in karpathy_split:
                     image_path = os.path.join(item["filepath"], item["filename"])
                     if item["split"] in ["train", "restval"]:
                         for sent in item["sentences"]:
@@ -250,15 +220,15 @@ class COCOCaptions(BaseImageText):
                     if image_path not in image_counter:
                         image_counter.add(image_path)
         print("Find %d images and %d image-text pairs for karpathy dataset %s split !" % \
-            (len(image_counter), len(items), split_name))
-        index_file = os.path.join(self.path_to_data, "coco_captioning.%s.jsonl" % split_name)
+            (len(image_counter), len(items), self.split))
+        index_file = os.path.join(self.path_to_data, "coco_captioning.%s.jsonl" % self.split)
         _write_data_into_jsonl(items, index_file)
 
 
-    def make_coco_captioning_dataset_index(self):
-        self._make_captioning_coco_karpathy_dataset_index(split=("train", "restval"), split_name="train")
-        self._make_captioning_coco_karpathy_dataset_index(split=("val", ), split_name="val")
-        self._make_captioning_coco_karpathy_dataset_index(split=("test", ), split_name="test")
+    # def make_coco_captioning_dataset_index(self):
+        # self._make_captioning_coco_karpathy_dataset_index(split=("train", "restval"), split_name="train")
+        # self._make_captioning_coco_karpathy_dataset_index(split=("val", ), split_name="val")
+        # self._make_captioning_coco_karpathy_dataset_index(split=("test", ), split_name="test")
 
     # def make_nocaps_captioning_dataset_index(self):
     #     _make_nocaps_dataset_index(split="val")
@@ -266,9 +236,17 @@ class COCOCaptions(BaseImageText):
     
 
 class VisualGenome(BaseImageText):
-
-    def prepare_data(self):
-        super().prepare_data()
+    def __init__(
+            self,
+            data_path,
+            split,
+            num_max_bpe_tokens,
+            transform_jitter=False,
+            beit_transforms=False,
+            no_transform=False,
+            crop_scale=(0.6, 1.0),
+            ):
+        super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
         self.path_to_data = os.path.join(self.data_path, "vg")
         os.makedirs(self.path_to_data, exist_ok=True)
         for url in ["https://cs.stanford.edu/people/rak248/VG_100K_2/images.zip",
@@ -279,9 +257,6 @@ class VisualGenome(BaseImageText):
             os.remove(filename)
 
         self.make_visual_genome_dataset_index()
-
-    def setup(self, stage):
-        super().setup(stage)
 
     @staticmethod
     def get_index_files(split):
@@ -328,26 +303,17 @@ class VisualGenome(BaseImageText):
     
 
 class VQAv2(BaseImageText):
-    def __init__(self, 
-                 data_path,
-                 split,
-                 num_max_bpe_tokens,
-                 transform_jitter=False,
-                 beit_transforms=False,
-                 no_transform=False,
-                 task=None,
-                 crop_scale=(0.6, 1.0)):
-        
-        super().__init__(data_path,
-                         split,
-                         num_max_bpe_tokens,
-                         transform_jitter,
-                         beit_transforms,
-                         no_transform,
-                         task,
-                         crop_scale)
-
-    def prepare_data(self):
+    def __init__(
+            self,
+            data_path,
+            split,
+            num_max_bpe_tokens,
+            transform_jitter=False,
+            beit_transforms=False,
+            no_transform=False,
+            crop_scale=(0.6, 1.0),
+            ):
+        super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
         self.path_to_data = os.path.join(self.data_path, "coco")
         os.makedirs(self.path_to_data, exist_ok=True)
         super().prepare_data()
@@ -369,9 +335,8 @@ class VQAv2(BaseImageText):
 
         self.make_vqa_dataset_index()
 
-    def setup(self, stage):
-        super().setup(stage)
-
+    def load(self):
+        super().load()
         ans2label_file = os.path.join(self.path_to_data, "answer2label.txt")
         ans2label = {}
         label2ans = []
@@ -581,17 +546,22 @@ class VQAv2(BaseImageText):
     
 
 class NLVR2Dataset(BaseImageText):
-
-    def prepare_data(self):
-        super().prepare_data()
+    def __init__(
+            self,
+            data_path,
+            split,
+            num_max_bpe_tokens,
+            transform_jitter=False,
+            beit_transforms=False,
+            no_transform=False,
+            crop_scale=(0.6, 1.0),
+            ):
+        super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
         self.path_to_data = os.path.join(self.data_path, "nlvr2")
         os.makedirs(self.path_to_data, exist_ok=True)
         # TODO: download and unzip the data
         #
         # self.make_dataset_index(nlvr_repo_path)
-
-    def setup(self, stage):
-        super().setup(stage)
 
     def __getitem__(self, index: int):
         data = super().__getitem__(index)

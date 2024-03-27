@@ -7,6 +7,7 @@ import json
 from typing import *
 import subprocess
 import shutil
+import numpy as np
 from shutil import copyfile
 from functools import partial
 from data_utils import get_transforms, curl_dataset, _write_data_into_jsonl
@@ -28,7 +29,7 @@ from fairseq.examples.data2vec.data import PathDataset
 from fairseq.data import FairseqDataset
 from fairseq.data.data_utils import compute_block_mask_1d, compute_block_mask_2d
 from bpe_encoder import encode
-from torchaudio.datasets import LIBRISPEECH
+from torchaudio.datasets import LIBRISPEECH, SPEECHCOMMANDS
 from torchvision.transforms import v2 as transforms
 from torchvision import datasets
 import torchtext
@@ -282,6 +283,123 @@ class LibriSpeechDataset(AudioDataset):
             'precomputed_mask': collater_res['net_input']['precomputed_mask'],
         }
         return res
+
+
+class SpeechCommandsDataset(BaseDataset):
+    def __init__(self, 
+                 data_path:str,
+                 split:str,
+                 feature_encoder_spec:str,
+                 ):
+        super().__init__(data_path, split)
+
+        self.feature_encoder_spec = feature_encoder_spec
+        self.pad = True
+        
+        # as desribed in the paper to the dataset, each sample is at a maximum of 1 second
+        # long and is sampled at 16kHz (https://arxiv.org/pdf/1804.03209.pdf)
+        self.max_sample_size = 16_000
+
+        path_to_data = os.path.join(self.data_path, 'SpeechCommands', 'speech_commands_v0.02')
+        # List all entries in the given path
+        all_entries = os.listdir(path_to_data)
+        # Filter out directories that do not start with '_'
+        class_names = [entry for entry in all_entries if os.path.isdir(os.path.join(path_to_data, entry)) and not entry.startswith('_')]
+        
+        self.class_to_id = {class_name: i for i, class_name in enumerate(class_names)}
+
+        if self.split == "train":
+            self.subset = "training"
+        else:
+            self.subset = "testing"
+
+        SPEECHCOMMANDS(self.data_path, subset=self.subset, download=True)
+
+        if os.path.exists(f"{self.data_path}/speech_commands_v0.02.tar.gz"):
+            os.remove(f"{self.data_path}/speech_commands_v0.02.tar.gz")
+
+    def load(self):
+        self.items = SPEECHCOMMANDS(self.data_path, subset=self.subset)
+
+    def __getitem__(self, index):
+        item = self.items[index]
+        return {"audio": item[0][0], "label": item[2], "id": index}
+    
+    def collater(self, samples):
+        samples = [s for s in samples if s["audio"] is not None]
+        if len(samples) == 0:
+            return {}
+
+        sources = [s["audio"] for s in samples]
+        sizes = [len(s) for s in sources]
+
+        if self.pad:
+            target_size = min(max(sizes), self.max_sample_size)
+        else:
+            target_size = min(min(sizes), self.max_sample_size)
+
+        collated_sources = sources[0].new_zeros(len(sources), target_size)
+        padding_mask = (
+            torch.BoolTensor(collated_sources.shape).fill_(False) if self.pad else None
+        )
+        for i, (source, size) in enumerate(zip(sources, sizes)):
+            diff = size - target_size
+            if diff == 0:
+                collated_sources[i] = source
+            elif diff < 0:
+                assert self.pad
+                collated_sources[i] = torch.cat(
+                    [source, source.new_full((-diff,), 0.0)]
+                )
+                padding_mask[i, diff:] = True
+            else:
+                collated_sources[i] = self._crop_to_max_size(source, target_size)
+
+        input = {"audio": collated_sources,
+                 "label": torch.LongTensor([self.class_to_id[s["label"]] for s in samples]),
+                 "id": torch.LongTensor([s["id"] for s in samples])
+                 }
+        
+        if self.pad:
+            input["padding_mask"] = padding_mask
+
+        if "precomputed_mask" in samples[0]:
+            target_size = self._get_mask_indices_dims(target_size)
+            collated_mask = torch.cat(
+                [
+                    self._crop_to_max_size(s["precomputed_mask"], target_size, dim=1)
+                    for s in samples
+                ],
+                dim=0,
+            )
+            input["precomputed_mask"] = collated_mask
+
+        return input
+
+    def _get_mask_indices_dims(self, size, padding=0, dilation=1):
+        L_in = size
+        for (_, kernel_size, stride) in self.feature_encoder_spec:
+            L_out = L_in + 2 * padding - dilation * (kernel_size - 1) - 1
+            L_out = 1 + L_out // stride
+            L_in = L_out
+        return L_out
+
+    def _crop_to_max_size(self, t, target_size, dim=0):
+        size = t.size(dim)
+        diff = size - target_size
+        if diff <= 0:
+            return t
+
+        start = np.random.randint(0, diff + 1)
+        end = size - diff + start
+
+        slices = []
+        for d in range(dim):
+            slices.append(slice(None))
+        slices.append(slice(start, end))
+
+        return t[slices]
+    
 
     
 class ImageDataset(BaseDataset):
