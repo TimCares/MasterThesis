@@ -24,7 +24,9 @@ def make_knn_predictions(model:Callable,
     for batch in train_loader:
         X_train.append(model(batch[0])) # TODO add parameters
         y_train.append(batch[1])
-    X_train = torch.cat(X_train, dim=0).cpu().numpy()
+    X_train = torch.cat(X_train, dim=0)
+    X_train = X_train / X_train.norm(p=2, dim=-1, keepdim=True) # normalize
+    X_train = X_train.cpu().numpy()
     y_train = torch.cat(y_train, dim=0).cpu().numpy()
 
     X_test = []
@@ -32,7 +34,9 @@ def make_knn_predictions(model:Callable,
     for batch in test_loader:
         X_test.append(model(batch[0])) # TODO add parameters
         y_test.append(batch[1])
-    X_test = torch.cat(X_test, dim=0).cpu().numpy()
+    X_test = torch.cat(X_test, dim=0)
+    X_test = X_test / X_test.norm(p=2, dim=-1, keepdim=True) # normalize
+    X_test = X_test.cpu().numpy()
     y_test = torch.cat(y_test, dim=0).cpu().numpy()
  
     knn = KNeighborsClassifier(n_neighbors=n_neighbors)
