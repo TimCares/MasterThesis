@@ -4,9 +4,8 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-import argparse
 import logging
-
+from rich.progress import track
 import torch
 from flava.data.transforms import (
     default_image_pretraining_transforms,
@@ -45,35 +44,14 @@ def collator(batch):
     return images, texts
 
 
-def setup_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--data_root", help="Path to data root directory")
-    parser.add_argument("--annotations", help="Path to annotation file")
-    parser.add_argument("--batch_size", default=16)
-
-    args = parser.parse_args()
-    return args
-
-
-def main():
-    args = setup_args()
-    dataset = CocoCaptions(
-        root=args.data_root, annFile=args.annotations, transforms=transform
-    )
-    flava = flava_model(pretrained=True)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logger.info(f"Using device: {device}")
-    flava = flava.to(device)
-    flava.eval()
+def zero_shot_retrieval(model, dataloader, device, name):
     text_embeds = []
     image_embeds = []
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collator)
 
-    for batch_idx, batch in enumerate(dataloader):
-        logger.info(f"Batch id {batch_idx}")
+    for _, batch in track(enumerate(dataloader), description=f"Encoding {name}..."):
         image, text = batch
-        _, text_emb = flava.encode_text(text.to(device), projection=True)
-        _, image_emb = flava.encode_image(image.to(device), projection=True)
+        _, text_emb = model.encode_text(text.to(device), projection=True)
+        _, image_emb = model.encode_image(image.to(device), projection=True)
         text_embeds.append(text_emb.detach().cpu())
         image_embeds.append(image_emb.detach().cpu())
 
@@ -91,10 +69,27 @@ def main():
     text_to_image_r1 = compute_recall(similarity_scores_t, k=1)
     text_to_image_r5 = compute_recall(similarity_scores_t, k=5)
 
-    logger.info(f"image_to_text_recall@1 {image_to_text_r1}")
-    logger.info(f"image_to_text_recall@5 {image_to_text_r5}")
-    logger.info(f"text_to_image_recall@1 {text_to_image_r1}")
-    logger.info(f"text_to_image_recall@5 {text_to_image_r5}")
+    logger.info(f"{name}: image_to_text_recall@1 {image_to_text_r1}")
+    logger.info(f"{name}: image_to_text_recall@5 {image_to_text_r5}")
+    logger.info(f"{name}: text_to_image_recall@1 {text_to_image_r1}")
+    logger.info(f"{name}: text_to_image_recall@5 {text_to_image_r5}")
+
+
+def main():
+    dataset = CocoCaptions(
+        root=args.data_root, annFile=args.annotations, transforms=transform
+    )
+    flava = flava_model(pretrained=True)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info(f"Using device: {device}")
+    flava = flava.to(device)
+    flava.eval()
+    
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collator)
+
+    for name, dataloader in zip(["coco", "flickr"], [dataloader, dataloader]):
+        logger.info(f"Zero-shot retrieval on: {name}")
+        zero_shot_retrieval(flava, dataloader, device, name)
 
 
 if __name__ == "__main__":
