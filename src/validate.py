@@ -22,7 +22,7 @@ def make_knn_predictions(model:Callable,
     X_train = []
     y_train = []
     for batch in train_loader:
-        X_train.append(model(batch[0])) # TODO add parameters
+        X_train.append(model(batch[0])) # TODO add parameters, and [:, 0, :], if not done in the model (no causal mask!)
         y_train.append(batch[1])
     X_train = torch.cat(X_train, dim=0)
     X_train = X_train / X_train.norm(p=2, dim=-1, keepdim=True) # normalize
@@ -32,7 +32,7 @@ def make_knn_predictions(model:Callable,
     X_test = []
     y_test = []
     for batch in test_loader:
-        X_test.append(model(batch[0])) # TODO add parameters
+        X_test.append(model(batch[0])) # TODO add parameters, and [:, 0, :], if not done in the model (no causal mask!)
         y_test.append(batch[1])
     X_test = torch.cat(X_test, dim=0)
     X_test = X_test / X_test.norm(p=2, dim=-1, keepdim=True) # normalize
