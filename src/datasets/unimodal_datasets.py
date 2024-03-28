@@ -33,7 +33,7 @@ from torchaudio.datasets import LIBRISPEECH, SPEECHCOMMANDS
 from torchvision.transforms import v2 as transforms
 from torchvision import datasets
 import torchtext
-from torchvision.datasets import CIFAR10, CIFAR100, ImageFolder
+from torchvision.datasets import CIFAR10, CIFAR100, ImageFolder, Flickr30k
 
 logger = logging.getLogger(__name__)
 
@@ -515,6 +515,37 @@ class CIFARDataset(BaseDataset):
     def __getitem__(self, index):
         item = self.items[index]
         return {"image": item[0], "target": item[1]}
+    
+class Flickr30Dataset(BaseDataset):
+    def __init__(self, 
+                 data_path:str,
+                 split:str,
+                 ):
+        super().__init__(data_path, split)
+        
+        # TODO: Implement the download of the dataset
+
+    def load(self):
+        transform = transforms.Compose(
+            [
+                transforms.PILToTensor(),
+                transforms.Resize((224, 224)),
+                transforms.ToDtype(torch.float32, scale=True),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),
+            ]
+        )
+
+        self.items = Flickr30k(root=os.path.join(self.data_path, ),# TODO: Add the path to the dataset
+                               ann_file=os.path.join(self.data_path, ),
+                               transform=transform,)
+
+    def __getitem__(self, index):
+        item = self.items[index]
+        # TODO: Implement the return of the item
+    
+
 
 
 def load(path, loader, cache):
