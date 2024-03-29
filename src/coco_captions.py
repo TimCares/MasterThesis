@@ -21,7 +21,7 @@ from torchvision.transforms import v2 as transforms
 from PIL import Image
 from fairseq.data import FairseqDataset, Dictionary, data_utils
 from bpe_encoder import BPEEncoder
-from multimodal import BaseImageText
+from datasets.multimodal_datasets import BaseImageText
 
 from shutil import copyfile
 

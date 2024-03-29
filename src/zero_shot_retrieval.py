@@ -6,14 +6,13 @@
 
 import logging
 from rich.progress import track
-from typing import Callable
+from typing import *
 import torch
 from flava.data.transforms import (
     default_image_pretraining_transforms,
     default_text_transform,
 )
 from torch import nn
-from torchvision.datasets import CocoCaptions
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -43,52 +42,46 @@ def collator(batch):
     return images, texts
 
 
-def zero_shot_retrieval(model, dataloader, device, name):
-    text_embeds = []
-    image_embeds = []
+def zero_shot_retrieval(model, dataloader, device, name, modalities):
+    mode_a_embeds = []
+    mode_b_embeds = []
 
     for _, batch in track(enumerate(dataloader), description=f"Encoding {name}..."):
-        image, text = batch
-        _, text_emb = model.encode_text(text.to(device), projection=True)
-        _, image_emb = model.encode_image(image.to(device), projection=True)
-        text_embeds.append(text_emb.detach().cpu())
-        image_embeds.append(image_emb.detach().cpu())
+        a, b = batch
+        _, a_emb = model.encode_image(a.to(device), projection=True)
+        _, b_emb = model.encode_text(b.to(device), projection=True)
+        mode_a_embeds.append(a_emb.detach().cpu())
+        mode_b_embeds.append(b_emb.detach().cpu())
 
-    image_embeds = torch.cat(image_embeds, 0)
-    text_embeds = torch.cat(text_embeds, 0)
+    mode_a_embeds = torch.cat(mode_a_embeds, 0)
+    mode_b_embeds = torch.cat(mode_b_embeds, 0)
 
-    image_embeds = nn.functional.normalize(image_embeds, dim=-1)
-    text_embeds = nn.functional.normalize(text_embeds, dim=-1)
+    mode_a_embeds = nn.functional.normalize(mode_a_embeds, dim=-1)
+    mode_b_embeds = nn.functional.normalize(mode_b_embeds, dim=-1)
 
-    similarity_scores = image_embeds @ text_embeds.t()
+    similarity_scores = mode_a_embeds @ mode_b_embeds.t()
     similarity_scores_t = similarity_scores.t()
 
-    image_to_text_r1 = compute_recall(similarity_scores, k=1)
-    image_to_text_r5 = compute_recall(similarity_scores, k=5)
-    text_to_image_r1 = compute_recall(similarity_scores_t, k=1)
-    text_to_image_r5 = compute_recall(similarity_scores_t, k=5)
+    a_to_b_r1 = compute_recall(similarity_scores, k=1)
+    a_to_b_r5 = compute_recall(similarity_scores, k=5)
+    b_to_a_r1 = compute_recall(similarity_scores_t, k=1)
+    b_to_a_r5 = compute_recall(similarity_scores_t, k=5)
 
-    logger.info(f"{name}: image_to_text_recall@1 {image_to_text_r1}")
-    logger.info(f"{name}: image_to_text_recall@5 {image_to_text_r5}")
-    logger.info(f"{name}: text_to_image_recall@1 {text_to_image_r1}")
-    logger.info(f"{name}: text_to_image_recall@5 {text_to_image_r5}")
+    logger.info(f"{name}: {modalities[0]}_to_{modalities[1]}_recall@1 {a_to_b_r1}")
+    logger.info(f"{name}: {modalities[0]}_to_{modalities[1]}_recall@5 {a_to_b_r5}")
+    logger.info(f"{name}: {modalities[1]}_to_{modalities[0]}_recall@1 {b_to_a_r1}")
+    logger.info(f"{name}: {modalities[1]}_to_{modalities[0]}_recall@5 {b_to_a_r5}")
 
 
-def make_zero_shot_retrieval(model:Callable):
-    dataset = CocoCaptions(
-        root=args.data_root, annFile=args.annotations, transforms=transform
-    )
+def make_zero_shot_retrieval(model:Callable, names:List[str], dataloaders:List[torch.utils.data.DataLoader], modalities:List[Tuple[str, str]]) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
     model = model.to(device)
     model.eval()
     
-
-    for name, dataloader in zip(["coco", "flickr"], [dataloader, dataloader]):
+    # names = ["coco", "flickr"]
+    # dataloaders = [dataloader, dataloader]
+    # modalities = [("image", 'text'), ("image", 'text')]
+    for name, dataloader, modalities in zip(names, dataloaders, modalities):
         logger.info(f"Zero-shot retrieval on: {name}")
-        # dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collator)
-        zero_shot_retrieval(model, dataloader, device, name)
-
-
-if __name__ == "__main__":
-    make_zero_shot_retrieval()
+        zero_shot_retrieval(model, dataloader, device, name, modalities)

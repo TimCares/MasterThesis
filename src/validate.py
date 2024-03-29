@@ -13,7 +13,7 @@ from typing import Dict
 logger = logging.getLogger(__name__)
 
 @torch.no_grad()
-@rank_zero_only
+@rank_zero_only # only needed in a distributed setting
 def make_knn_predictions(model:Callable,
                          n_neighbors:int,
                          train_loader:DataLoader,
