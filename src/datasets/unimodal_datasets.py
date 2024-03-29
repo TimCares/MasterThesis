@@ -494,16 +494,8 @@ class CIFARDataset(BaseDataset):
             CIFAR100(self.data_path, train=self.split == "train", download=True)
 
     def load(self):
-        transform = transforms.Compose(
-            [
-                transforms.PILToTensor(),
-                transforms.Resize((224, 224)),
-                transforms.ToDtype(torch.float32, scale=True),
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-                ),
-            ]
-        )
+        # only used for evaluation -> no augmentations
+        transform = get_transforms(no_transform=True, beit_transforms=False, transform_jitter=False)
 
         if self.type == "cifar10":
             self.items = CIFAR10(self.data_path, train=self.split == "train", transform=transform)
@@ -589,10 +581,13 @@ class MaeImageDataset(FairseqDataset):
 
         loader = caching_loader(local_cache_path, datasets.folder.default_loader)
 
-        self.transform = get_transforms(no_transform=no_transform,
-                                        beit_transforms=beit_transforms,
-                                        transform_jitter=transform_jitter,
-                                        crop_scale=crop_scale)
+        if split == "train":
+            self.transform = get_transforms(no_transform=no_transform,
+                                            beit_transforms=beit_transforms,
+                                            transform_jitter=transform_jitter,
+                                            crop_scale=crop_scale)
+        else:
+            self.transform = get_transforms(no_transform=True, beit_transforms=False, transform_jitter=False)
 
         if dataset_type == "imagefolder":
             self.dataset = ImageFolder(

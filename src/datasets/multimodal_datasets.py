@@ -137,10 +137,14 @@ class COCOCaptions(BaseImageText):
             no_transform=False,
             crop_scale=(0.6, 1.0),
             ):
-        super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
-        self.path_to_data = os.path.join(self.data_path, "coco")
         assert task in ["captioning", "retrieval"]
         self.task = task
+        if self.task == "retrieval": # yields no augmentation, as retrieval is zero-shot (testing)
+            transform_jitter = False
+            beit_transforms = False
+            no_transform = True
+        super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
+        self.path_to_data = os.path.join(self.data_path, "coco")        
 
         os.makedirs(self.path_to_data, exist_ok=True)
         urls = ["http://images.cocodataset.org/zips/train2014.zip",
@@ -238,12 +242,9 @@ class Flickr30Dataset(BaseImageText):
                  data_path,
                  split,
                  num_max_bpe_tokens,
-                 transform_jitter=False,
-                 beit_transforms=False,
-                 no_transform=False,
-                 crop_scale=(0.6, 1.0),
                  ):
-        super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
+        # yields no augmentation, as Flickr is zero-shot retrieval (testing)
+        super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter=False, beit_transforms=False, no_transform=True)
         self.path_to_data = os.path.join(self.data_path, "flickr30k")
 
         os.makedirs(self.path_to_data, exist_ok=True)
