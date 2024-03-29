@@ -10,7 +10,7 @@ import shutil
 import numpy as np
 from shutil import copyfile
 from functools import partial
-from data_utils import get_transforms, curl_dataset, _write_data_into_jsonl, load_tokenizer_data
+from data_utils import get_transforms, download_and_unzip, _write_data_into_jsonl, load_tokenizer_data
 from bpe_encoder import BPEEncoder
 from utils.wav2vec_manifest import create_manifests
 from fairseq.data import (
@@ -134,9 +134,7 @@ class EnWik9Dataset(NLPDataset):
 
         dataset_path = os.path.join(self.nlp_dir_path, 'enwik9')
         os.makedirs(dataset_path, exist_ok=True)
-        name = curl_dataset("http://mattmahoney.net/dc/enwik9.zip")
-        os.system(f"unzip {name}")
-        os.remove(name)
+        download_and_unzip(urls=["http://mattmahoney.net/dc/enwik9.zip"], store_at='.')
         os.system(f"perl ../setup/clean_enwik9.pl enwik9 > enwik9.txt")
         os.remove("enwik9")
         encode(f'{self.data_path}/encoder.json', f'{self.data_path}/vocab.bpe', ['enwik9.txt'], ['enwik9.bpe'], keep_empty=True)

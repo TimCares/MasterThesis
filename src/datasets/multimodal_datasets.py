@@ -3,7 +3,7 @@ import json
 import torch
 from fairseq.data import Dictionary
 from torchvision.datasets.folder import default_loader
-from data_utils import get_transforms, _write_data_into_jsonl, curl_dataset
+from data_utils import get_transforms, _write_data_into_jsonl, download_and_unzip
 from utils.glossary import normalize_word
 from bpe_encoder import BPEEncoder
 from datasets.unimodal_datasets import BaseDataset
@@ -132,6 +132,7 @@ class COCOCaptions(BaseImageText):
             data_path,
             split,
             num_max_bpe_tokens,
+            task="captioning",
             transform_jitter=False,
             beit_transforms=False,
             no_transform=False,
@@ -139,15 +140,14 @@ class COCOCaptions(BaseImageText):
             ):
         super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
         self.path_to_data = os.path.join(self.data_path, "coco")
+        assert task in ["captioning", "retrieval"]
+        self.task = task
 
         os.makedirs(self.path_to_data, exist_ok=True)
-        for url in ["http://images.cocodataset.org/zips/train2014.zip",
-                    "http://images.cocodataset.org/zips/val2014.zip",
-                    "https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"]:
-        
-            filename = curl_dataset(url)
-            os.system(f"unzip {filename} -d {self.path_to_data}")
-            os.remove(filename)
+        urls = ["http://images.cocodataset.org/zips/train2014.zip",
+                "http://images.cocodataset.org/zips/val2014.zip",
+                "https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"]
+        download_and_unzip(urls=urls, store_at=self.path_to_data)
         os.remove('dataset_flickr8k.json')
         os.remove('dataset_flickr30k.json')
 
@@ -155,7 +155,7 @@ class COCOCaptions(BaseImageText):
 
     @staticmethod
     def get_index_files(split):
-        return (f"coco_captioning.{split}.jsonl", )
+        return (f"coco_{self.task}.{split}.jsonl", )
 
     def __getitem__(self, index: int):
         data = dict()
@@ -191,25 +191,28 @@ class COCOCaptions(BaseImageText):
             for item in data["images"]:
                 if item["split"] in karpathy_split:
                     image_path = os.path.join(item["filepath"], item["filename"])
-                    if item["split"] in ["train", "restval"]:
-                        for sent in item["sentences"]:
-                            token_ids = self.bpe_encoder.encode(sent["raw"])
+                    if self.task == "captioning":
+                        if item["split"] in ["train", "restval"]:
+                            for sent in item["sentences"]:
+                                token_ids = self.bpe_encoder.encode(sent["raw"])
+                                items.append({
+                                        "image_path": image_path, 
+                                        "text_segment": token_ids, 
+                                        "image_id": item["cocoid"], 
+                                })
+                        else:
                             items.append({
-                                    "image_path": image_path, 
-                                    "text_segment": token_ids, 
-                                    "image_id": item["cocoid"], 
+                                        "image_path": image_path, 
+                                        "text_segment": None, 
+                                        "image_id": item["cocoid"], 
                             })
                     else:
-                        items.append({
-                                    "image_path": image_path, 
-                                    "text_segment": None, 
-                                    "image_id": item["cocoid"], 
-                        })
+                        sent = item["sentences"][0]
                     if image_path not in image_counter:
                         image_counter.add(image_path)
         print("Find %d images and %d image-text pairs for karpathy dataset %s split !" % \
             (len(image_counter), len(items), self.split))
-        index_file = os.path.join(self.path_to_data, "coco_captioning.%s.jsonl" % self.split)
+        index_file = os.path.join(self.path_to_data, f"coco_{self.task}.{self.split}.jsonl")
         _write_data_into_jsonl(items, index_file)
 
 
@@ -237,12 +240,15 @@ class VisualGenome(BaseImageText):
         super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
         self.path_to_data = os.path.join(self.data_path, "vg")
         os.makedirs(self.path_to_data, exist_ok=True)
-        for url in ["https://cs.stanford.edu/people/rak248/VG_100K_2/images.zip",
-                    "https://cs.stanford.edu/people/rak248/VG_100K_2/images2.zip",
-                    "https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/region_descriptions.json.zip"]:
-            filename = curl_dataset(url)
-            os.system(f"unzip {filename} -d {self.path_to_data}")
-            os.remove(filename)
+        urls = ["https://cs.stanford.edu/people/rak248/VG_100K_2/images.zip",
+                "https://cs.stanford.edu/people/rak248/VG_100K_2/images2.zip",
+                "https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/region_descriptions.json.zip"]
+        download_and_unzip(urls=urls, store_at=self.path_to_data)
+
+        urls = ["http://images.cocodataset.org/zips/train2014.zip",
+                "http://images.cocodataset.org/zips/val2014.zip",
+                "https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"]
+        download_and_unzip(urls=urls, store_at=self.path_to_data)
 
         self.make_visual_genome_dataset_index()
 
@@ -303,20 +309,16 @@ class VQAv2(BaseImageText):
         self.path_to_data = os.path.join(self.data_path, "coco")
         os.makedirs(self.path_to_data, exist_ok=True)
 
-        filename = curl_dataset("http://images.cocodataset.org/zips/test2015.zip")
-        os.system(f"unzip {filename} -d {self.path_to_data}")
-        os.remove(filename)
+        download_and_unzip(urls=["http://images.cocodataset.org/zips/test2015.zip"], store_at=self.path_to_data)
 
         self.path_to_data = os.path.join(self.data_path, "vqa")
         os.makedirs(self.path_to_data, exist_ok=True)
-        for url in ["https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Questions_Train_mscoco.zip",
-                    "https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Questions_Val_mscoco.zip",
-                    "https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Questions_Test_mscoco.zip",
-                    "https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Annotations_Train_mscoco.zip",
-                    "https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Annotations_Val_mscoco.zip"]:
-            filename = curl_dataset(url)
-            os.system(f"unzip {filename} -d {self.path_to_data}")
-            os.remove(filename)
+        urls = ["https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Questions_Train_mscoco.zip",
+                "https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Questions_Val_mscoco.zip",
+                "https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Questions_Test_mscoco.zip",
+                "https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Annotations_Train_mscoco.zip",
+                "https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Annotations_Val_mscoco.zip"]
+        download_and_unzip(urls=urls, store_at=self.path_to_data)
 
         self.make_vqa_dataset_index()
 

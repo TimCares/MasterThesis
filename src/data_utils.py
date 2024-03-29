@@ -7,22 +7,9 @@ import math
 import json
 import os
 from PIL import Image
-import requests
+from torchvision.datasets.utils import download_url
 
 logger = logging.getLogger(__name__)
-
-def curl_dataset(url:str) -> str:
-    # Make a GET request to the URL
-    logger.info(f"Downloading dataset from {url}")
-    response = requests.get(url)
-
-    # Open a local file with the same name as in the URL
-    filename = url.split('/')[-1]
-    with open(filename, 'wb') as file:
-        # Write the content of the response to the file
-        file.write(response.content)
-    logger.info(f"Dataset from {url} downloaded to {filename}")
-    return filename
 
 def _write_data_into_jsonl(items, jsonl_file):
     with open(jsonl_file, mode="w", encoding="utf-8") as writer:
@@ -32,17 +19,19 @@ def _write_data_into_jsonl(items, jsonl_file):
     print("Write %s with %d items !" % (jsonl_file, len(items)))
 
 def load_tokenizer_data(store_at:str="../data"):
-    if not os.path.isfile(os.path.join(store_at, "dict.txt")):
-        filename = curl_dataset("https://dl.fbaipublicfiles.com/fairseq/data2vec2/dict.txt")
-        os.rename(filename, os.path.join(store_at, "dict.txt"))
+    for filename in ["dict.txt", "encoder.json", "vocab.bpe"]:
+        if not os.path.isfile(os.path.join(store_at, filename)):
+            url = f"https://dl.fbaipublicfiles.com/fairseq/data2vec2/{filename}"
+            download_url(url=url, store_at=store_at)
 
-    if not os.path.isfile(os.path.join(store_at, "encoder.json")):
-        filename = curl_dataset("https://dl.fbaipublicfiles.com/fairseq/data2vec2/encoder.json")
-        os.rename(filename, os.path.join(store_at, "encoder.json"))
+def download_and_unzip(urls:str, store_at:str="../data"):
+    for url in urls:
+        filepath = os.path.join(store_at, url.split("/")[-1])
+        if not os.path.isfile(filepath):
+            download_url(url=url, root=store_at)
+            os.system(f"unzip {filepath} -d {store_at}")
+        os.remove(filepath)
 
-    if not os.path.isfile(os.path.join(store_at, "vocab.bpe")):
-        filename = curl_dataset("https://dl.fbaipublicfiles.com/fairseq/data2vec2/vocab.bpe")
-        os.rename(filename, os.path.join(store_at, "vocab.bpe"))
 
 class RandomResizedCropAndInterpolationWithTwoPic:
     """Crop the given PIL Image to random size and aspect ratio with random interpolation.

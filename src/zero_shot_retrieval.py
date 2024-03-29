@@ -6,14 +6,13 @@
 
 import logging
 from rich.progress import track
+from typing import Callable
 import torch
 from flava.data.transforms import (
     default_image_pretraining_transforms,
     default_text_transform,
 )
 from torch import nn
-from torch.utils.data import DataLoader
-from torchmultimodal.models.flava.model import flava_model
 from torchvision.datasets import CocoCaptions
 
 logging.basicConfig(level=logging.INFO)
@@ -75,22 +74,21 @@ def zero_shot_retrieval(model, dataloader, device, name):
     logger.info(f"{name}: text_to_image_recall@5 {text_to_image_r5}")
 
 
-def main():
+def make_zero_shot_retrieval(model:Callable):
     dataset = CocoCaptions(
         root=args.data_root, annFile=args.annotations, transforms=transform
     )
-    flava = flava_model(pretrained=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
-    flava = flava.to(device)
-    flava.eval()
+    model = model.to(device)
+    model.eval()
     
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collator)
 
     for name, dataloader in zip(["coco", "flickr"], [dataloader, dataloader]):
         logger.info(f"Zero-shot retrieval on: {name}")
-        zero_shot_retrieval(flava, dataloader, device, name)
+        # dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collator)
+        zero_shot_retrieval(model, dataloader, device, name)
 
 
 if __name__ == "__main__":
-    main()
+    make_zero_shot_retrieval()
