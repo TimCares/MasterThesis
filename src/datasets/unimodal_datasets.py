@@ -10,7 +10,7 @@ import shutil
 import numpy as np
 from shutil import copyfile
 from functools import partial
-from data_utils import get_transforms, curl_dataset, _write_data_into_jsonl
+from data_utils import get_transforms, curl_dataset, _write_data_into_jsonl, load_tokenizer_data
 from bpe_encoder import BPEEncoder
 from utils.wav2vec_manifest import create_manifests
 from fairseq.data import (
@@ -41,6 +41,9 @@ class BaseDataset(torch.utils.data.Dataset):
     def __init__(self, data_path:str, split:str):
         self.data_path = data_path
         self.split = split
+        load_tokenizer_data(self.data_path) # loads vocab, encoder, and dict files
+        # always done, even if not needed for e.g. audio-only and image-only datasets, but simpler this way
+        # as we always need the tokenizer files for other datasets, wich will always be used in multimodal setups
 
     def load(self):
         raise NotImplementedError

@@ -32,18 +32,6 @@ class BaseImageText(BaseDataset):
         self.no_transform = no_transform
         self.crop_scale = crop_scale
         self.path_to_data = None
-        
-        if not os.path.isfile(os.path.join(self.data_path, "dict.txt")):
-            filename = curl_dataset("https://dl.fbaipublicfiles.com/fairseq/data2vec2/dict.txt")
-            os.rename(filename, os.path.join(self.data_path, "dict.txt"))
-
-        if not os.path.isfile(os.path.join(self.data_path, "encoder.json")):
-            filename = curl_dataset("https://dl.fbaipublicfiles.com/fairseq/data2vec2/encoder.json")
-            os.rename(filename, os.path.join(self.data_path, "encoder.json"))
-
-        if not os.path.isfile(os.path.join(self.data_path, "vocab.bpe")):
-            filename = curl_dataset("https://dl.fbaipublicfiles.com/fairseq/data2vec2/vocab.bpe")
-            os.rename(filename, os.path.join(self.data_path, "vocab.bpe"))
 
         encoder_json_path = os.path.join(self.data_path, "encoder.json")
         vocab_bpe_path = os.path.join(self.data_path, "vocab.bpe")

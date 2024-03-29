@@ -5,6 +5,7 @@ import logging
 import random
 import math
 import json
+import os
 from PIL import Image
 import requests
 
@@ -29,6 +30,19 @@ def _write_data_into_jsonl(items, jsonl_file):
             writer.write(json.dumps(data, indent=None))
             writer.write('\n')
     print("Write %s with %d items !" % (jsonl_file, len(items)))
+
+def load_tokenizer_data(store_at:str="../data"):
+    if not os.path.isfile(os.path.join(store_at, "dict.txt")):
+        filename = curl_dataset("https://dl.fbaipublicfiles.com/fairseq/data2vec2/dict.txt")
+        os.rename(filename, os.path.join(store_at, "dict.txt"))
+
+    if not os.path.isfile(os.path.join(store_at, "encoder.json")):
+        filename = curl_dataset("https://dl.fbaipublicfiles.com/fairseq/data2vec2/encoder.json")
+        os.rename(filename, os.path.join(store_at, "encoder.json"))
+
+    if not os.path.isfile(os.path.join(store_at, "vocab.bpe")):
+        filename = curl_dataset("https://dl.fbaipublicfiles.com/fairseq/data2vec2/vocab.bpe")
+        os.rename(filename, os.path.join(store_at, "vocab.bpe"))
 
 class RandomResizedCropAndInterpolationWithTwoPic:
     """Crop the given PIL Image to random size and aspect ratio with random interpolation.
