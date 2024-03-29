@@ -124,14 +124,11 @@ class EnWik9Dataset(NLPDataset):
     def __init__(
             self,
             data_path:str,
-            batch_size:int,
-            num_workers:int,
+            split:str,
             num_max_bpe_tokens:int,
             sample_break_mode:str='none',):
-        super().__init__(data_path, batch_size, num_workers, num_max_bpe_tokens)
-        self.sample_break_mode = sample_break_mode
+        super().__init__(data_path, split, num_max_bpe_tokens, sample_break_mode)
 
-    def prepare_data(self):
         dataset_path = os.path.join(self.nlp_dir_path, 'enwik9')
         os.makedirs(dataset_path, exist_ok=True)
         name = curl_dataset("http://mattmahoney.net/dc/enwik9.zip")
@@ -142,12 +139,12 @@ class EnWik9Dataset(NLPDataset):
         encode(f'{self.data_path}/encoder.json', f'{self.data_path}/vocab.bpe', ['enwik9.txt'], ['enwik9.bpe'], keep_empty=True)
         os.remove("enwik9.txt")
         process = ['fairseq-preprocess', '--only-source', '--srcdict', f'{self.data_path}/dict.txt',
-                    '--trainpref', 'enwik9.bpe', '--destdir', f'{dataset_path}', '--workers', f'{self.num_workers}']
+                    '--trainpref', 'enwik9.bpe', '--destdir', f'{dataset_path}', '--workers', f'{os.cpu_count()}']
         subprocess.run(process)
         os.remove("enwik9.bpe")
 
-    def setup(self, stage):
-        self._load_dataset('train', self.sample_break_mode)
+    def load(self):
+        super().load()
 
 
 class IMDBDataset(BaseDataset):

@@ -270,9 +270,7 @@ class VisualGenome(BaseImageText):
 
         for image_meta in tqdm(region_descriptions, total=len(region_descriptions)):
             image_path = os.path.join(self.path_to_data, "VG_100K", f"{image_meta['id']}.jpg")
-            caption = ""
-            for region in image_meta["regions"]:
-                caption += region["phrase"] + " "
+            caption = ' '.join([region["phrase"] for region in image_meta["regions"]])
             
             token_ids = self.bpe_encoder.encode(caption.strip())
             # truncation will also be done when reading the data, but there we also substract 2 for the special tokens
@@ -316,7 +314,6 @@ class VQAv2(BaseImageText):
         super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
         self.path_to_data = os.path.join(self.data_path, "coco")
         os.makedirs(self.path_to_data, exist_ok=True)
-        super().prepare_data()
 
         filename = curl_dataset("http://images.cocodataset.org/zips/test2015.zip")
         os.system(f"unzip {filename} -d {self.path_to_data}")
@@ -545,7 +542,7 @@ class VQAv2(BaseImageText):
                 writer.write("%s\n" % json.dumps(to_json))
     
 
-class NLVR2Dataset(BaseImageText):
+class NLVR2(BaseImageText):
     def __init__(
             self,
             data_path,
@@ -603,13 +600,13 @@ class NLVR2Dataset(BaseImageText):
     def make_dataset_index(self, nlvr_repo_path):
         self._preprocess_json(
             prefix="images/train", json_file=os.path.join(nlvr_repo_path, "nlvr2/data/train.json"), 
-            index_file=os.path.join(self.path_to_data, NLVR2Dataset.get_index_files("train")[0]), 
+            index_file=os.path.join(self.path_to_data, NLVR2.get_index_files("train")[0]), 
         )
         self._preprocess_json(
             prefix="dev", json_file=os.path.join(nlvr_repo_path, "nlvr2/data/dev.json"), 
-            index_file=os.path.join(self.path_to_data, NLVR2Dataset.get_index_files("val")[0]), 
+            index_file=os.path.join(self.path_to_data, NLVR2.get_index_files("val")[0]), 
         )
         self._preprocess_json(
             prefix="test1", json_file=os.path.join(nlvr_repo_path, "nlvr2/data/test1.json"), 
-            index_file=os.path.join(self.path_to_data, NLVR2Dataset.get_index_files("test")[0]), 
+            index_file=os.path.join(self.path_to_data, NLVR2.get_index_files("test")[0]), 
         )
