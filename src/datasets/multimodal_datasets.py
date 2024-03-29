@@ -48,7 +48,7 @@ class BaseImageText(BaseDataset):
                                         crop_scale=self.crop_scale)
 
     def load(self):
-        index_files = self.get_index_files(self.split)
+        index_files = self.get_index_files()
         items = []
         self.index_files = index_files
 
@@ -63,9 +63,7 @@ class BaseImageText(BaseDataset):
                 offset = len(items)
         self.items = items
 
-
-    @staticmethod
-    def get_index_files(split):
+    def get_index_files(self):
         raise NotImplementedError()
 
     def _get_image(self, image_path: str):
@@ -151,11 +149,10 @@ class COCOCaptions(BaseImageText):
         os.remove('dataset_flickr8k.json')
         os.remove('dataset_flickr30k.json')
 
-        self._make_captioning_coco_karpathy_dataset_index()
+        self._make_coco_karpathy_dataset_index()
 
-    @staticmethod
-    def get_index_files(split):
-        return (f"coco_{self.task}.{split}.jsonl", )
+    def get_index_files(self):
+        return (f"coco_{self.task}.{self.split}.jsonl", )
 
     def __getitem__(self, index: int):
         data = dict()
@@ -172,7 +169,7 @@ class COCOCaptions(BaseImageText):
             data["padding_mask"] = padding_mask
         return data
     
-    def _make_captioning_coco_karpathy_dataset_index(self):
+    def _make_coco_karpathy_dataset_index(self):
         if self.split == "train":
             karpathy_split = ("train", "restval")
         elif self.split == "val":
@@ -186,6 +183,7 @@ class COCOCaptions(BaseImageText):
         items = []
         image_counter = set()
         print("read %s" % coco_karpathy_split_json_file)
+        print("task is %s" % self.task)
         with open(coco_karpathy_split_json_file, mode="r", encoding="utf-8") as reader:
             data = json.loads(reader.read())
             for item in data["images"]:
@@ -193,13 +191,7 @@ class COCOCaptions(BaseImageText):
                     image_path = os.path.join(item["filepath"], item["filename"])
                     if self.task == "captioning":
                         if item["split"] in ["train", "restval"]:
-                            for sent in item["sentences"]:
-                                token_ids = self.bpe_encoder.encode(sent["raw"])
-                                items.append({
-                                        "image_path": image_path, 
-                                        "text_segment": token_ids, 
-                                        "image_id": item["cocoid"], 
-                                })
+                            items += self._encode_all(item, image_path, image_counter)
                         else:
                             items.append({
                                         "image_path": image_path, 
@@ -207,13 +199,23 @@ class COCOCaptions(BaseImageText):
                                         "image_id": item["cocoid"], 
                             })
                     else:
-                        sent = item["sentences"][0]
+                        items += self._encode_all(item, image_path, image_counter)
                     if image_path not in image_counter:
                         image_counter.add(image_path)
         print("Find %d images and %d image-text pairs for karpathy dataset %s split !" % \
             (len(image_counter), len(items), self.split))
         index_file = os.path.join(self.path_to_data, f"coco_{self.task}.{self.split}.jsonl")
         _write_data_into_jsonl(items, index_file)
+
+    def _encode_all(self, item, image_path, image_counter):
+        return [
+            {
+                "image_path": image_path,
+                "text_segment": self.bpe_encoder.encode(sent["raw"]),
+                "image_id": len(image_counter) if self.task=="retrieval" else item["cocoid"],
+            }
+            for sent in item["sentences"]
+            ]
 
 
     # def make_coco_captioning_dataset_index(self):
@@ -252,8 +254,7 @@ class VisualGenome(BaseImageText):
 
         self.make_visual_genome_dataset_index()
 
-    @staticmethod
-    def get_index_files(split):
+    def get_index_files(self):
         return (f"visual_genome.jsonl", ) # only for pretraining, so no splits
 
     def make_visual_genome_dataset_index(self):
@@ -340,18 +341,17 @@ class VQAv2(BaseImageText):
         self.ans2label = ans2label
         self.label2ans = label2ans
 
-    @staticmethod
-    def get_index_files(split):
-        if split == "train":
+    def get_index_files(self):
+        if self.split == "train":
             return ("vqa.train.jsonl", "vqa.trainable_val.jsonl")
-        elif split == "val":
+        elif self.split == "val":
             return ("vqa.rest_val.jsonl", )
-        elif split == "test":
+        elif self.split == "test":
             return ("vqa.test.jsonl", )
-        elif split == "test-dev":
+        elif self.split == "test-dev":
             return ("vqa.test-dev.jsonl", )            
         else:
-            raise RuntimeError("split %s is not found!" % split)
+            raise RuntimeError("split %s is not found!" % self.split)
 
     def __getitem__(self, index: int):
         data = super().__getitem__(index)
@@ -559,16 +559,15 @@ class NLVR2(BaseImageText):
         data["label"] = self.items[index]["label"]
         return data
     
-    @staticmethod
-    def get_index_files(split):
-        if split == "train":
+    def get_index_files(self):
+        if self.split == "train":
             return ("nlvr2.train.index.jsonl", )
-        elif split == "val":
+        elif self.split == "val":
             return ("nlvr2.dev.index.jsonl", )
-        elif split == "test":
+        elif self.split == "test":
             return ("nlvr2.test-P.index.jsonl", )
         else:
-            raise RuntimeError("split %s is not found!" % split)
+            raise RuntimeError("split %s is not found!" % self.split)
 
     def _preprocess_json(self, prefix, json_file, index_file):
         items = []
@@ -588,15 +587,18 @@ class NLVR2(BaseImageText):
         _write_data_into_jsonl(items, index_file)
 
     def make_dataset_index(self, nlvr_repo_path):
-        self._preprocess_json(
-            prefix="images/train", json_file=os.path.join(nlvr_repo_path, "nlvr2/data/train.json"), 
-            index_file=os.path.join(self.path_to_data, NLVR2.get_index_files("train")[0]), 
-        )
-        self._preprocess_json(
-            prefix="dev", json_file=os.path.join(nlvr_repo_path, "nlvr2/data/dev.json"), 
-            index_file=os.path.join(self.path_to_data, NLVR2.get_index_files("val")[0]), 
-        )
-        self._preprocess_json(
-            prefix="test1", json_file=os.path.join(nlvr_repo_path, "nlvr2/data/test1.json"), 
-            index_file=os.path.join(self.path_to_data, NLVR2.get_index_files("test")[0]), 
-        )
+        if self.split == "train":
+            prefix = "images/train"
+            json_file = os.path.join(nlvr_repo_path, "nlvr2/data/train.json")
+        elif self.split == "val":
+            prefix = "dev"
+            json_file = os.path.join(nlvr_repo_path, "nlvr2/data/dev.json")
+        elif self.split == "test":
+            prefix = "test1"
+            json_file = os.path.join(nlvr_repo_path, "nlvr2/data/test1.json")
+        else:
+            raise RuntimeError("split %s is not found!" % self.split)
+        
+        index_file = os.path.join(self.path_to_data, self.get_index_files()[0])
+
+        self._preprocess_json(prefix=prefix, json_file=json_file, index_file=index_file)
