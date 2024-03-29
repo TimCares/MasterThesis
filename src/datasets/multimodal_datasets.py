@@ -7,6 +7,7 @@ from data_utils import get_transforms, _write_data_into_jsonl, download_and_unzi
 from utils.glossary import normalize_word
 from bpe_encoder import BPEEncoder
 from datasets.unimodal_datasets import BaseDataset
+from torchvision.transforms import v2 as transforms
 from tqdm import tqdm
 import os
 import json
@@ -146,8 +147,8 @@ class COCOCaptions(BaseImageText):
                 "http://images.cocodataset.org/zips/val2014.zip",
                 "https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"]
         download_and_unzip(urls=urls, store_at=self.path_to_data)
-        os.remove('dataset_flickr8k.json')
-        os.remove('dataset_flickr30k.json')
+        os.remove(os.path.join(self.path_to_data, 'dataset_flickr8k.json'))
+        os.remove(os.path.join(self.path_to_data, 'dataset_flickr30k.json'))
 
         self._make_coco_karpathy_dataset_index()
 
@@ -155,6 +156,12 @@ class COCOCaptions(BaseImageText):
         return (f"coco_{self.task}.{self.split}.jsonl", )
 
     def __getitem__(self, index: int):
+        if self.task == "captioning":
+            return self._get_item_captioning(index)
+        else:
+            return self._get_item_retrieval(index)
+    
+    def _get_item_captioning(self, index):
         data = dict()
         item = self.items[index]
         img_path = item["image_path"]
@@ -167,6 +174,11 @@ class COCOCaptions(BaseImageText):
             language_tokens, padding_mask, _ = self._get_text_segment(text_segment)
             data["language_tokens"] = language_tokens
             data["padding_mask"] = padding_mask
+        return data
+    
+    def _get_item_retrieval(self, index):
+        data = super().__getitem__(index)
+        data["image_id"] = self.items[index]["image_id"]
         return data
     
     def _make_coco_karpathy_dataset_index(self):
@@ -217,15 +229,71 @@ class COCOCaptions(BaseImageText):
             for sent in item["sentences"]
             ]
 
-
-    # def make_coco_captioning_dataset_index(self):
-        # self._make_captioning_coco_karpathy_dataset_index(split=("train", "restval"), split_name="train")
-        # self._make_captioning_coco_karpathy_dataset_index(split=("val", ), split_name="val")
-        # self._make_captioning_coco_karpathy_dataset_index(split=("test", ), split_name="test")
-
     # def make_nocaps_captioning_dataset_index(self):
     #     _make_nocaps_dataset_index(split="val")
     #     _make_nocaps_dataset_index(split="test")
+
+class Flickr30Dataset(BaseImageText):
+    def __init__(self, 
+                 data_path,
+                 split,
+                 num_max_bpe_tokens,
+                 transform_jitter=False,
+                 beit_transforms=False,
+                 no_transform=False,
+                 crop_scale=(0.6, 1.0),
+                 ):
+        super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
+        self.path_to_data = os.path.join(self.data_path, "flickr30k")
+
+        os.makedirs(self.path_to_data, exist_ok=True)
+        download_and_unzip(urls=["https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"], store_at=self.path_to_data)
+        os.remove(os.path.join(self.path_to_data, 'dataset_flickr8k.json'))
+        os.remove(os.path.join(self.path_to_data, 'dataset_coco.json'))
+        
+        self.make_flickr30k_dataset_index()
+
+    def get_index_files(self):
+        if self.split == "train":
+            return (f"flickr30k.train.jsonl", )
+        elif self.split == "val":
+            return (f"flickr30k.val.jsonl", )
+        elif self.split == "test":
+            return (f"flickr30k.test.jsonl", )
+        else:
+            raise RuntimeError("split %s is not found!" % self.split)
+        
+    def __getitem__(self, index: int):
+        data = super().__getitem__(index)
+        data["image_id"] = self.items[index]["image_id"]
+        return data
+
+    def make_flickr30k_dataset_index(self):
+
+        with open(os.path.join(self.path_to_data, "dataset_flickr30k.json"), "r") as reader:
+            captions = json.loads(reader.read())
+
+        captions = captions["images"]
+        split2items = defaultdict(list)
+        split2images = defaultdict(set)
+
+        for each_item in captions:
+            image_path = os.path.join("flickr30k-images", each_item["filename"])
+            split = each_item["split"]
+
+            for text_segment in each_item["sentences"]: 
+                split2items[split].append({
+                    "image_path": image_path, 
+                    "text_segment": self.bpe_encoder.encode(text_segment["raw"]), 
+                    "image_id": len(split2images[split]), 
+                })
+
+            assert each_item["filename"] not in split2images[split]
+            split2images[split].add(each_item["filename"])
+
+        for split in split2items:
+            print("%d images and %d image-text pairs!" % (len(split2images[split]), len(split2items[split])))
+            _write_data_into_jsonl(split2items[split], os.path.join(self.path_to_data, "flickr30k.%s.jsonl" % split))
     
 
 class VisualGenome(BaseImageText):

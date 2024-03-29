@@ -1,6 +1,6 @@
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
-from datasets import IMDBDataset, CIFARDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, Flickr30Dataset, EnWik9Dataset
+from datasets import IMDBDataset, CIFARDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, EnWik9Dataset
 
 class BaseDataModule(LightningDataModule):
     def __init__(self,
@@ -159,33 +159,6 @@ class CIFARDataModule(BaseDataModule):
 
     def set_test_dataset(self):
         self.test_dataset = CIFARDataset(data_path=self.data_path, split='test', type=self.type)
-
-
-class Flickr30DataModule(BaseDataModule):
-    def __init__(self, 
-                 data_path:str,
-                 *args,
-                 **kwargs):
-        super().__init__(data_path, *args, **kwargs)
-
-    def prepare_data(self):
-        if not self.prepared:
-            self.set_train_dataset()
-            self.set_test_dataset()
-
-            self.prepared = True
-
-    def setup(self, stage=None):
-        if stage == 'fit' or stage is None:
-            self.train_dataset.load()
-        if stage == 'test' or stage is None:
-            self.test_dataset.load()
-
-    def set_train_dataset(self):
-        self.train_dataset = Flickr30Dataset(data_path=self.data_path, split='train', )
-
-    def set_test_dataset(self):
-        self.test_dataset = Flickr30Dataset(data_path=self.data_path, split='test', )
 
 
 class ImageNetDataModule(BaseDataModule):
