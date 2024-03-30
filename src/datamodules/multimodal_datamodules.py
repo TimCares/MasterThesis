@@ -1,5 +1,5 @@
 from datamodules.unimodal_datamodules import BaseDataModule
-from datasets import COCOCaptions, VisualGenome, VQAv2, NLVR2, Flickr30Dataset
+from datasets import COCOCaptions, VisualGenome, VQAv2, NLVR2, Flickr30Dataset, CommonVoice
 
 class COCOCaptionsDataModule(BaseDataModule):
     def __init__(self,
@@ -201,3 +201,46 @@ class Flickr30DataModule(BaseDataModule):
                                             split='test',
                                             num_max_bpe_tokens=self.num_max_bpe_tokens,)
             
+
+class CommonVoiceDataModule(BaseDataModule):
+    def __init__(self,
+                 data_path,
+                 num_max_bpe_tokens,
+                 sample_rate,
+                 max_sample_size,
+                 min_sample_size,
+                 normalize,
+                 pad,
+                 batch_size:int,
+                 num_workers:int,
+                 shuffle:bool=True,
+                 drop_last:bool=True,
+                 **precompute_mask_config):
+        super().__init__(data_path, batch_size, num_workers, shuffle, drop_last)
+        self.num_max_bpe_tokens = num_max_bpe_tokens
+        self.sample_rate = sample_rate
+        self.max_sample_size = max_sample_size
+        self.min_sample_size = min_sample_size
+        self.normalize = normalize
+        self.pad = pad
+        self.precompute_mask_config = precompute_mask_config
+
+    def prepare_data(self):
+        if not self.prepared:
+            self.set_train_dataset()
+
+            self.prepared = True
+
+    def setup(self, stage=None):
+        if stage == 'fit' or stage is None:
+            self.train_dataset.load()
+
+    def set_train_dataset(self):
+        self.train_dataset = CommonVoice(data_path=self.data_path,
+                                         num_max_bpe_tokens=self.num_max_bpe_tokens,
+                                         sample_rate=self.sample_rate,
+                                         max_sample_size=self.max_sample_size,
+                                         min_sample_size=self.min_sample_size,
+                                         normalize=self.normalize,
+                                         pad=self.pad,
+                                         precompute_mask_config=self.precompute_mask_config,)
