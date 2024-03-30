@@ -37,9 +37,6 @@ class BaseImageText(BaseDataset):
         self.crop_scale = crop_scale
         self.path_to_data = None
 
-        encoder_json_path = os.path.join(self.data_path, "encoder.json")
-        vocab_bpe_path = os.path.join(self.data_path, "vocab.bpe")
-        self.bpe_encoder = BPEEncoder(encoder_json_path, vocab_bpe_path)
         self.dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
 
         self.bos_token_id = self.dictionary.bos()
@@ -76,10 +73,8 @@ class BaseImageText(BaseDataset):
         return self.transform(image)
 
     def _get_text_segment(self, text_segment, max_len=None):
-        if isinstance(text_segment, str):
-            tokens = self.bpe_encoder.encode(text_segment)
-        else:
-            tokens = text_segment[:]
+        assert isinstance(text_segment, list)
+        tokens = text_segment[:]
         if len(tokens) == 0:
             raise RuntimeError("The text segment should contains at least one tokens!")
         if max_len is None:
@@ -198,6 +193,8 @@ class COCOCaptions(BaseImageText):
         else:
             raise RuntimeError("split %s is not found!" % self.split)
         
+        bpe_encoder = self.get_bpe_encoder()
+        
         coco_karpathy_split_json_file = os.path.join(self.path_to_data, "dataset_coco.json")
         items = []
         image_counter = set()
@@ -210,7 +207,7 @@ class COCOCaptions(BaseImageText):
                     image_path = os.path.join(item["filepath"], item["filename"])
                     if self.task == "captioning":
                         if item["split"] in ["train", "restval"]:
-                            items += self._encode_all(item, image_path, image_counter)
+                            items += self._encode_all(item, image_path, image_counter, bpe_encoder)
                         else:
                             items.append({
                                         "image_path": image_path, 
@@ -218,7 +215,7 @@ class COCOCaptions(BaseImageText):
                                         "image_id": item["cocoid"], 
                             })
                     else:
-                        items += self._encode_all(item, image_path, image_counter)
+                        items += self._encode_all(item, image_path, image_counter, bpe_encoder)
                     if image_path not in image_counter:
                         image_counter.add(image_path)
         print("Find %d images and %d image-text pairs for karpathy dataset %s split !" % \
@@ -226,11 +223,11 @@ class COCOCaptions(BaseImageText):
         index_file = os.path.join(self.path_to_data, f"coco_{self.task}.{self.split}.jsonl")
         _write_data_into_jsonl(items, index_file)
 
-    def _encode_all(self, item, image_path, image_counter):
+    def _encode_all(self, item, image_path, image_counter, bpe_encoder):
         return [
             {
                 "image_path": image_path,
-                "text_segment": self.bpe_encoder.encode(sent["raw"]),
+                "text_segment": bpe_encoder.encode(sent["raw"]),
                 "image_id": len(image_counter) if self.task=="retrieval" else item["cocoid"],
             }
             for sent in item["sentences"]
@@ -277,6 +274,8 @@ class Flickr30Dataset(BaseImageText):
         with open(os.path.join(self.path_to_data, "dataset_flickr30k.json"), "r") as reader:
             captions = json.loads(reader.read())
 
+        bpe_encoder = self.get_bpe_encoder()
+
         captions = captions["images"]
         split2items = defaultdict(list)
         split2images = defaultdict(set)
@@ -288,7 +287,7 @@ class Flickr30Dataset(BaseImageText):
             for text_segment in each_item["sentences"]: 
                 split2items[split].append({
                     "image_path": image_path, 
-                    "text_segment": self.bpe_encoder.encode(text_segment["raw"]), 
+                    "text_segment": bpe_encoder.encode(text_segment["raw"]), 
                     "image_id": len(split2images[split]), 
                 })
 
@@ -333,13 +332,15 @@ class VisualGenome(BaseImageText):
         with open(os.path.join(self.path_to_data, "region_descriptions.json"), "r") as fp:
             region_descriptions = json.load(fp)
 
+        bpe_encoder = self.get_bpe_encoder()
+
         items = []
 
         for image_meta in tqdm(region_descriptions, total=len(region_descriptions)):
             image_path = os.path.join(self.path_to_data, "VG_100K", f"{image_meta['id']}.jpg")
             caption = ' '.join([region["phrase"] for region in image_meta["regions"]])
             
-            token_ids = self.bpe_encoder.encode(caption.strip())
+            token_ids = bpe_encoder.encode(caption.strip())
             # truncation will also be done when reading the data, but there we also substract 2 for the special tokens
             # so we already do it here to save time and memory
             token_ids = token_ids[:self.num_max_bpe_tokens - 2]
@@ -465,6 +466,8 @@ class VQAv2(BaseImageText):
 
         annotations = dict()
 
+        bpe_encoder = self.get_bpe_encoder()
+
         for split, questions in zip(
             ["train", "val", "test", "test-dev"],
             [questions_train2014, questions_val2014, questions_test2015, questions_test_dev2015],
@@ -472,7 +475,7 @@ class VQAv2(BaseImageText):
             _annot = defaultdict(dict)
             for q in questions:
                 question_text = q["question"]
-                token_ids = self.bpe_encoder.encode(question_text)
+                token_ids = bpe_encoder.encode(question_text)
 
                 assert q["question_id"] not in _annot[q["image_id"]]
                 _annot[q["image_id"]][q["question_id"]] = {
@@ -643,12 +646,13 @@ class NLVR2(BaseImageText):
 
     def _preprocess_json(self, prefix, json_file, index_file):
         items = []
+        bpe_encoder = self.get_bpe_encoder()
         with open(json_file, mode="r", encoding="utf-8") as reader:
             for line in reader:
                 data = json.loads(line)
                 path = os.path.join(prefix, str(data["directory"])) if "directory" in data else prefix
                 path = os.path.join(path, "-".join(data["identifier"].split("-")[:-1]))
-                token_ids = self.bpe_encoder.encode(data["sentence"])
+                token_ids = bpe_encoder.encode(data["sentence"])
                 items.append({
                     "image_path": path + "-img0.png",
                     "image2_path": path + "-img1.png",
@@ -694,9 +698,6 @@ class CommonVoice(AudioDataset):
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.pad = pad
 
-        encoder_json_path = os.path.join(self.data_path, "encoder.json")
-        vocab_bpe_path = os.path.join(self.data_path, "vocab.bpe")
-        self.bpe_encoder = BPEEncoder(encoder_json_path, vocab_bpe_path)
         self.dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
 
         self.bos_token_id = self.dictionary.bos()
@@ -722,10 +723,8 @@ class CommonVoice(AudioDataset):
         self.items = items
 
     def _get_text_segment(self, text_segment, max_len=None):
-        if isinstance(text_segment, str):
-            tokens = self.bpe_encoder.encode(text_segment)
-        else:
-            tokens = text_segment[:]
+        assert isinstance(text_segment, list)
+        tokens = text_segment[:]
         if len(tokens) == 0:
             raise RuntimeError("The text segment should contains at least one tokens!")
         if max_len is None:
@@ -793,10 +792,12 @@ class CommonVoice(AudioDataset):
             os.remove(file)
         print(f'Removed {len(files)} unused mp3 files.')
 
+        bpe_encoder = self.get_bpe_encoder()
+
         items = []
         for i, row in validated_data.iterrows():
             path = os.path.join(self.path_to_clips, row['path'].replace('.mp3', '.flac'))
-            token_ids = self.bpe_encoder.encode(row['sentence'])
+            token_ids = bpe_encoder.encode(row['sentence'])
             items.append({
                 "audio_path": path,
                 "text_segment": token_ids,

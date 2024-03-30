@@ -44,6 +44,12 @@ class BaseDataset(torch.utils.data.Dataset):
         # always done, even if not needed for e.g. audio-only and image-only datasets, but simpler this way
         # as we always need the tokenizer files for other datasets, wich will always be used in multimodal setups
 
+    def get_bpe_encoder(self):
+        # files are loaded in the constructor
+        encoder_json_path = os.path.join(self.data_path, "encoder.json")
+        vocab_bpe_path = os.path.join(self.data_path, "vocab.bpe")
+        return BPEEncoder(encoder_json_path, vocab_bpe_path)
+
     def load(self):
         raise NotImplementedError
     
