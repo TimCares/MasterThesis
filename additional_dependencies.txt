@@ -1,0 +1,5 @@
+Download Flickr30k images:
+https://uofi.app.box.com/s/1cpolrtkckn4hxr1zhmfg0ln9veo6jpl
+
+ffmpeg:
+sudo apt install ffmpeg

@@ -1,19 +1,22 @@
 import os
 import json
 import torch
+import numpy as np
+import torch.nn.functional as F
+import pandas as pd
 from fairseq.data import Dictionary
 from torchvision.datasets.folder import default_loader
-from data_utils import get_transforms, _write_data_into_jsonl, download_and_unzip
+from data_utils import get_transforms, _write_data_into_jsonl, download_and_unzip, convert_mp3_to_flac
 from utils.glossary import normalize_word
 from bpe_encoder import BPEEncoder
-from datasets.unimodal_datasets import BaseDataset
-from torchvision.transforms import v2 as transforms
+from datasets.unimodal_datasets import BaseDataset, AudioDataset
 from tqdm import tqdm
 import os
 import json
 import random
 import glob
 from collections import defaultdict, Counter
+import soundfile as sf
 
 class BaseImageText(BaseDataset):
     def __init__(
@@ -671,3 +674,128 @@ class NLVR2(BaseImageText):
         index_file = os.path.join(self.path_to_data, self.get_index_files()[0])
 
         self._preprocess_json(prefix=prefix, json_file=json_file, index_file=index_file)
+
+
+class CommonVoice(AudioDataset):
+    def __init__(
+            self,
+            data_path:str,
+            num_max_bpe_tokens:int,
+            sample_rate:int,
+            max_sample_size:int,
+            min_sample_size:int,
+            normalize:bool,
+            pad:bool,
+            **precompute_mask_config,
+            ):
+        super().__init__(data_path, 'train', sample_rate, max_sample_size, min_sample_size, normalize, pad,
+                         **precompute_mask_config)
+        self.num_max_bpe_tokens = num_max_bpe_tokens
+        self.pad = pad
+
+        encoder_json_path = os.path.join(self.data_path, "encoder.json")
+        vocab_bpe_path = os.path.join(self.data_path, "vocab.bpe")
+        self.bpe_encoder = BPEEncoder(encoder_json_path, vocab_bpe_path)
+        self.dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
+
+        self.bos_token_id = self.dictionary.bos()
+        self.eos_token_id = self.dictionary.eos()
+        self.pad_token_id = self.dictionary.pad()
+
+        cv_dir_name_pattern = os.path.join(self.data_path, 'cv-corpus-*')
+        dir_name = [d for d in glob.glob(cv_dir_name_pattern) if os.path.isdir(d)][0]
+        self.path_to_data = os.path.join(dir_name, 'en')
+        self.path_to_clips = os.path.join(self.path_to_data, "clips")
+
+        self.make_common_voice_dataset_index()
+
+    def load(self):
+        items = []
+
+        index_file = os.path.join(self.path_to_data, "common_voice.jsonl")
+        with open(index_file, mode="r", encoding="utf-8") as reader:
+            for line in reader:
+                data = json.loads(line)
+                items.append(data)
+            print("Load %d audio-text pairs from %s. " % (len(items), index_file))
+        self.items = items
+
+    def _get_text_segment(self, text_segment, max_len=None):
+        if isinstance(text_segment, str):
+            tokens = self.bpe_encoder.encode(text_segment)
+        else:
+            tokens = text_segment[:]
+        if len(tokens) == 0:
+            raise RuntimeError("The text segment should contains at least one tokens!")
+        if max_len is None:
+            max_len = self.num_max_bpe_tokens
+
+        if len(tokens) > max_len - 2:
+            tokens = tokens[:max_len - 2]
+
+        tokens = [self.bos_token_id] + tokens[:] + [self.eos_token_id]
+        num_tokens = len(tokens)
+        padding_mask = [0] * num_tokens + [1] * (max_len - num_tokens)
+        return tokens + [self.pad_token_id] * (max_len - num_tokens), padding_mask, num_tokens
+
+    def __getitem__(self, index: int):
+        data = dict()
+        item = self.items[index]
+        audio_path = item["audio_path"]
+        audio, sample_rate = sf.read(audio_path, dtype="float32")
+        audio = torch.from_numpy(audio).float()
+        data["audio"] = self.postprocess(audio, sample_rate)
+
+        text_segment = item["text_segment"]
+        language_tokens, padding_mask, _ = self._get_text_segment(text_segment)
+        data["language_tokens"] = language_tokens
+        data["padding_mask"] = padding_mask
+        data["id"] = item["id"]
+        return data
+    
+    def collater(self, samples):
+        input = super().collater(samples)
+        input["language_tokens"] = torch.LongTensor([s["language_tokens"] for s in samples])
+        return input
+    
+    def postprocess(self, feats, curr_sample_rate):
+        if feats.dim() == 2:
+            feats = feats.mean(-1)
+
+        if curr_sample_rate != self.sample_rate:
+            raise Exception(f"sample rate: {curr_sample_rate}, need {self.sample_rate}")
+
+        assert feats.dim() == 1, feats.dim()
+
+        if self.normalize:
+            with torch.no_grad():
+                feats = F.layer_norm(feats, feats.shape)
+        return feats
+
+    def make_common_voice_dataset_index(self):
+        validated_data = pd.read_csv(os.path.join(self.path_to_data, 'validated.tsv'), sep='\t')[['client_id', 'sentence_id', 'path', 'sentence']]
+
+        convert_mp3_to_flac(self.path_to_clips, validated_data['path'].tolist())
+
+        pattern = os.path.join(self.path_to_clips, "*.mp3")
+
+        # Use glob to find all files matching the pattern
+        files = glob.glob(pattern)
+
+        # Iterate over the list of file paths & remove each file
+        for file in files:
+            os.remove(file)
+        print(f'Removed {len(files)} unused mp3 files.')
+
+        items = []
+        for i, row in validated_data.iterrows():
+            path = os.path.join(self.path_to_clips, row['path'].replace('.mp3', '.flac'))
+            token_ids = self.bpe_encoder.encode(row['sentence'])
+            items.append({
+                "audio_path": path,
+                "text_segment": token_ids,
+                "id": i,
+                "client_id": row['client_id'],
+                "sentence_id": row['sentence_id'],
+            })
+        _write_data_into_jsonl(items, os.path.join(self.path_to_data, "common_voice.jsonl"))

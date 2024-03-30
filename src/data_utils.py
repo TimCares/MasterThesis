@@ -6,10 +6,32 @@ import random
 import math
 import json
 import os
+from typing import List
 from PIL import Image
 from torchvision.datasets.utils import download_url
+from pydub import AudioSegment
+import multiprocessing
+from rich.progress import track
 
 logger = logging.getLogger(__name__)
+
+def _mp3_to_flac(mp3_file:str):
+        audio = AudioSegment.from_mp3(mp3_file)
+        audio = audio.set_frame_rate(16000)
+        flac_file = mp3_file.replace(".mp3", ".flac")
+        audio.export(flac_file, format="flac")
+        os.remove(mp3_file)
+    
+def convert_mp3_to_flac(dir:str, files:List[str]):
+    files = [os.path.join(dir, f) for f in files]
+    len_before = len(files)
+    files = [f for f in files if os.path.exists(f) and f.endswith(".mp3")]
+    if len(files) != len_before:
+        print(f'Exclude {len_before - len(files)} files that are not mp3 files or do not exist.')
+    
+    with multiprocessing.Pool() as pool:
+        list(track(pool.imap_unordered(_mp3_to_flac, files), total=len(files), description="Converting mp3 to flac"))
+    print(f"Converted {len(files)} mp3 files to flac files")
 
 def _write_data_into_jsonl(items, jsonl_file):
     with open(jsonl_file, mode="w", encoding="utf-8") as writer:
@@ -20,14 +42,14 @@ def _write_data_into_jsonl(items, jsonl_file):
 
 def load_tokenizer_data(store_at:str="../data"):
     for filename in ["dict.txt", "encoder.json", "vocab.bpe"]:
-        if not os.path.isfile(os.path.join(store_at, filename)):
+        if not os.path.exists(os.path.join(store_at, filename)):
             url = f"https://dl.fbaipublicfiles.com/fairseq/data2vec2/{filename}"
             download_url(url=url, store_at=store_at)
 
 def download_and_unzip(urls:str, store_at:str="../data"):
     for url in urls:
         filepath = os.path.join(store_at, url.split("/")[-1])
-        if not os.path.isfile(filepath):
+        if not os.path.exists(filepath):
             download_url(url=url, root=store_at)
             os.system(f"unzip {filepath} -d {store_at}")
         os.remove(filepath)

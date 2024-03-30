@@ -35,11 +35,11 @@ def transform(image, target):
     return transformed_image, transformed_text
 
 
-def collator(batch):
-    texts = []
-    images = torch.stack([x[0]["image"] for x in batch], dim=0)
-    texts = torch.cat([torch.LongTensor(x[1]["input_ids"]) for x in batch], dim=0)
-    return images, texts
+# def collator(batch):
+#     texts = []
+#     images = torch.stack([x[0]["image"] for x in batch], dim=0)
+#     texts = torch.cat([torch.LongTensor(x[1]["input_ids"]) for x in batch], dim=0)
+#     return images, texts
 
 
 def zero_shot_retrieval(model, dataloader, device, name, modalities):
