@@ -228,19 +228,35 @@ class CommonVoiceDataModule(BaseDataModule):
     def prepare_data(self):
         if not self.prepared:
             self.set_train_dataset()
+            self.set_test_dataset()
 
             self.prepared = True
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
             self.train_dataset.load()
+        if stage == 'test' or stage is None:
+            self.test_dataset.load()
+        
 
     def set_train_dataset(self):
         self.train_dataset = CommonVoice(data_path=self.data_path,
+                                         split='train',
                                          num_max_bpe_tokens=self.num_max_bpe_tokens,
                                          sample_rate=self.sample_rate,
                                          max_sample_size=self.max_sample_size,
                                          min_sample_size=self.min_sample_size,
                                          normalize=self.normalize,
                                          pad=self.pad,
-                                         precompute_mask_config=self.precompute_mask_config,)
+                                         **self.precompute_mask_config,)
+        
+    def set_test_dataset(self):
+        self.test_dataset = CommonVoice(data_path=self.data_path,
+                                         split='retrieval', # is the test split for zero-shot retrieval
+                                         num_max_bpe_tokens=self.num_max_bpe_tokens,
+                                         sample_rate=self.sample_rate,
+                                         max_sample_size=self.max_sample_size,
+                                         min_sample_size=self.min_sample_size,
+                                         normalize=self.normalize,
+                                         pad=self.pad,
+                                         **self.precompute_mask_config,)

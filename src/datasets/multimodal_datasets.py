@@ -680,6 +680,7 @@ class CommonVoice(AudioDataset):
     def __init__(
             self,
             data_path:str,
+            split:str,
             num_max_bpe_tokens:int,
             sample_rate:int,
             max_sample_size:int,
@@ -688,7 +689,7 @@ class CommonVoice(AudioDataset):
             pad:bool,
             **precompute_mask_config,
             ):
-        super().__init__(data_path, 'train', sample_rate, max_sample_size, min_sample_size, normalize, pad,
+        super().__init__(data_path, split if split=='train' else 'retrieval', sample_rate, max_sample_size, min_sample_size, normalize, pad,
                          **precompute_mask_config)
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.pad = pad
@@ -712,7 +713,7 @@ class CommonVoice(AudioDataset):
     def load(self):
         items = []
 
-        index_file = os.path.join(self.path_to_data, "common_voice.jsonl")
+        index_file = os.path.join(self.path_to_data, f"common_voice.{self.split}.jsonl")
         with open(index_file, mode="r", encoding="utf-8") as reader:
             for line in reader:
                 data = json.loads(line)
@@ -774,6 +775,11 @@ class CommonVoice(AudioDataset):
 
     def make_common_voice_dataset_index(self):
         validated_data = pd.read_csv(os.path.join(self.path_to_data, 'validated.tsv'), sep='\t')[['client_id', 'sentence_id', 'path', 'sentence']]
+        take_train = int(len(validated_data)*0.9)
+        if self.split == "train":
+            validated_data = validated_data.iloc[:take_train]
+        else:
+            validated_data = validated_data.iloc[take_train:] # for retrieval
 
         convert_mp3_to_flac(self.path_to_clips, validated_data['path'].tolist())
 
@@ -798,4 +804,4 @@ class CommonVoice(AudioDataset):
                 "client_id": row['client_id'],
                 "sentence_id": row['sentence_id'],
             })
-        _write_data_into_jsonl(items, os.path.join(self.path_to_data, "common_voice.jsonl"))
+        _write_data_into_jsonl(items, os.path.join(self.path_to_data, f"common_voice.{self.split}.jsonl"))
