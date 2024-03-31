@@ -12,6 +12,68 @@ from typing import Dict
 
 logger = logging.getLogger(__name__)
 
+# mach bei meinem anwendungsfall keinen sinn, also vielleicht später genau den code von flava verwenden
+# def _zero_shot_classifier(model,
+#                           train_loader:DataLoader,
+#                           device,
+#                           *args, 
+#                           **kwargs):
+#     zeroshot_weights = []
+#     for batch in train_loader:
+#         batch = batch.to(device)
+#         embeddings = model(batch['input']) # TODO add parameters, and [:, 0, :], if not done in the model (no causal mask!)
+#         embeddings /= embeddings.norm(dim=-1, keepdim=True)
+#         zeroshot_weights.append(embeddings)
+# 
+#     zeroshot_weights = torch.cat(zeroshot_weights, dim=0).to(device)
+#     return zeroshot_weights
+# 
+# 
+# def _accuracy(output, target, topk=(1,)):
+#     pred = output.topk(max(topk), 1, True, True)[1].t()
+#     correct = pred.eq(target.view(1, -1).expand_as(pred))
+#     return [
+#         float(correct[:k].reshape(-1).float().sum(0, keepdim=True).cpu().numpy())
+#         for k in topk
+#     ]
+# 
+# 
+# @rank_zero_only
+# def make_zero_shot(model,
+#                    train_loader:DataLoader,
+#                    test_loader:DataLoader,
+#                    name:str, 
+#                    device,
+#                    *args, 
+#                    **kwargs):
+#     logger.info("Starting ImageNet Zero-Shot Eval")
+#     logger.info("Building classifier")
+#     classifier = _zero_shot_classifier(model, device, train_loader)
+#     logger.info("Classifier built")
+#     top1, top5, n = 0.0, 0.0, 0.0
+#     for sample in test_loader:
+#         images = sample["image"]
+#         target = sample["label"]
+#         images = images.to(device)
+#         target = target.to(device)
+# 
+#         image_features = model(images) # TODO add parameters, and [:, 0, :], if not done in the model (no causal mask!)
+#         image_features /= image_features.norm(dim=-1, keepdim=True)
+#         logits = 100.0 * image_features @ classifier
+# 
+#         # measure accuracy
+#         acc1, acc5 = _accuracy(logits, target, topk=(1, 5))
+#         top1 += acc1
+#         top5 += acc5
+#         n += images.size(0)
+# 
+#     top1 = top1 / n
+#     top5 = top5 / n
+#     results = {}
+#     results[f"{name}--zeroshot-val-top1"] = top1
+#     results[f"{name}--zeroshot-val-top5"] = top5
+#     return results
+
 @torch.no_grad()
 @rank_zero_only # only needed in a distributed setting
 def make_knn_predictions(model:Callable,
@@ -22,6 +84,7 @@ def make_knn_predictions(model:Callable,
     X_train = []
     y_train = []
     for batch in train_loader:
+        batch = batch.to(model.device)
         X_train.append(model(batch[0])) # TODO add parameters, and [:, 0, :], if not done in the model (no causal mask!)
         y_train.append(batch[1])
     X_train = torch.cat(X_train, dim=0)
@@ -32,6 +95,7 @@ def make_knn_predictions(model:Callable,
     X_test = []
     y_test = []
     for batch in test_loader:
+        batch = batch.to(model.device)
         X_test.append(model(batch[0])) # TODO add parameters, and [:, 0, :], if not done in the model (no causal mask!)
         y_test.append(batch[1])
     X_test = torch.cat(X_test, dim=0)
