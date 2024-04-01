@@ -12,6 +12,7 @@ from torchvision.datasets.utils import download_url
 from pydub import AudioSegment
 import multiprocessing
 from rich.progress import track
+from bpe_encoder import BPEEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,12 @@ def load_tokenizer_data(store_at:str="../data"):
         if not os.path.exists(os.path.join(store_at, filename)):
             url = f"https://dl.fbaipublicfiles.com/fairseq/data2vec2/{filename}"
             download_url(url=url, store_at=store_at)
+
+def get_bpe_encoder(data_path):
+    load_tokenizer_data(data_path)
+    encoder_json_path = os.path.join(data_path, "encoder.json")
+    vocab_bpe_path = os.path.join(data_path, "vocab.bpe")
+    return BPEEncoder(encoder_json_path, vocab_bpe_path)
 
 def download_and_unzip(urls:str, store_at:str="../data"):
     for url in urls:

@@ -4,13 +4,16 @@ import torch
 import random
 import time
 import json
+import re
 from typing import *
 import subprocess
 import shutil
 import numpy as np
 from shutil import copyfile
 from functools import partial
+import glob
 from data_utils import get_transforms, download_and_unzip, _write_data_into_jsonl, load_tokenizer_data
+import data_utils
 from bpe_encoder import BPEEncoder
 from utils.wav2vec_manifest import create_manifests
 from fairseq.data import (
@@ -40,15 +43,9 @@ class BaseDataset(torch.utils.data.Dataset):
     def __init__(self, data_path:str, split:str):
         self.data_path = data_path
         self.split = split
-        load_tokenizer_data(self.data_path) # loads vocab, encoder, and dict files
-        # always done, even if not needed for e.g. audio-only and image-only datasets, but simpler this way
-        # as we always need the tokenizer files for other datasets, wich will always be used in multimodal setups
 
     def get_bpe_encoder(self):
-        # files are loaded in the constructor
-        encoder_json_path = os.path.join(self.data_path, "encoder.json")
-        vocab_bpe_path = os.path.join(self.data_path, "vocab.bpe")
-        return BPEEncoder(encoder_json_path, vocab_bpe_path)
+        return data_utils.get_bpe_encoder(self.data_path)
 
     def load(self):
         raise NotImplementedError
@@ -149,8 +146,69 @@ class EnWik9Dataset(NLPDataset):
         subprocess.run(process)
         os.remove("enwik9.bpe")
 
-    def load(self):
-        super().load()
+class OpenWebTextDataset(NLPDataset):
+    def __init__(self,
+                 data_path: str,
+                 split: str,
+                 num_max_bpe_tokens: int,
+                 sample_break_mode: str = 'none'):
+        super().__init__(data_path, split, num_max_bpe_tokens, sample_break_mode)
+        dataset_path = os.path.join(self.nlp_dir_path, 'openwebtext')
+        pattern = os.path.join(self.nlp_dir_path, '*.tar')
+        files = glob.glob(pattern)
+        print(f"OpenWebTextDataset: Found {len(files)} tar files, inflating...")
+        for file in files:
+            os.system(f"tar -xf {file} -C {self.nlp_dir_path}")
+            os.remove(file)
+        pattern = os.path.join(dataset_path, '*.xz')
+        files = glob.glob(pattern)
+        for file in files:
+            os.system(f"unxz {file}")
+        print("OpenWebTextDataset: Inflated all tar files.")
+
+        pattern = rb'\x00+'
+
+        print("OpenWebTextDataset: Cleaning...")
+        files = os.listdir(dataset_path)
+        for file in files:
+            with open(os.path.join(dataset_path, file), 'rb') as f:
+                first_line = f.readline()
+                rest_of_file = f.read()
+            
+            matches = list(re.finditer(pattern, first_line))
+            if matches:
+                first_line = first_line[matches[-1].end():]
+
+            with open(os.path.join(dataset_path, file), 'wb') as f:
+                f.write(first_line)
+                f.write(rest_of_file)
+
+            with open(os.path.join(dataset_path, file), 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            
+            with open(os.path.join(dataset_path, file), 'w', encoding='utf-8') as f:
+                for line in lines:
+                    stripped_line = line.strip()
+                    if stripped_line != '' and stripped_line != '---':
+                        f.write(line)
+
+        print("OpenWebTextDataset: Joining...")
+        with open(os.path.join(dataset_path, 'openwebtext.txt'), 'w') as f:
+            for file in files:
+                path_to_file = os.path.join(dataset_path, file)
+                with open(path_to_file, 'r') as f2:
+                    f.write(f2.read())
+                os.remove(path_to_file)
+
+        print("OpenWebTextDataset: Encoding...")
+        in_file = os.path.join(dataset_path, 'openwebtext.txt')
+        out_file = os.path.join(dataset_path, 'openwebtext.bpe')
+        encode(f'{self.data_path}/encoder.json', f'{self.data_path}/vocab.bpe', [in_file], [out_file], keep_empty=True)
+        os.remove(in_file)
+        process = ['fairseq-preprocess', '--only-source', '--srcdict', f'{self.data_path}/dict.txt',
+                    '--trainpref', out_file, '--destdir', f'{dataset_path}', '--workers', f'{os.cpu_count()}']
+        subprocess.run(process)
+        os.remove(out_file)
 
 
 class IMDBDataset(BaseDataset):
