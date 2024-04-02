@@ -1,5 +1,5 @@
 from typing import Tuple
-from datamodules.unimodal_datamodules import BaseDataModule
+from .unimodal_datamodules import BaseDataModule
 from datasets import COCOCaptions, VisualGenome, VQAv2, NLVR2, Flickr30Dataset, CommonVoice, Flickr8KAudioDataset
 
 class COCOCaptionsDataModule(BaseDataModule):
@@ -236,6 +236,16 @@ class Flickr8AudioDataModule(BaseDataModule):
         self.pad = pad
         self.precompute_mask_config = precompute_mask_config
 
+    def prepare_data(self):
+        if not self.prepared:
+            self.set_test_dataset()
+
+            self.prepared = True
+
+    def setup(self, stage=None):
+        if stage == 'test' or stage is None:
+            self.test_dataset.load()
+
 
     def set_train_dataset(self):
         self.train_dataset = Flickr8KAudioDataset(data_path=self.data_path,
@@ -249,10 +259,6 @@ class Flickr8AudioDataModule(BaseDataModule):
                                                   min_sample_size=self.min_sample_size,
                                                   normalize=self.normalize,
                                                   pad=self.pad,
-                                                  batch_size=self.batch_size,
-                                                  num_workers=self.num_workers,
-                                                  shuffle=self.shuffle,
-                                                  drop_last=self.drop_last,
                                                   **self.precompute_mask_config)
 
     def set_val_dataset(self):
@@ -267,10 +273,6 @@ class Flickr8AudioDataModule(BaseDataModule):
                                                 min_sample_size=self.min_sample_size,
                                                 normalize=self.normalize,
                                                 pad=self.pad,
-                                                batch_size=self.batch_size,
-                                                num_workers=self.num_workers,
-                                                shuffle=self.shuffle,
-                                                drop_last=self.drop_last,
                                                 **self.precompute_mask_config)
 
     def set_test_dataset(self): # to be used for zero-shot retrieval
@@ -285,10 +287,6 @@ class Flickr8AudioDataModule(BaseDataModule):
                                                  min_sample_size=self.min_sample_size,
                                                  normalize=self.normalize,
                                                  pad=self.pad,
-                                                 batch_size=self.batch_size,
-                                                 num_workers=self.num_workers,
-                                                 shuffle=self.shuffle,
-                                                 drop_last=self.drop_last,
                                                  **self.precompute_mask_config)
             
 

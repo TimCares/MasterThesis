@@ -11,7 +11,6 @@ from functools import partial
 import soundfile as sf
 from .data_utils import get_transforms
 from . import data_utils
-from .base_datasets import BaseDataset
 import torch.nn.functional as F
 
 from fairseq.examples.data2vec.data import PathDataset
@@ -59,7 +58,7 @@ class BaseDataset(torch.utils.data.Dataset):
         return batch_tensors
     
     def log(self, msg:str):
-        logger.info(f"{self.__class__()}: {msg}")
+        logger.info(f"{self.__class__}: {msg}")
     
 
 class NLPDataset(BaseDataset):
@@ -177,7 +176,7 @@ class AudioDataset(BaseDataset):
 
         input = {
             "audio": collated_audio,
-            "id": torch.LongTensor([s["id"] for s in samples]),
+            #"id": torch.LongTensor([s["id"] for s in samples]),
             }
         
         if self.pad:

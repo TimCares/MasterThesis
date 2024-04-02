@@ -55,7 +55,7 @@ def get_bpe_encoder(data_path):
 
 def download_and_unzip(urls:str, store_at:str="../data", archive_type:str="zip"):
     for url in urls:
-        filepath = os.path.join(store_at, url.split("/")[-1])
+        filepath = os.path.join(store_at, os.path.basename(url))
         if not os.path.exists(filepath):
             download_url(url=url, root=store_at)
             if archive_type == "zip":
