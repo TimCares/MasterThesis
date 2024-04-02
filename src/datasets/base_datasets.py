@@ -481,7 +481,6 @@ class BaseImageText(BaseDataset):
         raise NotImplementedError()
 
     def _get_image(self, image_path: str):
-        image_path = os.path.join(self.data_path, image_path)
         image = self.loader(image_path)
         return self.transform(image)
 
@@ -583,7 +582,6 @@ class BaseImageAudio(AudioDataset):
         raise NotImplementedError()
 
     def _get_image(self, image_path: str):
-        image_path = os.path.join(self.data_path, image_path)
         image = self.loader(image_path)
         return self.transform(image)
     

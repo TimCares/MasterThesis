@@ -92,12 +92,12 @@ class COCOCaptions(BaseImageText):
         items = []
         image_counter = set()
         self.log("read %s" % coco_karpathy_split_json_file)
-        self.log("task is %s" % self.task)
+        self.log("task is: %s" % self.task)
         with open(coco_karpathy_split_json_file, mode="r", encoding="utf-8") as reader:
             data = json.loads(reader.read())
             for item in data["images"]:
                 if item["split"] in karpathy_split:
-                    image_path = os.path.join(item["filepath"], item["filename"])
+                    image_path = os.path.join(self.path_to_data, item["filepath"], item["filename"])
                     if self.task == "captioning":
                         if item["split"] in ["train", "restval"]:
                             items += self._encode_all(item, image_path, image_counter, bpe_encoder)
@@ -174,7 +174,7 @@ class Flickr30Dataset(BaseImageText):
         n_images = 0
 
         for each_item in captions:
-            image_path = os.path.join("flickr30k-images", each_item["filename"])
+            image_path = os.path.join(self.path_to_data, "flickr30k-images", each_item["filename"])
 
             if each_item["split"] != self.split:
                 continue
@@ -218,7 +218,7 @@ class Flickr8KAudioDataset(BaseImageAudio):
                          normalize=normalize,
                          pad=pad,
                          **precompute_mask_config)
-        self.path_to_data = os.path.join(self.data_path, "flickr8k_audio")
+        self.path_to_data = os.path.join(self.data_path, "flickr8k")
 
         os.makedirs(self.path_to_data, exist_ok=True)
         download_and_unzip(urls=["https://groups.csail.mit.edu/sls/downloads/flickraudio/downloads/flickr_audio.tar.gz"], store_at=self.path_to_data,
@@ -230,25 +230,25 @@ class Flickr8KAudioDataset(BaseImageAudio):
         self.transform = get_transforms(no_transform=True)
         self.loader = default_loader
         
-        self.make_flickr8k_audio_dataset_index()
+        self.make_flickr8k_dataset_index()
 
     def get_index_files(self):
         if self.split == "train":
-            return (f"flickr8k_audio.train.jsonl", )
+            return (f"flickr8k.train.jsonl", )
         elif self.split == "val":
-            return (f"flickr8k_audio.val.jsonl", )
+            return (f"flickr8k.val.jsonl", )
         elif self.split == "test":
-            return (f"flickr8k_audio.test.jsonl", )
+            return (f"flickr8k.test.jsonl", )
         else:
             raise RuntimeError("split %s is not found!" % self.split)
 
-    def make_flickr8k_audio_dataset_index(self):
+    def make_flickr8k_dataset_index(self):
         with open(os.path.join(self.path_to_data, "dataset_flickr8k.json"), "r", encoding='utf-8') as reader:
             meta_data = json.loads(reader.read())["images"]
 
         image_to_audio = {}
-        with open(filename, 'r') as file:
-            for line in file:
+        with open(os.path.join(self.path_to_data, "flickr_audio", "wav2capt.txt"), 'r', encoding='utf-8') as reader:
+            for line in reader:
                 wav_file, jpg_file, _ = line.strip().split()
                 if jpg_file in image_to_audio:
                     image_to_audio[jpg_file].append(wav_file)
@@ -262,7 +262,6 @@ class Flickr8KAudioDataset(BaseImageAudio):
             if each_item["split"] != self.split:
                 continue
             filename = each_item["filename"]
-            image_path = os.path.join(self.data_path, "flickr8k-images", filename)
 
             try:
                 audio_names = image_to_audio[filename]
@@ -271,14 +270,14 @@ class Flickr8KAudioDataset(BaseImageAudio):
 
             for audio_name in audio_names:
                 index.append({
-                    "image_path": image_path, 
-                    "audio_path": os.path.join(self.data_path, "flickr_audio", "wavs", audio_name), 
+                    "image_path": os.path.join(self.path_to_data, "flickr8k-images", filename), 
+                    "audio_path": os.path.join(self.path_to_data, "flickr_audio", "wavs", audio_name), 
                     "id": each_item['imgid'],
                 })
             n_images += 1
 
         self.log(f"{n_images} image and {len(index)} image-audio pairs!")
-        write_data_into_jsonl(index, os.path.join(self.path_to_data, "flickr8k_audio.%s.jsonl" % self.split))
+        write_data_into_jsonl(index, os.path.join(self.path_to_data, "flickr8k.%s.jsonl" % self.split))
     
 
 class VisualGenome(BaseImageText):
@@ -526,7 +525,7 @@ class VQAv2(BaseImageText):
                 "test": "test2015",
                 "test-dev": "test2015",
             }[split]
-            paths = list(glob.glob(f"{os.path.join(self.data_path, 'coco')}/{split_name}/*.jpg"))
+            paths = list(glob.glob(f"{self.path_to_data}/{split_name}/*.jpg"))
             random.shuffle(paths)
             annot_paths = [path for path in paths \
                 if int(path.split("/")[-1].split("_")[-1][:-4]) in annot]
@@ -550,7 +549,7 @@ class VQAv2(BaseImageText):
                         labels, scores = [], []
 
                     items.append({
-                        "image_path": os.path.join(split_name, path.split('/')[-1]), 
+                        "image_path": path, 
                         "text_segment": q["token_ids"], 
                         "labels": labels, 
                         "scores": scores, 
