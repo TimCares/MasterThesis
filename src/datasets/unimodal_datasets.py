@@ -1,129 +1,28 @@
 import os
 import logging
 import torch
-import random
-import time
 import json
 import re
 from typing import *
 import subprocess
 import shutil
-import numpy as np
-from shutil import copyfile
-from functools import partial
 import glob
-from data_utils import get_transforms, download_and_unzip, _write_data_into_jsonl, load_tokenizer_data
-import data_utils
-from bpe_encoder import BPEEncoder
+from .data_utils import get_transforms, download_and_unzip, write_data_into_jsonl, get_bpe_encoder
+from .base_datasets import BaseDataset
 from utils.wav2vec_manifest import create_manifests
-from fairseq.data import (
-    Dictionary,
-    NestedDictionaryDataset,
-    PrependTokenDataset,
-    AppendTokenDataset,
-    RightPadDataset,
-    RightPaddingMaskDataset,
-    TokenBlockDataset,
-    data_utils,
-)
+from bpe_encoder import encode
+
+from fairseq.data import Dictionary
 from fairseq.data.audio.raw_audio_dataset import FileAudioDataset
 from fairseq.data.text_compressor import TextCompressionLevel
-from fairseq.examples.data2vec.data import PathDataset
-from fairseq.data import FairseqDataset
-from fairseq.data.data_utils import compute_block_mask_1d, compute_block_mask_2d
-from bpe_encoder import encode
+
 from torchaudio.datasets import LIBRISPEECH, SPEECHCOMMANDS
-from torchvision import datasets
 import torchtext
-from torchvision.datasets import CIFAR10, CIFAR100, ImageFolder
+from torchvision.datasets import CIFAR10, CIFAR100
+
+from .base_datasets import AudioDataset, ImageDataset, MaeImageDataset, NLPDataset
 
 logger = logging.getLogger(__name__)
-
-class BaseDataset(torch.utils.data.Dataset):
-    def __init__(self, data_path:str, split:str):
-        self.data_path = data_path
-        self.split = split
-
-    def get_bpe_encoder(self):
-        return data_utils.get_bpe_encoder(self.data_path)
-
-    def load(self):
-        raise NotImplementedError
-    
-    def __len__(self):
-        return len(self.items)
-
-    def collater(self, samples):
-        batch_tensors = {}
-        for tensor_key in samples[0]:
-            if isinstance(samples[0][tensor_key], torch.Tensor):
-                batch_tensors[tensor_key] = torch.stack([d[tensor_key] for d in samples])
-            else:
-                batch_tensors[tensor_key] = torch.tensor([d[tensor_key] for d in samples], dtype=torch.long)
-
-        return batch_tensors
-
-class NLPDataset(BaseDataset):
-    def __init__(
-            self,
-            data_path:str,
-            split:str,
-            num_max_bpe_tokens:int,
-            sample_break_mode:str='none',):
-        super().__init__(data_path, split)
-        self.nlp_dir_path = os.path.join(self.data_path, 'language')
-        os.makedirs(self.nlp_dir_path, exist_ok=True)
-        self.num_max_bpe_tokens = num_max_bpe_tokens
-        self.dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
-        self.sample_break_mode = sample_break_mode
-
-          
-    def load(self):
-        """Load a given dataset split.
-
-        Args:
-            split (str): name of the split (e.g., train, valid, test)
-        """
-        split_path = os.path.join(self.data_path, self.split)
-
-        dataset = data_utils.load_indexed_dataset(
-            split_path,
-            self.dictionary,
-            combine=True,
-        )
-        if dataset is None:
-            raise FileNotFoundError(
-                "Dataset not found: {} ({})".format(self.split, split_path)
-            )
-
-        # create continuous blocks of tokens
-        dataset = TokenBlockDataset(
-            dataset,
-            dataset.sizes,
-            self.num_max_bpe_tokens - 2,  # two less for bos and eos
-            pad=self.dictionary.pad(),
-            eos=self.dictionary.eos(),
-            break_mode=self.sample_break_mode,
-        )
-        logger.info("loaded {} blocks from: {}".format(len(dataset), split_path))
-
-        # prepend beginning-of-sentence and append end-of-sentence tokens
-        dataset = PrependTokenDataset(dataset, self.dictionary.bos())
-        dataset = AppendTokenDataset(dataset, self.dictionary.eos())
-
-        input_dict = {
-            "language_tokens": RightPadDataset(
-                dataset,
-                pad_idx=self.dictionary.pad(),
-            ),
-            "padding_mask": RightPaddingMaskDataset(dataset),
-        }
-
-        self.dataset = NestedDictionaryDataset(
-            {
-                "net_input": input_dict,
-            },
-        )
 
 class EnWik9Dataset(NLPDataset):
     def __init__(
@@ -156,7 +55,7 @@ class OpenWebTextDataset(NLPDataset):
         dataset_path = os.path.join(self.nlp_dir_path, 'openwebtext')
         pattern = os.path.join(self.nlp_dir_path, '*.tar')
         files = glob.glob(pattern)
-        print(f"OpenWebTextDataset: Found {len(files)} tar files, inflating...")
+        self.log(f"Found {len(files)} tar files, inflating...")
         for file in files:
             os.system(f"tar -xf {file} -C {self.nlp_dir_path}")
             os.remove(file)
@@ -164,11 +63,11 @@ class OpenWebTextDataset(NLPDataset):
         files = glob.glob(pattern)
         for file in files:
             os.system(f"unxz {file}")
-        print("OpenWebTextDataset: Inflated all tar files.")
+        self.log("Inflated all tar files.")
 
         pattern = rb'\x00+'
 
-        print("OpenWebTextDataset: Cleaning...")
+        self.log("Cleaning...")
         files = os.listdir(dataset_path)
         for file in files:
             with open(os.path.join(dataset_path, file), 'rb') as f:
@@ -192,7 +91,7 @@ class OpenWebTextDataset(NLPDataset):
                     if stripped_line != '' and stripped_line != '---':
                         f.write(line)
 
-        print("OpenWebTextDataset: Joining...")
+        self.log("Joining...")
         with open(os.path.join(dataset_path, 'openwebtext.txt'), 'w') as f:
             for file in files:
                 path_to_file = os.path.join(dataset_path, file)
@@ -200,7 +99,7 @@ class OpenWebTextDataset(NLPDataset):
                     f.write(f2.read())
                 os.remove(path_to_file)
 
-        print("OpenWebTextDataset: Encoding...")
+        self.log("Encoding...")
         in_file = os.path.join(dataset_path, 'openwebtext.txt')
         out_file = os.path.join(dataset_path, 'openwebtext.bpe')
         encode(f'{self.data_path}/encoder.json', f'{self.data_path}/vocab.bpe', [in_file], [out_file], keep_empty=True)
@@ -222,10 +121,8 @@ class IMDBDataset(BaseDataset):
         self.path_to_data = os.path.join(self.data_path, 'language', 'imdb')
         self.out_jsonl_path = os.path.join(self.path_to_data, f'{self.split}.jsonl')
 
-        encoder_json_path = os.path.join(self.data_path, 'encoder.json')
-        vocab_bpe_path = os.path.join(self.data_path, 'vocab.bpe')
         dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
-        bpe_encoder = BPEEncoder(encoder_json_path, vocab_bpe_path)
+        bpe_encoder = get_bpe_encoder(self.data_path)
 
         bos_token_id = dictionary.bos()
         eos_token_id = dictionary.eos()
@@ -234,7 +131,7 @@ class IMDBDataset(BaseDataset):
         os.makedirs(self.path_to_data, exist_ok=True)
         
         if os.path.exists(self.out_jsonl_path):
-            print(f'Data already exists. Skip creating it.')
+            self.log(f'Data already exists. Skip creating it.')
             return
         
         items = []
@@ -249,7 +146,7 @@ class IMDBDataset(BaseDataset):
             language_tokens =  tokens + [pad_token_id] * (self.num_max_bpe_tokens - num_tokens)
             items.append({'language_tokens': language_tokens, 'padding_mask': padding_mask, 'label': label})
 
-        _write_data_into_jsonl(items, self.out_jsonl_path)
+        write_data_into_jsonl(items, self.out_jsonl_path)
         shutil.rmtree(f'{self.path_to_data}/datasets')
                 
     def load(self):
@@ -258,110 +155,12 @@ class IMDBDataset(BaseDataset):
             for line in reader:
                 data = json.loads(line)
                 items.append(data)
-            print("Load %d text examples." % len(items))
+            self.log("Load %d text examples." % len(items))
         self.items = items
 
     def __getitem__(self, index):
         item = self.items[index]
         return item
-
-    
-class AudioDataset(BaseDataset):
-    def __init__(
-            self,
-            data_path:str,
-            split:str,
-            sample_rate:int,
-            max_sample_size:int,
-            min_sample_size:int,
-            normalize:bool,
-            pad:bool,
-            feature_encoder_spec,
-            ):
-        super().__init__(data_path, split)
-        self.sample_rate = sample_rate
-        self.max_sample_size = max_sample_size
-        self.min_sample_size = min_sample_size
-        self.normalize = normalize
-        self.pad = pad
-        self.feature_encoder_spec = feature_encoder_spec
-        self._features_size_map = {}
-
-    def collater(self, samples):
-        if len(samples) == 0:
-            return {}
-
-        audios = [s["audio"] for s in samples]
-        sizes = [len(s) for s in audios]
-
-        if self.pad:
-            target_size = min(max(sizes), self.max_sample_size)
-        else:
-            target_size = min(min(sizes), self.max_sample_size)
-
-        collated_audio = audios[0].new_zeros(len(audios), target_size)
-        padding_mask = (
-            torch.BoolTensor(collated_audio.shape).fill_(False) if self.pad else None
-        )
-        for i, (source, size) in enumerate(zip(audios, sizes)):
-            diff = size - target_size
-            if diff == 0:
-                collated_audio[i] = source
-            elif diff < 0:
-                assert self.pad
-                collated_audio[i] = torch.cat(
-                    [source, source.new_full((-diff,), 0.0)]
-                )
-                padding_mask[i, diff:] = True
-            else:
-                collated_audio[i] = self._crop_to_max_size(source, target_size)
-
-        input = {
-            "audio": collated_audio,
-            "id": torch.LongTensor([s["id"] for s in samples]),
-            }
-        
-        if self.pad:
-            input["padding_mask"] = padding_mask
-
-        if "precomputed_mask" in samples[0]:
-            target_size = self._get_mask_indices_dims(target_size)
-            collated_mask = torch.cat(
-                [
-                    self._crop_to_max_size(s["precomputed_mask"], target_size, dim=1)
-                    for s in samples
-                ],
-                dim=0,
-            )
-            input["precomputed_mask"] = collated_mask
-
-        return input
-
-    def _get_mask_indices_dims(self, size, padding=0, dilation=1):
-        if size not in self.feature_encoder_spec:
-            L_in = size
-            for (_, kernel_size, stride) in self.feature_encoder_spec:
-                L_out = L_in + 2 * padding - dilation * (kernel_size - 1) - 1
-                L_out = 1 + L_out // stride
-                L_in = L_out
-            self._features_size_map[size] = L_out
-        return self._features_size_map[size]
-
-    def _crop_to_max_size(self, t, target_size, dim=0):
-        size = t.size(dim)
-        diff = size - target_size
-        if diff <= 0:
-            return t
-
-        start = np.random.randint(0, diff + 1)
-        end = size - diff + start
-
-        slices = []
-        for d in range(dim):
-            slices.append(slice(None))
-        slices.append(slice(start, end))
-
-        return t[slices]
 
 
 class LibriSpeechDataset(AudioDataset):
@@ -477,28 +276,6 @@ class SpeechCommandsDataset(AudioDataset):
         input["label"] = torch.LongTensor([self.class_to_id[s["label"]] for s in samples])
         return input
 
-    
-class ImageDataset(BaseDataset):
-    def __init__(
-            self,
-            data_path:str,
-            split,
-            beit_transforms,
-            no_transform,
-            transform_jitter,
-            precompute_mask_config,
-            crop_scale,
-            dataset_type,
-            local_cache_path):
-        super().__init__(data_path, split)
-        self.beit_transforms = beit_transforms
-        self.no_transform = no_transform
-        self.transform_jitter = transform_jitter
-        self.precompute_mask_config = precompute_mask_config
-        self.crop_scale = crop_scale
-        self.dataset_type = dataset_type
-        self.local_cache_path = local_cache_path
-
 
 class ImageNetDataset(ImageDataset):
     def __init__(
@@ -583,175 +360,3 @@ class CIFARDataset(BaseDataset):
     def __getitem__(self, index):
         item = self.items[index]
         return {"image": item[0], "target": item[1]}
-
-
-def load(path, loader, cache):
-    if hasattr(caching_loader, "cache_root"):
-        cache = caching_loader.cache_root
-
-    cached_path = cache + path
-
-    num_tries = 3
-    for curr_try in range(num_tries):
-        try:
-            if curr_try == 2:
-                return loader(path)
-            if not os.path.exists(cached_path) or curr_try > 0:
-                os.makedirs(os.path.dirname(cached_path), exist_ok=True)
-                copyfile(path, cached_path)
-                os.chmod(cached_path, 0o777)
-            return loader(cached_path)
-        except Exception as e:
-            logger.warning(str(e))
-            if "Errno 13" in str(e):
-                caching_loader.cache_root = f"/scratch/{random.randint(0, 69420)}"
-                logger.warning(f"setting cache root to {caching_loader.cache_root}")
-                cached_path = caching_loader.cache_root + path
-            if curr_try == (num_tries - 1):
-                raise
-            time.sleep(2)
-
-
-def caching_loader(cache_root: str, loader):
-    if cache_root is None:
-        return loader
-
-    if cache_root == "slurm_tmpdir":
-        cache_root = os.environ["SLURM_TMPDIR"]
-        assert len(cache_root) > 0
-
-    if not cache_root.endswith("/"):
-        cache_root += "/"
-
-    return partial(load, loader=loader, cache=cache_root)
-
-# adapted from: https://github.com/facebookresearch/fairseq/blob/34973a94d09ecc12092a5ecc8afece5e536b7692/examples/data2vec/data/mae_image_dataset.py
-class MaeImageDataset(FairseqDataset):
-    def __init__(
-        self,
-        root: str,
-        split: str,
-        input_size,
-        local_cache_path=None,
-        shuffle=True,
-        key="image",
-        beit_transforms=False,
-        no_transform=False,
-        transform_jitter=False,
-        crop_scale=(0.6, 1.0),
-        compute_mask=False,
-        patch_size: int = 16,
-        mask_prob: float = 0.75,
-        mask_prob_adjust: float = 0,
-        mask_length: int = 1,
-        inverse_mask: bool = False,
-        expand_adjacent: bool = False,
-        mask_dropout: float = 0,
-        non_overlapping: bool = False,
-        require_same_masks: bool = True,
-        clone_batch: int = 1,
-        dataset_type: str = "imagefolder",
-    ):
-        FairseqDataset.__init__(self)
-
-        self.shuffle = shuffle
-        self.key = key
-
-        loader = caching_loader(local_cache_path, datasets.folder.default_loader)
-
-        if split == "train":
-            self.transform = get_transforms(no_transform=no_transform,
-                                            beit_transforms=beit_transforms,
-                                            transform_jitter=transform_jitter,
-                                            crop_scale=crop_scale)
-        else:
-            self.transform = get_transforms(no_transform=True, beit_transforms=False, transform_jitter=False)
-
-        if dataset_type == "imagefolder":
-            self.dataset = ImageFolder(
-                os.path.join(root, split), loader=loader
-            )
-        elif dataset_type == "path":
-            self.dataset = PathDataset(
-                root,
-                loader,
-                None,
-                None,
-            )
-        else:
-            raise Exception(f"invalid dataset type {dataset_type}")
-
-        logger.info(
-            f"transform: {self.transform}"
-        )
-        logger.info(f"loaded {len(self.dataset)} examples")
-
-        self.is_compute_mask = compute_mask
-        self.patches = (input_size // patch_size) ** 2
-        self.mask_prob = mask_prob
-        self.mask_prob_adjust = mask_prob_adjust
-        self.mask_length = mask_length
-        self.inverse_mask = inverse_mask
-        self.expand_adjacent = expand_adjacent
-        self.mask_dropout = mask_dropout
-        self.non_overlapping = non_overlapping
-        self.require_same_masks = require_same_masks
-        self.clone_batch = clone_batch
-
-    def __getitem__(self, index):
-        img, _ = self.dataset[index]
-
-        img = self.transform(img)
-
-        v = {"id": index, self.key: img}
-
-        if self.is_compute_mask:
-            if self.mask_length == 1:
-                mask = compute_block_mask_1d(
-                    shape=(self.clone_batch, self.patches),
-                    mask_prob=self.mask_prob,
-                    mask_length=self.mask_length,
-                    mask_prob_adjust=self.mask_prob_adjust,
-                    inverse_mask=self.inverse_mask,
-                    require_same_masks=True,
-                )
-            else:
-                mask = compute_block_mask_2d(
-                    shape=(self.clone_batch, self.patches),
-                    mask_prob=self.mask_prob,
-                    mask_length=self.mask_length,
-                    mask_prob_adjust=self.mask_prob_adjust,
-                    inverse_mask=self.inverse_mask,
-                    require_same_masks=True,
-                    expand_adjcent=self.expand_adjacent,
-                    mask_dropout=self.mask_dropout,
-                    non_overlapping=self.non_overlapping,
-                )
-
-            v["precomputed_mask"] = mask
-
-        return v
-
-    def __len__(self):
-        return len(self.dataset)
-
-    def collater(self, samples):
-        if len(samples) == 0:
-            return {}
-
-        collated_img = torch.stack([s[self.key] for s in samples], dim=0)
-
-        res = {
-            # "id": torch.LongTensor([s["id"] for s in samples]),
-            self.key: collated_img,
-        }
-
-        if "target" in samples[0]:
-            collated_target = torch.stack([s["target"] for s in samples], dim=0)
-            res["label"] = collated_target
-
-        if "precomputed_mask" in samples[0]:
-            collated_mask = torch.cat([s["precomputed_mask"] for s in samples], dim=0)
-            res["precomputed_mask"] = collated_mask
-
-        return res

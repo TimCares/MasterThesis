@@ -1,126 +1,19 @@
 import os
 import json
 import torch
-import numpy as np
-import torch.nn.functional as F
+from typing import Tuple
 import pandas as pd
-from fairseq.data import Dictionary
 from torchvision.datasets.folder import default_loader
-from data_utils import get_transforms, _write_data_into_jsonl, download_and_unzip, convert_mp3_to_flac
+from datasets.data_utils import get_transforms, write_data_into_jsonl, download_and_unzip, convert_mp3_to_flac
 from utils.glossary import normalize_word
-from bpe_encoder import BPEEncoder
-from datasets.unimodal_datasets import BaseDataset, AudioDataset
 from tqdm import tqdm
 import os
 import json
 import random
 import glob
 from collections import defaultdict, Counter
-import soundfile as sf
 
-class BaseImageText(BaseDataset):
-    def __init__(
-        self,
-        data_path,
-        split,
-        num_max_bpe_tokens,
-        transform_jitter=False,
-        beit_transforms=False,
-        no_transform=False,
-        crop_scale=(0.6, 1.0),
-    ):
-        super().__init__(data_path, split)
-        self.num_max_bpe_tokens = num_max_bpe_tokens
-        self.transform_jitter = transform_jitter
-        self.beit_transforms = beit_transforms
-        self.no_transform = no_transform
-        self.crop_scale = crop_scale
-        self.path_to_data = None
-
-        self.dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
-
-        self.bos_token_id = self.dictionary.bos()
-        self.eos_token_id = self.dictionary.eos()
-        self.pad_token_id = self.dictionary.pad()
-        self.loader = default_loader
-        self.transform = get_transforms(no_transform=self.no_transform,
-                                        beit_transforms=self.beit_transforms,
-                                        transform_jitter=self.transform_jitter,
-                                        crop_scale=self.crop_scale)
-
-    def load(self):
-        index_files = self.get_index_files()
-        items = []
-        self.index_files = index_files
-
-        offset = 0
-        for _index_file in index_files:
-            index_file = os.path.join(self.path_to_data, _index_file)
-            with open(index_file, mode="r", encoding="utf-8") as reader:
-                for line in reader:
-                    data = json.loads(line)
-                    items.append(data)
-                print("Load %d image-text pairs from %s. " % (len(items) - offset, index_file))
-                offset = len(items)
-        self.items = items
-
-    def get_index_files(self):
-        raise NotImplementedError()
-
-    def _get_image(self, image_path: str):
-        image_path = os.path.join(self.data_path, image_path)
-        image = self.loader(image_path)
-        return self.transform(image)
-
-    def _get_text_segment(self, text_segment, max_len=None):
-        assert isinstance(text_segment, list)
-        tokens = text_segment[:]
-        if len(tokens) == 0:
-            raise RuntimeError("The text segment should contains at least one tokens!")
-        if max_len is None:
-            max_len = self.num_max_bpe_tokens
-
-        if len(tokens) > max_len - 2:
-            tokens = tokens[:max_len - 2]
-
-        tokens = [self.bos_token_id] + tokens[:] + [self.eos_token_id]
-        num_tokens = len(tokens)
-        padding_mask = [0] * num_tokens + [1] * (max_len - num_tokens)
-        return tokens + [self.pad_token_id] * (max_len - num_tokens), padding_mask, num_tokens
-
-    def _get_image_text_example(self, index: int, data: dict):
-        item = self.items[index]
-        img_path = item["image_path"]
-        img = self._get_image(img_path)
-        data["image"] = img
-
-        text_segment = item["text_segment"]
-        language_tokens, padding_mask, _ = self._get_text_segment(text_segment)
-        data["language_tokens"] = language_tokens
-        data["padding_mask"] = padding_mask
-
-    def __getitem__(self, index: int):
-        data = dict()
-        self._get_image_text_example(index, data)
-        return data
-
-    def __len__(self) -> int:
-        return len(self.items)
-
-    def __repr__(self) -> str:
-        head = "Dataset " + self.__class__.__name__
-        body = '{' + "\n  Number of items: %s," % self.__len__()
-        body += "\n  data root = %s," % self.data_path
-        body += "\n  split = %s," % self.split
-        body += "\n  dataset index files = %s" % str(self.index_files)
-        body += "\n  num max bpe tokens = %s" % self.num_max_bpe_tokens
-        body += "\n  transforms = ["
-        for t in self.transform:
-            body += "\n    %s" % str(t)
-        body += "\n  ]"
-        body += "\n}"
-
-        return head + body
+from .base_datasets import BaseImageText, BaseTextAudio, BaseImageAudio
     
 
 class COCOCaptions(BaseImageText):        
@@ -169,7 +62,7 @@ class COCOCaptions(BaseImageText):
         img_path = item["image_path"]
         img = self._get_image(img_path)
         data["image"] = img
-        data["image_id"] = item["image_id"]
+        data["id"] = item["id"]
 
         text_segment = item["text_segment"]
         if text_segment is not None:
@@ -180,7 +73,7 @@ class COCOCaptions(BaseImageText):
     
     def _get_item_retrieval(self, index):
         data = super().__getitem__(index)
-        data["image_id"] = self.items[index]["image_id"]
+        data["id"] = self.items[index]["id"]
         return data
     
     def _make_coco_karpathy_dataset_index(self):
@@ -198,8 +91,8 @@ class COCOCaptions(BaseImageText):
         coco_karpathy_split_json_file = os.path.join(self.path_to_data, "dataset_coco.json")
         items = []
         image_counter = set()
-        print("read %s" % coco_karpathy_split_json_file)
-        print("task is %s" % self.task)
+        self.log("read %s" % coco_karpathy_split_json_file)
+        self.log("task is %s" % self.task)
         with open(coco_karpathy_split_json_file, mode="r", encoding="utf-8") as reader:
             data = json.loads(reader.read())
             for item in data["images"]:
@@ -212,23 +105,23 @@ class COCOCaptions(BaseImageText):
                             items.append({
                                         "image_path": image_path, 
                                         "text_segment": None, 
-                                        "image_id": item["cocoid"], 
+                                        "id": item["cocoid"], 
                             })
                     else:
                         items += self._encode_all(item, image_path, image_counter, bpe_encoder)
                     if image_path not in image_counter:
                         image_counter.add(image_path)
-        print("Find %d images and %d image-text pairs for karpathy dataset %s split !" % \
+        self.log("Find %d images and %d image-text pairs for karpathy dataset %s split !" % \
             (len(image_counter), len(items), self.split))
         index_file = os.path.join(self.path_to_data, f"coco_{self.task}.{self.split}.jsonl")
-        _write_data_into_jsonl(items, index_file)
+        write_data_into_jsonl(items, index_file)
 
     def _encode_all(self, item, image_path, image_counter, bpe_encoder):
         return [
             {
                 "image_path": image_path,
                 "text_segment": bpe_encoder.encode(sent["raw"]),
-                "image_id": len(image_counter) if self.task=="retrieval" else item["cocoid"],
+                "id": len(image_counter) if self.task=="retrieval" else item["cocoid"],
             }
             for sent in item["sentences"]
             ]
@@ -266,7 +159,7 @@ class Flickr30Dataset(BaseImageText):
         
     def __getitem__(self, index: int):
         data = super().__getitem__(index)
-        data["image_id"] = self.items[index]["image_id"]
+        data["id"] = self.items[index]["id"]
         return data
 
     def make_flickr30k_dataset_index(self):
@@ -277,26 +170,115 @@ class Flickr30Dataset(BaseImageText):
         bpe_encoder = self.get_bpe_encoder()
 
         captions = captions["images"]
-        split2items = defaultdict(list)
-        split2images = defaultdict(set)
+        index = []
+        n_images = 0
 
         for each_item in captions:
             image_path = os.path.join("flickr30k-images", each_item["filename"])
-            split = each_item["split"]
+
+            if each_item["split"] != self.split:
+                continue
 
             for text_segment in each_item["sentences"]: 
-                split2items[split].append({
+                index.append({
                     "image_path": image_path, 
                     "text_segment": bpe_encoder.encode(text_segment["raw"]), 
-                    "image_id": len(split2images[split]), 
+                    "id": len(index), 
                 })
+            n_images = 0
 
-            assert each_item["filename"] not in split2images[split]
-            split2images[split].add(each_item["filename"])
+        self.log(f"{n_images} images and {len(index)} image-text pairs!")
+        write_data_into_jsonl(index, os.path.join(self.path_to_data, f"flickr30k.{self.split}.jsonl"))
 
-        for split in split2items:
-            print("%d images and %d image-text pairs!" % (len(split2images[split]), len(split2items[split])))
-            _write_data_into_jsonl(split2items[split], os.path.join(self.path_to_data, "flickr30k.%s.jsonl" % split))
+
+class Flickr8KAudioDataset(BaseImageAudio):
+    def __init__(self, 
+                 data_path,
+                 split,
+                 transform_jitter:bool,
+                 beit_transforms:bool,
+                 no_transform:bool,
+                 crop_scale:Tuple[float, float],
+                 sample_rate:int,
+                 max_sample_size:int,
+                 min_sample_size:int,
+                 normalize:bool,
+                 pad:bool,
+                 **precompute_mask_config
+                 ):
+        super().__init__(data_path=data_path,
+                         split=split,
+                         transform_jitter=False,
+                         beit_transforms=False,
+                         no_transform=True,
+                         crop_scale=crop_scale, # ignored
+                         sample_rate=sample_rate,
+                         max_sample_size=max_sample_size,
+                         min_sample_size=min_sample_size,
+                         normalize=normalize,
+                         pad=pad,
+                         **precompute_mask_config)
+        self.path_to_data = os.path.join(self.data_path, "flickr8k_audio")
+
+        os.makedirs(self.path_to_data, exist_ok=True)
+        download_and_unzip(urls=["https://groups.csail.mit.edu/sls/downloads/flickraudio/downloads/flickr_audio.tar.gz"], store_at=self.path_to_data,
+                           archive_type="tar.gz")
+        download_and_unzip(urls=["https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"], store_at=self.path_to_data)
+        os.remove(os.path.join(self.path_to_data, 'dataset_flickr30k.json'))
+        os.remove(os.path.join(self.path_to_data, 'dataset_coco.json'))
+
+        self.transform = get_transforms(no_transform=True)
+        self.loader = default_loader
+        
+        self.make_flickr8k_audio_dataset_index()
+
+    def get_index_files(self):
+        if self.split == "train":
+            return (f"flickr8k_audio.train.jsonl", )
+        elif self.split == "val":
+            return (f"flickr8k_audio.val.jsonl", )
+        elif self.split == "test":
+            return (f"flickr8k_audio.test.jsonl", )
+        else:
+            raise RuntimeError("split %s is not found!" % self.split)
+
+    def make_flickr8k_audio_dataset_index(self):
+        with open(os.path.join(self.path_to_data, "dataset_flickr8k.json"), "r", encoding='utf-8') as reader:
+            meta_data = json.loads(reader.read())["images"]
+
+        image_to_audio = {}
+        with open(filename, 'r') as file:
+            for line in file:
+                wav_file, jpg_file, _ = line.strip().split()
+                if jpg_file in image_to_audio:
+                    image_to_audio[jpg_file].append(wav_file)
+                else:
+                    image_to_audio[jpg_file] = [wav_file]
+        
+        index = []
+        n_images = 0
+
+        for each_item in meta_data:
+            if each_item["split"] != self.split:
+                continue
+            filename = each_item["filename"]
+            image_path = os.path.join(self.data_path, "flickr8k-images", filename)
+
+            try:
+                audio_names = image_to_audio[filename]
+            except KeyError:
+                raise KeyError(f"no audio for {filename}")
+
+            for audio_name in audio_names:
+                index.append({
+                    "image_path": image_path, 
+                    "audio_path": os.path.join(self.data_path, "flickr_audio", "wavs", audio_name), 
+                    "id": each_item['imgid'],
+                })
+            n_images += 1
+
+        self.log(f"{n_images} image and {len(index)} image-audio pairs!")
+        write_data_into_jsonl(index, os.path.join(self.path_to_data, "flickr8k_audio.%s.jsonl" % self.split))
     
 
 class VisualGenome(BaseImageText):
@@ -347,10 +329,10 @@ class VisualGenome(BaseImageText):
             items.append({
                 "image_path": image_path, 
                 "text_segment": token_ids,
-                "image_id": image_meta["id"], 
+                "id": image_meta["id"], 
             })
 
-        _write_data_into_jsonl(items, os.path.join(self.path_to_data, "visual_genome.jsonl"))
+        write_data_into_jsonl(items, os.path.join(self.path_to_data, "visual_genome.jsonl"))
 
     def __getitem__(self, index: int):
         data = dict()
@@ -358,7 +340,7 @@ class VisualGenome(BaseImageText):
         img_path = item["image_path"]
         img = self._get_image(img_path)
         data["image"] = img
-        data["image_id"] = item["image_id"]
+        data["id"] = item["id"]
 
         text_segment = item["text_segment"]
         if text_segment is not None:
@@ -477,8 +459,8 @@ class VQAv2(BaseImageText):
                 question_text = q["question"]
                 token_ids = bpe_encoder.encode(question_text)
 
-                assert q["question_id"] not in _annot[q["image_id"]]
-                _annot[q["image_id"]][q["question_id"]] = {
+                assert q["question_id"] not in _annot[q["id"]]
+                _annot[q["id"]][q["question_id"]] = {
                     "question": question_text, 
                     "token_ids": token_ids, 
                 }
@@ -519,10 +501,10 @@ class VQAv2(BaseImageText):
                     score = self.get_score(answer_count[answer])
                     scores.append(score)
 
-                assert "labels" not in _annot[q["image_id"]][q["question_id"]]
-                assert "question" in _annot[q["image_id"]][q["question_id"]]
-                _annot[q["image_id"]][q["question_id"]]["labels"] = labels
-                _annot[q["image_id"]][q["question_id"]]["scores"] = scores
+                assert "labels" not in _annot[q["id"]][q["question_id"]]
+                assert "question" in _annot[q["id"]][q["question_id"]]
+                _annot[q["id"]][q["question_id"]]["labels"] = labels
+                _annot[q["id"]][q["question_id"]]["scores"] = scores
 
         for split in ["train", "val"]:
             filtered_annot = dict()
@@ -550,10 +532,10 @@ class VQAv2(BaseImageText):
                 if int(path.split("/")[-1].split("_")[-1][:-4]) in annot]
 
             if len(paths) == len(annot_paths):
-                print("all images have caption annotations")
+                self.log("all images have caption annotations")
             else:
-                print("not all images have caption annotations")
-            print(len(paths), len(annot_paths), len(annot))
+                self.log("not all images have caption annotations")
+            self.log(len(paths), len(annot_paths), len(annot))
 
             items = []
             for path in annot_paths:
@@ -576,14 +558,14 @@ class VQAv2(BaseImageText):
                     })
             split2items[split] = items
 
-            _write_data_into_jsonl(items=items, jsonl_file=os.path.join(self.path_to_data, "vqa.%s.jsonl" % split))
+            write_data_into_jsonl(items=items, jsonl_file=os.path.join(self.path_to_data, "vqa.%s.jsonl" % split))
 
         # Following ViLT, we use 1000 images of the original val set as the final val set        
         val_image2items = defaultdict(list)
         for item in split2items["val"]:
             val_image2items[item["image_path"]].append(item)
         
-        print("Contains %d image and %d pairs for val set!" % (len(val_image2items), len(split2items["val"])))
+        self.log("Contains %d image and %d pairs for val set!" % (len(val_image2items), len(split2items["val"])))
 
         val_images = list(val_image2items.keys())
         random.shuffle(val_images)
@@ -595,8 +577,8 @@ class VQAv2(BaseImageText):
             else:
                 trainable_val += val_image2items[image_id]
         
-        _write_data_into_jsonl(items=trainable_val, jsonl_file=os.path.join(self.path_to_data, "vqa.trainable_val.jsonl"))
-        _write_data_into_jsonl(items=rest_val, jsonl_file=os.path.join(self.path_to_data, "vqa.rest_val.jsonl"))
+        write_data_into_jsonl(items=trainable_val, jsonl_file=os.path.join(self.path_to_data, "vqa.trainable_val.jsonl"))
+        write_data_into_jsonl(items=rest_val, jsonl_file=os.path.join(self.path_to_data, "vqa.rest_val.jsonl"))
 
         with open(os.path.join(self.path_to_data, "answer2label.txt"), mode="w", encoding="utf-8") as writer:
             for ans in ans2label:
@@ -660,7 +642,7 @@ class NLVR2(BaseImageText):
                     "label": 1 if data["label"] == "True" else 0,
                     "identifier": data["identifier"], 
                 })
-        _write_data_into_jsonl(items, index_file)
+        write_data_into_jsonl(items, index_file)
 
     def make_dataset_index(self, nlvr_repo_path):
         if self.split == "train":
@@ -680,7 +662,7 @@ class NLVR2(BaseImageText):
         self._preprocess_json(prefix=prefix, json_file=json_file, index_file=index_file)
 
 
-class CommonVoice(AudioDataset):
+class CommonVoice(BaseTextAudio):
     def __init__(
             self,
             data_path:str,
@@ -693,16 +675,8 @@ class CommonVoice(AudioDataset):
             pad:bool,
             **precompute_mask_config,
             ):
-        super().__init__(data_path, split if split=='train' else 'retrieval', sample_rate, max_sample_size, min_sample_size, normalize, pad,
+        super().__init__(data_path, split, num_max_bpe_tokens, sample_rate, max_sample_size, min_sample_size, normalize, pad,
                          **precompute_mask_config)
-        self.num_max_bpe_tokens = num_max_bpe_tokens
-        self.pad = pad
-
-        self.dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
-
-        self.bos_token_id = self.dictionary.bos()
-        self.eos_token_id = self.dictionary.eos()
-        self.pad_token_id = self.dictionary.pad()
 
         cv_dir_name_pattern = os.path.join(self.data_path, 'cv-corpus-*')
         dir_name = [d for d in glob.glob(cv_dir_name_pattern) if os.path.isdir(d)][0]
@@ -711,66 +685,11 @@ class CommonVoice(AudioDataset):
 
         self.make_common_voice_dataset_index()
 
-    def load(self):
-        items = []
-
-        index_file = os.path.join(self.path_to_data, f"common_voice.{self.split}.jsonl")
-        with open(index_file, mode="r", encoding="utf-8") as reader:
-            for line in reader:
-                data = json.loads(line)
-                items.append(data)
-            print("Load %d audio-text pairs from %s. " % (len(items), index_file))
-        self.items = items
-
-    def _get_text_segment(self, text_segment, max_len=None):
-        assert isinstance(text_segment, list)
-        tokens = text_segment[:]
-        if len(tokens) == 0:
-            raise RuntimeError("The text segment should contains at least one tokens!")
-        if max_len is None:
-            max_len = self.num_max_bpe_tokens
-
-        if len(tokens) > max_len - 2:
-            tokens = tokens[:max_len - 2]
-
-        tokens = [self.bos_token_id] + tokens[:] + [self.eos_token_id]
-        num_tokens = len(tokens)
-        padding_mask = [0] * num_tokens + [1] * (max_len - num_tokens)
-        return tokens + [self.pad_token_id] * (max_len - num_tokens), padding_mask, num_tokens
-
-    def __getitem__(self, index: int):
-        data = dict()
-        item = self.items[index]
-        audio_path = item["audio_path"]
-        audio, sample_rate = sf.read(audio_path, dtype="float32")
-        audio = torch.from_numpy(audio).float()
-        data["audio"] = self.postprocess(audio, sample_rate)
-
-        text_segment = item["text_segment"]
-        language_tokens, padding_mask, _ = self._get_text_segment(text_segment)
-        data["language_tokens"] = language_tokens
-        data["padding_mask"] = padding_mask
-        data["id"] = item["id"]
-        return data
-    
-    def collater(self, samples):
-        input = super().collater(samples)
-        input["language_tokens"] = torch.LongTensor([s["language_tokens"] for s in samples])
-        return input
-    
-    def postprocess(self, feats, curr_sample_rate):
-        if feats.dim() == 2:
-            feats = feats.mean(-1)
-
-        if curr_sample_rate != self.sample_rate:
-            raise Exception(f"sample rate: {curr_sample_rate}, need {self.sample_rate}")
-
-        assert feats.dim() == 1, feats.dim()
-
-        if self.normalize:
-            with torch.no_grad():
-                feats = F.layer_norm(feats, feats.shape)
-        return feats
+    def get_index_files(self):
+        if self.split == "train":
+            return (f"common_voice.train.jsonl", )
+        else:
+            return (f"common_voice.retrieval.jsonl", )    
 
     def make_common_voice_dataset_index(self):
         validated_data = pd.read_csv(os.path.join(self.path_to_data, 'validated.tsv'), sep='\t')[['client_id', 'sentence_id', 'path', 'sentence']]
@@ -790,7 +709,7 @@ class CommonVoice(AudioDataset):
         # Iterate over the list of file paths & remove each file
         for file in files:
             os.remove(file)
-        print(f'Removed {len(files)} unused mp3 files.')
+        self.log(f'Removed {len(files)} unused mp3 files.')
 
         bpe_encoder = self.get_bpe_encoder()
 
@@ -805,4 +724,4 @@ class CommonVoice(AudioDataset):
                 "client_id": row['client_id'],
                 "sentence_id": row['sentence_id'],
             })
-        _write_data_into_jsonl(items, os.path.join(self.path_to_data, f"common_voice.{self.split}.jsonl"))
+        write_data_into_jsonl(items, os.path.join(self.path_to_data, f"common_voice.{self.split}.jsonl"))

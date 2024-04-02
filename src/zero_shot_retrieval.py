@@ -42,6 +42,7 @@ def transform(image, target):
 #     return images, texts
 
 
+@torch.no_grad()
 def zero_shot_retrieval(model, dataloader, device, name, modalities):
     mode_a_embeds = []
     mode_b_embeds = []
@@ -73,7 +74,7 @@ def zero_shot_retrieval(model, dataloader, device, name, modalities):
     logger.info(f"{name}: {modalities[1]}_to_{modalities[0]}_recall@5 {b_to_a_r5}")
 
 
-def make_zero_shot_retrieval(model:Callable, names:List[str], dataloaders:List[torch.utils.data.DataLoader], modalities:List[Tuple[str, str]]) -> None:
+def make_zero_shot_retrieval(model:Callable, dataloaders:Dict[str, torch.utils.data.DataLoader], modalities:List[Tuple[str, str]]) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
     model = model.to(device)
@@ -82,6 +83,6 @@ def make_zero_shot_retrieval(model:Callable, names:List[str], dataloaders:List[t
     # names = ["coco", "flickr"]
     # dataloaders = [dataloader, dataloader]
     # modalities = [("image", 'text'), ("image", 'text')]
-    for name, dataloader, modalities in zip(names, dataloaders, modalities):
+    for name, dataloader, modalities in zip(dataloaders.keys(), dataloaders.values(), modalities):
         logger.info(f"Zero-shot retrieval on: {name}")
         zero_shot_retrieval(model, dataloader, device, name, modalities)

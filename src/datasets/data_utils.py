@@ -34,7 +34,7 @@ def convert_mp3_to_flac(dir:str, files:List[str]):
         list(track(pool.imap_unordered(_mp3_to_flac, files), total=len(files), description="Converting mp3 to flac"))
     print(f"Converted {len(files)} mp3 files to flac files")
 
-def _write_data_into_jsonl(items, jsonl_file):
+def write_data_into_jsonl(items, jsonl_file):
     with open(jsonl_file, mode="w", encoding="utf-8") as writer:
         for data in items:
             writer.write(json.dumps(data, indent=None))
@@ -53,12 +53,17 @@ def get_bpe_encoder(data_path):
     vocab_bpe_path = os.path.join(data_path, "vocab.bpe")
     return BPEEncoder(encoder_json_path, vocab_bpe_path)
 
-def download_and_unzip(urls:str, store_at:str="../data"):
+def download_and_unzip(urls:str, store_at:str="../data", archive_type:str="zip"):
     for url in urls:
         filepath = os.path.join(store_at, url.split("/")[-1])
         if not os.path.exists(filepath):
             download_url(url=url, root=store_at)
-            os.system(f"unzip {filepath} -d {store_at}")
+            if archive_type == "zip":
+                os.system(f"unzip {filepath} -d {store_at}")
+            elif archive_type == "tar" or archive_type == "tar.gz" or archive_type == "xz":
+                os.system(f"tar -xf {filepath} -C {store_at}")
+            else:
+                raise ValueError(f"Unsupported archive type: {archive_type}")
         os.remove(filepath)
 
 
