@@ -1,5 +1,6 @@
+from typing import Tuple
 from datamodules.unimodal_datamodules import BaseDataModule
-from datasets import COCOCaptions, VisualGenome, VQAv2, NLVR2, Flickr30Dataset, CommonVoice
+from datasets import COCOCaptions, VisualGenome, VQAv2, NLVR2, Flickr30Dataset, CommonVoice, Flickr8KAudioDataset
 
 class COCOCaptionsDataModule(BaseDataModule):
     def __init__(self,
@@ -200,6 +201,95 @@ class Flickr30DataModule(BaseDataModule):
         self.test_dataset = Flickr30Dataset(data_path=self.data_path,
                                             split='test',
                                             num_max_bpe_tokens=self.num_max_bpe_tokens,)
+        
+
+class Flickr8AudioDataModule(BaseDataModule):
+    def __init__(self,
+                 data_path:str,
+                 transform_jitter:bool,
+                 beit_transforms:bool,
+                 no_transform:bool,
+                 crop_scale:Tuple[float, float],
+                 sample_rate:int,
+                 max_sample_size:int,
+                 min_sample_size:int,
+                 normalize:bool,
+                 pad:bool,
+                 batch_size:int,
+                 num_workers:int,
+                 shuffle:bool=True,
+                 drop_last:bool=True,
+                 **precompute_mask_config):
+        super().__init__(data_path=data_path,
+                         batch_size=batch_size,
+                         num_workers=num_workers,
+                         shuffle=shuffle,
+                         drop_last=drop_last,)
+        self.transform_jitter = transform_jitter
+        self.beit_transforms = beit_transforms
+        self.no_transform = no_transform
+        self.crop_scale = crop_scale
+        self.sample_rate = sample_rate
+        self.max_sample_size = max_sample_size
+        self.min_sample_size = min_sample_size
+        self.normalize = normalize
+        self.pad = pad
+        self.precompute_mask_config = precompute_mask_config
+
+
+    def set_train_dataset(self):
+        self.train_dataset = Flickr8KAudioDataset(data_path=self.data_path,
+                                                  split='train',
+                                                  transform_jitter=self.transform_jitter,
+                                                  beit_transforms=self.beit_transforms,
+                                                  no_transform=self.no_transform,
+                                                  crop_scale=self.crop_scale,
+                                                  sample_rate=self.sample_rate,
+                                                  max_sample_size=self.max_sample_size,
+                                                  min_sample_size=self.min_sample_size,
+                                                  normalize=self.normalize,
+                                                  pad=self.pad,
+                                                  batch_size=self.batch_size,
+                                                  num_workers=self.num_workers,
+                                                  shuffle=self.shuffle,
+                                                  drop_last=self.drop_last,
+                                                  **self.precompute_mask_config)
+
+    def set_val_dataset(self):
+        self.val_dataset = Flickr8KAudioDataset(data_path=self.data_path,
+                                                split='val',
+                                                transform_jitter=self.transform_jitter,
+                                                beit_transforms=self.beit_transforms,
+                                                no_transform=self.no_transform,
+                                                crop_scale=self.crop_scale,
+                                                sample_rate=self.sample_rate,
+                                                max_sample_size=self.max_sample_size,
+                                                min_sample_size=self.min_sample_size,
+                                                normalize=self.normalize,
+                                                pad=self.pad,
+                                                batch_size=self.batch_size,
+                                                num_workers=self.num_workers,
+                                                shuffle=self.shuffle,
+                                                drop_last=self.drop_last,
+                                                **self.precompute_mask_config)
+
+    def set_test_dataset(self): # to be used for zero-shot retrieval
+        self.test_dataset = Flickr8KAudioDataset(data_path=self.data_path,
+                                                 split='test',
+                                                 transform_jitter=self.transform_jitter,
+                                                 beit_transforms=self.beit_transforms,
+                                                 no_transform=self.no_transform,
+                                                 crop_scale=self.crop_scale,
+                                                 sample_rate=self.sample_rate,
+                                                 max_sample_size=self.max_sample_size,
+                                                 min_sample_size=self.min_sample_size,
+                                                 normalize=self.normalize,
+                                                 pad=self.pad,
+                                                 batch_size=self.batch_size,
+                                                 num_workers=self.num_workers,
+                                                 shuffle=self.shuffle,
+                                                 drop_last=self.drop_last,
+                                                 **self.precompute_mask_config)
             
 
 class CommonVoiceDataModule(BaseDataModule):
