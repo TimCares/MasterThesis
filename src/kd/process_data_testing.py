@@ -80,21 +80,23 @@ def extract_targets(cfg: DictConfig) -> None:
     os.makedirs(kd_targets_path, exist_ok=True)
 
     index_items = []
-
+    offset=0
     with torch.no_grad():
         for idx, batch in track(enumerate(train_dataloader), description="Running predictions...", total=len(train_dataloader)):
-            pred = model.extract_features(
-                source=batch['source'],
-                mode=None, # determined automatically in model
-                padding_mask=batch['padding_mask'],
-                mask=False, # we are creating targets from a teacher model for the student model, so no mask
-                remove_extra_tokens=False,
-            )
-            filename = f'{idx}_{batch["id"][0]}-{batch["id"][-1]}.pt'
+            pred=torch.arange(start=offset, end=offset+batch['audio'].shape[0]-1)
+            offset+=batch['audio'].shape[0]
+            # pred = model.extract_features(
+            #     source=batch['source'],
+            #     mode=None, # determined automatically in model
+            #     padding_mask=batch['padding_mask'],
+            #     mask=False, # we are creating targets from a teacher model for the student model, so no mask
+            #     remove_extra_tokens=False,
+            # )
+            filename = f'{idx}_{pred[0]}-{pred[-1]}.pt'
             index_items.append({
                 "path": os.path.join(dir_name, filename),
                 "batch_idx": idx, 
-                "indices": batch["id"].tolist(),
+                "indices": pred.tolist(),
             })
 
             torch.save(pred, os.path.join(kd_targets_path, filename))

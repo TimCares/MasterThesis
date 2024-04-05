@@ -689,6 +689,12 @@ class BaseTextAudio(AudioDataset):
     
     def collater(self, samples):
         input = super().collater(samples)
+        
+        # language data must be collated seperately, as super().collater only for audio (superclass in "AudioDataset")
         for key in ["language_tokens", "language_padding_mask"]:
-            input[key] = torch.stack([s[key] for s in samples], dim=0)
+            if isinstance(samples[0][key], torch.Tensor):
+                input[key] = torch.stack([d[key] for d in samples], dim=0)
+            else:
+                input[key] = torch.tensor([d[key] for d in samples])
+
         return input
