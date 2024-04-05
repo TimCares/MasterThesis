@@ -3,6 +3,7 @@ sys.path.append('../fairseq/')
 sys.path.append('../')
 sys.path.append('../../')
 from typing import Dict, Any
+import json
 from collections import namedtuple
 import os
 import logging
@@ -18,6 +19,7 @@ from fairseq.dataclass.utils import merge_with_parent
 from fairseq.data import Dictionary
 from datamodules import REGISTRY as DATAMODULE_REGISTRY
 from datamodules import BaseDataModule
+from rich.progress import track
 
 logger = logging.getLogger(__name__)
 
@@ -48,25 +50,65 @@ def extract_targets(cfg: DictConfig) -> None:
     model_meta_data = torch.load(os.path.join('..', '..', 'models', cfg.model_state_dict))
     pretrained_model_cfg = OmegaConf.create(model_meta_data['cfg']['model'])
     model = load_model(pretrained_model_cfg=pretrained_model_cfg, model_state_dict=model_meta_data['model'])
+
+    # removes decoder and all encoders with modality != supported modality
+    model.remove_pretraining_modules(modality=pretrained_model_cfg.supported_modality.name) 
+    model.eval()
     
     datamodule_kwargs = OmegaConf.to_container(cfg.datamodule)
-    model_name = datamodule_kwargs.pop('_name', None)
+    datamodule_name = datamodule_kwargs.pop('_name', None)
 
-    if model_name is None:
+    if datamodule_name is None:
         raise ValueError('Field "_name" of cfg.datamodule either missing or is None!')
     
-    datamodule_cls = DATAMODULE_REGISTRY[model_name]
+    datamodule_cls = DATAMODULE_REGISTRY[datamodule_name]
     
     datamodule:BaseDataModule = datamodule_cls(**datamodule_kwargs)
+
+    logger.info('Setting up dataset and dataloader...')
 
     datamodule.prepare_data()
 
     datamodule.setup(stage='fit')
 
-    loader = datamodule.train_dataloader()
+    train_dataloader = datamodule.train_dataloader()
 
-    print(loader)
+    dir_name = f'kd_{datamodule_name}'
 
+    kd_targets_path = os.path.join(cfg.datamodule.data_path, dir_name)
+
+    os.makedirs(kd_targets_path, exist_ok=True)
+
+    index_items = []
+
+    with torch.no_grad():
+        for idx, batch in track(enumerate(train_dataloader), description="Running predictions...", total=len(train_dataloader)):
+            pred = model.extract_features(
+                source=batch['source'],
+                mode=None, # determined automatically in model
+                padding_mask=batch['padding_mask'],
+                mask=False, # we are creating targets from a teacher model for the student model, so no mask
+                remove_extra_tokens=False,
+            )
+            filename = f'{idx}_{batch["id"][0]}-{batch["id"][-1]}.pt'
+            index_items.append({
+                "path": os.path.join(dir_name, filename),
+                "batch_idx": idx, 
+                "indices": batch["id"],
+            })
+
+            torch.save(pred, os.path.join(kd_targets_path, filename))
+
+    index = {
+        'datamodule': OmegaConf.to_container(cfg.datamodule),
+        'model_state_dict': cfg.model_state_dict,
+        'index': index_items,
+    }
+
+    with open(os.path.join(kd_targets_path, 'index.json'), 'w', encoding='utf-8') as f:
+        json.dump(index, f)
+
+    logger.info(f'Knowledge-Distillation (KD) targets successfully created under: {kd_targets_path}')
 
 
 if __name__ == "__main__":
