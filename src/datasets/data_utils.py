@@ -28,18 +28,18 @@ def convert_mp3_to_flac(dir:str, files:List[str]):
     len_before = len(files)
     files = [f for f in files if os.path.exists(f) and f.endswith(".mp3")]
     if len(files) != len_before:
-        print(f'Exclude {len_before - len(files)} files that are not mp3 files or do not exist.')
+        logger.info(f'Exclude {len_before - len(files)} files that are not mp3 files or do not exist.')
     
     with multiprocessing.Pool() as pool:
         list(track(pool.imap_unordered(_mp3_to_flac, files), total=len(files), description="Converting mp3 to flac"))
-    print(f"Converted {len(files)} mp3 files to flac files")
+    logger.info(f"Converted {len(files)} mp3 files to flac files")
 
 def write_data_into_jsonl(items, jsonl_file):
     with open(jsonl_file, mode="w", encoding="utf-8") as writer:
         for data in items:
             writer.write(json.dumps(data, indent=None))
             writer.write('\n')
-    print("Write %s with %d items !" % (jsonl_file, len(items)))
+    logger.info("Write %s with %d items !" % (jsonl_file, len(items)))
 
 def load_tokenizer_data(store_at:str="../data"):
     for filename in ["dict.txt", "encoder.json", "vocab.bpe"]:

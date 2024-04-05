@@ -545,7 +545,7 @@ class BaseImageAudio(AudioDataset):
         min_sample_size:int=32_000,
         normalize:bool=True,
         pad:bool=True,
-        **precompute_mask_config,
+        precompute_mask_config:Dict[str, Any]={},
     ):
         super().__init__(data_path, split, sample_rate, max_sample_size, min_sample_size, 
                          normalize, pad, **precompute_mask_config)
@@ -619,7 +619,7 @@ class BaseTextAudio(AudioDataset):
         min_sample_size:int=32_000,
         normalize:bool=True,
         pad:bool=True,
-        **precompute_mask_config,
+        precompute_mask_config:Dict[str, Any]={},
     ):
         super().__init__(data_path, split, sample_rate, max_sample_size, min_sample_size, 
                          normalize, pad, **precompute_mask_config)

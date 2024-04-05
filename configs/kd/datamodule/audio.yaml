@@ -1,3 +1,13 @@
 # @package _group_
 
-model_state_dict: base_libri.pt
+_name: common_voice
+
+num_max_bpe_tokens: 512
+
+sample_rate: 16_000
+max_sample_size: 320000
+min_sample_size: 32000
+normalize: True
+pad: True
+precompute_mask_config:
+  feature_encoder_spec: '[(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512,2,2)] + [(512,2,2)]'

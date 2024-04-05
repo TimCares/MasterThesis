@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Dict, Any
 from .unimodal_datamodules import BaseDataModule
 from src.datasets import COCOCaptions, VisualGenome, VQAv2, NLVR2, Flickr30Dataset, CommonVoice, Flickr8KAudioDataset
 
@@ -219,7 +219,7 @@ class Flickr8AudioDataModule(BaseDataModule):
                  num_workers:int,
                  shuffle:bool=True,
                  drop_last:bool=True,
-                 **precompute_mask_config):
+                 precompute_mask_config:Dict[str, Any]={},):
         super().__init__(data_path=data_path,
                          batch_size=batch_size,
                          num_workers=num_workers,
@@ -259,7 +259,7 @@ class Flickr8AudioDataModule(BaseDataModule):
                                                   min_sample_size=self.min_sample_size,
                                                   normalize=self.normalize,
                                                   pad=self.pad,
-                                                  **self.precompute_mask_config)
+                                                  precompute_mask_config=self.precompute_mask_config)
 
     def set_val_dataset(self):
         self.val_dataset = Flickr8KAudioDataset(data_path=self.data_path,
@@ -273,7 +273,7 @@ class Flickr8AudioDataModule(BaseDataModule):
                                                 min_sample_size=self.min_sample_size,
                                                 normalize=self.normalize,
                                                 pad=self.pad,
-                                                **self.precompute_mask_config)
+                                                precompute_mask_config=self.precompute_mask_config)
 
     def set_test_dataset(self): # to be used for zero-shot retrieval
         self.test_dataset = Flickr8KAudioDataset(data_path=self.data_path,
@@ -287,7 +287,7 @@ class Flickr8AudioDataModule(BaseDataModule):
                                                  min_sample_size=self.min_sample_size,
                                                  normalize=self.normalize,
                                                  pad=self.pad,
-                                                 **self.precompute_mask_config)
+                                                 precompute_mask_config=self.precompute_mask_config)
             
 
 class CommonVoiceDataModule(BaseDataModule):
@@ -303,7 +303,7 @@ class CommonVoiceDataModule(BaseDataModule):
                  num_workers:int,
                  shuffle:bool=True,
                  drop_last:bool=True,
-                 **precompute_mask_config):
+                 precompute_mask_config:Dict[str, Any]={}):
         super().__init__(data_path, batch_size, num_workers, shuffle, drop_last)
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.sample_rate = sample_rate
@@ -336,7 +336,7 @@ class CommonVoiceDataModule(BaseDataModule):
                                          min_sample_size=self.min_sample_size,
                                          normalize=self.normalize,
                                          pad=self.pad,
-                                         **self.precompute_mask_config,)
+                                         precompute_mask_config=self.precompute_mask_config,)
         
     def set_test_dataset(self):
         self.test_dataset = CommonVoice(data_path=self.data_path,
@@ -347,7 +347,7 @@ class CommonVoiceDataModule(BaseDataModule):
                                          min_sample_size=self.min_sample_size,
                                          normalize=self.normalize,
                                          pad=self.pad,
-                                         **self.precompute_mask_config,)
+                                         precompute_mask_config=self.precompute_mask_config,)
 
 
 MULTIMODAL_REGISTRY = {

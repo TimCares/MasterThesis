@@ -1,5 +1,6 @@
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
+from typing import Tuple, Dict, Any
 from src.datasets import IMDBDataset, CIFARDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, EnWik9Dataset, OpenWebTextDataset
 
 class BaseDataModule(LightningDataModule):
@@ -289,12 +290,18 @@ class LibriSpeechDataModule(BaseDataModule):
 class SpeechCommandsDataModule(BaseDataModule):
     def __init__(self,
                  data_path:str,
-                 feature_encoder_spec:str,
+                 min_sample_size: int,
+                 normalize: bool,
+                 pad: bool,
+                 precompute_mask_config:Dict[str, Any]={},
                  *args,
                  **kwargs
                  ):
         super().__init__(data_path, *args, **kwargs)
-        self.feature_encoder_spec = feature_encoder_spec
+        self.precompute_mask_config = precompute_mask_config
+        self.min_sample_size = min_sample_size
+        self.normalize = normalize
+        self.pad = pad
 
     def prepare_data(self):
         if not self.prepared:
@@ -312,12 +319,15 @@ class SpeechCommandsDataModule(BaseDataModule):
     def set_train_dataset(self):
         self.train_dataset = SpeechCommandsDataset(data_path=self.data_path,
                                                    split='train',
-                                                   feature_encoder_spec=self.feature_encoder_spec,)
+                                                   min_sample_size=self.min_sample_size,
+                                                   normalize=self.normalize,
+                                                   pad=self.pad,
+                                                   precompute_mask_config=self.precompute_mask_config,)
 
     def set_test_dataset(self):
         self.test_dataset = SpeechCommandsDataset(data_path=self.data_path,
                                                   split='test',
-                                                  feature_encoder_spec=self.feature_encoder_spec,)
+                                                  precompute_mask_config=self.precompute_mask_config,)
 
 
 UNIMODAL_REGISTRY = {

@@ -185,7 +185,7 @@ class LibriSpeechDataset(AudioDataset):
             max_sample_size:int,
             min_sample_size:int,
             type:str,
-            **precompute_mask_config,
+            precompute_mask_config:Dict[str, Any]={},
             ):
         super().__init__(data_path, split, sample_rate, max_sample_size, min_sample_size, 
                          True, False,
@@ -249,7 +249,7 @@ class SpeechCommandsDataset(AudioDataset):
                  min_sample_size:int,
                  normalize:bool,
                  pad:bool,
-                 **precompute_mask_config,
+                 precompute_mask_config:Dict[str, Any]={},
                  ):
         super().__init__(data_path,
                          split,

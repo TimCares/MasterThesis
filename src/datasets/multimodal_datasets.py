@@ -1,7 +1,7 @@
 import os
 import json
 import torch
-from typing import Tuple
+from typing import Tuple, Dict, Any
 import pandas as pd
 from torchvision.datasets.folder import default_loader
 from src.datasets.data_utils import get_transforms, write_data_into_jsonl, download_and_unzip, convert_mp3_to_flac
@@ -204,7 +204,7 @@ class Flickr8KAudioDataset(BaseImageAudio):
                  min_sample_size:int,
                  normalize:bool,
                  pad:bool,
-                 **precompute_mask_config
+                 precompute_mask_config:Dict[str, Any]={},
                  ):
         super().__init__(data_path=data_path,
                          split=split,
@@ -217,7 +217,7 @@ class Flickr8KAudioDataset(BaseImageAudio):
                          min_sample_size=min_sample_size,
                          normalize=normalize,
                          pad=pad,
-                         **precompute_mask_config)
+                         precompute_mask_config=precompute_mask_config)
         self.path_to_data = os.path.join(self.data_path, "flickr8k")
 
         os.makedirs(self.path_to_data, exist_ok=True)
@@ -679,10 +679,10 @@ class CommonVoice(BaseTextAudio):
             min_sample_size:int,
             normalize:bool,
             pad:bool,
-            **precompute_mask_config,
+            precompute_mask_config,
             ):
         super().__init__(data_path, split, num_max_bpe_tokens, sample_rate, max_sample_size, min_sample_size, normalize, pad,
-                         **precompute_mask_config)
+                         precompute_mask_config)
 
         cv_dir_name_pattern = os.path.join(self.data_path, 'cv-corpus-*')
         dir_name = [d for d in glob.glob(cv_dir_name_pattern) if os.path.isdir(d)][0]
