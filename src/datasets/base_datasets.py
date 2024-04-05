@@ -9,12 +9,12 @@ import numpy as np
 from shutil import copyfile
 from functools import partial
 import soundfile as sf
-from .data_utils import get_transforms
-from . import data_utils
+from .data_utils import get_transforms 
+from .data_utils import get_bpe_encoder as get_bpe_encoder_from_utils
 import torch.nn.functional as F
 
-from fairseq.examples.data2vec.data import PathDataset
-from fairseq.data import FairseqDataset
+from examples.data2vec.data import PathDataset
+from fairseq.data import FairseqDataset, data_utils
 from fairseq.data.data_utils import compute_block_mask_1d, compute_block_mask_2d
 
 from fairseq.data import (
@@ -39,7 +39,7 @@ class BaseDataset(torch.utils.data.Dataset):
         self.split = split
 
     def get_bpe_encoder(self):
-        return data_utils.get_bpe_encoder(self.data_path)
+        return get_bpe_encoder_from_utils(self.data_path)
 
     def load(self):
         raise NotImplementedError
@@ -58,7 +58,7 @@ class BaseDataset(torch.utils.data.Dataset):
         return batch_tensors
     
     def log(self, msg:str):
-        logger.info(f"{self.__class__}: {msg}")
+        logger.info(f"[{self.__class__.__name__}]: {msg}")
     
 
 class NLPDataset(BaseDataset):

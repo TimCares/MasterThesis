@@ -1,27 +1,28 @@
 import sys
 sys.path.append('../fairseq/')
 sys.path.append('../')
-import torch
+sys.path.append('../../')
 from typing import Dict, Any
+from collections import namedtuple
+import os
+import logging
+import hydra
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from collections import OrderedDict
+import torch
 from examples.data2vec.models.data2vec2 import Data2VecMultiModel
 from examples.data2vec.models.data2vec2 import Data2VecMultiConfig
 from examples.data2vec.data.modality import Modality
 from fairseq.dataclass.utils import merge_with_parent
-from collections import namedtuple
 from fairseq.data import Dictionary
-import os
-import logging
-from utils import hydra_utils
+from datamodules import REGISTRY as DATAMODULE_REGISTRY
+from datamodules import BaseDataModule
 
 logger = logging.getLogger(__name__)
 
-logger.setLevel(logging.INFO)
-
-def extract_targets(pretrained_model_cfg:DictConfig,
-                    model_state_dict:OrderedDict[str, torch.Tensor]):
+def load_model(pretrained_model_cfg:DictConfig,
+               model_state_dict:OrderedDict[str, torch.Tensor]) -> Data2VecMultiModel:
     
     pretrained_model_cfg = merge_with_parent(Data2VecMultiConfig(), pretrained_model_cfg, remove_missing=True)
 
@@ -38,15 +39,35 @@ def extract_targets(pretrained_model_cfg:DictConfig,
     model = Data2VecMultiModel.build_model(pretrained_model_cfg, task=dummy_task)
 
     result = model.load_state_dict(model_state_dict)
-    logger.info(f'Loaded state dict, {result}')
-    
+    logger.info(f'Loaded state dict, result: {result}')
+    return model
 
-    
-    
 
-if __name__ == "__main__":
-    cfg = hydra_utils.build_config()
+@hydra.main(config_path=os.path.join("..", "..", "configs", "kd"), config_name="base")
+def extract_targets(cfg: DictConfig) -> None:
     model_meta_data = torch.load(os.path.join('..', '..', 'models', cfg.model_state_dict))
     pretrained_model_cfg = OmegaConf.create(model_meta_data['cfg']['model'])
+    model = load_model(pretrained_model_cfg=pretrained_model_cfg, model_state_dict=model_meta_data['model'])
+    
+    datamodule_kwargs = OmegaConf.to_container(cfg.datamodule)
+    model_name = datamodule_kwargs.pop('_name', None)
 
-    extract_targets(pretrained_model_cfg=pretrained_model_cfg, model_state_dict=model_meta_data['model'])
+    if model_name is None:
+        raise ValueError('Field "_name" of cfg.datamodule either missing or is None!')
+    
+    datamodule_cls = DATAMODULE_REGISTRY[model_name]
+    
+    datamodule:BaseDataModule = datamodule_cls(**datamodule_kwargs)
+
+    datamodule.prepare_data()
+
+    datamodule.setup(stage='fit')
+
+    loader = datamodule.train_dataloader()
+
+    print(loader)
+
+
+
+if __name__ == "__main__":
+    extract_targets()

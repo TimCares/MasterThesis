@@ -9,7 +9,7 @@ import shutil
 import glob
 from .data_utils import get_transforms, download_and_unzip, write_data_into_jsonl, get_bpe_encoder
 from .base_datasets import BaseDataset
-from utils.wav2vec_manifest import create_manifests
+from src.utils.wav2vec_manifest import create_manifests
 from bpe_encoder import encode
 
 from fairseq.data import Dictionary
@@ -34,13 +34,15 @@ class EnWik9Dataset(NLPDataset):
         super().__init__(data_path, split, num_max_bpe_tokens, sample_break_mode)
 
         dataset_path = os.path.join(self.nlp_dir_path, 'enwik9')
+        base_data_path = self.data_path
+        self.data_path = dataset_path
         os.makedirs(dataset_path, exist_ok=True)
         download_and_unzip(urls=["http://mattmahoney.net/dc/enwik9.zip"], store_at='.')
         os.system(f"perl ../setup/clean_enwik9.pl enwik9 > enwik9.txt")
         os.remove("enwik9")
-        encode(f'{self.data_path}/encoder.json', f'{self.data_path}/vocab.bpe', ['enwik9.txt'], ['enwik9.bpe'], keep_empty=True)
+        encode(f'{base_data_path}/encoder.json', f'{base_data_path}/vocab.bpe', ['enwik9.txt'], ['enwik9.bpe'], keep_empty=True)
         os.remove("enwik9.txt")
-        process = ['fairseq-preprocess', '--only-source', '--srcdict', f'{self.data_path}/dict.txt',
+        process = ['fairseq-preprocess', '--only-source', '--srcdict', f'{base_data_path}/dict.txt',
                     '--trainpref', 'enwik9.bpe', '--destdir', f'{dataset_path}', '--workers', f'{os.cpu_count()}']
         subprocess.run(process)
         os.remove("enwik9.bpe")
@@ -53,8 +55,19 @@ class OpenWebTextDataset(NLPDataset):
                  sample_break_mode: str = 'none'):
         super().__init__(data_path, split, num_max_bpe_tokens, sample_break_mode)
         dataset_path = os.path.join(self.nlp_dir_path, 'openwebtext')
+        base_data_path = self.data_path
+        self.data_path = dataset_path
+
+        if os.path.exists(os.path.join(dataset_path, 'train.bin')) and os.path.exists(os.path.join(dataset_path, 'train.idx')):
+            self.log(f"Data already exists under: {dataset_path}")
+            return
+
         pattern = os.path.join(self.nlp_dir_path, '*.tar')
         files = glob.glob(pattern)
+
+        if len(files)==0:
+            raise FileNotFoundError(f"No tar files found under: {dataset_path}")
+
         self.log(f"Found {len(files)} tar files, inflating...")
         for file in files:
             os.system(f"tar -xf {file} -C {self.nlp_dir_path}")
@@ -102,9 +115,9 @@ class OpenWebTextDataset(NLPDataset):
         self.log("Encoding...")
         in_file = os.path.join(dataset_path, 'openwebtext.txt')
         out_file = os.path.join(dataset_path, 'openwebtext.bpe')
-        encode(f'{self.data_path}/encoder.json', f'{self.data_path}/vocab.bpe', [in_file], [out_file], keep_empty=True)
+        encode(f'{base_data_path}/encoder.json', f'{base_data_path}/vocab.bpe', [in_file], [out_file], keep_empty=True)
         os.remove(in_file)
-        process = ['fairseq-preprocess', '--only-source', '--srcdict', f'{self.data_path}/dict.txt',
+        process = ['fairseq-preprocess', '--only-source', '--srcdict', f'{base_data_path}/dict.txt',
                     '--trainpref', out_file, '--destdir', f'{dataset_path}', '--workers', f'{os.cpu_count()}']
         subprocess.run(process)
         os.remove(out_file)
