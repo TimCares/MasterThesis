@@ -1,6 +1,6 @@
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
-from datasets import IMDBDataset, CIFARDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, EnWik9Dataset
+from src.datasets import IMDBDataset, CIFARDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, EnWik9Dataset, OpenWebTextDataset
 
 class BaseDataModule(LightningDataModule):
     def __init__(self,
@@ -130,6 +130,32 @@ class EnWik9DataModule(BaseDataModule):
     def set_val_dataset(self):
         self.val_dataset = EnWik9Dataset(data_path=self.data_path, split='val', num_max_bpe_tokens=self.num_max_bpe_tokens,
                                          sample_break_mode=self.sample_break_mode)
+        
+
+class OpenWebTextDataModule(BaseDataModule):
+    def __init__(self, 
+                 data_path:str,
+                 num_max_bpe_tokens:int,
+                 sample_break_mode:str,
+                 *args,
+                 **kwargs):
+        super().__init__(data_path, *args, **kwargs)
+        self.num_max_bpe_tokens = num_max_bpe_tokens
+        self.sample_break_mode = sample_break_mode
+
+    def prepare_data(self):
+        if not self.prepared:
+            self.set_train_dataset()
+
+            self.prepared = True
+
+    def setup(self, stage=None):
+        if stage == 'fit' or stage is None:
+            self.train_dataset.load()
+
+    def set_train_dataset(self):
+        self.train_dataset = OpenWebTextDataset(data_path=self.data_path, split='train', num_max_bpe_tokens=self.num_max_bpe_tokens,
+                                                sample_break_mode=self.sample_break_mode)
 
 
 class CIFARDataModule(BaseDataModule):
@@ -292,3 +318,14 @@ class SpeechCommandsDataModule(BaseDataModule):
         self.test_dataset = SpeechCommandsDataset(data_path=self.data_path,
                                                   split='test',
                                                   feature_encoder_spec=self.feature_encoder_spec,)
+
+
+UNIMODAL_REGISTRY = {
+    'imdb': IMDBDataModule,
+    'enwik9': EnWik9DataModule,
+    'openwebtext': OpenWebTextDataModule,
+    'cifar': CIFARDataModule,
+    'imagenet': ImageNetDataModule,
+    'librispeech': LibriSpeechDataModule,
+    'speechcommands': SpeechCommandsDataModule
+}
