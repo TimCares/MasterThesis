@@ -1,0 +1,6 @@
+# @package _group_
+
+_name: openwebtext
+
+num_max_bpe_tokens: 512
+sample_break_mode: none
