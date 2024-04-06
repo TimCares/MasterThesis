@@ -117,11 +117,16 @@ class NLPDataset(BaseDataset):
             "padding_mask": RightPaddingMaskDataset(dataset),
         }
 
-        self.dataset = NestedDictionaryDataset(
-            {
-                "net_input": input_dict,
-            },
-        )
+        self.dataset = NestedDictionaryDataset(input_dict)
+
+    def __getitem__(self, index):
+        return self.dataset[index]
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def collater(self, samples):
+        return self.dataset.collater(samples)
     
 
 class AudioDataset(BaseDataset):

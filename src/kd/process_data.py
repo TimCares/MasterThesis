@@ -98,7 +98,7 @@ def extract_targets(cfg: DictConfig) -> None:
             })
             item = {
                 'label': pred,
-                'source': batch['source'],
+                'source': batch['source'], # TODO: padding masks and all output dicts of datasets should have key "source" for data
             }
             torch.save(item, os.path.join(kd_targets_path, filename))
 
