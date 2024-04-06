@@ -1,12 +1,16 @@
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from typing import Tuple, Dict, Any
-from src.datasets import KDOpenWebTextDataset
+from src.datasets import KDDataset
+import logging
 
-class KDBaseDataModule(LightningDataModule):
+logger = logging.getLogger(__name__)
+
+class KDDataModule(LightningDataModule):
     def __init__(self,
                  data_path:str,
                  num_workers:int,
+                 dataset:str,
                  *args,
                  **kwargs):
         super().__init__(*args, **kwargs)
@@ -16,9 +20,12 @@ class KDBaseDataModule(LightningDataModule):
         self.shuffle = False
         self.drop_last = False
         self.prepared = False
+        self.dataset = dataset
+
+        logger.info(f"Using dataset: {self.dataset}")
     
     def set_train_dataset(self):
-        raise NotImplementedError("set train dataset")
+        self.train_dataset = KDDataset(data_path=self.data_path, dataset=self.dataset)
 
     def prepare_data(self):
         if not self.prepared:
@@ -38,21 +45,3 @@ class KDBaseDataModule(LightningDataModule):
                           sampler=None,
                           shuffle=self.shuffle,
                           drop_last=self.drop_last,)
-
-
-class KDOpenWebTextDataModule(KDBaseDataModule):
-    def __init__(self,
-                 data_path:str,
-                 num_workers:int,
-                 *args,
-                 **kwargs):
-        super().__init__(data_path, num_workers, *args, **kwargs)
-
-    def set_train_dataset(self):
-        self.train_dataset = KDOpenWebTextDataset(self.data_path)
-
-
-
-KD_REGISTRY = {
-    'kd-openwebtext': KDOpenWebTextDataModule
-}

@@ -731,3 +731,14 @@ class CommonVoice(BaseTextAudio):
                 "sentence_id": row['sentence_id'],
             })
         write_data_into_jsonl(items, os.path.join(self.path_to_data, f"common_voice.{self.split}.jsonl"))
+
+
+MULTIMODAL_REGISTRY = {
+    "coco_captions": COCOCaptions,
+    "flickr30": Flickr30Dataset,
+    "flickr8k_audio": Flickr8KAudioDataset,
+    "visual_genome": VisualGenome,
+    "vqa": VQAv2,
+    "nlvr2": NLVR2,
+    "common_voice": CommonVoice
+}

@@ -373,3 +373,15 @@ class CIFARDataset(BaseDataset):
     def __getitem__(self, index):
         item = self.items[index]
         return {"image": item[0], "target": item[1]}
+
+
+UNIMODAL_REGISTRY = {
+    "enwik9": EnWik9Dataset,
+    "openwebtext": OpenWebTextDataset,
+    "imdb": IMDBDataset,
+    "librispeech": LibriSpeechDataset,
+    "speechcommands": SpeechCommandsDataset,
+    "imagenet": ImageNetDataset,
+    "cifar10": CIFARDataset,
+    "cifar100": CIFARDataset
+}
