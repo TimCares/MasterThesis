@@ -98,8 +98,11 @@ def extract_targets(cfg: DictConfig) -> None:
                 "batch_idx": idx, 
                 "indices": pred.tolist(),
             })
-
-            torch.save(pred, os.path.join(kd_targets_path, filename))
+            item = {
+                'label': pred,
+                'source': batch['audio'],
+            }
+            torch.save(item, os.path.join(kd_targets_path, filename))
 
     index = {
         'datamodule': OmegaConf.to_container(cfg.datamodule),

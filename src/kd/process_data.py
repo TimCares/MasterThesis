@@ -51,7 +51,7 @@ def extract_targets(cfg: DictConfig) -> None:
     pretrained_model_cfg = OmegaConf.create(model_meta_data['cfg']['model'])
     model = load_model(pretrained_model_cfg=pretrained_model_cfg, model_state_dict=model_meta_data['model'])
 
-    # removes decoder and all encoders with modality != supported modality
+    # removes decoder, and all encoders with modality != supported modality
     model.remove_pretraining_modules(modality=pretrained_model_cfg.supported_modality)
     model.eval()
     
@@ -96,8 +96,11 @@ def extract_targets(cfg: DictConfig) -> None:
                 "batch_idx": idx, 
                 "indices": batch["id"].tolist(),
             })
-
-            torch.save(pred, os.path.join(kd_targets_path, filename))
+            item = {
+                'label': pred,
+                'source': batch['source'],
+            }
+            torch.save(item, os.path.join(kd_targets_path, filename))
 
     index = {
         'datamodule': OmegaConf.to_container(cfg.datamodule),
