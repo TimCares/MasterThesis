@@ -4,4 +4,10 @@ hydra:
   run:
     dir: .
 
+defaults:
+  - _self_ # this first, so that the base config can be overridden by others
+  - training: text
+
 data_path: ../data
+
+seed: 42

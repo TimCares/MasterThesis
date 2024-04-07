@@ -1,0 +1,44 @@
+# @package _group_
+
+model:
+  pretrained:
+    audio: base_libri.pt
+    image: base_imagenet.pt
+    text: nlp_base.pt
+
+  encoders_embed_dim: 768
+  embed_dim: 768
+  num_heads:
+  mlp_ratio:
+  encoder_dropout:
+  attention_dropout:
+  activation_dropout:
+  post_mlp_drop:
+  norm_eps:
+  norm_affine:
+  layer_norm_first:
+  ffn_targets:
+  loss_scale:
+  dropout_input:
+  depth:
+  start_drop_path_rate:
+  end_drop_path_rate:
+  layerdrop:
+  seed:
+
+  end_of_block_targets:
+
+num_updates:
+val_frequency:
+
+# following: state_dict['cfg']['model']
+average_top_k_layers_teacher:
+  audio: 8 # base_libri.pt
+  image: 10 # base_imagenet.pt
+  text: 12 # nlp_base.pt
+
+average_top_k_layers_student: 
+
+layer_norm_target_layer:
+instance_norm_target_layer:
+batch_norm_target_layer:
