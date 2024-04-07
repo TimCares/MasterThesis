@@ -207,6 +207,18 @@ class ImageNetDataModule(BaseDataModule):
         self.crop_scale = crop_scale
         self.local_cache_path = local_cache_path
 
+    def prepare_data(self):
+        if not self.prepared:
+            self.set_train_dataset()
+            self.set_val_dataset()
+
+            self.prepared = True
+
+    def setup(self, stage=None):
+        if stage == 'fit' or stage is None:
+            self.train_dataset.load()
+            self.val_dataset.load()
+
     def set_train_dataset(self):
         self.train_dataset = ImageNetDataset(data_path=self.data_path, 
                                              split='train',
@@ -226,16 +238,6 @@ class ImageNetDataModule(BaseDataModule):
                                            precompute_mask_config=self.precompute_mask_config,
                                            crop_scale=self.crop_scale,
                                            local_cache_path=self.local_cache_path,)
-
-    def set_test_dataset(self):
-        self.test_dataset = ImageNetDataset(data_path=self.data_path,
-                                            split='test',
-                                            beit_transforms=self.beit_transforms,
-                                            no_transform=self.no_transform,
-                                            transform_jitter=self.transform_jitter,
-                                            precompute_mask_config=self.precompute_mask_config,
-                                            crop_scale=self.crop_scale,
-                                            local_cache_path=self.local_cache_path,)
         
 
 class LibriSpeechDataModule(BaseDataModule):

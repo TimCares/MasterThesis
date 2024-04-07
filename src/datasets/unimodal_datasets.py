@@ -6,6 +6,7 @@ import re
 from typing import *
 import subprocess
 import shutil
+from rich.progress import track
 import glob
 from .data_utils import get_transforms, download_and_unzip, write_data_into_jsonl, get_bpe_encoder
 from .base_datasets import BaseDataset
@@ -19,8 +20,9 @@ from fairseq.data.text_compressor import TextCompressionLevel
 from torchaudio.datasets import LIBRISPEECH, SPEECHCOMMANDS
 import torchtext
 from torchvision.datasets import CIFAR10, CIFAR100
+from torchvision.datasets.folder import default_loader
 
-from .base_datasets import AudioDataset, ImageDataset, MaeImageDataset, NLPDataset
+from .base_datasets import AudioDataset, ImageDataset, NLPDataset
 
 logger = logging.getLogger(__name__)
 
@@ -306,46 +308,73 @@ class ImageNetDataset(ImageDataset):
                          transform_jitter, precompute_mask_config,
                          crop_scale, dataset_type, local_cache_path)
         self.path_to_data = os.path.join(self.data_path, 'imagenet')
-        os.makedirs(self.path_to_data, exist_ok=True)
-        name = "imagenet-object-localization-challenge"
-        command = ["kaggle", "competitions", "download", "-c", name]
-        subprocess.run(command)
-        os.system(f"unzip {name}.zip")
-        os.remove(f"{name}.zip")
-        os.remove("LOC*")
-        os.system(f"mv ILSVRC/Data/CLS-LOC/* {self.path_to_data}")
-        os.system(f"mv ILSVRC/ImageSets/CLS-LOC/* {self.path_to_data}")
-        os.system(f"rm -r ILSVRC")
+        if not os.path.exists(self.path_to_data):
+            raise FileNotFoundError(f"Directory {self.path_to_data} does not exists, "
+                                    "please create it and add the correponding parquet files from HuggingFace: "
+                                    f"https://huggingface.co/datasets/imagenet-1k")
+        
+        self.path_to_split = os.path.join(self.path_to_data, self.split)
+        os.makedirs(self.path_to_split, exist_ok=True)
+        tar_filenames = [f for f in os.listdir(self.path_to_data) if f.startswith(f"{self.split}_")]
+        self.log(f"Extracting tar files: {tar_filenames}")
+        for filename in track(tar_filenames, description="Extracting...", total=len(tar_filenames)):
+            tar_file_path = os.path.join(self.path_to_data, filename)
+            os.system(f"tar -xf {tar_file_path} -C {self.path_to_split}")
+            os.remove(tar_file_path)
+
+        if self.split != 'train':
+            self.transform = get_transforms(no_transform=True,
+                                            beit_transforms=False, 
+                                            transform_jitter=False)
+        else:
+            self.transform = get_transforms(no_transform=self.no_transform,
+                                            beit_transforms=self.beit_transforms, 
+                                            transform_jitter=self.transform_jitter)
+        self.loader = default_loader
 
     def load(self):
-        compute_mask = self.precompute_mask_config is not None
-        mask_args = {}
-        if compute_mask:
-            mask_args = self.precompute_mask_config
-        
-        self.dataset = MaeImageDataset(
-            root=self.path_to_data,
-            split=self.split,
-            input_size=(244, 244),
-            local_cache_path=self.local_cache_path,
-            key='image',
-            beit_transforms=self.beit_transforms,
-            no_transform=self.no_transform,
-            transform_jitter=self.transform_jitter,
-            crop_scale=self.crop_scale,
-            compute_mask=compute_mask,
-            dataset_type=self.dataset_type,
-            **mask_args,
-        )
+        items = []
+        with open(os.path.join(self.path_to_data, f'imagenet.{self.split}.jsonl'), 'r', encoding="utf-8") as reader:
+            for line in reader:
+                data = json.loads(line)
+                items.append(data)
+            self.log(f"Loaded {len(items)} {self.split} examples.")
+        self.items = items
+
+    def _get_image(self, image_path: str):
+        image = self.loader(image_path)
+        return self.transform(image)
 
     def __getitem__(self, index):
-        return self.dataset[index]
+        data = self.items[index]
+        image = self._get_image(image_path=data['image_path'])
+        return {
+            'source': image,
+            'id': index,
+            'target': data['target']
+        }
     
     def __len__(self):
-        return len(self.dataset)
+        return len(self.items)
     
     def collater(self, samples):
-        return self.dataset.collater(samples)
+        return super().collater(samples=samples)
+    
+    def _make_imagnet_dataset_index(self):
+        items = []
+        for file in os.listdir(self.path_to_split):
+            if self.split != 'test':
+                root, _ = os.path.splitext(file)
+                _, synset_id = os.path.basename(root).rsplit("_", 1)
+            else:
+                synset_id = -1
+            items.append({
+                'image_path': os.path.join(self.path_to_split, file),
+                'target': synset_id,
+            })
+
+        write_data_into_jsonl(items, os.path.join(self.path_to_data, f'imagenet.{self.split}.jsonl'))
+
     
 class CIFARDataset(BaseDataset):
     def __init__(self, 
