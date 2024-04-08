@@ -345,6 +345,7 @@ class KDMMData2Vec(nn.Module):
         output = self.extract_features(
             source=source,
             mode=mode,
+            padding_mask=padding_mask,
             remove_extra_tokens=False,
         )['x']
         output = self.projections[mode](output[:, 0, :])
