@@ -28,6 +28,8 @@ model:
 
   end_of_block_targets:
 
+  modality_encoder_proj: False
+
 num_updates:
 val_frequency:
 

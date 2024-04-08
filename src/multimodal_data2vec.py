@@ -161,6 +161,8 @@ class KDMMData2VecConfig():
 
     end_of_block_targets: bool = False
 
+    modality_encoder_proj: bool = False
+
 
 class KDMMData2Vec(nn.Module):
     def __init__(self,
@@ -172,8 +174,13 @@ class KDMMData2Vec(nn.Module):
         self.modality_encoders.eval()
         self.modality_encoders.is_pretrained = True
 
-        if self.cfg.encoders_embed_dim != self.cfg.embed_dim:
-            self.proj = nn.Linear(self.cfg.encoders_embed_dim, self.cfg.embed_dim)
+        self.projections = nn.ModuleDict({
+            mode: 
+            (nn.Linear(self.cfg.encoders_embed_dim, self.cfg.embed_dim) 
+             if self.cfg.modality_encoder_proj 
+             else nn.Identity())
+             for mode in ['audio', 'image', 'text']
+        })
 
         make_layer_norm = partial(
             nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
@@ -222,16 +229,12 @@ class KDMMData2Vec(nn.Module):
 
     def _get_modality_encoders(self) -> None:
         modality_encoders = {}
-        embed_dims = []
         for mode, state_dict_name in self.cfg.pretrained.items():
             logger.info(f'Loading modality encoder for: {mode}')
             state_dict_path = os.path.join('..', 'models', state_dict_name)
-            embed_dim = torch.load(state_dict_path)['cfg']['model']['embed_dim']
-            embed_dims.append(embed_dim)
             d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
             mode_feature_extractor = d2v_model.modality_encoders[mode]
             modality_encoders[mode] = mode_feature_extractor
-        assert len(set(embed_dims)) == 1, f'Embedding dimensions of modality encoders do not align: {embed_dims}'
 
         return nn.ModuleDict(modality_encoders)
 
@@ -268,13 +271,12 @@ class KDMMData2Vec(nn.Module):
                 padding_mask,
                 mask,
                 remove_masked=not features_only or force_remove_masked,
-                clone_batch=self.cfg.clone_batch if not features_only else 1,
+                clone_batch=1,
                 mask_seeds=mask_seeds,
                 precomputed_mask=precomputed_mask,
             )
 
-            if self.proj is not None:
-                extractor_out = self.proj(extractor_out)
+        extractor_out = self.projections[mode](extractor_out)
 
         x = extractor_out["x"]
         encoder_mask = extractor_out["encoder_mask"]
@@ -325,8 +327,49 @@ class KDMMData2Vec(nn.Module):
             "layer_results": layer_results,
             "mask": encoder_mask,
         }
-
     
+    def extract_features(
+        self, source, mode=None, padding_mask=None, mask=False, remove_extra_tokens=True
+    ):
+        res = self.forward(
+            source,
+            mode=mode,
+            padding_mask=padding_mask,
+            mask=mask,
+            features_only=True,
+            remove_extra_tokens=remove_extra_tokens,
+        )
+        return res
+    
+    def _encode_modality(self, source, mode, padding_mask=None, normalize:bool=True):
+        output = self.extract_features(
+            source=source,
+            mode=mode,
+            remove_extra_tokens=False,
+        )['x']
+        output = self.projections[mode](output[:, 0, :])
+
+        if normalize:
+            output = F.normalize(output, dim=-1)
+        
+        return output
+
+    def encoder_audio(self, audio, padding_mask, normalize:bool=True):
+        return self._encode_modality(source=audio,
+                                     mode='audio',
+                                     padding_mask=padding_mask,
+                                     normalize=normalize)
+    
+    def encoder_image(self, image, normalize:bool=True):
+        return self._encode_modality(source=image,
+                                     mode='image',
+                                     normalize=normalize)
+
+    def encoder_text(self, text, padding_mask, normalize:bool=True):
+        return self._encode_modality(source=text,
+                                     mode='text',
+                                     padding_mask=padding_mask,
+                                     normalize=normalize)
 
 def build_simple_kd_mm_d2v(cfg) -> KDMMData2Vec:
     pass
