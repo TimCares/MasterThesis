@@ -371,18 +371,18 @@ class KDMMData2Vec(nn.Module):
         
         return output
 
-    def encoder_audio(self, audio, padding_mask, normalize:bool=True):
+    def encode_audio(self, audio, padding_mask, normalize:bool=True):
         return self._encode_modality(audio=audio,
                                      mode=Modality.AUDIO,
                                      padding_mask=padding_mask,
                                      normalize=normalize)
     
-    def encoder_image(self, image, normalize:bool=True):
+    def encode_image(self, image, normalize:bool=True):
         return self._encode_modality(image=image,
                                      mode=Modality.IMAGE,
                                      normalize=normalize)
 
-    def encoder_text(self, text, padding_mask, normalize:bool=True):
+    def encode_text(self, text, padding_mask, normalize:bool=True):
         return self._encode_modality(text=text,
                                      mode=Modality.TEXT,
                                      padding_mask=padding_mask,
