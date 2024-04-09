@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from functools import partial
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Union
 import numpy as np
 import os
 from utils import load_pretrained_d2v_model
@@ -11,6 +11,7 @@ import lightning as L
 import math
 from omegaconf import OmegaConf, II
 from dataclasses import dataclass, field
+from datasets import Modality
 
 from examples.data2vec.models.modalities.modules import AltBlock
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
@@ -27,12 +28,14 @@ class KDData2VecPreTrainingConfig():
     num_updates:int
     val_frequency:int
 
-    layer_norm_target_layer:
-    instance_norm_target_layer:
-    batch_norm_target_layer:
+    layer_norm_target_layer:bool
+    instance_norm_target_layer:bool
+    batch_norm_target_layer:bool
+
+    model:KDMMData2VecConfig
 
 class KDData2VecPreTrainingLightningModule(L.LightningModule):
-    def __init__(self, cfg):
+    def __init__(self, cfg:KDData2VecPreTrainingConfig):
         super().__init__()
         self.cfg = cfg
         assert self.cfg.average_top_k_layers_student <= self.cfg.model.depth,\
@@ -170,7 +173,7 @@ class KDMMData2Vec(nn.Module):
                  ):
         super().__init__()
         self.cfg = cfg
-        self.modality_encoders = self._get_modality_encoders()
+        self.modality_encoders:nn.ModuleDict = self._get_modality_encoders()
         self.modality_encoders.eval()
         self.modality_encoders.is_pretrained = True
 
@@ -179,7 +182,7 @@ class KDMMData2Vec(nn.Module):
             (nn.Linear(self.cfg.encoders_embed_dim, self.cfg.embed_dim) 
              if self.cfg.modality_encoder_proj 
              else nn.Identity())
-             for mode in ['audio', 'image', 'text']
+             for mode in [Modality.AUDIO, Modality.IMAGE, Modality.TEXT]
         })
 
         make_layer_norm = partial(
@@ -234,7 +237,8 @@ class KDMMData2Vec(nn.Module):
             state_dict_path = os.path.join('..', 'models', state_dict_name)
             d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
             mode_feature_extractor = d2v_model.modality_encoders[mode]
-            modality_encoders[mode] = mode_feature_extractor
+            modality_encoders[Modality[mode.upper()]] = mode_feature_extractor
+            # Modality[mode.upper()]: e.g. 'text' -> Modality.Text
 
         return nn.ModuleDict(modality_encoders)
 
@@ -249,17 +253,25 @@ class KDMMData2Vec(nn.Module):
 
     def forward(
         self,
-        source,
-        mode,
-        id=None,
-        padding_mask=None,
-        mask=True,
-        features_only=False,
-        force_remove_masked=False,
-        remove_extra_tokens=True,
+        modes:List[Modality],
+        audio:torch.Tensor=None,
+        image:torch.Tensor=None,
+        text:torch.Tensor=None,
+        id:torch.Tensor=None,
+        padding_mask:torch.Tensor=None, # Union[torch.Tensor, Dict[str, torch.Tensor]] for multi input later
+        mask:bool=True,
+        features_only:bool=False,
+        force_remove_masked:bool=False,
+        remove_extra_tokens:bool=True,
         precomputed_mask=None,
     ):
-        
+        assert len(modes)==1, f"This model accepts exactly modality indicator at a time, received: {modes}"
+        n_sources = sum(mode is not None for mode in [audio, image, text])
+        assert n_sources==1,\
+            f"This model accepts exactly one modality data source at a time, got {n_sources}."
+        mode = modes[0]
+        source = audio or image or text
+
         mask_seeds = None
         if id is not None:
             mask_seeds = MaskSeed(seed=self.seed, update=self.num_updates, ids=id)
@@ -329,11 +341,13 @@ class KDMMData2Vec(nn.Module):
         }
     
     def extract_features(
-        self, source, mode=None, padding_mask=None, mask=False, remove_extra_tokens=True
+        self, audio=None, image=None, text=None, modes:List[Modality]=None, padding_mask=None, mask=False, remove_extra_tokens=True
     ):
         res = self.forward(
-            source,
-            mode=mode,
+            audio=audio,
+            image=image,
+            text=text,
+            modes=modes,
             padding_mask=padding_mask,
             mask=mask,
             features_only=True,
@@ -341,10 +355,12 @@ class KDMMData2Vec(nn.Module):
         )
         return res
     
-    def _encode_modality(self, source, mode, padding_mask=None, normalize:bool=True):
+    def _encode_modality(self, mode:Modality, audio=None, image=None, text=None, padding_mask=None, normalize:bool=True):
         output = self.extract_features(
-            source=source,
-            mode=mode,
+            audio=audio,
+            image=image,
+            text=text,
+            modes=[mode],
             padding_mask=padding_mask,
             remove_extra_tokens=False,
         )['x']
@@ -356,19 +372,19 @@ class KDMMData2Vec(nn.Module):
         return output
 
     def encoder_audio(self, audio, padding_mask, normalize:bool=True):
-        return self._encode_modality(source=audio,
-                                     mode='audio',
+        return self._encode_modality(audio=audio,
+                                     mode=Modality.AUDIO,
                                      padding_mask=padding_mask,
                                      normalize=normalize)
     
     def encoder_image(self, image, normalize:bool=True):
-        return self._encode_modality(source=image,
-                                     mode='image',
+        return self._encode_modality(image=image,
+                                     mode=Modality.IMAGE,
                                      normalize=normalize)
 
     def encoder_text(self, text, padding_mask, normalize:bool=True):
-        return self._encode_modality(source=text,
-                                     mode='text',
+        return self._encode_modality(text=text,
+                                     mode=Modality.TEXT,
                                      padding_mask=padding_mask,
                                      normalize=normalize)
 

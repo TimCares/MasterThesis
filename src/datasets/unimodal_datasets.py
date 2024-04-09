@@ -11,7 +11,7 @@ from rich.progress import track
 import glob
 from .data_utils import get_transforms, download_and_unzip, write_data_into_jsonl, get_bpe_encoder
 from .base_datasets import BaseDataset
-from src.utils.wav2vec_manifest import create_manifests
+from datasets.wav2vec_manifest import create_manifests
 from bpe_encoder import encode
 
 from fairseq.data import Dictionary
