@@ -75,7 +75,7 @@ class NLPDataset(BaseDataset):
         self.dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
         self.sample_break_mode = sample_break_mode
 
-    def data_exists(self, dataset_path):
+    def index_exists(self, dataset_path):
         if os.path.exists(os.path.join(dataset_path, 'train.bin')) and os.path.exists(os.path.join(dataset_path, 'train.idx')):
             self.log(f"Data already exists under: {dataset_path}")
             return True
@@ -470,6 +470,13 @@ class BaseImageText(BaseDataset):
                                         beit_transforms=self.beit_transforms,
                                         transform_jitter=self.transform_jitter,
                                         crop_scale=self.crop_scale)
+        
+    def index_exists(self, dataset_path):
+        for index_file in self.get_index_files():
+            if not os.path.exists(dataset_path, index_file):
+                return False
+        self.log(f"Data already exists under: {dataset_path}")
+        return True
 
     def load(self):
         index_files = self.get_index_files()
@@ -571,6 +578,13 @@ class BaseImageAudio(AudioDataset):
                                         beit_transforms=self.beit_transforms,
                                         transform_jitter=self.transform_jitter,
                                         crop_scale=self.crop_scale)
+        
+    def index_exists(self, dataset_path):
+        for index_file in self.get_index_files():
+            if not os.path.exists(dataset_path, index_file):
+                return False
+        self.log(f"Data already exists under: {dataset_path}")
+        return True
 
     def load(self):
         index_files = self.get_index_files()
@@ -642,6 +656,13 @@ class BaseTextAudio(AudioDataset):
         self.bos_token_id = self.dictionary.bos()
         self.eos_token_id = self.dictionary.eos()
         self.pad_token_id = self.dictionary.pad()
+
+    def index_exists(self, dataset_path):
+        for index_file in self.get_index_files():
+            if not os.path.exists(dataset_path, index_file):
+                return False
+        self.log(f"Data already exists under: {dataset_path}")
+        return True
 
     def load(self):
         index_files = self.get_index_files()

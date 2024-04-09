@@ -40,7 +40,7 @@ class EnWik9Dataset(NLPDataset):
         self.data_path = dataset_path
         os.makedirs(dataset_path, exist_ok=True)
 
-        if self.data_exists(dataset_path=dataset_path):
+        if self.index_exists(dataset_path=dataset_path):
             return
 
         download_and_unzip(urls=["http://mattmahoney.net/dc/enwik9.zip"], store_at='.')
@@ -64,7 +64,7 @@ class OpenWebTextDataset(NLPDataset):
         base_data_path = self.data_path
         self.data_path = dataset_path
 
-        if self.data_exists(dataset_path=dataset_path):
+        if self.index_exists(dataset_path=dataset_path):
             return
 
         pattern = os.path.join(self.nlp_dir_path, '*.tar')

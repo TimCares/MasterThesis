@@ -38,6 +38,9 @@ class COCOCaptions(BaseImageText):
         self.path_to_data = os.path.join(self.data_path, "coco")        
 
         os.makedirs(self.path_to_data, exist_ok=True)
+        if self.index_exists(dataset_path=self.path_to_data):
+            return
+
         urls = ["http://images.cocodataset.org/zips/train2014.zip",
                 "http://images.cocodataset.org/zips/val2014.zip",
                 "https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"]
@@ -141,6 +144,9 @@ class Flickr30Dataset(BaseImageText):
         self.path_to_data = os.path.join(self.data_path, "flickr30k")
 
         os.makedirs(self.path_to_data, exist_ok=True)
+        if self.index_exists(dataset_path=self.path_to_data):
+            return
+        
         download_and_unzip(urls=["https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"], store_at=self.path_to_data)
         os.remove(os.path.join(self.path_to_data, 'dataset_flickr8k.json'))
         os.remove(os.path.join(self.path_to_data, 'dataset_coco.json'))
@@ -221,18 +227,15 @@ class Flickr8KAudioDataset(BaseImageAudio):
         self.path_to_data = os.path.join(self.data_path, "flickr8k")
 
         os.makedirs(self.path_to_data, exist_ok=True)
-        if not os.path.exists(os.path.join(self.path_to_data, "flickr_audio")):
-            download_and_unzip(urls=["https://groups.csail.mit.edu/sls/downloads/flickraudio/downloads/flickr_audio.tar.gz"], store_at=self.path_to_data,
+        if self.index_exists(dataset_path=self.path_to_data):
+            return
+        
+        download_and_unzip(urls=["https://groups.csail.mit.edu/sls/downloads/flickraudio/downloads/flickr_audio.tar.gz"], store_at=self.path_to_data,
                             archive_type="tar.gz")
-        else:
-            self.log("Audio files already exists!")
 
-        if not os.path.exists(os.path.join(self.path_to_data, "dataset_flickr8k.json")):
-            download_and_unzip(urls=["https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"], store_at=self.path_to_data)
-            os.remove(os.path.join(self.path_to_data, 'dataset_flickr30k.json'))
-            os.remove(os.path.join(self.path_to_data, 'dataset_coco.json'))
-        else:
-            self.log("Split file already exists!")
+        download_and_unzip(urls=["https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"], store_at=self.path_to_data)
+        os.remove(os.path.join(self.path_to_data, 'dataset_flickr30k.json'))
+        os.remove(os.path.join(self.path_to_data, 'dataset_coco.json'))
 
         self.transform = get_transforms(no_transform=True)
         self.loader = default_loader
@@ -301,6 +304,9 @@ class VisualGenome(BaseImageText):
         super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
         self.path_to_data = os.path.join(self.data_path, "vg")
         os.makedirs(self.path_to_data, exist_ok=True)
+        if self.index_exists(dataset_path=self.path_to_data):
+            return
+        
         urls = ["https://cs.stanford.edu/people/rak248/VG_100K_2/images.zip",
                 "https://cs.stanford.edu/people/rak248/VG_100K_2/images2.zip",
                 "https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/region_descriptions.json.zip"]
@@ -370,11 +376,14 @@ class VQAv2(BaseImageText):
         super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
         self.path_to_data = os.path.join(self.data_path, "coco")
         os.makedirs(self.path_to_data, exist_ok=True)
-
-        download_and_unzip(urls=["http://images.cocodataset.org/zips/test2015.zip"], store_at=self.path_to_data)
+        if not os.path.exists(self.path_to_data, 'test2015'):
+            download_and_unzip(urls=["http://images.cocodataset.org/zips/test2015.zip"], store_at=self.path_to_data)
 
         self.path_to_data = os.path.join(self.data_path, "vqa")
         os.makedirs(self.path_to_data, exist_ok=True)
+        if self.index_exists(dataset_path=self.path_to_data):
+            return
+        
         urls = ["https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Questions_Train_mscoco.zip",
                 "https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Questions_Val_mscoco.zip",
                 "https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Questions_Test_mscoco.zip",
@@ -689,6 +698,9 @@ class CommonVoice(BaseTextAudio):
         self.path_to_data = os.path.join(dir_name, 'en')
         self.path_to_clips = os.path.join(self.path_to_data, "clips")
 
+        if self.index_exists(dataset_path=self.path_to_data):
+            return
+        # else...
         self.make_common_voice_dataset_index()
 
     def get_index_files(self):
