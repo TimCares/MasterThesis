@@ -137,6 +137,7 @@ class NLPDataset(BaseDataset):
                 pad_idx=self.dictionary.pad(),
             ),
             "padding_mask": RightPaddingMaskDataset(dataset),
+            "modes": self.modes,
         }
 
         self.dataset = NestedDictionaryDataset(input_dict)
@@ -224,6 +225,8 @@ class AudioDataset(BaseDataset):
                 dim=0,
             )
             input["precomputed_mask"] = collated_mask
+
+        input['modes'] = self.modes
 
         return input
 
@@ -671,6 +674,7 @@ class BaseImageAudio(AudioDataset):
     def collater(self, samples):
         input = super().collater(samples)
         input["image"] = torch.stack([s["image"] for s in samples], dim=0)
+        input['modes'] = self.modes
         return input
 
 class BaseTextAudio(AudioDataset):
@@ -784,5 +788,7 @@ class BaseTextAudio(AudioDataset):
             'text': input['language_padding_mask']
         }
         input.pop('language_padding_mask')
+
+        input['modes'] = self.modes
 
         return input

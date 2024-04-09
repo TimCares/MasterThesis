@@ -263,6 +263,7 @@ class LibriSpeechDataset(AudioDataset):
             'audio': collater_res['net_input']['source'],
             'precomputed_mask': collater_res['net_input']['precomputed_mask'],
             'padding_mask': collater_res['net_input']['padding_mask'],
+            'modes': self.modes
         }
         return res
 
@@ -394,9 +395,6 @@ class ImageNetDataset(ImageDataset):
     
     def __len__(self):
         return len(self.items)
-    
-    def collater(self, samples):
-        return super().collater(samples=samples)
     
     def _make_imagnet_dataset_index(self):
         items = []

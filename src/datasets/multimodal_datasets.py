@@ -453,11 +453,11 @@ class VQAv2(BaseImageText):
 
     def __getitem__(self, index: int):
         data = super().__getitem__(index)
-        if "labels" in self.items[index] and len(self.items[index]["labels"]) > 0:
-            labels = [0.] * len(self.label2ans)
-            for l, s in zip(self.items[index]["labels"], self.items[index]["scores"]):
-                labels[l] = s
-            data["labels"] = torch.FloatTensor(labels)
+        if "targets" in self.items[index] and len(self.items[index]["targets"]) > 0:
+            targets = [0.] * len(self.label2ans)
+            for l, s in zip(self.items[index]["targets"], self.items[index]["scores"]):
+                targets[l] = s
+            data["targets"] = torch.FloatTensor(targets)
         else:
             data["qid"] = self.items[index]["qid"]
         return data
