@@ -1,7 +1,8 @@
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from typing import Tuple, Dict, Any
-from src.datasets import IMDBDataset, CIFARDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, EnWik9Dataset, OpenWebTextDataset
+from src.datasets import IMDBDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, EnWik9Dataset, OpenWebTextDataset
+from src.datasets import REGISTRY as DATASET_REGISTRY
 
 class BaseDataModule(LightningDataModule):
     def __init__(self,
@@ -166,6 +167,7 @@ class CIFARDataModule(BaseDataModule):
                  *args,
                  **kwargs):
         super().__init__(data_path, *args, **kwargs)
+        assert type in ['cifar10', 'cifar100'], "Cifar dataset type must be in ['cifar10', 'cifar100']."
         self.type = type
 
     def prepare_data(self):
@@ -182,10 +184,10 @@ class CIFARDataModule(BaseDataModule):
             self.test_dataset.load()
 
     def set_train_dataset(self):
-        self.train_dataset = CIFARDataset(data_path=self.data_path, split='train', type=self.type)
+        self.train_dataset = DATASET_REGISTRY[self.type](data_path=self.data_path, split='train')
 
     def set_test_dataset(self):
-        self.test_dataset = CIFARDataset(data_path=self.data_path, split='test', type=self.type)
+        self.test_dataset = DATASET_REGISTRY[self.type](data_path=self.data_path, split='test')
 
 
 class ImageNetDataModule(BaseDataModule):

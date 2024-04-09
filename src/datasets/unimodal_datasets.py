@@ -4,6 +4,7 @@ import torch
 import json
 import re
 from typing import *
+from functools import partial
 import subprocess
 import shutil
 from rich.progress import track
@@ -399,8 +400,10 @@ class CIFARDataset(BaseDataset):
 
         if self.type == "cifar10":
             CIFAR10(self.data_path, train=self.split == "train", download=True)
-        else:
+        elif self.type == "cifar100":
             CIFAR100(self.data_path, train=self.split == "train", download=True)
+        else:
+            raise ValueError(f'CIFARDataset: Unknown dataset type: {self.type}, available options: ["cifar10", "cifar100"].')
 
     def load(self):
         # only used for evaluation -> no augmentations
@@ -423,6 +426,6 @@ UNIMODAL_REGISTRY = {
     "librispeech": LibriSpeechDataset,
     "speechcommands": SpeechCommandsDataset,
     "imagenet": ImageNetDataset,
-    "cifar10": CIFARDataset,
-    "cifar100": CIFARDataset
+    "cifar10": partial(CIFARDataset, type='cifar10'),
+    "cifar100": partial(CIFARDataset, type='cifar100')
 }
