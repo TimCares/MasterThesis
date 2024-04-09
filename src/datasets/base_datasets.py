@@ -75,6 +75,12 @@ class NLPDataset(BaseDataset):
         self.dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
         self.sample_break_mode = sample_break_mode
 
+    def data_exists(self, dataset_path):
+        if os.path.exists(os.path.join(dataset_path, 'train.bin')) and os.path.exists(os.path.join(dataset_path, 'train.idx')):
+            self.log(f"Data already exists under: {dataset_path}")
+            return True
+        else:
+            return False
           
     def load(self):
         """Load a given dataset split.

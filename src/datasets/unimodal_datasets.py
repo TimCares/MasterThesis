@@ -39,6 +39,10 @@ class EnWik9Dataset(NLPDataset):
         base_data_path = self.data_path
         self.data_path = dataset_path
         os.makedirs(dataset_path, exist_ok=True)
+
+        if self.data_exists(dataset_path=dataset_path):
+            return
+
         download_and_unzip(urls=["http://mattmahoney.net/dc/enwik9.zip"], store_at='.')
         os.system(f"perl datasets/clean_enwik9.pl enwik9 > enwik9.txt")
         os.remove("enwik9")
@@ -60,8 +64,7 @@ class OpenWebTextDataset(NLPDataset):
         base_data_path = self.data_path
         self.data_path = dataset_path
 
-        if os.path.exists(os.path.join(dataset_path, 'train.bin')) and os.path.exists(os.path.join(dataset_path, 'train.idx')):
-            self.log(f"Data already exists under: {dataset_path}")
+        if self.data_exists(dataset_path=dataset_path):
             return
 
         pattern = os.path.join(self.nlp_dir_path, '*.tar')
@@ -204,8 +207,8 @@ class LibriSpeechDataset(AudioDataset):
 
         self.manifest_path = os.path.join(self.data_path, 'LibriSpeech', type)
     
+        # still done even if data has already been created, but this is very fast, so id doesn't really matter
         create_manifests(root=self.manifest_path, valid_percent=0, dest=self.manifest_path)
-        
 
     def load(self):
         manifest_path = os.path.join(self.manifest_path, "{}.tsv".format('train'))
@@ -261,6 +264,13 @@ class SpeechCommandsDataset(AudioDataset):
         # as described in the paper to the dataset, each sample is at a maximum of 1 second
         # long and is sampled at 16kHz (https://arxiv.org/pdf/1804.03209.pdf)
 
+        if self.split == "train":
+            self.subset = "training"
+        else:
+            self.subset = "testing"
+
+        SPEECHCOMMANDS(self.data_path, subset=self.subset, download=True)
+
         path_to_data = os.path.join(self.data_path, 'SpeechCommands', 'speech_commands_v0.02')
         # List all entries in the given path
         all_entries = os.listdir(path_to_data)
@@ -268,13 +278,6 @@ class SpeechCommandsDataset(AudioDataset):
         class_names = [entry for entry in all_entries if os.path.isdir(os.path.join(path_to_data, entry)) and not entry.startswith('_')]
         
         self.class_to_id = {class_name: i for i, class_name in enumerate(class_names)}
-
-        if self.split == "train":
-            self.subset = "training"
-        else:
-            self.subset = "testing"
-
-        SPEECHCOMMANDS(self.data_path, subset=self.subset, download=True)
 
         if os.path.exists(f"{self.data_path}/speech_commands_v0.02.tar.gz"):
             os.remove(f"{self.data_path}/speech_commands_v0.02.tar.gz")
@@ -310,17 +313,21 @@ class ImageNetDataset(ImageDataset):
         self.path_to_data = os.path.join(self.data_path, 'imagenet')
         if not os.path.exists(self.path_to_data):
             raise FileNotFoundError(f"Directory {self.path_to_data} does not exists, "
-                                    "please create it and add the correponding parquet files from HuggingFace: "
+                                    "please create it and add the correponding files from HuggingFace: "
                                     f"https://huggingface.co/datasets/imagenet-1k")
         
         self.path_to_split = os.path.join(self.path_to_data, self.split)
         os.makedirs(self.path_to_split, exist_ok=True)
-        tar_filenames = [f for f in os.listdir(self.path_to_data) if f.startswith(f"{self.split}_")]
-        self.log(f"Extracting tar files: {tar_filenames}")
-        for filename in track(tar_filenames, description="Extracting...", total=len(tar_filenames)):
-            tar_file_path = os.path.join(self.path_to_data, filename)
-            os.system(f"tar -xf {tar_file_path} -C {self.path_to_split}")
-            os.remove(tar_file_path)
+
+        if not os.path.exists(os.path.join(self.path_to_data, f'imagenet.{self.split}.jsonl')):
+            tar_filenames = [f for f in os.listdir(self.path_to_data) if f.startswith(f"{self.split}_")]
+            self.log(f"Extracting tar files: {tar_filenames}")
+            for filename in track(tar_filenames, description="Extracting...", total=len(tar_filenames)):
+                tar_file_path = os.path.join(self.path_to_data, filename)
+                os.system(f"tar -xf {tar_file_path} -C {self.path_to_split}")
+                os.remove(tar_file_path)
+
+            self._make_imagnet_dataset_index()
 
         if self.split != 'train':
             self.transform = get_transforms(no_transform=True,
