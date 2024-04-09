@@ -232,10 +232,10 @@ class ImageNetDataModule(BaseDataModule):
     def set_val_dataset(self):
         self.val_dataset = ImageNetDataset(data_path=self.data_path,
                                            split='val',
-                                           beit_transforms=self.beit_transforms,
-                                           no_transform=self.no_transform,
-                                           transform_jitter=self.transform_jitter,
-                                           precompute_mask_config=self.precompute_mask_config,
+                                           beit_transforms=False,
+                                           no_transform=True,
+                                           transform_jitter=False,
+                                           precompute_mask_config=None,
                                            crop_scale=self.crop_scale,
                                            local_cache_path=self.local_cache_path,)
         
@@ -247,7 +247,8 @@ class LibriSpeechDataModule(BaseDataModule):
                  max_sample_size:int,
                  min_sample_size:int,
                  precompute_mask_config,
-                 type:str,
+                 type_train:str,
+                 type_test:str,
                  *args,
                  **kwargs):
         super().__init__(data_path, *args, **kwargs)
@@ -255,7 +256,8 @@ class LibriSpeechDataModule(BaseDataModule):
         self.max_sample_size = max_sample_size
         self.min_sample_size = min_sample_size
         self.precompute_mask_config = precompute_mask_config
-        self.type = type
+        self.type_train = type_train
+        self.type_test = type_test
 
     def prepare_data(self):
         if not self.prepared:
@@ -277,7 +279,7 @@ class LibriSpeechDataModule(BaseDataModule):
                                                 max_sample_size=self.max_sample_size,
                                                 min_sample_size=self.min_sample_size,
                                                 precompute_mask_config=self.precompute_mask_config,
-                                                type=self.type,)
+                                                type=self.type_train,)
 
     def set_test_dataset(self):
         self.test_dataset = LibriSpeechDataset(data_path=self.data_path,
@@ -285,8 +287,8 @@ class LibriSpeechDataModule(BaseDataModule):
                                                sample_rate=self.sample_rate,
                                                max_sample_size=self.max_sample_size,
                                                min_sample_size=self.min_sample_size,
-                                               precompute_mask_config=self.precompute_mask_config,
-                                               type='test-other',)
+                                               precompute_mask_config=None,
+                                               type=self.type_test,)
         
 
 class SpeechCommandsDataModule(BaseDataModule):
@@ -321,7 +323,6 @@ class SpeechCommandsDataModule(BaseDataModule):
     def set_train_dataset(self):
         self.train_dataset = SpeechCommandsDataset(data_path=self.data_path,
                                                    split='train',
-                                                   min_sample_size=self.min_sample_size,
                                                    normalize=self.normalize,
                                                    pad=self.pad,
                                                    precompute_mask_config=self.precompute_mask_config,)
@@ -329,7 +330,9 @@ class SpeechCommandsDataModule(BaseDataModule):
     def set_test_dataset(self):
         self.test_dataset = SpeechCommandsDataset(data_path=self.data_path,
                                                   split='test',
-                                                  precompute_mask_config=self.precompute_mask_config,)
+                                                  normalize=self.normalize,
+                                                  pad=self.pad,
+                                                  precompute_mask_config=None,)
 
 
 UNIMODAL_REGISTRY = {

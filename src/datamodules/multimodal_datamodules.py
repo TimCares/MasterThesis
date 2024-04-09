@@ -32,19 +32,17 @@ class COCOCaptionsDataModule(BaseDataModule):
         self.val_dataset = COCOCaptions(data_path=self.data_path,
                                         split='val',
                                         num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                        transform_jitter=self.transform_jitter,
-                                        beit_transforms=self.beit_transforms,
-                                        no_transform=self.no_transform,
-                                        crop_scale=self.crop_scale,)
+                                        transform_jitter=False,
+                                        beit_transforms=False,
+                                        no_transform=True,)
 
     def set_test_dataset(self):
         self.test_dataset = COCOCaptions(data_path=self.data_path,
                                          split='test',
                                          num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                         transform_jitter=self.transform_jitter,
-                                         beit_transforms=self.beit_transforms,
-                                         no_transform=self.no_transform,
-                                         crop_scale=self.crop_scale,)
+                                         transform_jitter=False,
+                                         beit_transforms=False,
+                                         no_transform=True,)
         
 
 class VisualGenomeDataModule(BaseDataModule):
@@ -116,19 +114,17 @@ class VQAv2DataModule(BaseDataModule):
         self.val_dataset = VQAv2(data_path=self.data_path,
                                  split='val',
                                  num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                 transform_jitter=self.transform_jitter,
-                                 beit_transforms=self.beit_transforms,
-                                 no_transform=self.no_transform,
-                                 crop_scale=self.crop_scale,)
+                                 transform_jitter=False,
+                                 beit_transforms=False,
+                                 no_transform=True,)
 
     def set_test_dataset(self):
         self.test_dataset = VQAv2(data_path=self.data_path,
                                   split='test', # TODO: add test-dev?
                                   num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                  transform_jitter=self.transform_jitter,
-                                  beit_transforms=self.beit_transforms,
-                                  no_transform=self.no_transform,
-                                  crop_scale=self.crop_scale,)
+                                  transform_jitter=False,
+                                  beit_transforms=False,
+                                  no_transform=True,)
         
 
 class NLVR2DataModule(BaseDataModule):
@@ -248,10 +244,6 @@ class Flickr8AudioDataModule(BaseDataModule):
     def set_train_dataset(self):
         self.train_dataset = Flickr8KAudioDataset(data_path=self.data_path,
                                                   split='train',
-                                                  transform_jitter=self.transform_jitter,
-                                                  beit_transforms=self.beit_transforms,
-                                                  no_transform=self.no_transform,
-                                                  crop_scale=self.crop_scale,
                                                   sample_rate=self.sample_rate,
                                                   max_sample_size=self.max_sample_size,
                                                   min_sample_size=self.min_sample_size,
@@ -262,30 +254,22 @@ class Flickr8AudioDataModule(BaseDataModule):
     def set_val_dataset(self):
         self.val_dataset = Flickr8KAudioDataset(data_path=self.data_path,
                                                 split='val',
-                                                transform_jitter=self.transform_jitter,
-                                                beit_transforms=self.beit_transforms,
-                                                no_transform=self.no_transform,
-                                                crop_scale=self.crop_scale,
                                                 sample_rate=self.sample_rate,
                                                 max_sample_size=self.max_sample_size,
                                                 min_sample_size=self.min_sample_size,
                                                 normalize=self.normalize,
                                                 pad=self.pad,
-                                                precompute_mask_config=self.precompute_mask_config)
+                                                precompute_mask_config=None)
 
     def set_test_dataset(self): # to be used for zero-shot retrieval
         self.test_dataset = Flickr8KAudioDataset(data_path=self.data_path,
                                                  split='test',
-                                                 transform_jitter=self.transform_jitter,
-                                                 beit_transforms=self.beit_transforms,
-                                                 no_transform=self.no_transform,
-                                                 crop_scale=self.crop_scale,
                                                  sample_rate=self.sample_rate,
                                                  max_sample_size=self.max_sample_size,
                                                  min_sample_size=self.min_sample_size,
                                                  normalize=self.normalize,
                                                  pad=self.pad,
-                                                 precompute_mask_config=self.precompute_mask_config)
+                                                 precompute_mask_config=None)
             
 
 class CommonVoiceDataModule(BaseDataModule):
@@ -338,14 +322,14 @@ class CommonVoiceDataModule(BaseDataModule):
         
     def set_test_dataset(self):
         self.test_dataset = CommonVoice(data_path=self.data_path,
-                                         split='retrieval', # is the test split for zero-shot retrieval
-                                         num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                         sample_rate=self.sample_rate,
-                                         max_sample_size=self.max_sample_size,
-                                         min_sample_size=self.min_sample_size,
-                                         normalize=self.normalize,
-                                         pad=self.pad,
-                                         precompute_mask_config=self.precompute_mask_config,)
+                                        split='retrieval', # is the test split for zero-shot retrieval
+                                        num_max_bpe_tokens=self.num_max_bpe_tokens,
+                                        sample_rate=self.sample_rate,
+                                        max_sample_size=self.max_sample_size,
+                                        min_sample_size=self.min_sample_size,
+                                        normalize=self.normalize,
+                                        pad=self.pad,
+                                        precompute_mask_config=None,)
 
 
 MULTIMODAL_REGISTRY = {

@@ -201,10 +201,6 @@ class Flickr8KAudioDataset(BaseImageAudio):
     def __init__(self, 
                  data_path,
                  split,
-                 transform_jitter:bool,
-                 beit_transforms:bool,
-                 no_transform:bool,
-                 crop_scale:Tuple[float, float],
                  sample_rate:int,
                  max_sample_size:int,
                  min_sample_size:int,
@@ -217,7 +213,6 @@ class Flickr8KAudioDataset(BaseImageAudio):
                          transform_jitter=False,
                          beit_transforms=False,
                          no_transform=True,
-                         crop_scale=crop_scale, # ignored
                          sample_rate=sample_rate,
                          max_sample_size=max_sample_size,
                          min_sample_size=min_sample_size,

@@ -251,18 +251,24 @@ class SpeechCommandsDataset(AudioDataset):
     def __init__(self, 
                  data_path:str,
                  split:str,
-                 min_sample_size:int,
                  normalize:bool,
                  pad:bool,
                  precompute_mask_config:Dict[str, Any]={},
                  ):
-        super().__init__(data_path,
-                         split,
-                         16_000, 
-                         16_000,
-                         min_sample_size, normalize, pad, **precompute_mask_config)
+        super().__init__(data_path=data_path,
+                         split=split,
+                         sample_rate=16_000, 
+                         max_sample_size=16_000,
+                         min_sample_size=0,
+                         normalize=normalize,
+                         pad=pad, 
+                         **precompute_mask_config)
         # as described in the paper to the dataset, each sample is at a maximum of 1 second
         # long and is sampled at 16kHz (https://arxiv.org/pdf/1804.03209.pdf)
+        # min_sample_size is 0, so we take all samples
+        # The parameters sample_rate, min_sample_size generally have to effect here.
+        # This is because even though we inherit from AudioDataset, we only do 
+        # so we can easily reuse the collater method of AudioDataset.
 
         if self.split == "train":
             self.subset = "training"
