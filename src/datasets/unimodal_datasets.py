@@ -40,7 +40,7 @@ class EnWik9Dataset(NLPDataset):
         self.data_path = dataset_path
         os.makedirs(dataset_path, exist_ok=True)
         download_and_unzip(urls=["http://mattmahoney.net/dc/enwik9.zip"], store_at='.')
-        os.system(f"perl ../setup/clean_enwik9.pl enwik9 > enwik9.txt")
+        os.system(f"perl datasets/clean_enwik9.pl enwik9 > enwik9.txt")
         os.remove("enwik9")
         encode(f'{base_data_path}/encoder.json', f'{base_data_path}/vocab.bpe', ['enwik9.txt'], ['enwik9.bpe'], keep_empty=True)
         os.remove("enwik9.txt")
