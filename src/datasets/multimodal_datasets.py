@@ -12,6 +12,7 @@ import json
 import random
 import glob
 from collections import defaultdict, Counter
+import soundfile as sf
 
 from .base_datasets import BaseImageText, BaseTextAudio, BaseImageAudio
     
@@ -252,14 +253,23 @@ class Flickr8KAudioDataset(BaseImageAudio):
             meta_data = json.loads(reader.read())["images"]
 
         image_to_audio = {}
+        n_skipped = 0
         with open(os.path.join(self.path_to_data, "flickr_audio", "wav2capt.txt"), 'r', encoding='utf-8') as reader:
             for line in reader:
                 wav_file, jpg_file, _ = line.strip().split()
+
+                audio, _ = sf.read(os.path.join(self.path_to_data, "flickr_audio", "wavs", wav_file), dtype="float32")
+                audio = torch.from_numpy(audio).float()
+                if len(audio) < self.min_sample_size:
+                    n_skipped+=1
+                    continue
+
                 if jpg_file in image_to_audio:
                     image_to_audio[jpg_file].append(wav_file)
                 else:
                     image_to_audio[jpg_file] = [wav_file]
         
+        self.log(f"Skipped {n_skipped} audio samples with length < {self.min_sample_size}")
         index = []
         n_images = 0
 
@@ -271,7 +281,7 @@ class Flickr8KAudioDataset(BaseImageAudio):
             try:
                 audio_names = image_to_audio[filename]
             except KeyError:
-                raise KeyError(f"no audio for {filename}")
+                raise KeyError(f"Flickr8kAudio: No audio for {filename}")
 
             for audio_name in audio_names:
                 index.append({
@@ -727,9 +737,17 @@ class CommonVoice(BaseTextAudio):
         bpe_encoder = self.get_bpe_encoder()
 
         items = []
+        n_skipped = 0
         for i, row in validated_data.iterrows():
             path = os.path.join(self.path_to_clips, row['path'].replace('.mp3', '.flac'))
             token_ids = bpe_encoder.encode(row['sentence'])
+
+            audio, _ = sf.read(path, dtype="float32")
+            audio = torch.from_numpy(audio).float()
+            if len(audio) < self.min_sample_size:
+                n_skipped+=1
+                continue
+
             items.append({
                 "audio_path": path,
                 "text_segment": token_ids,
@@ -737,6 +755,7 @@ class CommonVoice(BaseTextAudio):
                 "client_id": row['client_id'],
                 "sentence_id": row['sentence_id'],
             })
+        self.log(f"Skipped {n_skipped} audio samples with length < {self.min_sample_size}")
         write_data_into_jsonl(items, os.path.join(self.path_to_data, f"common_voice.{self.split}.jsonl"))
 
 

@@ -140,12 +140,12 @@ class AudioDataset(BaseDataset):
             self,
             data_path:str,
             split:str,
-            sample_rate:int,
-            max_sample_size:int,
-            min_sample_size:int,
-            normalize:bool,
-            pad:bool,
-            feature_encoder_spec,
+            sample_rate:int=16_000,
+            max_sample_size:int=320_000,
+            min_sample_size:int=0,
+            normalize:bool=True,
+            pad:bool=True,
+            feature_encoder_spec=[],
             ):
         super().__init__(data_path, split)
         self.sample_rate = sample_rate
