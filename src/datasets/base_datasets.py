@@ -779,4 +779,10 @@ class BaseTextAudio(AudioDataset):
             else:
                 input[key] = torch.tensor([d[key] for d in samples])
 
+        input['padding_mask'] = {
+            'audio': input['padding_mask'], # originates from super().collater
+            'text': input['language_padding_mask']
+        }
+        input.pop('language_padding_mask')
+
         return input
