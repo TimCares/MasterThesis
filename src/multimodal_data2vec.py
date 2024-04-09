@@ -355,7 +355,21 @@ class KDMMData2Vec(nn.Module):
         )
         return res
     
-    def _encode_modality(self, mode:Modality, audio=None, image=None, text=None, padding_mask=None, normalize:bool=True):
+    def encode_modality(self, mode:Modality|List[Modality], source:torch.Tensor, padding_mask=None, normalize:bool=True):
+        if isinstance(mode, List):
+            assert len(mode)==1, 'Only one modality allowed when calling "encode_modality".'
+            mode = mode[0]
+        # at this point Modality has to be of type "Modality".
+        audio, image, text = None
+        if mode == Modality.AUDIO:
+            audio = source
+        elif mode == Modality.IMAGE:
+            image = source
+        elif mode == Modality.TEXT:
+            text = source
+        else:
+            raise ValueError(f"Did not find mand for modality {mode}, allowed modes are: [{Modality.AUDIO}, {Modality.IMAGE}, {Modality.TEXT}]")
+
         output = self.extract_features(
             audio=audio,
             image=image,
@@ -369,21 +383,21 @@ class KDMMData2Vec(nn.Module):
         if normalize:
             output = F.normalize(output, dim=-1)
         
-        return output
+        return output # shape: (batch_size, 1, embed_dim)
 
     def encode_audio(self, audio, padding_mask, normalize:bool=True):
-        return self._encode_modality(audio=audio,
+        return self.encode_modality(source=audio,
                                      mode=Modality.AUDIO,
                                      padding_mask=padding_mask,
                                      normalize=normalize)
     
     def encode_image(self, image, normalize:bool=True):
-        return self._encode_modality(image=image,
+        return self.encode_modality(source=image,
                                      mode=Modality.IMAGE,
                                      normalize=normalize)
 
     def encode_text(self, text, padding_mask, normalize:bool=True):
-        return self._encode_modality(text=text,
+        return self.encode_modality(source=text,
                                      mode=Modality.TEXT,
                                      padding_mask=padding_mask,
                                      normalize=normalize)

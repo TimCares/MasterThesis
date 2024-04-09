@@ -13,6 +13,7 @@ from flava.data.transforms import (
     default_text_transform,
 )
 from torch import nn
+from datasets import Modality
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -35,30 +36,32 @@ def transform(image, target):
     return transformed_image, transformed_text
 
 
-# def collator(batch):
-#     texts = []
-#     images = torch.stack([x[0]["image"] for x in batch], dim=0)
-#     texts = torch.cat([torch.LongTensor(x[1]["input_ids"]) for x in batch], dim=0)
-#     return images, texts
-
-
 @torch.no_grad()
 def zero_shot_retrieval(model, dataloader, device, name, modalities):
     mode_a_embeds = []
     mode_b_embeds = []
 
     for _, batch in track(enumerate(dataloader), description=f"Encoding {name}..."):
-        a, b = batch
-        a_emb = model.encode_image(a.to(device), )
-        b_emb = model.encode_text(b.to(device),) # TODO: Padding mask
+        a_mode_name = batch['modes'][0].name.lower()
+        b_mode_name = batch['modes'][1].name.lower()
+
+        a_source = batch[a_mode_name].to(device)
+        b_source = batch[b_mode_name].to(device)
+
+        if Modality.TEXT in batch['modes'] and Modality.AUDIO in batch['modes']:
+            a_padding_mask = batch['padding_mask'][a_mode_name].to(model.device)
+            b_padding_mask = batch['padding_mask'][b_mode_name].to(model.device)
+        else:
+            a_padding_mask = batch['padding_mask'].to(model.device) if 'padding_mask' in batch else None
+            b_padding_mask = batch['padding_mask'].to(model.device) if 'padding_mask' in batch else None
+
+        a_emb = model.encode_modality(mode=batch['modes'][0], source=a_source, padding_mask=a_padding_mask, normalize=True)
+        b_emb = model.encode_modality(mode=batch['modes'][1], source=b_source, padding_mask=b_padding_mask, normalize=True)
         mode_a_embeds.append(a_emb.detach().cpu())
         mode_b_embeds.append(b_emb.detach().cpu())
 
     mode_a_embeds = torch.cat(mode_a_embeds, 0)
     mode_b_embeds = torch.cat(mode_b_embeds, 0)
-
-    mode_a_embeds = nn.functional.normalize(mode_a_embeds, dim=-1)
-    mode_b_embeds = nn.functional.normalize(mode_b_embeds, dim=-1)
 
     similarity_scores = mode_a_embeds @ mode_b_embeds.t()
     similarity_scores_t = similarity_scores.t()

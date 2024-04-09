@@ -5,6 +5,7 @@ from typing import Tuple, Callable
 from sklearn.neighbors import KNeighborsClassifier
 import logging
 import torch
+import numpy as np
 from torch.utils.data import DataLoader
 from pytorch_lightning import Callback, LightningDataModule
 from pytorch_lightning.utilities import rank_zero_only
@@ -104,38 +105,42 @@ def run_multimodal_zero_shot(model:Callable,
     results[f"multimodal-{name}--zeroshot-val-top5"] = top5
     return results
 
+
 @torch.no_grad()
+def _get_knn_data(model, data_loader:DataLoader) ->Tuple[np.ndarray, np.ndarray]:
+    X = []
+    y = []
+    for batch in data_loader:
+        source = batch[batch['modes'][0].name.lower()].to(model.device)
+        padding_mask = batch['padding_mask'].to(model.device) if 'padding_mask' in batch else None
+        out = model.encode_modality(mode=batch['modes'], source=source, padding_mask=padding_mask,
+                                    normalize=True) # norm output
+
+        X.append(out)
+        y.append(batch['target'])
+    # shape after "cat" will be (n_samples, 1, embed_dim)
+    # so transform to (n_samples, embed_dim) with "squeeze"
+    X = torch.cat(X, dim=0).squeeze(1)
+    X = X.cpu().numpy()
+    y = torch.cat(y, dim=0).cpu().numpy()
+    return X, y
+
+
 @rank_zero_only # only needed in a distributed setting
 def make_knn_predictions(model:Callable,
                          n_neighbors:int,
                          train_loader:DataLoader,
                          test_loader:DataLoader,
                          name:str) -> Tuple[Callable, float]:
-    X_train = []
-    y_train = []
-    for batch in train_loader:
-        batch = batch.to(model.device)
-        X_train.append(model(batch[0])) # TODO add parameters, and [:, 0, :], if not done in the model (no causal mask!)
-        y_train.append(batch[1])
-    X_train = torch.cat(X_train, dim=0)
-    X_train = X_train / X_train.norm(p=2, dim=-1, keepdim=True) # normalize
-    X_train = X_train.cpu().numpy()
-    y_train = torch.cat(y_train, dim=0).cpu().numpy()
+    
+    X_train, y_train = _get_knn_data(model=model, data_loader=train_loader)
 
-    X_test = []
-    y_test = []
-    for batch in test_loader:
-        batch = batch.to(model.device)
-        X_test.append(model(batch[0])) # TODO add parameters, and [:, 0, :], if not done in the model (no causal mask!)
-        y_test.append(batch[1])
-    X_test = torch.cat(X_test, dim=0)
-    X_test = X_test / X_test.norm(p=2, dim=-1, keepdim=True) # normalize
-    X_test = X_test.cpu().numpy()
-    y_test = torch.cat(y_test, dim=0).cpu().numpy()
- 
     knn = KNeighborsClassifier(n_neighbors=n_neighbors)
     logger.info(f"Training KNN with {n_neighbors} neighbors")
     knn.fit(X_train, y_train)
+
+    X_test, y_test = _get_knn_data(model=model, data_loader=test_loader)
+ 
     logger.info(f"Predicting with KNN")
     y_hat_test = knn.predict_proba(X_test)
     acc = accuracy_score(y_test, y_hat_test.argmax(axis=1)) # .argmax(axis=1) -> convert class scores to class labels
@@ -143,8 +148,8 @@ def make_knn_predictions(model:Callable,
     logger.info(f"{name}, zero-shot: top1-accuracy: {acc}, top5-accuracy: {acc5}")
 
     results = {}
-    results[f"unimodal-{name}-knn--zeroshot-test-top1"] = acc
-    results[f"unimodal-{name}-knn--zeroshot-test-top5"] = acc5
+    results[f"unimodal-{name}-knn--zeroshot-test-top1-acc"] = acc
+    results[f"unimodal-{name}-knn--zeroshot-test-top5-acc"] = acc5
     return knn, results
 
 
