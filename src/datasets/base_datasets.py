@@ -132,7 +132,7 @@ class NLPDataset(BaseDataset):
         dataset = AppendTokenDataset(dataset, self.dictionary.eos())
 
         input_dict = {
-            "language_tokens": RightPadDataset(
+            "text": RightPadDataset(
                 dataset,
                 pad_idx=self.dictionary.pad(),
             ),
@@ -344,7 +344,6 @@ class MaeImageDataset(FairseqDataset):
         input_size,
         local_cache_path=None,
         shuffle=True,
-        key="image",
         beit_transforms=False,
         no_transform=False,
         transform_jitter=False,
@@ -365,7 +364,7 @@ class MaeImageDataset(FairseqDataset):
         FairseqDataset.__init__(self)
 
         self.shuffle = shuffle
-        self.key = key
+        self.key = 'image'
 
         loader = caching_loader(local_cache_path, datasets.folder.default_loader)
 
@@ -458,7 +457,7 @@ class MaeImageDataset(FairseqDataset):
 
         if "target" in samples[0]:
             collated_target = torch.stack([s["target"] for s in samples], dim=0)
-            res["label"] = collated_target
+            res["target"] = collated_target
 
         if "precomputed_mask" in samples[0]:
             collated_mask = torch.cat([s["precomputed_mask"] for s in samples], dim=0)
@@ -554,9 +553,9 @@ class BaseImageText(BaseDataset):
         img = self._get_image(img_path)
         data["image"] = img
 
-        text_segment = item["text_segment"]
+        text_segment = item["text"]
         language_tokens, padding_mask, _ = self._get_text_segment(text_segment)
-        data["language_tokens"] = language_tokens
+        data["text"] = language_tokens
         data["padding_mask"] = padding_mask
 
     def __getitem__(self, index: int):
@@ -757,9 +756,9 @@ class BaseTextAudio(AudioDataset):
 
     def _get_text_audio_example(self, index: int, data: dict):
         item = self.items[index]
-        text_segment = item["text_segment"]
+        text_segment = item["text"]
         language_tokens, padding_mask, _ = self._get_text_segment(text_segment)
-        data["language_tokens"] = language_tokens
+        data["text"] = language_tokens
         data["language_padding_mask"] = padding_mask
 
         audio_path = item["audio_path"]
@@ -774,7 +773,7 @@ class BaseTextAudio(AudioDataset):
         input = super().collater(samples)
         
         # language data must be collated seperately, as super().collater only for audio (superclass in "AudioDataset")
-        for key in ["language_tokens", "language_padding_mask"]:
+        for key in ["text", "language_padding_mask"]:
             if isinstance(samples[0][key], torch.Tensor):
                 input[key] = torch.stack([d[key] for d in samples], dim=0)
             else:

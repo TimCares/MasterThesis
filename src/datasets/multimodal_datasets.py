@@ -74,10 +74,10 @@ class COCOCaptions(BaseImageText):
         data["image"] = img
         data["id"] = item["id"]
 
-        text_segment = item["text_segment"]
+        text_segment = item["text"]
         if text_segment is not None:
             language_tokens, padding_mask, _ = self._get_text_segment(text_segment)
-            data["language_tokens"] = language_tokens
+            data["text"] = language_tokens
             data["padding_mask"] = padding_mask
         return data
     
@@ -114,7 +114,7 @@ class COCOCaptions(BaseImageText):
                         else:
                             items.append({
                                         "image_path": image_path, 
-                                        "text_segment": None, 
+                                        "text": None, 
                                         "id": item["cocoid"], 
                             })
                     else:
@@ -130,7 +130,7 @@ class COCOCaptions(BaseImageText):
         return [
             {
                 "image_path": image_path,
-                "text_segment": bpe_encoder.encode(sent["raw"]),
+                "text": bpe_encoder.encode(sent["raw"]),
                 "id": len(image_counter) if self.task=="retrieval" else item["cocoid"],
             }
             for sent in item["sentences"]
@@ -200,7 +200,7 @@ class Flickr30Dataset(BaseImageText):
             for text_segment in each_item["sentences"]: 
                 index.append({
                     "image_path": image_path, 
-                    "text_segment": bpe_encoder.encode(text_segment["raw"]), 
+                    "text": bpe_encoder.encode(text_segment["raw"]), 
                     "id": len(index), 
                 })
             n_images = 0
@@ -362,7 +362,7 @@ class VisualGenome(BaseImageText):
             token_ids = token_ids[:self.num_max_bpe_tokens - 2]
             items.append({
                 "image_path": image_path, 
-                "text_segment": token_ids,
+                "text": token_ids,
                 "id": image_meta["id"], 
             })
 
@@ -376,10 +376,10 @@ class VisualGenome(BaseImageText):
         data["image"] = img
         data["id"] = item["id"]
 
-        text_segment = item["text_segment"]
+        text_segment = item["text"]
         if text_segment is not None:
             language_tokens, padding_mask, _ = self._get_text_segment(text_segment)
-            data["language_tokens"] = language_tokens
+            data["text"] = language_tokens
             data["padding_mask"] = padding_mask
         return data
     
@@ -594,8 +594,8 @@ class VQAv2(BaseImageText):
 
                     items.append({
                         "image_path": path, 
-                        "text_segment": q["token_ids"], 
-                        "labels": labels, 
+                        "text": q["token_ids"], 
+                        "target": labels, 
                         "scores": scores, 
                         "qid": qid, 
                     })
@@ -662,7 +662,7 @@ class NLVR2(BaseImageText):
         img_path = item["image2_path"]
         img = self._get_image(img_path)
         data["image2"] = img
-        data["label"] = self.items[index]["label"]
+        data["target"] = self.items[index]["label"]
         return data
     
     def get_index_files(self):
@@ -687,8 +687,8 @@ class NLVR2(BaseImageText):
                 items.append({
                     "image_path": path + "-img0.png",
                     "image2_path": path + "-img1.png",
-                    "text_segment": token_ids,
-                    "label": 1 if data["label"] == "True" else 0,
+                    "text": token_ids,
+                    "target": 1 if data["label"] == "True" else 0,
                     "identifier": data["identifier"], 
                 })
         write_data_into_jsonl(items, index_file)
@@ -786,7 +786,7 @@ class CommonVoice(BaseTextAudio):
 
             items.append({
                 "audio_path": path,
-                "text_segment": token_ids,
+                "text": token_ids,
                 "id": i,
                 "client_id": row['client_id'],
                 "sentence_id": row['sentence_id'],

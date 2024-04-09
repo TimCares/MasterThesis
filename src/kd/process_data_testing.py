@@ -83,8 +83,8 @@ def extract_targets(cfg: DictConfig) -> None:
     offset=0
     with torch.no_grad():
         for idx, batch in track(enumerate(train_dataloader), description="Running predictions...", total=len(train_dataloader)):
-            pred=torch.arange(start=offset, end=offset+batch['language_tokens'].shape[0]-1)
-            offset+=batch['language_tokens'].shape[0]
+            pred=torch.arange(start=offset, end=offset+batch['text'].shape[0]-1)
+            offset+=batch['text'].shape[0]
             # pred = model.extract_features(
             #     source=batch['source'],
             #     mode=None, # determined automatically in model
@@ -100,7 +100,7 @@ def extract_targets(cfg: DictConfig) -> None:
             })
             item = {
                 'label': pred,
-                'source': batch['language_tokens'],
+                'source': batch['text'],
             }
             torch.save(item, os.path.join(kd_targets_path, filename))
 

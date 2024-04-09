@@ -170,7 +170,7 @@ class IMDBDataset(BaseDataset):
             num_tokens = len(tokens)
             padding_mask = [0] * num_tokens + [1] * (self.num_max_bpe_tokens - num_tokens)
             language_tokens =  tokens + [pad_token_id] * (self.num_max_bpe_tokens - num_tokens)
-            items.append({'language_tokens': language_tokens, 'padding_mask': padding_mask, 'label': label})
+            items.append({'text': language_tokens, 'padding_mask': padding_mask, 'target': label})
 
         write_data_into_jsonl(items, self.out_jsonl_path)
         shutil.rmtree(f'{self.path_to_data}/datasets')
@@ -260,8 +260,9 @@ class LibriSpeechDataset(AudioDataset):
         collater_res = self.dataset.collater(samples)
         res = {
             'id': collater_res['id'],
-            'source': collater_res['net_input']['source'],
+            'audio': collater_res['net_input']['source'],
             'precomputed_mask': collater_res['net_input']['precomputed_mask'],
+            'padding_mask': collater_res['net_input']['padding_mask'],
         }
         return res
 
@@ -311,11 +312,11 @@ class SpeechCommandsDataset(AudioDataset):
 
     def __getitem__(self, index):
         item = self.items[index]
-        return {"source": item[0][0], "label": item[2], "id": index}
+        return {"audio": item[0][0], "target": item[2], "id": index}
     
     def collater(self, samples):
         input = super().collater(samples)
-        input["label"] = torch.LongTensor([self.class_to_id[s["label"]] for s in samples])
+        input["target"] = torch.LongTensor([self.class_to_id[s["target"]] for s in samples])
         return input
 
 
@@ -386,7 +387,7 @@ class ImageNetDataset(ImageDataset):
         data = self.items[index]
         image = self._get_image(image_path=data['image_path'])
         return {
-            'source': image,
+            'image': image,
             'id': index,
             'target': data['target']
         }
