@@ -9,6 +9,7 @@ import numpy as np
 from shutil import copyfile
 from functools import partial
 import soundfile as sf
+from enum import Enum, auto
 from .data_utils import get_transforms 
 from .data_utils import get_bpe_encoder as get_bpe_encoder_from_utils
 import torch.nn.functional as F
@@ -33,6 +34,11 @@ from torchvision.datasets import ImageFolder
 
 logger = logging.getLogger(__name__)
 
+class Modality(Enum):
+    AUDIO = auto()
+    IMAGE = auto()
+    TEXT = auto()
+
 class BaseDataset(torch.utils.data.Dataset):
     def __init__(self, data_path:str, split:str):
         self.data_path = data_path
@@ -46,6 +52,10 @@ class BaseDataset(torch.utils.data.Dataset):
     
     def __len__(self):
         return len(self.items)
+    
+    @property
+    def modes(self) -> List[Modality]:
+        raise NotImplementedError
 
     def collater(self, samples):
         batch_tensors = {}
@@ -55,6 +65,7 @@ class BaseDataset(torch.utils.data.Dataset):
             else:
                 batch_tensors[tensor_key] = torch.tensor([d[tensor_key] for d in samples], dtype=torch.long)
 
+        batch_tensors['modes'] = self.modes
         return batch_tensors
     
     def log(self, msg:str):
@@ -68,12 +79,17 @@ class NLPDataset(BaseDataset):
             split:str,
             num_max_bpe_tokens:int,
             sample_break_mode:str='none',):
-        super().__init__(data_path, split)
+        super().__init__(data_path=data_path, 
+                         split=split)
         self.nlp_dir_path = os.path.join(self.data_path, 'language')
         os.makedirs(self.nlp_dir_path, exist_ok=True)
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
         self.sample_break_mode = sample_break_mode
+
+    @property
+    def modes(self) -> List[Modality]:
+        return [Modality.TEXT]
 
     def index_exists(self, dataset_path):
         if os.path.exists(os.path.join(dataset_path, 'train.bin')) and os.path.exists(os.path.join(dataset_path, 'train.idx')):
@@ -147,7 +163,8 @@ class AudioDataset(BaseDataset):
             pad:bool=True,
             feature_encoder_spec=[],
             ):
-        super().__init__(data_path, split)
+        super().__init__(data_path=data_path,
+                         split=split)
         self.sample_rate = sample_rate
         self.max_sample_size = max_sample_size
         self.min_sample_size = min_sample_size
@@ -155,6 +172,10 @@ class AudioDataset(BaseDataset):
         self.pad = pad
         self.feature_encoder_spec = feature_encoder_spec
         self._features_size_map = {}
+
+    @property
+    def modes(self) -> List[Modality]:
+        raise [Modality.AUDIO]
 
     def collater(self, samples):
         if len(samples) == 0:
@@ -255,18 +276,23 @@ class ImageDataset(BaseDataset):
             beit_transforms,
             no_transform,
             transform_jitter,
-            precompute_mask_config,
             crop_scale,
             dataset_type,
-            local_cache_path):
-        super().__init__(data_path, split)
+            local_cache_path,
+            precompute_mask_config,):
+        super().__init__(data_path=data_path,
+                         split=split)
         self.beit_transforms = beit_transforms
         self.no_transform = no_transform
         self.transform_jitter = transform_jitter
-        self.precompute_mask_config = precompute_mask_config
         self.crop_scale = crop_scale
         self.dataset_type = dataset_type
         self.local_cache_path = local_cache_path
+        self.precompute_mask_config = precompute_mask_config
+
+    @property
+    def modes(self) -> List[Modality]:
+        return [Modality.IMAGE]
     
 
 def load(path, loader, cache):
@@ -452,7 +478,8 @@ class BaseImageText(BaseDataset):
         no_transform=False,
         crop_scale=(0.6, 1.0),
     ):
-        super().__init__(data_path, split)
+        super().__init__(data_path=data_path, 
+                         split=split)
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.transform_jitter = transform_jitter
         self.beit_transforms = beit_transforms
@@ -470,6 +497,10 @@ class BaseImageText(BaseDataset):
                                         beit_transforms=self.beit_transforms,
                                         transform_jitter=self.transform_jitter,
                                         crop_scale=self.crop_scale)
+        
+    @property
+    def modes(self) -> List[Modality]:
+        return [Modality.IMAGE, Modality.TEXT]
         
     def index_exists(self, dataset_path):
         for index_file in self.get_index_files():
@@ -565,8 +596,14 @@ class BaseImageAudio(AudioDataset):
         pad:bool=True,
         precompute_mask_config:Dict[str, Any]={},
     ):
-        super().__init__(data_path, split, sample_rate, max_sample_size, min_sample_size, 
-                         normalize, pad, **precompute_mask_config)
+        super().__init__(data_path=data_path, 
+                         split=split, 
+                         sample_rate=sample_rate, 
+                         max_sample_size=max_sample_size, 
+                         min_sample_size=min_sample_size, 
+                         normalize=normalize, 
+                         pad=pad,
+                         **precompute_mask_config)
         self.transform_jitter = transform_jitter
         self.beit_transforms = beit_transforms
         self.no_transform = no_transform
@@ -578,6 +615,10 @@ class BaseImageAudio(AudioDataset):
                                         beit_transforms=self.beit_transforms,
                                         transform_jitter=self.transform_jitter,
                                         crop_scale=self.crop_scale)
+        
+    @property
+    def modes(self) -> List[Modality]:
+        return [Modality.IMAGE, Modality.AUDIO]
         
     def index_exists(self, dataset_path):
         for index_file in self.get_index_files():
@@ -646,8 +687,14 @@ class BaseTextAudio(AudioDataset):
         pad:bool=True,
         precompute_mask_config:Dict[str, Any]={},
     ):
-        super().__init__(data_path, split, sample_rate, max_sample_size, min_sample_size, 
-                         normalize, pad, **precompute_mask_config)
+        super().__init__(data_path=data_path, 
+                         split=split, 
+                         sample_rate=sample_rate, 
+                         max_sample_size=max_sample_size, 
+                         min_sample_size=min_sample_size, 
+                         normalize=normalize, 
+                         pad=pad,
+                         **precompute_mask_config)
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.path_to_data = None
 
@@ -656,6 +703,10 @@ class BaseTextAudio(AudioDataset):
         self.bos_token_id = self.dictionary.bos()
         self.eos_token_id = self.dictionary.eos()
         self.pad_token_id = self.dictionary.pad()
+
+    @property
+    def modes(self) -> List[Modality]:
+        return [Modality.TEXT, Modality.AUDIO]
 
     def index_exists(self, dataset_path):
         for index_file in self.get_index_files():

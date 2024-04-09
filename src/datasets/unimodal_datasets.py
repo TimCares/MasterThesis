@@ -23,7 +23,7 @@ import torchtext
 from torchvision.datasets import CIFAR10, CIFAR100
 from torchvision.datasets.folder import default_loader
 
-from .base_datasets import AudioDataset, ImageDataset, NLPDataset
+from .base_datasets import AudioDataset, ImageDataset, NLPDataset, Modality
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,10 @@ class EnWik9Dataset(NLPDataset):
             split:str,
             num_max_bpe_tokens:int,
             sample_break_mode:str='none',):
-        super().__init__(data_path, split, num_max_bpe_tokens, sample_break_mode)
+        super().__init__(data_path=data_path, 
+                         split=split, 
+                         num_max_bpe_tokens=num_max_bpe_tokens, 
+                         sample_break_mode=sample_break_mode)
 
         dataset_path = os.path.join(self.nlp_dir_path, 'enwik9')
         base_data_path = self.data_path
@@ -60,7 +63,10 @@ class OpenWebTextDataset(NLPDataset):
                  split: str,
                  num_max_bpe_tokens: int,
                  sample_break_mode: str = 'none'):
-        super().__init__(data_path, split, num_max_bpe_tokens, sample_break_mode)
+        super().__init__(data_path=data_path,
+                         split=split,
+                         num_max_bpe_tokens=num_max_bpe_tokens, 
+                         sample_break_mode=sample_break_mode)
         dataset_path = os.path.join(self.nlp_dir_path, 'openwebtext')
         base_data_path = self.data_path
         self.data_path = dataset_path
@@ -135,7 +141,8 @@ class IMDBDataset(BaseDataset):
             data_path:str,
             split:str,
             num_max_bpe_tokens:int,):
-        super().__init__(data_path, split)
+        super().__init__(data_path=data_path,
+                         split=split)
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.path_to_data = os.path.join(self.data_path, 'language', 'imdb')
         self.out_jsonl_path = os.path.join(self.path_to_data, f'{self.split}.jsonl')
@@ -167,6 +174,10 @@ class IMDBDataset(BaseDataset):
 
         write_data_into_jsonl(items, self.out_jsonl_path)
         shutil.rmtree(f'{self.path_to_data}/datasets')
+
+    @property
+    def modes(self) -> List[Modality]:
+        return [Modality.TEXT]
                 
     def load(self):
         items = []
@@ -190,11 +201,18 @@ class LibriSpeechDataset(AudioDataset):
             sample_rate:int,
             max_sample_size:int,
             min_sample_size:int,
+            normalize:bool,
+            pad:bool,
             type:str,
             precompute_mask_config:Dict[str, Any]={},
             ):
-        super().__init__(data_path, split, sample_rate, max_sample_size, min_sample_size, 
-                         True, False,
+        super().__init__(data_path=data_path, 
+                         split=split, 
+                         sample_rate=sample_rate, 
+                         max_sample_size=max_sample_size, 
+                         min_sample_size=min_sample_size, 
+                         normalize=normalize, 
+                         pad=pad,
                          **precompute_mask_config)
         self.precompute_mask_config = precompute_mask_config
 
@@ -242,7 +260,7 @@ class LibriSpeechDataset(AudioDataset):
         collater_res = self.dataset.collater(samples)
         res = {
             'id': collater_res['id'],
-            'audio': collater_res['net_input']['source'],
+            'source': collater_res['net_input']['source'],
             'precomputed_mask': collater_res['net_input']['precomputed_mask'],
         }
         return res
@@ -293,7 +311,7 @@ class SpeechCommandsDataset(AudioDataset):
 
     def __getitem__(self, index):
         item = self.items[index]
-        return {"audio": item[0][0], "label": item[2], "id": index}
+        return {"source": item[0][0], "label": item[2], "id": index}
     
     def collater(self, samples):
         input = super().collater(samples)
@@ -309,13 +327,19 @@ class ImageNetDataset(ImageDataset):
             beit_transforms,
             no_transform,
             transform_jitter,
-            precompute_mask_config,
             crop_scale,
             dataset_type,
-            local_cache_path):
-        super().__init__(data_path, split, beit_transforms, no_transform,
-                         transform_jitter, precompute_mask_config,
-                         crop_scale, dataset_type, local_cache_path)
+            local_cache_path,
+            precompute_mask_config,):
+        super().__init__(data_path=data_path, 
+                         split=split, 
+                         beit_transforms=beit_transforms, 
+                         no_transform=no_transform,
+                         transform_jitter=transform_jitter,
+                         crop_scale=crop_scale,
+                         dataset_type=dataset_type, 
+                         local_cache_path=local_cache_path,
+                         precompute_mask_config=precompute_mask_config)
         self.path_to_data = os.path.join(self.data_path, 'imagenet')
         if not os.path.exists(self.path_to_data):
             raise FileNotFoundError(f"Directory {self.path_to_data} does not exists, "
@@ -395,7 +419,8 @@ class CIFARDataset(BaseDataset):
                  split:str,
                  type:str="cifar10",
                  ):
-        super().__init__(data_path, split)
+        super().__init__(data_path=data_path, 
+                         split=split)
         self.type = type
 
         if self.type == "cifar10":
@@ -404,6 +429,10 @@ class CIFARDataset(BaseDataset):
             CIFAR100(self.data_path, train=self.split == "train", download=True)
         else:
             raise ValueError(f'CIFARDataset: Unknown dataset type: {self.type}, available options: ["cifar10", "cifar100"].')
+        
+    @property
+    def modes(self) -> List[Modality]:
+        return [Modality.IMAGE]
 
     def load(self):
         # only used for evaluation -> no augmentations

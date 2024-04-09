@@ -35,7 +35,13 @@ class COCOCaptions(BaseImageText):
             transform_jitter = False
             beit_transforms = False
             no_transform = True
-        super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
+        super().__init__(data_path=data_path, 
+                         split=split, 
+                         num_max_bpe_tokens=num_max_bpe_tokens, 
+                         transform_jitter=transform_jitter, 
+                         beit_transforms=beit_transforms, 
+                         no_transform=no_transform, 
+                         crop_scale=crop_scale)
         self.path_to_data = os.path.join(self.data_path, "coco")        
 
         os.makedirs(self.path_to_data, exist_ok=True)
@@ -141,7 +147,12 @@ class Flickr30Dataset(BaseImageText):
                  num_max_bpe_tokens,
                  ):
         # yields no augmentation, as Flickr is zero-shot retrieval (testing)
-        super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter=False, beit_transforms=False, no_transform=True)
+        super().__init__(data_path=data_path, 
+                         split=split, 
+                         num_max_bpe_tokens=num_max_bpe_tokens, 
+                         transform_jitter=False, 
+                         beit_transforms=False, 
+                         no_transform=True)
         self.path_to_data = os.path.join(self.data_path, "flickr30k")
 
         os.makedirs(self.path_to_data, exist_ok=True)
@@ -306,7 +317,13 @@ class VisualGenome(BaseImageText):
             no_transform=False,
             crop_scale=(0.6, 1.0),
             ):
-        super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
+        super().__init__(data_path=data_path, 
+                         split=split, 
+                         num_max_bpe_tokens=num_max_bpe_tokens, 
+                         transform_jitter=transform_jitter, 
+                         beit_transforms=beit_transforms, 
+                         no_transform=no_transform, 
+                         crop_scale=crop_scale)
         self.path_to_data = os.path.join(self.data_path, "vg")
         os.makedirs(self.path_to_data, exist_ok=True)
         if self.index_exists(dataset_path=self.path_to_data):
@@ -378,7 +395,13 @@ class VQAv2(BaseImageText):
             no_transform=False,
             crop_scale=(0.6, 1.0),
             ):
-        super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
+        super().__init__(data_path=data_path, 
+                         split=split, 
+                         num_max_bpe_tokens=num_max_bpe_tokens, 
+                         transform_jitter=transform_jitter, 
+                         beit_transforms=beit_transforms, 
+                         no_transform=no_transform, 
+                         crop_scale=crop_scale)
         self.path_to_data = os.path.join(self.data_path, "coco")
         os.makedirs(self.path_to_data, exist_ok=True)
         if not os.path.exists(self.path_to_data, 'test2015'):
@@ -620,7 +643,13 @@ class NLVR2(BaseImageText):
             no_transform=False,
             crop_scale=(0.6, 1.0),
             ):
-        super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
+        super().__init__(data_path=data_path, 
+                         split=split, 
+                         num_max_bpe_tokens=num_max_bpe_tokens, 
+                         transform_jitter=transform_jitter, 
+                         beit_transforms=beit_transforms, 
+                         no_transform=no_transform, 
+                         crop_scale=crop_scale)
         self.path_to_data = os.path.join(self.data_path, "nlvr2")
         assert os.path.exists(os.path.join(self.path_to_data, 'images')), f"Data not found, "
         f"please download and add the NLVR2 data to this directory: {self.path_to_data}"
@@ -695,8 +724,15 @@ class CommonVoice(BaseTextAudio):
             pad:bool,
             precompute_mask_config,
             ):
-        super().__init__(data_path, split, num_max_bpe_tokens, sample_rate, max_sample_size, min_sample_size, normalize, pad,
-                         precompute_mask_config)
+        super().__init__(data_path=data_path, 
+                         split=split, 
+                         num_max_bpe_tokens=num_max_bpe_tokens, 
+                         sample_rate=sample_rate, 
+                         max_sample_size=max_sample_size, 
+                         min_sample_size=min_sample_size, 
+                         normalize=normalize, 
+                         pad=pad,
+                         precompute_mask_config=precompute_mask_config)
 
         cv_dir_name_pattern = os.path.join(self.data_path, 'cv-corpus-*')
         dir_name = [d for d in glob.glob(cv_dir_name_pattern) if os.path.isdir(d)][0]
