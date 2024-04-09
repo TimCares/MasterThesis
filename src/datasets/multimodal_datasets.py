@@ -608,10 +608,10 @@ class NLVR2(BaseImageText):
             ):
         super().__init__(data_path, split, num_max_bpe_tokens, transform_jitter, beit_transforms, no_transform, crop_scale)
         self.path_to_data = os.path.join(self.data_path, "nlvr2")
-        os.makedirs(self.path_to_data, exist_ok=True)
-        # TODO: download and unzip the data
-        #
-        # self.make_dataset_index(nlvr_repo_path)
+        assert os.path.exists(os.path.join(self.path_to_data, 'images')), f"Data not found, "
+        f"please download and add the NLVR2 data to this directory: {self.path_to_data}"
+        
+        self.make_dataset_index()
 
     def __getitem__(self, index: int):
         data = super().__getitem__(index)
@@ -650,16 +650,16 @@ class NLVR2(BaseImageText):
                 })
         write_data_into_jsonl(items, index_file)
 
-    def make_dataset_index(self, nlvr_repo_path):
+    def make_dataset_index(self):
         if self.split == "train":
             prefix = "images/train"
-            json_file = os.path.join(nlvr_repo_path, "nlvr2/data/train.json")
+            json_file = os.path.join(self.path_to_data, 'nlvr', "nlvr2/data/train.json")
         elif self.split == "val":
             prefix = "dev"
-            json_file = os.path.join(nlvr_repo_path, "nlvr2/data/dev.json")
+            json_file = os.path.join(self.path_to_data, 'nlvr', "nlvr2/data/dev.json")
         elif self.split == "test":
             prefix = "test1"
-            json_file = os.path.join(nlvr_repo_path, "nlvr2/data/test1.json")
+            json_file = os.path.join(self.path_to_data, 'nlvr', "nlvr2/data/test1.json")
         else:
             raise RuntimeError("split %s is not found!" % self.split)
         

@@ -14,7 +14,7 @@ from data import (
     openai_imagenet_template,
 )
 from rich.progress import track
-import data_utils
+import datasets.data_utils as data_utils
 from fairseq.data.dictionary import Dictionary
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ def _zero_shot_classifier(model, device, tokenizer:BPEEncoder, num_max_bpe_token
 
         texts = texts.to(device)
         padding_masks = padding_masks.to(device)
-        class_embeddings = model.encode_text(texts) # TODO add parameters, and [:, 0, :], if not done in the model (no causal mask!), and use padding_masks etc.
+        class_embeddings = model.encode_text(texts) # TODO padding_masks
         class_embeddings /= class_embeddings.norm(dim=-1, keepdim=True)
         class_embedding = class_embeddings.mean(dim=0)
         class_embedding /= class_embedding.norm()

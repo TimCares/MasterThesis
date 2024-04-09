@@ -162,19 +162,17 @@ class NLVR2DataModule(BaseDataModule):
         self.val_dataset = NLVR2(data_path=self.data_path,
                                 split='val',
                                 num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                transform_jitter=self.transform_jitter,
-                                beit_transforms=self.beit_transforms,
-                                no_transform=self.no_transform,
-                                crop_scale=self.crop_scale,)
+                                transform_jitter=False,
+                                beit_transforms=False,
+                                no_transform=True,)
 
     def set_test_dataset(self):
         self.test_dataset = NLVR2(data_path=self.data_path,
                                   split='test',
                                   num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                  transform_jitter=self.transform_jitter,
-                                  beit_transforms=self.beit_transforms,
-                                  no_transform=self.no_transform,
-                                  crop_scale=self.crop_scale,)
+                                  transform_jitter=False,
+                                  beit_transforms=False,
+                                  no_transform=True,)
 
 
 class Flickr30DataModule(BaseDataModule):

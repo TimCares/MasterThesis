@@ -2,7 +2,7 @@ data/*/
 models/
 .hydra
 
-kaggle.json
+!data/nlvr2/nlvr
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

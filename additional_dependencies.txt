@@ -4,5 +4,8 @@ https://uofi.app.box.com/s/1cpolrtkckn4hxr1zhmfg0ln9veo6jpl
 Download Flickr8k images:
 https://www.kaggle.com/datasets/adityajn105/flickr8k/data?select=Images
 
+NLVR2 Dataset:
+https://lil.nlp.cornell.edu/resources/NLVR2/
+
 ffmpeg:
 sudo apt install ffmpeg

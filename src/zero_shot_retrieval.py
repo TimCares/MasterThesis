@@ -49,8 +49,8 @@ def zero_shot_retrieval(model, dataloader, device, name, modalities):
 
     for _, batch in track(enumerate(dataloader), description=f"Encoding {name}..."):
         a, b = batch
-        _, a_emb = model.encode_image(a.to(device), projection=True)
-        _, b_emb = model.encode_text(b.to(device), projection=True)
+        a_emb = model.encode_image(a.to(device), )
+        b_emb = model.encode_text(b.to(device),) # TODO: Padding mask
         mode_a_embeds.append(a_emb.detach().cpu())
         mode_b_embeds.append(b_emb.detach().cpu())
 
