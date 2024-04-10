@@ -65,13 +65,13 @@ def extract_targets(cfg: DictConfig) -> None:
             filename = f'{idx}_{batch["id"][0]}-{batch["id"][-1]}.pt'
             index_items.append({
                 "path": os.path.join(dir_name, filename),
-                "batch_idx": idx, 
-                "indices": batch["id"].tolist(),
+                "batch_idx": idx,
             })
             item = {
                 'target': pred,
                 key: batch[key],
                 'modes': batch['modes'],
+                'id': batch["id"],
             }
             if padding_mask is not None:
                 item['padding_mask'] = padding_mask
