@@ -10,6 +10,8 @@ from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from collections import OrderedDict
 
+import sys
+sys.path.append('fairseq/')
 from examples.data2vec.models.data2vec2 import Data2VecMultiModel
 from examples.data2vec.models.data2vec2 import Data2VecMultiConfig
 from examples.data2vec.data.modality import Modality
@@ -43,7 +45,7 @@ def load_model(pretrained_model_cfg:DictConfig,
     if pretrained_model_cfg.supported_modality == Modality.TEXT:
         Task = namedtuple('Task', 'source_dictionary')
 
-        dictionary = Dictionary.load(os.path.join('..', '..', 'data', "dict.txt"))
+        dictionary = Dictionary.load(os.path.join('..', 'data', "dict.txt"))
         dictionary.add_symbol("<mask>")
         dummy_task = Task(source_dictionary=dictionary)
     else:

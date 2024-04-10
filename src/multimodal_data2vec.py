@@ -12,6 +12,7 @@ import math
 from omegaconf import OmegaConf, II
 from dataclasses import dataclass, field
 from datasets import Modality
+from transformers.optimization import get_cosine_schedule_with_warmup
 
 from examples.data2vec.models.modalities.modules import AltBlock
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
@@ -19,23 +20,8 @@ from examples.data2vec.models.modalities.base import MaskSeed
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class KDData2VecPreTrainingConfig():
-    average_top_k_layers_student:int
-    average_top_k_layers_teacher:Dict[str, int]
-    text:str = 'nlp_base.pt'
-
-    num_updates:int
-    val_frequency:int
-
-    layer_norm_target_layer:bool
-    instance_norm_target_layer:bool
-    batch_norm_target_layer:bool
-
-    model:KDMMData2VecConfig
-
 class KDData2VecPreTrainingLightningModule(L.LightningModule):
-    def __init__(self, cfg:KDData2VecPreTrainingConfig):
+    def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
         assert self.cfg.average_top_k_layers_student <= self.cfg.model.depth,\
@@ -49,11 +35,11 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
 
     def training_step(self, batch:Dict[str, Any], batch_idx):
         target_dict = batch.pop('target')
-        output_dict = self(**batch)
+        output_dict = self.model(**batch)
 
         y_hat = self.make_targets(output_dict['layer_results'], num_layers=self.cfg.average_top_k_layers_student)
 
-        target = self.make_targets(target_dict['layer_results'], num_layers=self.average_top_k_layers_teacher[batch['mode']])
+        target = self.make_targets(target_dict['layer_results'], num_layers=self.average_top_k_layers_teacher[batch['modes'][0].name.lower()])
 
         y_hat = y_hat[output_dict['padding_mask']]
         target = target[target_dict['padding_mask']]
@@ -120,8 +106,14 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         return reg_loss
 
 
-    def configure_optimizers(self):
-        return torch.optim.SGD(self.model.parameters(), lr=0.1) # TODO
+    def configure_optimizers(self, cfg):
+        optimizer = torch.optim.AdamW(self.model.parameters(), **cfg.params)
+        scheduler = get_cosine_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=cfg.schedule.warmup_steps,
+            num_training_steps=cfg.schedule.max_steps,
+        )
+        return [optimizer], [{"scheduler": scheduler, "interval": "step"}]
     
 
 @dataclass
@@ -131,6 +123,7 @@ class PretrainedStateDictsConfig():
     text:str = 'nlp_base.pt'
 @dataclass
 class KDMMData2VecConfig():
+    pretrained_path:str = '../models'
     pretrained: PretrainedStateDictsConfig = PretrainedStateDictsConfig()
 
     loss_scale: Optional[float] = field(
@@ -141,22 +134,22 @@ class KDMMData2VecConfig():
     )
 
     encoders_embed_dim: int = II("embed_dim") # only as a first test
+    embed_dim: int = 768
 
     depth: int = 8
-    start_drop_path_rate: float = 0
-    end_drop_path_rate: float = 0
     num_heads: int = 12
-    norm_eps: float = 1e-6
-    norm_affine: bool = True
+    mlp_ratio: float = 4
     encoder_dropout: float = 0.1
-    post_mlp_drop: float = 0.1
     attention_dropout: float = 0.1
     activation_dropout: float = 0.0
-    dropout_input: float = 0.0
-    layerdrop: float = 0.0
-    embed_dim: int = 768
-    mlp_ratio: float = 4
+    post_mlp_drop: float = 0.1
+    norm_eps: float = 1e-6
+    norm_affine: bool = True
     layer_norm_first: bool = False
+    dropout_input: float = 0.0
+    start_drop_path_rate: float = 0
+    end_drop_path_rate: float = 0
+    layerdrop: float = 0.0
 
     average_top_k_layers: int = field(
         default=8, metadata={"help": "how many layers to average"}
@@ -166,6 +159,8 @@ class KDMMData2VecConfig():
 
     modality_encoder_proj: bool = False
 
+    mask_seed: int = 42
+
 
 class KDMMData2Vec(nn.Module):
     def __init__(self,
@@ -173,12 +168,12 @@ class KDMMData2Vec(nn.Module):
                  ):
         super().__init__()
         self.cfg = cfg
-        self.modality_encoders:nn.ModuleDict = self._get_modality_encoders()
+        self.modality_encoders:nn.ModuleDict[Modality, nn.Module] = self._get_modality_encoders()
         self.modality_encoders.eval()
         self.modality_encoders.is_pretrained = True
 
         self.projections = nn.ModuleDict({
-            mode: 
+            mode.name: 
             (nn.Linear(self.cfg.encoders_embed_dim, self.cfg.embed_dim) 
              if self.cfg.modality_encoder_proj 
              else nn.Identity())
@@ -220,7 +215,7 @@ class KDMMData2Vec(nn.Module):
             self.norm = make_layer_norm(self.cfg.embed_dim)
 
         self.layerdrop = self.cfg.layerdrop
-        self.seed = self.cfg.seed
+        self.mask_seed = self.cfg.mask_seed
 
         self.apply(self._init_except_pretrained)
 
@@ -233,12 +228,12 @@ class KDMMData2Vec(nn.Module):
     def _get_modality_encoders(self) -> None:
         modality_encoders = {}
         for mode, state_dict_name in self.cfg.pretrained.items():
-            logger.info(f'Loading modality encoder for: {mode}')
-            state_dict_path = os.path.join('..', 'models', state_dict_name)
+            mode_enum:Modality = Modality[mode.upper()] # Modality[mode.upper()]: e.g. 'text' => Modality.Text
+            logger.info(f'Loading modality encoder for: {mode_enum}')
+            state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
             d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
-            mode_feature_extractor = d2v_model.modality_encoders[mode]
-            modality_encoders[Modality[mode.upper()]] = mode_feature_extractor
-            # Modality[mode.upper()]: e.g. 'text' -> Modality.Text
+            mode_feature_extractor = d2v_model.modality_encoders[mode_enum.name]
+            modality_encoders[mode_enum.name] = mode_feature_extractor
 
         return nn.ModuleDict(modality_encoders)
 
@@ -247,9 +242,6 @@ class KDMMData2Vec(nn.Module):
             return
         else:
             module.apply(init_bert_params)
-
-    def set_num_updates(self, num_updates):
-        self.num_updates = num_updates
 
     def forward(
         self,
@@ -269,12 +261,12 @@ class KDMMData2Vec(nn.Module):
         n_sources = sum(mode is not None for mode in [audio, image, text])
         assert n_sources==1,\
             f"This model accepts exactly one modality data source at a time, got {n_sources}."
-        mode = modes[0]
+        mode = modes[0].name # is now string, ModuleDict does not support enums as keys
         source = audio or image or text
 
         mask_seeds = None
         if id is not None:
-            mask_seeds = MaskSeed(seed=self.seed, update=self.num_updates, ids=id)
+            mask_seeds = MaskSeed(seed=self.mask_seed, update=self.num_updates, ids=id)
         
         feature_extractor = self.modality_encoders[mode]
         with torch.no_grad():
@@ -355,7 +347,7 @@ class KDMMData2Vec(nn.Module):
         )
         return res
     
-    def encode_modality(self, mode:Modality|List[Modality], source:torch.Tensor, padding_mask=None, normalize:bool=True):
+    def encode_modality(self, mode:Union[Modality, List[Modality]], source:torch.Tensor, padding_mask=None, normalize:bool=True):
         if isinstance(mode, List):
             assert len(mode)==1, 'Only one modality allowed when calling "encode_modality".'
             mode = mode[0]

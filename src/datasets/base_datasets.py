@@ -34,6 +34,7 @@ from torchvision.datasets import ImageFolder
 
 logger = logging.getLogger(__name__)
 
+# is the same as in data2vec: https://github.com/facebookresearch/fairseq/blob/bedb259bf34a9fc22073c13a1cee23192fa70ef3/examples/data2vec/data/modality.py#L12
 class Modality(Enum):
     AUDIO = auto()
     IMAGE = auto()
