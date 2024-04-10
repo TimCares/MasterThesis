@@ -1,5 +1,14 @@
 # @package _group_
 
+hydra:
+  run:
+    dir: .
+
+
+dry_run: True
+data_path: ../data
+seed: 42
+
 model:
   pretrained_path: ../models
   pretrained:
@@ -29,8 +38,37 @@ model:
 
   modality_encoder_proj: False
 
-num_updates:
-val_frequency:
+  seed: ${seed}
+
+data:
+  # datasets/dataloaders must start with an underscore, the string after that is used as a key to the registries
+  data_path: ${data_path}
+  batch_size: 256
+  num_workers: 5
+  shuffle: False
+  drop_last: False
+
+  _openwebtext:
+    num_max_bpe_tokens: 256
+    sample_break_mode: none
+
+  _imagenet:
+    beit_transforms: False
+    no_transform: False
+    transform_jitter: False
+    precompute_mask_config: 
+    crop_scale: [0.6, 1]
+
+  _librispeech:
+    sample_rate: 16000
+    max_sample_size: 160000
+    min_sample_size: 32000
+    precompute_mask_config: 
+    type_train: 
+    type_test: 
+
+num_updates: 30000
+val_frequency: 2000
 
 # following: state_dict['cfg']['model']
 average_top_k_layers_teacher:
@@ -38,15 +76,15 @@ average_top_k_layers_teacher:
   image: 10 # base_imagenet.pt
   text: 12 # nlp_base.pt
 
-average_top_k_layers_student: 
+average_top_k_layers_student: ${model.depth}
 
-layer_norm_target_layer:
-instance_norm_target_layer:
-batch_norm_target_layer:
+layer_norm_target_layer: False
+instance_norm_target_layer: True
+batch_norm_target_layer: False
 
 optimizer:
   params:
 
   schedule:
-    warmup_steps:
-    max_steps: ${training.num_updates}
+    warmup_steps: 500
+    max_steps: ${num_updates}

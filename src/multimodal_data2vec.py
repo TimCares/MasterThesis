@@ -35,7 +35,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
 
     def training_step(self, batch:Dict[str, Any], batch_idx):
         target_dict = batch.pop('target')
-        output_dict = self.model(**batch)
+        output_dict = self(batch) # call "forward"
 
         y_hat = self.make_targets(output_dict['layer_results'], num_layers=self.cfg.average_top_k_layers_student)
 
@@ -114,7 +114,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
             num_training_steps=cfg.schedule.max_steps,
         )
         return [optimizer], [{"scheduler": scheduler, "interval": "step"}]
-    
+
 
 @dataclass
 class PretrainedStateDictsConfig():
@@ -159,8 +159,7 @@ class KDMMData2VecConfig():
 
     modality_encoder_proj: bool = False
 
-    mask_seed: int = 42
-
+    seed: int = 42
 
 class KDMMData2Vec(nn.Module):
     def __init__(self,
@@ -394,9 +393,6 @@ class KDMMData2Vec(nn.Module):
                                      padding_mask=padding_mask,
                                      normalize=normalize)
 
-def build_simple_kd_mm_d2v(cfg) -> KDMMData2Vec:
-    pass
-    
 
 # extractor_outputs = []
 # for mode, input in zip(["image", "text", "audio"], [image, text, audio]):
