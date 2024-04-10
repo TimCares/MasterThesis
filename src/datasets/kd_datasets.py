@@ -19,8 +19,7 @@ class KDDataset(BaseDataset):
         available_datasets = os.listdir(self.data_path)
         prefix = 'kd_'
         prefix_len = len(prefix)
-        available_kd_datasets = [ds[len(prefix):] for ds in available_datasets if ds.startswith(prefix)] # 3: -> remove "kd_"
-        logger.info(f"Available kd datasets: {available_kd_datasets}")
+        available_kd_datasets = [ds[prefix_len:] for ds in available_datasets if ds.startswith(prefix)]
         assert self.dataset in available_kd_datasets, f"Dataset {self.dataset} not available for KD, possible choices: {available_kd_datasets}"
 
         self.path_to_data = os.path.join(self.data_path, f"kd_{self.dataset}")

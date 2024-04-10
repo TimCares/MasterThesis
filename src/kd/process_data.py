@@ -11,6 +11,7 @@ from omegaconf.dictconfig import DictConfig
 import torch
 from datamodules import REGISTRY as DATAMODULE_REGISTRY
 from datamodules import BaseDataModule
+from datasets import Modality
 from rich.progress import track
 from src.utils import load_pretrained_d2v_model
 
@@ -51,10 +52,13 @@ def extract_targets(cfg: DictConfig) -> None:
 
     with torch.no_grad():
         for idx, batch in track(enumerate(train_dataloader), description="Running predictions...", total=len(train_dataloader)):
+            key = batch['modes'][0].name.lower() if key is None else key
+
+            padding_mask = batch['padding_mask'] if 'padding_mask' in batch else None 
             pred = model.extract_features(
-                source=batch['source'],
+                source=batch[key],
                 mode=None, # determined automatically in model
-                padding_mask=batch['padding_mask'],
+                padding_mask=padding_mask,
                 mask=False, # we are creating targets from a teacher model for the student model, so no mask
                 remove_extra_tokens=False,
             )
@@ -66,8 +70,9 @@ def extract_targets(cfg: DictConfig) -> None:
             })
             item = {
                 'target': pred,
-                'source': batch['source'], # TODO: padding masks and all output dicts of datasets should have key "source" for data
-                'mode': cfg.datamodule
+                key: batch[key],
+                'modes': batch['modes'],
+                'padding_mask': padding_mask
             }
             torch.save(item, os.path.join(kd_targets_path, filename))
 

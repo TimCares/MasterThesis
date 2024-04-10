@@ -263,7 +263,7 @@ class KDMMData2Vec(nn.Module):
         n_sources = sum(mode is not None for mode in [audio, image, text])
         assert n_sources==1,\
             f"This model accepts exactly one modality data source at a time, got {n_sources}."
-        mode = modes[0].name # is now string, ModuleDict does not support enums as keys
+        mode = modes[0].name # is now a string, ModuleDict does not support enums as keys
         source = audio or image or text
 
         mask_seeds = None

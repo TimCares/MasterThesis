@@ -10,6 +10,8 @@ class KDDataModule(LightningDataModule):
     def __init__(self,
                  data_path:str,
                  num_workers:int,
+                 shuffle:bool,
+                 drop_last:bool,
                  dataset:str,
                  *args,
                  **kwargs):
@@ -17,8 +19,8 @@ class KDDataModule(LightningDataModule):
         self.data_path = data_path
         self.batch_size = 1
         self.num_workers = num_workers
-        self.shuffle = False
-        self.drop_last = False
+        self.shuffle = shuffle
+        self.drop_last = drop_last
         self.prepared = False
         self.dataset = dataset
 
@@ -45,3 +47,7 @@ class KDDataModule(LightningDataModule):
                           sampler=None,
                           shuffle=self.shuffle,
                           drop_last=self.drop_last,)
+
+KD_DATAMODULE_REGISTRY = {
+    'kd_datamodule': KDDataModule
+}

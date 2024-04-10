@@ -30,10 +30,10 @@ model:
   attention_dropout: 0.1
   activation_dropout: 0.1
   post_mlp_drop: 0.1
-  #norm_eps: 1e-6
+  norm_eps: 1e-6
   norm_affine: True
   layer_norm_first: False
-  #loss_scale:
+  loss_scale:
   dropout_input: 0.0
   start_drop_path_rate: 0
   end_drop_path_rate: 0
@@ -48,30 +48,39 @@ model:
 data:
   # datasets/dataloaders must start with an underscore, the string after that is used as a key to the registries
   data_path: ${data_path}
-  batch_size: 256
+  # batch_size: 256
   num_workers: 5
   shuffle: False
   drop_last: False
 
-  _openwebtext:
-    num_max_bpe_tokens: ${nlp_context_length}
-    sample_break_mode: none
+  _kd_datamodule:
+    dataset: _openwebtext
 
-  _imagenet:
-    beit_transforms: False
-    no_transform: False
-    transform_jitter: False
-    precompute_mask_config: 
-    crop_scale: [0.6, 1]
-    local_cache_path:
+  _kd_datamodule:
+    dataset: _imagenet
 
-  _librispeech:
-    sample_rate: 16000
-    max_sample_size: 160000
-    min_sample_size: 32000
-    precompute_mask_config: 
-    type_train: 
-    type_test: 
+  _kd_datamodule:
+    dataset: _librispeech
+
+#   _openwebtext:
+#     num_max_bpe_tokens: ${nlp_context_length}
+#     sample_break_mode: none
+#  
+#   _imagenet:
+#     beit_transforms: False
+#     no_transform: False
+#     transform_jitter: False
+#     precompute_mask_config: 
+#     crop_scale: [0.6, 1]
+#     local_cache_path:
+#  
+#   _librispeech:
+#     sample_rate: 16000
+#     max_sample_size: 160000
+#     min_sample_size: 32000
+#     precompute_mask_config: 
+#     type_train: 
+#     type_test: 
 
 zero_shot_val:
   n_neighbors: 100
@@ -94,6 +103,8 @@ zero_shot_val:
 
 checkpoint:
   dirpath: ${model_path}
+  # monitor key is also computed in a callback, ModelCheckpoint callbacks are the last checkpoints executed,
+  # so the key will be computed right beforehand (therefore it is always up to date)
   filename: mm-d2v-{step}-{${checkpoint.monitor}:.4f}
   save_last: True
   every_n_train_steps: ${lightning_trainer.val_check_interval}
