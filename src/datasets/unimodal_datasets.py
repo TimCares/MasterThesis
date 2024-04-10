@@ -274,15 +274,13 @@ class SpeechCommandsDataset(AudioDataset):
                  split:str,
                  normalize:bool,
                  pad:bool,
-                 precompute_mask_config:Dict[str, Any]={},
                  ):
         super().__init__(data_path=data_path,
                          split=split,
                          sample_rate=16_000, 
                          max_sample_size=16_000,
                          normalize=normalize,
-                         pad=pad, 
-                         **precompute_mask_config)
+                         pad=pad,)
         # as described in the paper to the dataset, each sample is at a maximum of 1 second
         # long and is sampled at 16kHz (https://arxiv.org/pdf/1804.03209.pdf)
         # min_sample_size default is 0, so we take all samples

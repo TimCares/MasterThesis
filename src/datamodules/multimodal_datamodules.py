@@ -1,6 +1,6 @@
 from typing import Tuple, Dict, Any
 from .unimodal_datamodules import BaseDataModule
-from src.datasets import COCOCaptions, VisualGenome, VQAv2, NLVR2, Flickr30Dataset, CommonVoice, Flickr8KAudioDataset
+from datasets import COCOCaptions, VisualGenome, VQAv2, NLVR2, Flickr30Dataset, CommonVoice, Flickr8KAudioDataset
 
 class COCOCaptionsDataModule(BaseDataModule):
     def __init__(self,

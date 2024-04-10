@@ -7,10 +7,15 @@ hydra:
 
 dry_run: True
 data_path: ../data
+model_path: ../models
 seed: 42
 
+load_checkpoint:
+
+nlp_context_length: 256
+
 model:
-  pretrained_path: ../models
+  pretrained_path: ${model_path}
   pretrained:
     audio: base_libri.pt
     image: base_imagenet.pt
@@ -49,7 +54,7 @@ data:
   drop_last: False
 
   _openwebtext:
-    num_max_bpe_tokens: 256
+    num_max_bpe_tokens: ${nlp_context_length}
     sample_break_mode: none
 
   _imagenet:
@@ -58,6 +63,7 @@ data:
     transform_jitter: False
     precompute_mask_config: 
     crop_scale: [0.6, 1]
+    local_cache_path:
 
   _librispeech:
     sample_rate: 16000
@@ -67,8 +73,35 @@ data:
     type_train: 
     type_test: 
 
-num_updates: 30000
-val_frequency: 2000
+zero_shot_val:
+  n_neighbors: 100
+  data_path: ${data_path}
+  num_max_bpe_tokens: ${nlp_context_length}
+  is_multimodal_aligned: False
+  datamodules: # dataloder args are taken from top-level key "data"
+    _imdb:
+      data_path: ${data_path}
+      num_max_bpe_tokens: ${nlp_context_length}
+    _cifar10:
+      data_path: ${data_path}
+    _cifar100:
+      data_path: ${data_path}
+    _speechcommands:
+      data_path: ${data_path}
+      min_sample_size: 0 # take all samples
+      normalize: True
+      pad: True
+
+checkpoint:
+  dirpath: ${model_path}
+  filename: mm-d2v-{step}-{${checkpoint.monitor}:.4f}
+  save_last: True
+  every_n_train_steps: ${lightning_trainer.val_check_interval}
+  save_on_train_epoch_end: False # False -> run at end of validation
+  verbose: True
+  monitor: val/unimodal-imagenet-knn--zeroshot-top5-acc # logged in: ZeroShotCallback
+  mode: max
+  auto_insert_metric_name: False
 
 # following: state_dict['cfg']['model']
 average_top_k_layers_teacher:
@@ -87,4 +120,11 @@ optimizer:
 
   schedule:
     warmup_steps: 500
-    max_steps: ${num_updates}
+    max_steps: ${lightning_trainer.max_steps}
+
+lightning_trainer:
+  devices: -1
+  max_steps: 30000
+  val_check_interval: 2000
+  num_sanity_val_steps: 0 # mean test running "num_sanity_val_steps" batches of the validation dataloaders, but here we have no classical validation
+  precision: 16-mixed

@@ -1,8 +1,9 @@
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from typing import Tuple, Dict, Any
-from src.datasets import IMDBDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, EnWik9Dataset, OpenWebTextDataset
-from src.datasets import REGISTRY as DATASET_REGISTRY
+from datasets import IMDBDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, EnWik9Dataset, OpenWebTextDataset
+from datasets import REGISTRY as DATASET_REGISTRY
+from functools import partial
 
 class BaseDataModule(LightningDataModule):
     def __init__(self,
@@ -299,12 +300,10 @@ class SpeechCommandsDataModule(BaseDataModule):
                  min_sample_size: int,
                  normalize: bool,
                  pad: bool,
-                 precompute_mask_config:Dict[str, Any]={},
                  *args,
                  **kwargs
                  ):
         super().__init__(data_path, *args, **kwargs)
-        self.precompute_mask_config = precompute_mask_config
         self.min_sample_size = min_sample_size
         self.normalize = normalize
         self.pad = pad
@@ -326,22 +325,21 @@ class SpeechCommandsDataModule(BaseDataModule):
         self.train_dataset = SpeechCommandsDataset(data_path=self.data_path,
                                                    split='train',
                                                    normalize=self.normalize,
-                                                   pad=self.pad,
-                                                   precompute_mask_config=self.precompute_mask_config,)
+                                                   pad=self.pad,)
 
     def set_test_dataset(self):
         self.test_dataset = SpeechCommandsDataset(data_path=self.data_path,
                                                   split='test',
                                                   normalize=self.normalize,
-                                                  pad=self.pad,
-                                                  precompute_mask_config=None,)
+                                                  pad=self.pad,)
 
 
 UNIMODAL_REGISTRY = {
     'imdb': IMDBDataModule,
     'enwik9': EnWik9DataModule,
     'openwebtext': OpenWebTextDataModule,
-    'cifar': CIFARDataModule,
+    'cifar10': partial(CIFARDataModule, type='cifar10'),
+    'cifar100': partial(CIFARDataModule, type='cifar100'),
     'imagenet': ImageNetDataModule,
     'librispeech': LibriSpeechDataModule,
     'speechcommands': SpeechCommandsDataModule

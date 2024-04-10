@@ -4,18 +4,21 @@ from sklearn.metrics import top_k_accuracy_score
 from typing import Tuple, Callable
 from sklearn.neighbors import KNeighborsClassifier
 import logging
+import os
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
 from pytorch_lightning import Callback, LightningDataModule
 from pytorch_lightning.utilities import rank_zero_only
 from typing import Dict
-from data import (
+import sys
+sys.path.append('..')
+from data.imagenet_zeroshot_data import (
     imagenet_classnames,
     openai_imagenet_template,
 )
 from rich.progress import track
-import datasets.data_utils as data_utils
+from datasets.data_utils import get_bpe_encoder
 from fairseq.data.dictionary import Dictionary
 
 logger = logging.getLogger(__name__)
@@ -148,8 +151,8 @@ def make_knn_predictions(model:Callable,
     logger.info(f"{name}, zero-shot: top1-accuracy: {acc}, top5-accuracy: {acc5}")
 
     results = {}
-    results[f"unimodal-{name}-knn--zeroshot-test-top1-acc"] = acc
-    results[f"unimodal-{name}-knn--zeroshot-test-top5-acc"] = acc5
+    results[f"unimodal-{name}-knn--zeroshot-top1-acc"] = acc
+    results[f"unimodal-{name}-knn--zeroshot-top5-acc"] = acc5
     return knn, results
 
 
@@ -158,14 +161,14 @@ class ZeroShotCallback(Callback):
     datamodules: Dict[str, LightningDataModule] -> Dict of LightningDataModule, keys are the names of the LightningDataModule.
     """
     def __init__(self, n_neighbors:int, datamodules: Dict[str, LightningDataModule], data_path:str, num_max_bpe_tokens:int,
-                 dictionary, is_multimodal_aligned:bool, *args, **kwargs):
+                 is_multimodal_aligned:bool, *args, **kwargs):
         super().__init__()
         self.datamodules = datamodules
         self.n_neighbors = n_neighbors
-        self.encoder = data_utils.get_bpe_encoder(data_path)
-        self.num_max_bpe_tokens = num_max_bpe_tokens
-        self.dictionary = dictionary
-        self.is_multimodal_aligned = is_multimodal_aligned
+        self.encoder = get_bpe_encoder(data_path)
+        self.num_max_bpe_tokens = num_max_bpe_tokens # TODO: utilize later...
+        self.dictionary = Dictionary.load(os.path.join(data_path, 'dict.txt')) # TODO: utilize later...
+        self.is_multimodal_aligned = is_multimodal_aligned # TODO: utilize later...
 
     @torch.no_grad()
     def on_validation_start(self, trainer, pl_module, **kwargs) -> None:

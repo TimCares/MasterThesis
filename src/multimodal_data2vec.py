@@ -23,10 +23,14 @@ logger = logging.getLogger(__name__)
 class KDData2VecPreTrainingLightningModule(L.LightningModule):
     def __init__(self, cfg):
         super().__init__()
+        self.save_hyperparameters()
         self.cfg = cfg
         assert self.cfg.average_top_k_layers_student <= self.cfg.model.depth,\
             f"Can't aggregate more layers {self.cfg.average_top_k_layers_student} than available {self.cfg.model.depth}"
-        self.model = KDMMData2Vec(cfg=cfg.model)
+        if not cfg.dry_run:
+            self.model = KDMMData2Vec(cfg=cfg.model)
+        else:
+            self.model = None
 
         self.average_top_k_layers_teacher: Dict[str, int] = OmegaConf.to_container(cfg.average_top_k_layers_teacher)
 
@@ -113,7 +117,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
             num_warmup_steps=cfg.schedule.warmup_steps,
             num_training_steps=cfg.schedule.max_steps,
         )
-        return [optimizer], [{"scheduler": scheduler, "interval": "step"}]
+        return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": "cosine_w_warmup"}]
 
 
 @dataclass
@@ -221,8 +225,7 @@ class KDMMData2Vec(nn.Module):
         for pn, p in self.named_parameters():
             if len(p.shape) == 1 or pn.endswith(".bias") or "alibi_scale" in pn:
                 p.optim_overrides = {"optimizer": {"weight_decay_scale": 0}}
-
-        self.num_updates = 0
+        
 
     def _get_modality_encoders(self) -> None:
         modality_encoders = {}
@@ -419,3 +422,23 @@ class KDMMData2Vec(nn.Module):
 #     x = extractor_outputs[0]
 # else:
 #     x = torch.cat(extractor_outputs, dim=1) # TODO: look into it later when input is multimodal...
+
+
+class DummyModel(KDMMData2Vec):
+    def __init__(self,
+                 cfg: KDMMData2VecConfig,
+                 ):
+        super().__init__(cfg=cfg)
+
+    def forward(
+        self,
+        *args,
+        **kwargs,
+    ):
+
+        return {
+            "x": x,
+            "padding_mask": masked_padding_mask,
+            "layer_results": layer_results,
+            "mask": encoder_mask,
+        }

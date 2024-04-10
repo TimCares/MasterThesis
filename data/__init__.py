@@ -1,1 +1,0 @@
-from .imagenet_zeroshot_data import *

@@ -1,7 +1,7 @@
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from typing import Tuple, Dict, Any
-from src.datasets import KDDataset
+from datasets import KDDataset
 import logging
 
 logger = logging.getLogger(__name__)
