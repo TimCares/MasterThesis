@@ -72,8 +72,9 @@ def extract_targets(cfg: DictConfig) -> None:
                 'target': pred,
                 key: batch[key],
                 'modes': batch['modes'],
-                'padding_mask': padding_mask
             }
+            if padding_mask is not None:
+                item['padding_mask'] = padding_mask
             torch.save(item, os.path.join(kd_targets_path, filename))
 
     index = {
