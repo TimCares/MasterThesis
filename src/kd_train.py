@@ -11,7 +11,7 @@ from datamodules import REGISTRY as DATAMODULE_REGISTRY
 from multi_data_loader import MultiDataModule
 from validate import ZeroShotCallback
 
-from fairseq.dataclass.utils import merge_with_parent
+from utils import merge_with_parent
 
 
 logger = logging.getLogger(__name__)
