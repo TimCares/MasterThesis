@@ -18,8 +18,8 @@ from data.imagenet_zeroshot_data import (
     openai_imagenet_template,
 )
 from rich.progress import track
-from datasets.data_utils import get_bpe_encoder
-from fairseq.data.dictionary import Dictionary
+from bpe_encoder import get_bpe_encoder
+from dictionary import Dictionary
 
 logger = logging.getLogger(__name__)
 

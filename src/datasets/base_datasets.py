@@ -11,22 +11,13 @@ from functools import partial
 import soundfile as sf
 from enum import Enum, auto
 from .data_utils import get_transforms 
-from .data_utils import get_bpe_encoder as get_bpe_encoder_from_utils
+from bpe_encoder import get_bpe_encoder as get_bpe_encoder_from_utils
 import torch.nn.functional as F
 
-from examples.data2vec.data import PathDataset
-from fairseq.data import FairseqDataset, data_utils
-from fairseq.data.data_utils import compute_block_mask_1d, compute_block_mask_2d
+from datasets.path_dataset import PathDataset
+from data_utils import compute_block_mask_1d, compute_block_mask_2d
 
-from fairseq.data import (
-    Dictionary,
-    NestedDictionaryDataset,
-    PrependTokenDataset,
-    AppendTokenDataset,
-    RightPadDataset,
-    RightPaddingMaskDataset,
-    TokenBlockDataset,
-)
+from dictionary import Dictionary
 
 from torchvision import datasets
 from torchvision.datasets.folder import default_loader
@@ -311,7 +302,7 @@ def caching_loader(cache_root: str, loader):
     return partial(load, loader=loader, cache=cache_root)
 
 # adapted from: https://github.com/facebookresearch/fairseq/blob/34973a94d09ecc12092a5ecc8afece5e536b7692/examples/data2vec/data/mae_image_dataset.py
-class MaeImageDataset(FairseqDataset):
+class MaeImageDataset():
     def __init__(
         self,
         root: str,
@@ -336,7 +327,6 @@ class MaeImageDataset(FairseqDataset):
         clone_batch: int = 1,
         dataset_type: str = "imagefolder",
     ):
-        FairseqDataset.__init__(self)
 
         self.shuffle = shuffle
         self.key = 'image'

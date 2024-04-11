@@ -5,18 +5,16 @@ import json
 import re
 from typing import *
 from functools import partial
-import subprocess
 import shutil
 from rich.progress import track
 import glob
-from .data_utils import get_transforms, download_and_unzip, write_data_into_jsonl, get_bpe_encoder
+from .data_utils import get_transforms, write_data_into_jsonl
 from .base_datasets import BaseDataset
+from .raw_audio_dataset import FileAudioDataset
 from datasets.wav2vec_manifest import create_manifests
-from bpe_encoder import encode
+from bpe_encoder import encode, get_bpe_encoder
 
-from fairseq.data import Dictionary
-from fairseq.data.audio.raw_audio_dataset import FileAudioDataset
-from fairseq.data.text_compressor import TextCompressionLevel
+from dictionary import Dictionary
 
 from torchaudio.datasets import LIBRISPEECH, SPEECHCOMMANDS
 import torchtext
@@ -233,8 +231,6 @@ class LibriSpeechDataset(AudioDataset):
             min_sample_size=self.min_sample_size,
             pad=self.pad,
             normalize=self.normalize,
-            num_buckets=0,
-            text_compression_level=TextCompressionLevel.none,
             compute_mask=compute_mask,
             **mask_args,
         )

@@ -14,7 +14,7 @@ import sys
 sys.path.append('fairseq/')
 from examples.data2vec.models.data2vec2 import Data2VecMultiModel
 from examples.data2vec.models.data2vec2 import Data2VecMultiConfig
-from fairseq.data import Dictionary
+from dictionary import Dictionary
 
 logger = logging.getLogger(__name__)
 

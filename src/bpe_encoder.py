@@ -11,7 +11,34 @@ import sys
 from collections import Counter
 from multiprocessing import Pool
 import torch
-from fairseq.data.encoders.gpt2_bpe import get_encoder
+import json
+import os
+import gpt2_bpe_utils
+from datasets import download_url
+
+
+def get_encoder(encoder_json_path, vocab_bpe_path):
+    with open(encoder_json_path, "r") as f:
+        encoder = json.load(f)
+    with open(vocab_bpe_path, "r", encoding="utf-8") as f:
+        bpe_data = f.read()
+    bpe_merges = [tuple(merge_str.split()) for merge_str in bpe_data.split("\n")[1:-1]]
+    return gpt2_bpe_utils.Encoder(
+        encoder=encoder,
+        bpe_merges=bpe_merges,
+    )
+
+def load_tokenizer_data(store_at:str="../data"):
+    for filename in ["dict.txt", "encoder.json", "vocab.bpe"]:
+        if not os.path.exists(os.path.join(store_at, filename)):
+            url = f"https://dl.fbaipublicfiles.com/fairseq/data2vec2/{filename}"
+            download_url(url=url, store_at=store_at)
+
+def get_bpe_encoder(data_path):
+    load_tokenizer_data(data_path)
+    encoder_json_path = os.path.join(data_path, "encoder.json")
+    vocab_bpe_path = os.path.join(data_path, "vocab.bpe")
+    return BPEEncoder(encoder_json_path, vocab_bpe_path)
 
 class BPEEncoder(object):
     def __init__(self, encoder_json_path, vocab_bpe_path):
