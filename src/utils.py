@@ -16,7 +16,6 @@ sys.path.append('fairseq/')
 from examples.data2vec.models.data2vec2 import Data2VecMultiModel
 from examples.data2vec.models.data2vec2 import Data2VecMultiConfig
 from examples.data2vec.data.modality import Modality
-from fairseq.dataclass.utils import merge_with_parent
 from fairseq.data import Dictionary
 
 logger = logging.getLogger(__name__)
