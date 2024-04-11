@@ -1,3 +1,12 @@
 # @package _group_
 
+_name: imagenet
+
 model_state_dict: base_imagenet.pt
+
+beit_transforms: False
+no_transform: True
+transform_jitter: False
+precompute_mask_config:
+crop_scale:
+local_cache_path:
