@@ -1,4 +1,3 @@
-from hydra.utils import instantiate
 from omegaconf import OmegaConf
 import os
 import torch
@@ -15,7 +14,6 @@ import sys
 sys.path.append('fairseq/')
 from examples.data2vec.models.data2vec2 import Data2VecMultiModel
 from examples.data2vec.models.data2vec2 import Data2VecMultiConfig
-from examples.data2vec.data.modality import Modality
 from fairseq.data import Dictionary
 
 logger = logging.getLogger(__name__)
@@ -53,7 +51,7 @@ def load_model(pretrained_model_cfg:DictConfig,
     pretrained_model_cfg = merge_with_parent(Data2VecMultiConfig(), pretrained_model_cfg, remove_missing=True)
 
     logger.info(f"Modality used: {pretrained_model_cfg.supported_modality}")
-    if pretrained_model_cfg.supported_modality == Modality.TEXT:
+    if pretrained_model_cfg.supported_modality.name.lower() == 'text':
         Task = namedtuple('Task', 'source_dictionary')
 
         dictionary = Dictionary.load(os.path.join('..', 'data', "dict.txt"))
