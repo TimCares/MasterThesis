@@ -6,15 +6,274 @@ import random
 import math
 import json
 import os
-from typing import List
+from typing import List, Tuple
 from PIL import Image
 from torchvision.datasets.utils import download_url
 from pydub import AudioSegment
 import multiprocessing
 from rich.progress import track
-from bpe_encoder import BPEEncoder
 
 logger = logging.getLogger(__name__)
+
+
+def compute_block_mask_2d(
+    shape: Tuple[int, int],
+    mask_prob: float,
+    mask_length: int,
+    mask_prob_adjust: float = 0,
+    inverse_mask: bool = False,
+    require_same_masks: bool = True,
+    expand_adjcent: bool = False,
+    mask_dropout: float = 0,
+    non_overlapping: bool = False,
+) -> torch.Tensor:
+
+    assert mask_length > 1
+
+    B, L = shape
+
+    d = int(L**0.5)
+
+    if inverse_mask:
+        mask_prob = 1 - mask_prob
+
+    if non_overlapping:
+        sz = math.ceil(d / mask_length)
+        inp_len = sz * sz
+
+        inp = torch.zeros((B, 1, sz, sz))
+        w = torch.ones((1, 1, mask_length, mask_length))
+
+        mask_inds = torch.multinomial(
+            1 - inp.view(B, -1),
+            int(inp_len * (mask_prob + mask_prob_adjust) * (1 + mask_dropout)),
+            replacement=False,
+        )
+        inp.view(B, -1).scatter_(1, mask_inds, 1)
+
+        mask = torch.nn.functional.conv_transpose2d(inp, w, stride=mask_length).squeeze(
+            1
+        )
+        if mask.size(-1) > d:
+            mask = mask[..., :d, :d]
+    else:
+        mask = torch.zeros((B, d, d))
+        mask_inds = torch.randint(
+            0,
+            L,
+            size=(
+                B,
+                int(
+                    L
+                    * ((mask_prob + mask_prob_adjust) / mask_length**2)
+                    * (1 + mask_dropout)
+                ),
+            ),
+        )
+        mask.view(B, -1).scatter_(1, mask_inds, 1)
+        centers = mask.nonzero(as_tuple=True)
+
+        inds = ([], [], [])
+
+        offset = mask_length // 2
+        for i in range(mask_length):
+            for j in range(mask_length):
+                k1 = i - offset
+                k2 = j - offset
+                inds[0].append(centers[0])
+                inds[1].append(centers[1] + k1)
+                inds[2].append(centers[2] + k2)
+
+        i0 = torch.cat(inds[0])
+        i1 = torch.cat(inds[1]).clamp_(min=0, max=d - 1)
+        i2 = torch.cat(inds[2]).clamp_(min=0, max=d - 1)
+
+        mask[(i0, i1, i2)] = 1
+
+    def get_nbs(b, m, w):
+        all_nbs = torch.nn.functional.conv2d(m.unsqueeze(1), w, padding="same")
+        all_nbs = all_nbs.clamp_max_(1).view(b, -1)
+        return all_nbs
+
+    if require_same_masks and expand_adjcent:
+        w = torch.zeros((1, 1, 3, 3))
+        w[..., 0, 1] = 1
+        w[..., 2, 1] = 1
+        w[..., 1, 0] = 1
+        w[..., 1, 2] = 1
+
+        all_nbs = get_nbs(B, mask, w)
+
+    mask = mask.reshape(B, -1)
+
+    if require_same_masks:
+        n_masks = mask.sum(dim=-1)
+        final_target_len = int(L * (mask_prob))
+        target_len = int(final_target_len * (1 + mask_dropout))
+
+        for i in range(len(mask)):
+            n = n_masks[i]
+            m = mask[i]
+            r = 0
+            while expand_adjcent and n < target_len:
+                if r == 0:
+                    nbs = all_nbs[i]
+                else:
+                    nbs = get_nbs(1, m.view(1, d, d), w).flatten()
+
+                cands = (1 - m + nbs) > 1
+                cand_sz = int(cands.sum().item())
+
+                assert cand_sz > 0, f"{nbs} {cand_sz}"
+
+                to_mask = torch.multinomial(
+                    cands.float(), min(cand_sz, int(target_len - n)), replacement=False
+                )
+                m[to_mask] = 1
+                assert to_mask.numel() > 0
+                n += to_mask.numel()
+                r += 1
+
+            if n > final_target_len:
+                to_unmask = torch.multinomial(
+                    m, int(n - final_target_len), replacement=False
+                )
+                m[to_unmask] = 0
+            elif n < final_target_len:
+                to_mask = torch.multinomial(
+                    (1 - m), int(final_target_len - n), replacement=False
+                )
+                m[to_mask] = 1
+
+    if inverse_mask:
+        mask = 1 - mask
+
+    return mask
+
+
+def compute_block_mask_1d(
+    shape: Tuple[int, int],
+    mask_prob: float,
+    mask_length: int,
+    mask_prob_adjust: float = 0,
+    inverse_mask: bool = False,
+    require_same_masks: bool = True,
+    expand_adjcent: bool = False,
+    mask_dropout: float = 0,
+    non_overlapping: bool = False,
+) -> torch.Tensor:
+
+    B, L = shape
+
+    if inverse_mask:
+        mask_prob = 1 - mask_prob
+
+    if non_overlapping:
+        sz = math.ceil(L / mask_length)
+
+        inp = torch.zeros((B, 1, sz))
+        w = torch.ones((1, 1, mask_length))
+
+        mask_inds = torch.multinomial(
+            1 - inp.view(B, -1),
+            int(sz * (mask_prob + mask_prob_adjust) * (1 + mask_dropout)),
+            replacement=False,
+        )
+        inp.view(B, -1).scatter_(1, mask_inds, 1)
+
+        mask = torch.nn.functional.conv_transpose1d(inp, w, stride=mask_length).squeeze(
+            1
+        )
+        if mask.size(-1) > L:
+            mask = mask[..., :L]
+
+    else:
+        mask = torch.zeros((B, L))
+        mask_inds = torch.randint(
+            0,
+            L,
+            size=(
+                B,
+                int(
+                    L
+                    * ((mask_prob + mask_prob_adjust) / mask_length)
+                    * (1 + mask_dropout)
+                ),
+            ),
+        )
+
+        mask.view(B, -1).scatter_(1, mask_inds, 1)
+        centers = mask.nonzero(as_tuple=True)
+
+        inds = ([], [])
+
+        offset = mask_length // 2
+        for i in range(mask_length):
+            k1 = i - offset
+            inds[0].append(centers[0])
+            inds[1].append(centers[1] + k1)
+
+        i0 = torch.cat(inds[0])
+        i1 = torch.cat(inds[1]).clamp_(min=0, max=L - 1)
+
+        mask[(i0, i1)] = 1
+
+    def get_nbs(b, m, w):
+        all_nbs = torch.nn.functional.conv1d(m.unsqueeze(1), w, padding="same")
+        all_nbs = all_nbs.clamp_max_(1).view(b, -1)
+        return all_nbs
+
+    if require_same_masks and expand_adjcent:
+        w = torch.ones((1, 1, 3))
+        w[..., 1] = 0
+        all_nbs = get_nbs(B, mask, w)
+
+    mask = mask.view(B, -1)
+
+    if require_same_masks:
+        n_masks = mask.sum(dim=-1)
+        final_target_len = int(L * (mask_prob))
+        target_len = int(final_target_len * (1 + mask_dropout))
+
+        for i in range(len(mask)):
+            n = n_masks[i]
+            m = mask[i]
+            r = 0
+            while expand_adjcent and n < target_len:
+                if r == 0:
+                    nbs = all_nbs[i]
+                else:
+                    nbs = get_nbs(1, m.unsqueeze(0), w).squeeze(0)
+
+                cands = (1 - m + nbs) > 1
+                cand_sz = int(cands.sum().item())
+
+                assert cand_sz > 0, f"{nbs} {cand_sz}"
+
+                to_mask = torch.multinomial(
+                    cands.float(), min(cand_sz, int(target_len - n)), replacement=False
+                )
+                m[to_mask] = 1
+                assert to_mask.numel() > 0
+                n += to_mask.numel()
+                r += 1
+
+            if n > final_target_len:
+                to_unmask = torch.multinomial(
+                    m, int(n - final_target_len), replacement=False
+                )
+                m[to_unmask] = 0
+            elif n < final_target_len:
+                to_mask = torch.multinomial(
+                    (1 - m), int(final_target_len - n), replacement=False
+                )
+                m[to_mask] = 1
+
+    if inverse_mask:
+        mask = 1 - mask
+
+    return mask
+
 
 def _mp3_to_flac(mp3_file:str):
         audio = AudioSegment.from_mp3(mp3_file)
@@ -40,18 +299,6 @@ def write_data_into_jsonl(items, jsonl_file):
             writer.write(json.dumps(data, indent=None))
             writer.write('\n')
     logger.info("Write %s with %d items !" % (jsonl_file, len(items)))
-
-def load_tokenizer_data(store_at:str="../data"):
-    for filename in ["dict.txt", "encoder.json", "vocab.bpe"]:
-        if not os.path.exists(os.path.join(store_at, filename)):
-            url = f"https://dl.fbaipublicfiles.com/fairseq/data2vec2/{filename}"
-            download_url(url=url, store_at=store_at)
-
-def get_bpe_encoder(data_path):
-    load_tokenizer_data(data_path)
-    encoder_json_path = os.path.join(data_path, "encoder.json")
-    vocab_bpe_path = os.path.join(data_path, "vocab.bpe")
-    return BPEEncoder(encoder_json_path, vocab_bpe_path)
 
 def download_and_unzip(urls:str, store_at:str="../data", archive_type:str="zip"):
     for url in urls:
