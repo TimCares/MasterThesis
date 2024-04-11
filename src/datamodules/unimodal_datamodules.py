@@ -1,7 +1,7 @@
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from typing import Tuple, Dict, Any
-from datasets import IMDBDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, EnWik9Dataset, OpenWebTextDataset
+from datasets import IMDBDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, OpenWebTextDataset
 from datasets import REGISTRY as DATASET_REGISTRY
 from functools import partial
 
@@ -102,38 +102,6 @@ class IMDBDataModule(BaseDataModule):
     def set_test_dataset(self):
         self.test_dataset = IMDBDataset(data_path=self.data_path, split='test', num_max_bpe_tokens=self.num_max_bpe_tokens)
 
-
-class EnWik9DataModule(BaseDataModule):
-    def __init__(self, 
-                 data_path:str,
-                 num_max_bpe_tokens:int,
-                 sample_break_mode:str,
-                 *args,
-                 **kwargs):
-        super().__init__(data_path, *args, **kwargs)
-        self.num_max_bpe_tokens = num_max_bpe_tokens
-        self.sample_break_mode = sample_break_mode
-
-    def prepare_data(self):
-        if not self.prepared:
-            self.set_train_dataset()
-            self.set_val_dataset()
-
-            self.prepared = True
-
-    def setup(self, stage=None):
-        if stage == 'fit' or stage is None:
-            self.train_dataset.load()
-            self.val_dataset.load()
-
-    def set_train_dataset(self):
-        self.train_dataset = EnWik9Dataset(data_path=self.data_path, split='train', num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                           sample_break_mode=self.sample_break_mode)
-
-    def set_val_dataset(self):
-        self.val_dataset = EnWik9Dataset(data_path=self.data_path, split='val', num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                         sample_break_mode=self.sample_break_mode)
-        
 
 class OpenWebTextDataModule(BaseDataModule):
     def __init__(self, 
@@ -336,7 +304,6 @@ class SpeechCommandsDataModule(BaseDataModule):
 
 UNIMODAL_REGISTRY = {
     'imdb': IMDBDataModule,
-    'enwik9': EnWik9DataModule,
     'openwebtext': OpenWebTextDataModule,
     'cifar10': partial(CIFARDataModule, type='cifar10'),
     'cifar100': partial(CIFARDataModule, type='cifar100'),
