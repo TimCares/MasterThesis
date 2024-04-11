@@ -8,12 +8,13 @@ defaults:
   - _self_ # this first, so that the base config can be overridden by others
   - datamodule: text
 
-model_state_dict: ???
+
 
 datamodule:
   _name: ???
-
-  data_path: ../../data
+  model_state_dict: ???
+  
+  data_path: ../data
 
   batch_size: 256
   num_workers: 5

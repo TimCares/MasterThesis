@@ -2,5 +2,7 @@
 
 _name: openwebtext
 
+model_state_dict: nlp_base.pt
+
 num_max_bpe_tokens: 512
 sample_break_mode: none

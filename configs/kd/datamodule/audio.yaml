@@ -2,6 +2,8 @@
 
 _name: common_voice
 
+model_state_dict: base_libri.pt
+
 num_max_bpe_tokens: 512
 
 sample_rate: 16_000

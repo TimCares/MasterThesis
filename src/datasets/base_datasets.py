@@ -138,7 +138,6 @@ class NLPDataset(BaseDataset):
                 pad_idx=self.dictionary.pad(),
             ),
             "padding_mask": RightPaddingMaskDataset(dataset),
-            "modes": self.modes,
         }
 
         self.dataset = NestedDictionaryDataset(input_dict)
@@ -150,7 +149,9 @@ class NLPDataset(BaseDataset):
         return len(self.dataset)
     
     def collater(self, samples):
-        return self.dataset.collater(samples)
+        batch = self.dataset.collater(samples)
+        batch["modes"] = self.modes
+        return batch
     
 
 class AudioDataset(BaseDataset):
