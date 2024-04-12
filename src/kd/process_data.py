@@ -1,5 +1,4 @@
 import sys
-sys.path.append('../fairseq/')
 sys.path.append('../')
 sys.path.append('../../')
 import json
@@ -11,7 +10,6 @@ from omegaconf.dictconfig import DictConfig
 import torch
 from datamodules import REGISTRY as DATAMODULE_REGISTRY
 from datamodules import BaseDataModule
-from datasets import Modality
 from rich.progress import track
 from src.utils import load_pretrained_d2v_model
 

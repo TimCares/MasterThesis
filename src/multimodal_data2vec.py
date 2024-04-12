@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from datasets import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup
 
-from examples.data2vec.models.modalities.modules import AltBlock
+from data2vec_fairseq.models.modalities.modules import AltBlock
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
 logger = logging.getLogger(__name__)

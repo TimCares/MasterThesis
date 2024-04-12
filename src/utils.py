@@ -10,10 +10,8 @@ from omegaconf.dictconfig import DictConfig
 from collections import OrderedDict
 from dataclasses import is_dataclass
 
-import sys
-sys.path.append('fairseq/')
-from examples.data2vec.models.data2vec2 import Data2VecMultiModel
-from examples.data2vec.models.data2vec2 import Data2VecMultiConfig
+from data2vec_fairseq.models.data2vec2 import Data2VecMultiModel
+from data2vec_fairseq.models.data2vec2 import Data2VecMultiConfig
 from dictionary import Dictionary
 
 logger = logging.getLogger(__name__)
