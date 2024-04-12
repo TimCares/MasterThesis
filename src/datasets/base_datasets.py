@@ -15,9 +15,17 @@ from bpe_encoder import get_bpe_encoder as get_bpe_encoder_from_utils
 import torch.nn.functional as F
 
 from data2vec_fairseq.data.path_dataset import PathDataset
-from fairseq.data.data_utils import compute_block_mask_1d, compute_block_mask_2d
+from fairseq.data.data_utils import compute_block_mask_1d, compute_block_mask_2d, load_indexed_dataset
 
-from fairseq.data import Dictionary
+from fairseq.data import (
+    Dictionary,
+    NestedDictionaryDataset,
+    TokenBlockDataset,
+    PrependTokenDataset,
+    AppendTokenDataset,
+    RightPadDataset,
+    RightPaddingMaskDataset,
+)
 
 from torchvision import datasets
 from torchvision.datasets.folder import default_loader
@@ -82,37 +90,67 @@ class NLPDataset(BaseDataset):
     @property
     def modes(self) -> List[Modality]:
         return [Modality.TEXT]
-    
-    def get_index_files(self):
-        raise NotImplementedError
 
-    def index_exists(self):
-        index_files = self.get_index_files()
-        for _index_file in index_files:
-            if not os.path.exists(os.path.join(self.data_path, _index_file)):
-                return False
-        
-        self.log(f"Data already exists under: {self.data_path}")
-        return True
+    def index_exists(self, dataset_path):
+        if os.path.exists(os.path.join(dataset_path, 'train.bin')) and os.path.exists(os.path.join(dataset_path, 'train.idx')):
+            self.log(f"Data already exists under: {dataset_path}")
+            return True
+        else:
+            return False
           
     def load(self):
-        index_files = self.get_index_files()
-        items = []
-        self.index_files = index_files
+        """Load a given dataset split.
 
-        offset = 0
-        for _index_file in index_files:
-            index_file = os.path.join(self.data_path, _index_file)
-            with open(index_file, mode="r", encoding="utf-8") as reader:
-                for line in reader:
-                    data = json.loads(line)
-                    items.append(data)
-                self.log("Load %d text examples from %s. " % (len(items) - offset, index_file))
-                offset = len(items)
-        self.items = items
+        Args:
+            split (str): name of the split (e.g., train, valid, test)
+        """
+        split_path = os.path.join(self.data_path, self.split)
+
+        dataset = load_indexed_dataset(
+            split_path,
+            self.dictionary,
+            combine=True,
+        )
+        if dataset is None:
+            raise FileNotFoundError(
+                "Dataset not found: {} ({})".format(self.split, split_path)
+            )
+
+        # create continuous blocks of tokens
+        dataset = TokenBlockDataset(
+            dataset,
+            dataset.sizes,
+            self.num_max_bpe_tokens - 2,  # two less for bos and eos
+            pad=self.dictionary.pad(),
+            eos=self.dictionary.eos(),
+            break_mode=self.sample_break_mode,
+        )
+        logger.info("loaded {} blocks from: {}".format(len(dataset), split_path))
+
+        # prepend beginning-of-sentence and append end-of-sentence tokens
+        dataset = PrependTokenDataset(dataset, self.dictionary.bos())
+        dataset = AppendTokenDataset(dataset, self.dictionary.eos())
+
+        input_dict = {
+            "text": RightPadDataset(
+                dataset,
+                pad_idx=self.dictionary.pad(),
+            ),
+            "padding_mask": RightPaddingMaskDataset(dataset),
+        }
+
+        self.dataset = NestedDictionaryDataset(input_dict)
 
     def __getitem__(self, index):
-        return self.items[index]
+        return self.dataset[index]
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def collater(self, samples):
+        batch = self.dataset.collater(samples)
+        batch["modes"] = self.modes
+        return batch
     
 
 class AudioDataset(BaseDataset):

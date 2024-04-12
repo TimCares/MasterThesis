@@ -15,6 +15,7 @@ from datasets.wav2vec_manifest import create_manifests
 from bpe_encoder import encode, get_bpe_encoder
 
 from fairseq.data import Dictionary
+from fairseq_cli.preprocess import preprocess
 
 from torchaudio.datasets import LIBRISPEECH, SPEECHCOMMANDS
 import torchtext
@@ -39,20 +40,20 @@ class OpenWebTextDataset(NLPDataset):
         base_data_path = self.data_path
         self.data_path = dataset_path
 
-        if self.index_exists(dataset_path=self.data_path):
+        if self.index_exists(dataset_path=dataset_path):
             return
 
         pattern = os.path.join(self.nlp_dir_path, '*.tar')
         files = glob.glob(pattern)
 
         if len(files)==0:
-            raise FileNotFoundError(f"No tar files found under: {self.data_path}")
+            raise FileNotFoundError(f"No tar files found under: {dataset_path}")
 
         self.log(f"Found {len(files)} tar files, inflating...")
         for file in files:
             os.system(f"tar -xf {file} -C {self.nlp_dir_path}")
             os.remove(file)
-        pattern = os.path.join(self.data_path, '*.xz')
+        pattern = os.path.join(dataset_path, '*.xz')
         files = glob.glob(pattern)
         for file in files:
             os.system(f"unxz {file}")
@@ -61,9 +62,9 @@ class OpenWebTextDataset(NLPDataset):
         pattern = rb'\x00+'
 
         self.log("Cleaning...")
-        files = os.listdir(self.data_path)
+        files = os.listdir(dataset_path)
         for file in files:
-            with open(os.path.join(self.data_path, file), 'rb') as f:
+            with open(os.path.join(dataset_path, file), 'rb') as f:
                 first_line = f.readline()
                 rest_of_file = f.read()
             
@@ -71,55 +72,35 @@ class OpenWebTextDataset(NLPDataset):
             if matches:
                 first_line = first_line[matches[-1].end():]
 
-            with open(os.path.join(self.data_path, file), 'wb') as f:
+            with open(os.path.join(dataset_path, file), 'wb') as f:
                 f.write(first_line)
                 f.write(rest_of_file)
 
-            with open(os.path.join(self.data_path, file), 'r', encoding='utf-8') as f:
+            with open(os.path.join(dataset_path, file), 'r', encoding='utf-8') as f:
                 lines = f.readlines()
             
-            with open(os.path.join(self.data_path, file), 'w', encoding='utf-8') as f:
+            with open(os.path.join(dataset_path, file), 'w', encoding='utf-8') as f:
                 for line in lines:
                     stripped_line = line.strip()
                     if stripped_line != '' and stripped_line != '---':
                         f.write(line)
 
         self.log("Joining...")
-        with open(os.path.join(self.data_path, 'openwebtext.txt'), 'w') as f:
+        with open(os.path.join(dataset_path, 'openwebtext.txt'), 'w') as f:
             for file in files:
-                path_to_file = os.path.join(self.data_path, file)
+                path_to_file = os.path.join(dataset_path, file)
                 with open(path_to_file, 'r') as f2:
                     f.write(f2.read())
                 os.remove(path_to_file)
 
         self.log("Encoding...")
-        in_file = os.path.join(self.data_path, 'openwebtext.txt')
-        out_file = os.path.join(self.data_path, 'openwebtext.bpe')
+        in_file = os.path.join(dataset_path, 'openwebtext.txt')
+        out_file = os.path.join(dataset_path, 'openwebtext.bpe')
         encode(f'{base_data_path}/encoder.json', f'{base_data_path}/vocab.bpe', [in_file], [out_file], keep_empty=True)
         os.remove(in_file)
-
-    def get_index_files(self):
-        return (f'openwebtext.{self.split}.jsonl', )
-        
-    def _make_owt_dataset_index(self, file_path:str):
-        items = []
-        with open(file_path, 'r', encoding='utf-8') as reader:
-            tokens = reader.read()
-
-        num_real_tokens = self.num_max_bpe_tokens-2
-        for i in range(0, len(tokens), num_real_tokens):
-            example = tokens[i:i+num_real_tokens]
-            example = [self.dictionary.bos()] + example + [self.dictionary.eos()]
-            items.append({
-                'text': example,
-            })
-
-        # cut off last example, if not enought tokens were remaining at the end of the text
-        if len(items[-1]) != self.num_max_bpe_tokens:
-            items = items[:-1]
-
-        write_data_into_jsonl(items=items, jsonl_file=os.path.join(self.data_path, f'openwebtext.{self.split}.jsonl'))
-        
+        preprocess(srcdict=f'{base_data_path}/dict.txt', trainpref=out_file, destdir=dataset_path, workers=os.cpu_count(),
+                   only_source=True)
+        os.remove(out_file)
 
 
 class IMDBDataset(BaseDataset):
