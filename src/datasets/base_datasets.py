@@ -15,7 +15,7 @@ from bpe_encoder import get_bpe_encoder as get_bpe_encoder_from_utils
 import torch.nn.functional as F
 
 from datasets.path_dataset import PathDataset
-from data_utils import compute_block_mask_1d, compute_block_mask_2d
+from fairseq.data.data_utils import compute_block_mask_1d, compute_block_mask_2d
 
 from fairseq.data import Dictionary
 

@@ -13,7 +13,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from data_utils import compute_block_mask_1d
+from fairseq.data.data_utils import compute_block_mask_1d
 
 
 logger = logging.getLogger(__name__)
