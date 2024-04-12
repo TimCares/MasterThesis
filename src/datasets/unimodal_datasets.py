@@ -14,7 +14,7 @@ from .raw_audio_dataset import FileAudioDataset
 from datasets.wav2vec_manifest import create_manifests
 from bpe_encoder import encode, get_bpe_encoder
 
-from dictionary import Dictionary
+from fairseq.data import Dictionary
 
 from torchaudio.datasets import LIBRISPEECH, SPEECHCOMMANDS
 import torchtext

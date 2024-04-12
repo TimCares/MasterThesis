@@ -17,7 +17,7 @@ import torch.nn.functional as F
 from datasets.path_dataset import PathDataset
 from data_utils import compute_block_mask_1d, compute_block_mask_2d
 
-from dictionary import Dictionary
+from fairseq.data import Dictionary
 
 from torchvision import datasets
 from torchvision.datasets.folder import default_loader

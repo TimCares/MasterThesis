@@ -19,7 +19,7 @@ from data.imagenet_zeroshot_data import (
 )
 from rich.progress import track
 from bpe_encoder import get_bpe_encoder
-from dictionary import Dictionary
+from fairseq.data import Dictionary
 
 logger = logging.getLogger(__name__)
 
