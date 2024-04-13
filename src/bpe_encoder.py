@@ -12,7 +12,7 @@ from collections import Counter
 from multiprocessing import Pool
 import torch
 import os
-from datasets import download_url
+from torchvision.datasets.utils import download_url
 
 from fairseq.data.encoders.gpt2_bpe_utils import get_encoder
 
