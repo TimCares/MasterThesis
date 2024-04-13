@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 class OpenWebTextDataset(NLPDataset):
     def __init__(self,
                  data_path: str,
-                 split: str,
+                 split: str, # ignored, as only train for pretraining
                  num_max_bpe_tokens: int,
                  sample_break_mode: str = 'none'):
         super().__init__(data_path=data_path,
