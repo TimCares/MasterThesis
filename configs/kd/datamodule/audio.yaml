@@ -1,5 +1,3 @@
-# @package _group_
-
 _name: common_voice
 
 model_state_dict: base_libri.pt

@@ -1,5 +1,3 @@
-# @package _group_
-
 hydra:
   run:
     dir: .

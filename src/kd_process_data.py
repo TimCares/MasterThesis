@@ -1,6 +1,3 @@
-import sys
-sys.path.append('../')
-sys.path.append('../../')
 import json
 import os
 import logging
@@ -11,20 +8,21 @@ import torch
 from datamodules import REGISTRY as DATAMODULE_REGISTRY
 from datamodules import BaseDataModule
 from rich.progress import track
-from src.utils import load_pretrained_d2v_model
+from utils import load_pretrained_d2v_model
 
 logger = logging.getLogger(__name__)
 
 
-@hydra.main(config_path=os.path.join("..", "..", "configs", "kd"), config_name="base")
+@hydra.main(version_base=None, config_path=os.path.join("..", "configs", "kd"), config_name="base")
 def extract_targets(cfg: DictConfig) -> None:
-    model = load_pretrained_d2v_model(state_dict_path=os.path.join('..', '..', 'models', cfg.model_state_dict))
+    datamodule_kwargs = OmegaConf.to_container(cfg.datamodule)
+    datamodule_name = datamodule_kwargs.pop('_name', None)
+    model_state_dict_name = datamodule_kwargs.pop('model_state_dict', None)
+
+    model = load_pretrained_d2v_model(state_dict_path=os.path.join('..', 'models', model_state_dict_name))
 
     model.eval()
     
-    datamodule_kwargs = OmegaConf.to_container(cfg.datamodule)
-    datamodule_name = datamodule_kwargs.pop('_name', None)
-
     if datamodule_name is None:
         raise ValueError('Field "_name" of cfg.datamodule either missing or is None!')
     
@@ -65,11 +63,15 @@ def extract_targets(cfg: DictConfig) -> None:
                 "path": os.path.join(dir_name, filename),
                 "batch_idx": idx,
             })
+
+            pred.pop('x', None) # output of final layer not interesting, also, it is contained in 'layer_results' at [-1]
+            pred.pop('mask', None) # is non here, as we do not mask the kd targets
+            # pred in now dict with keys "padding_mask" and "layer_results"
+            pred['layer_results'] = torch.stack(pred['layer_results'])
             item = {
                 'target': pred,
                 key: batch[key],
                 'modes': batch['modes'],
-                'id': batch["id"],
             }
             if padding_mask is not None:
                 item['padding_mask'] = padding_mask

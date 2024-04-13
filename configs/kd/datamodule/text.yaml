@@ -1,5 +1,3 @@
-# @package _group_
-
 _name: openwebtext
 
 model_state_dict: nlp_base.pt
