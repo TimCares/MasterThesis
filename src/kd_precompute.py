@@ -30,12 +30,15 @@ def instance_norm_and_average(target_layer_results:List[torch.Tensor]) -> torch.
 
 @hydra.main(version_base=None, config_path=os.path.join("..", "configs", "kd"), config_name="base")
 def extract_targets(cfg: DictConfig) -> None:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info(f'Running with device: {device}')
+
     datamodule_kwargs = OmegaConf.to_container(cfg.datamodule)
     datamodule_name = datamodule_kwargs.pop('_name', None)
     model_state_dict_name = datamodule_kwargs.pop('model_state_dict', None)
 
     model = load_pretrained_d2v_model(state_dict_path=os.path.join('..', 'models', model_state_dict_name))
-
+    model = model.to(device)
     model.eval()
     
     if datamodule_name is None:
@@ -67,9 +70,9 @@ def extract_targets(cfg: DictConfig) -> None:
 
             padding_mask = batch['padding_mask'] if 'padding_mask' in batch else None 
             pred = model.extract_features(
-                source=batch[key],
+                source=batch[key].to(device),
                 mode=None, # determined automatically in model
-                padding_mask=padding_mask,
+                padding_mask=padding_mask.to(device),
                 mask=False, # we are creating targets from a teacher model for the student model, so no mask
                 remove_extra_tokens=False,
             )
@@ -82,7 +85,9 @@ def extract_targets(cfg: DictConfig) -> None:
             pred.pop('x', None) # output of final layer not interesting, also, it is contained in 'layer_results' at [-1]
             pred.pop('mask', None) # is non here, as we do not mask the kd targets
             # pred in now dict with keys "padding_mask" and "layer_results"
-            pred['layer_results'] = instance_norm_and_average(pred['layer_results'])
+            pred['layer_results'] = instance_norm_and_average(pred['layer_results']).cpu()
+            pred['padding_mask'] = pred['padding_mask'].cpu()
+
             item = {
                 'target': pred,
                 key: batch[key],
