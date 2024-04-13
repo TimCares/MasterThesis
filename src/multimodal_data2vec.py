@@ -12,7 +12,7 @@ import lightning as L
 import math
 from omegaconf import II
 from dataclasses import dataclass, field
-from datasets import Modality
+from datasets_ import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup
 from kd_precompute import instance_norm_and_average
 

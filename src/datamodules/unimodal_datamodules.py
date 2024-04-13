@@ -1,8 +1,8 @@
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from typing import Tuple, Dict, Any
-from datasets import IMDBDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, OpenWebTextDataset
-from datasets import REGISTRY as DATASET_REGISTRY
+from datasets_ import IMDBDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, OpenWebTextDataset
+from datasets_ import DATASET_REGISTRY
 from functools import partial
 
 class BaseDataModule(LightningDataModule):
@@ -302,7 +302,7 @@ class SpeechCommandsDataModule(BaseDataModule):
                                                   pad=self.pad,)
 
 
-UNIMODAL_REGISTRY = {
+UNIMODAL_DATAMODULE_REGISTRY = {
     'imdb': IMDBDataModule,
     'openwebtext': OpenWebTextDataModule,
     'cifar10': partial(CIFARDataModule, type='cifar10'),

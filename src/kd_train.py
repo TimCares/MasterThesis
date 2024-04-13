@@ -7,7 +7,7 @@ from pytorch_lightning import seed_everything, Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 
 from multimodal_data2vec import KDMMData2VecConfig, KDData2VecPreTrainingLightningModule
-from datamodules import REGISTRY as DATAMODULE_REGISTRY
+from datamodules import DATAMODULE_REGISTRY
 from multi_data_loader import MultiDataModule
 from validate import ZeroShotCallback
 

@@ -1,6 +1,6 @@
 from typing import Tuple, Dict, Any
 from .unimodal_datamodules import BaseDataModule
-from datasets import COCOCaptions, VisualGenome, VQAv2, NLVR2, Flickr30Dataset, CommonVoice, Flickr8KAudioDataset
+from datasets_ import COCOCaptions, VisualGenome, VQAv2, NLVR2, Flickr30Dataset, CommonVoice, Flickr8KAudioDataset
 
 class COCOCaptionsDataModule(BaseDataModule):
     def __init__(self,
@@ -332,7 +332,7 @@ class CommonVoiceDataModule(BaseDataModule):
                                         precompute_mask_config=None,)
 
 
-MULTIMODAL_REGISTRY = {
+MULTIMODAL_DATAMODULE_REGISTRY = {
     "coco_captions": COCOCaptionsDataModule,
     "visual_genome": VisualGenomeDataModule,
     "vqa_v2": VQAv2DataModule,

@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 import torch
 import torch.nn.functional as F
-from datamodules import REGISTRY as DATAMODULE_REGISTRY
+from datamodules import DATAMODULE_REGISTRY
 from datamodules import BaseDataModule
 from rich.progress import track
 from utils import load_pretrained_d2v_model

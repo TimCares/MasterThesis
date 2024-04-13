@@ -38,4 +38,7 @@ class KDDataset(BaseDataset):
     
     def collater(self, batch):
         return batch[0] # "batch" is just a one element list with an already prepared batch, so only indexing necessary here
-    
+
+KD_DATASET_REGISTRY = {
+    "kd_dataset": KDDataset,
+}
