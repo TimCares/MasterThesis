@@ -188,3 +188,4 @@ cython_debug/
 !*.md
 
 !src/fairseq/data/data_utils_fast.cpython-312-darwin.so
+!src/fairseq/data/token_block_utils_fast.cpython-312-darwin.so
