@@ -4,6 +4,11 @@ hydra:
   run:
     dir: .
 
+defaults:
+  - _self_ # this first, so that the base config can be overridden by others
+  
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
 
 dry_run: True
 data_path: ../data

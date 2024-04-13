@@ -7,6 +7,9 @@ hydra:
 defaults:
   - _self_ # this first, so that the base config can be overridden by others
   - datamodule: text
+  
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
 
 
 
