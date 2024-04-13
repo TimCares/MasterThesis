@@ -4,8 +4,8 @@ import torch
 from typing import Dict, Any
 import pandas as pd
 from torchvision.datasets.folder import default_loader
-from datasets.data_utils import get_transforms, write_data_into_jsonl, download_and_unzip, convert_mp3_to_flac
-from datasets.glossary import normalize_word
+from datasets_.data_utils import get_transforms, write_data_into_jsonl, download_and_unzip, convert_mp3_to_flac
+from datasets_.glossary import normalize_word
 from tqdm import tqdm
 import os
 import json
