@@ -58,7 +58,7 @@ def extract_targets(cfg: DictConfig) -> None:
 
     dir_name = f'kd_{datamodule_name}'
 
-    kd_targets_path = os.path.join(cfg.datamodule.data_path, dir_name)
+    kd_targets_path = os.path.join(cfg.datamodule.out_path, dir_name)
 
     os.makedirs(kd_targets_path, exist_ok=True)
 
@@ -103,7 +103,7 @@ def extract_targets(cfg: DictConfig) -> None:
 
     index = {
         'datamodule': OmegaConf.to_container(cfg.datamodule),
-        'model_state_dict': cfg.model_state_dict,
+        'model_state_dict': model_state_dict_name,
         'index': index_items,
     }
 
