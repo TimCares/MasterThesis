@@ -25,6 +25,7 @@ from fairseq.data import (
     AppendTokenDataset,
     RightPadDataset,
     RightPaddingMaskDataset,
+    IdDataset,
 )
 
 from torchvision import datasets
@@ -137,6 +138,7 @@ class NLPDataset(BaseDataset):
                 pad_idx=self.dictionary.pad(),
             ),
             "padding_mask": RightPaddingMaskDataset(dataset),
+            "id": IdDataset(),
         }
 
         self.dataset = NestedDictionaryDataset(input_dict)

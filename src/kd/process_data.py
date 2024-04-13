@@ -47,7 +47,7 @@ def extract_targets(cfg: DictConfig) -> None:
     os.makedirs(kd_targets_path, exist_ok=True)
 
     index_items = []
-
+    key = None
     with torch.no_grad():
         for idx, batch in track(enumerate(train_dataloader), description="Running predictions...", total=len(train_dataloader)):
             key = batch['modes'][0].name.lower() if key is None else key
