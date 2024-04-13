@@ -16,7 +16,7 @@ from utils import merge_with_parent
 
 logger = logging.getLogger(__name__)
 
-@hydra.main(config_path=os.path.join("..", "configs", "training"))
+@hydra.main(version_base=None, config_path=os.path.join("..", "configs", "training"))
 def main(cfg: DictConfig) -> None:
     cfg.model = merge_with_parent(dc=KDMMData2VecConfig(), cfg=cfg.model, remove_missing=False)
     if 'seed' in cfg and cfg.seed is not None:
@@ -26,7 +26,7 @@ def main(cfg: DictConfig) -> None:
 
     model = KDData2VecPreTrainingLightningModule(cfg=cfg)
 
-    cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True)) # only effect: evaluate/resolve all interpolations
+    OmegaConf.resolve(cfg=cfg) # resolving done in-place
 
     datamodules_keys = [name for name in cfg.data if name.startswith('_')]
     dataloader_keys = [name for name in cfg.data if not name.startswith('_')]

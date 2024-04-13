@@ -398,7 +398,7 @@ def preprocess(srcdict:str,
                only_source:bool=True,
                ):
     parser = options.get_preprocessing_parser()
-    default_args = {action.dest: action.default for action in parser._actions if action.default is not None}
+    default_args = {action.dest: action.default for action in parser._actions}
 
     user_args = {
         'srcdict': srcdict,
