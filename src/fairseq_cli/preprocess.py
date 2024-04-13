@@ -398,8 +398,7 @@ def preprocess(srcdict:str,
                only_source:bool=True,
                ):
     parser = options.get_preprocessing_parser()
-    args = parser.parse_args()
-    args = vars(args) # to dict
+    default_args = {action.dest: action.default for action in parser._actions if action.default is not None}
 
     user_args = {
         'srcdict': srcdict,
@@ -409,7 +408,7 @@ def preprocess(srcdict:str,
         'only_source': only_source,
     }
 
-    cfg = OmegaConf.create(args)
+    cfg = OmegaConf.create(default_args)
     cfg = OmegaConf.merge(cfg, user_args)
 
     main(args=cfg)
