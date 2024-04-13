@@ -10,10 +10,11 @@ from utils import load_pretrained_d2v_model
 import logging
 import lightning as L
 import math
-from omegaconf import OmegaConf, II
+from omegaconf import II
 from dataclasses import dataclass, field
 from datasets import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup
+from kd_precompute import instance_norm_and_average
 
 from data2vec_fairseq.models.modalities.modules import AltBlock
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
@@ -34,8 +35,6 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         else:
             self.model = None
 
-        self.average_top_k_layers_teacher: Dict[str, int] = OmegaConf.to_container(cfg.average_top_k_layers_teacher)
-
     def forward(self, input_dict):
         return self.model(**input_dict)
 
@@ -43,59 +42,13 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         target_dict = batch.pop('target')
         output_dict = self(batch) # call "forward"
 
-        y_hat = self.make_targets(output_dict['layer_results'], num_layers=self.cfg.average_top_k_layers_student)
-
-        target = self.make_targets(target_dict['layer_results'], num_layers=self.average_top_k_layers_teacher[batch['modes'][0].name.lower()])
+        y_hat = instance_norm_and_average(output_dict['layer_results'])
 
         y_hat = y_hat[output_dict['padding_mask']]
         target = target[target_dict['padding_mask']]
         
         assert y_hat.shape == target.shape() # for simple pretraining (only variant 1!) this must be the case
         return self.kd_loss(y_hat=y_hat, y=target)
-
-    def make_targets(self, output, num_layers=None):
-        with torch.no_grad():
-            target_layer_results = output[-num_layers:]
-
-            permuted = False
-            if self.cfg.instance_norm_target_layer or self.cfg.batch_norm_target_layer:
-                target_layer_results = [
-                    tl.transpose(1, 2) for tl in target_layer_results  # BTC -> BCT
-                ]
-                permuted = True
-            if self.cfg.batch_norm_target_layer:
-                target_layer_results = [
-                    F.batch_norm(
-                        tl.float(), running_mean=None, running_var=None, training=True
-                    )
-                    for tl in target_layer_results
-                ]
-            if self.cfg.instance_norm_target_layer:
-                target_layer_results = [
-                    F.instance_norm(tl.float()) for tl in target_layer_results
-                ]
-            if permuted:
-                target_layer_results = [
-                    tl.transpose(1, 2) for tl in target_layer_results  # BCT -> BTC
-                ]
-            if self.cfg.layer_norm_target_layer:
-                target_layer_results = [
-                    F.layer_norm(tl.float(), tl.shape[-1:])
-                    for tl in target_layer_results
-                ]
-
-        output = target_layer_results[0].float()
-        for tl in target_layer_results[1:]:
-            output.add_(tl.float())
-        output = output.div_(len(target_layer_results))
-
-        if self.cfg.layer_norm_targets:
-            output = F.layer_norm(output, output.shape[-1:])
-
-        if self.cfg.instance_norm_targets:
-            output = F.instance_norm(output.transpose(1, 2)).transpose(1, 2)
-
-        return output
     
     def kd_loss(self, y_hat, y):
         y_hat = y_hat.view(-1, y_hat.size(-1)).float()

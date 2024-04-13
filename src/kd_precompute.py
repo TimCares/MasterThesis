@@ -1,5 +1,6 @@
 import sys
 sys.path.append('..')
+from typing import List
 import json
 import os
 import logging
@@ -15,7 +16,7 @@ from utils import load_pretrained_d2v_model
 
 logger = logging.getLogger(__name__)
 
-def _instance_norm_and_average(target_layer_results:torch.Tensor) -> torch.Tensor:
+def instance_norm_and_average(target_layer_results:List[torch.Tensor]) -> torch.Tensor:
     target_layer_results = [
         F.instance_norm(tl.transpose(1, 2).float()).transpose(1, 2)
         for tl in target_layer_results  # BTC -> BCT
@@ -83,7 +84,7 @@ def extract_targets(cfg: DictConfig) -> None:
             pred.pop('x', None) # output of final layer not interesting, also, it is contained in 'layer_results' at [-1]
             pred.pop('mask', None) # is non here, as we do not mask the kd targets
             # pred in now dict with keys "padding_mask" and "layer_results"
-            pred['layer_results'] = _instance_norm_and_average(pred['layer_results'])
+            pred['layer_results'] = instance_norm_and_average(pred['layer_results'])
             item = {
                 'target': pred,
                 key: batch[key],

@@ -10,7 +10,6 @@ defaults:
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
 
-dry_run: True
 data_path: ../data
 model_path: ../models
 seed: 42
@@ -118,14 +117,6 @@ checkpoint:
   monitor: val/unimodal-imagenet-knn--zeroshot-top5-acc # logged in: ZeroShotCallback
   mode: max
   auto_insert_metric_name: False
-
-# following: state_dict['cfg']['model']
-average_top_k_layers_teacher:
-  audio: 8 # base_libri.pt
-  image: 10 # base_imagenet.pt
-  text: 12 # nlp_base.pt
-
-average_top_k_layers_student: ${model.depth}
 
 layer_norm_target_layer: False
 instance_norm_target_layer: True
