@@ -12,7 +12,7 @@ from dataclasses import is_dataclass
 
 from data2vec_fairseq.models.data2vec2 import Data2VecMultiModel
 from data2vec_fairseq.models.data2vec2 import Data2VecMultiConfig
-from dictionary import Dictionary
+from fairseq.data import Dictionary
 
 logger = logging.getLogger(__name__)
 

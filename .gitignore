@@ -186,3 +186,5 @@ cython_debug/
 .vscode
 
 !*.md
+
+!src/fairseq/data/data_utils_fast.cpython-312-darwin.so
