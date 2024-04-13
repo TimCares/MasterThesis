@@ -1,5 +1,5 @@
-data/*/
-models/
+/data/*/
+/models/
 .hydra
 
 !data/nlvr2/nlvr
@@ -190,5 +190,3 @@ cython_debug/
 !src/fairseq/data/data_utils_fast.cpython-39-darwin.so
 !src/fairseq/data/token_block_utils_fast.cpython-39-darwin.so
 !src/fairseq/libbleu.cpython-39-darwin.so
-
-!src/data2vec_fairseq/models
