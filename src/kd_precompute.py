@@ -62,6 +62,9 @@ def extract_targets(cfg: DictConfig) -> None:
 
     os.makedirs(kd_targets_path, exist_ok=True)
 
+    batch_idx_offset = cfg.datamodule.offset
+    id_offset = cfg.datamodule.offset*cfg.datamodule.batch_size
+
     index_items = []
     key = None
     with torch.no_grad():
@@ -76,7 +79,8 @@ def extract_targets(cfg: DictConfig) -> None:
                 mask=False, # we are creating targets from a teacher model for the student model, so no mask
                 remove_extra_tokens=False,
             )
-            filename = f'{idx}_{batch["id"][0]}-{batch["id"][-1]}.pt'
+            id = id+batch_idx_offset
+            filename = f'{idx}_{id_offset+batch["id"][0]}-{id_offset+batch["id"][-1]}.pt'
             index_items.append({
                 "path": os.path.join(dir_name, filename),
                 "batch_idx": idx,
