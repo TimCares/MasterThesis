@@ -287,7 +287,6 @@ dependencies:
     - tomli==2.0.1
     - torch==2.2.2
     - torchaudio==2.2.2
-    - torchmultimodal==0.1.0b0
     - torchtext==0.17.2
     - torchvision==0.17.2
     - transformers==4.39.3
