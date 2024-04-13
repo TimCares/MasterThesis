@@ -399,48 +399,23 @@ class KDMMData2Vec(nn.Module):
                                      normalize=normalize)
 
 
-# extractor_outputs = []
-# for mode, input in zip(["image", "text", "audio"], [image, text, audio]):
-#     if input is not None:
-#         feature_extractor = self.modality_encoders[mode]
-#         with torch.no_grad():
-#             extractor_out = feature_extractor(
-#                 input,
-#                 padding_mask,
-#                 mask,
-#                 remove_masked=not features_only or force_remove_masked,
-#                 clone_batch=self.cfg.clone_batch if not features_only else 1,
-#                 mask_seeds=mask_seeds,
-#                 precomputed_mask=precomputed_mask,
-#             )
-# 
-#         if self.proj is not None:
-#             extractor_out = self.proj(extractor_out)
-#         extractor_outputs.append(extractor_out)
-# 
-# x = extractor_outputs[0]
-# 
-# if len(extractor_outputs) == 1:        
-#     x = extractor_outputs[0]
-# else:
-#     x = torch.cat(extractor_outputs, dim=1) # TODO: look into it later when input is multimodal...
-
-
-class DummyModel(KDMMData2Vec):
+class InitializedD2V(KDMMData2Vec):
     def __init__(self,
-                 cfg: KDMMData2VecConfig,
-                 ):
-        super().__init__(cfg=cfg)
+                 cfg: KDMMData2VecConfig):
+        super().__init__(cfg)
 
-    def forward(
-        self,
-        *args,
-        **kwargs,
-    ):
 
-        return {
-            "x": x,
-            "padding_mask": masked_padding_mask,
-            "layer_results": layer_results,
-            "mask": encoder_mask,
-        }
+    def _get_modality_encoders(self) -> None:
+        modality_encoders = {}
+        for mode, state_dict_name in self.cfg.pretrained.items():
+            mode_enum:Modality = Modality[mode.upper()] # Modality[mode.upper()]: e.g. 'text' => Modality.Text
+            logger.info(f'Loading modality encoder for: {mode_enum}')
+            state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
+            d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
+            mode_feature_extractor = d2v_model.modality_encoders[mode_enum.name]
+            modality_encoders[mode_enum.name] = mode_feature_extractor
+
+        return nn.ModuleDict(modality_encoders)
+    
+    def _init_blocks() -> None:
+        pass

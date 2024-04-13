@@ -1,3 +1,5 @@
+import sys
+sys.path.append('..')
 import json
 import os
 import logging
@@ -5,12 +7,26 @@ import hydra
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 import torch
+import torch.nn.functional as F
 from datamodules import REGISTRY as DATAMODULE_REGISTRY
 from datamodules import BaseDataModule
 from rich.progress import track
 from utils import load_pretrained_d2v_model
 
 logger = logging.getLogger(__name__)
+
+def _instance_norm_and_average(target_layer_results:torch.Tensor) -> torch.Tensor:
+    target_layer_results = [
+        F.instance_norm(tl.transpose(1, 2).float()).transpose(1, 2)
+        for tl in target_layer_results  # BTC -> BCT
+    ]
+
+    # clone() -> only the first time step is actually retained, so we not just change the view: https://pytorch.org/docs/stable/notes/serialization.html#saving-loading-tensors
+    y = target_layer_results[0][:, 0, :].clone().float()
+    for tl in target_layer_results[1:]:
+        y.add_(tl[:, 0, :].clone().float())
+    y = y.div_(len(target_layer_results))
+    return y
 
 
 @hydra.main(version_base=None, config_path=os.path.join("..", "configs", "kd"), config_name="base")
@@ -67,7 +83,7 @@ def extract_targets(cfg: DictConfig) -> None:
             pred.pop('x', None) # output of final layer not interesting, also, it is contained in 'layer_results' at [-1]
             pred.pop('mask', None) # is non here, as we do not mask the kd targets
             # pred in now dict with keys "padding_mask" and "layer_results"
-            pred['layer_results'] = torch.stack(pred['layer_results'])
+            pred['layer_results'] = _instance_norm_and_average(pred['layer_results'])
             item = {
                 'target': pred,
                 key: batch[key],
