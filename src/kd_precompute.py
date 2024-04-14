@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 def instance_norm_and_average(target_layer_results:List[torch.Tensor]) -> torch.Tensor:
     target_layer_results = [
         F.instance_norm(tl.transpose(1, 2).float()).transpose(1, 2)
-        for tl in target_layer_results  # BTC -> BCT
+        for tl in target_layer_results  # BTC -> BCT -> BTC
     ]
 
     # clone() -> only the first time step is actually retained, so we not just change the view: https://pytorch.org/docs/stable/notes/serialization.html#saving-loading-tensors
@@ -25,6 +25,19 @@ def instance_norm_and_average(target_layer_results:List[torch.Tensor]) -> torch.
     for tl in target_layer_results[1:]:
         y.add_(tl[:, 0, :].clone().float())
     y = y.div_(len(target_layer_results))
+    return y
+
+def _average_twice(target_layer_results:List[torch.Tensor]) -> torch.Tensor:
+    target_layer_results = [
+        F.instance_norm(tl.transpose(1, 2).float()).transpose(1, 2)
+        for tl in target_layer_results  # BTC -> BCT -> BTC
+    ]
+
+    y = target_layer_results[0].float()
+    for tl in target_layer_results[1:]:
+        y.add_(tl.float())
+    y = y.div_(len(target_layer_results))
+    y = y.mean(dim=1) # BTC -> BC
     return y
 
 
@@ -89,7 +102,10 @@ def extract_targets(cfg: DictConfig) -> None:
             pred.pop('x', None) # output of final layer not interesting, also, it is contained in 'layer_results' at [-1]
             pred.pop('mask', None) # is non here, as we do not mask the kd targets
             # pred in now dict with keys "padding_mask" and "layer_results"
-            pred['layer_results'] = instance_norm_and_average(pred['layer_results']).cpu()
+            if cfg.average_twice:
+                pred['layer_results'] = _average_twice(pred['layer_results']).cpu()
+            else:
+                pred['layer_results'] = instance_norm_and_average(pred['layer_results']).cpu()
             pred['padding_mask'] = pred['padding_mask'].cpu()
 
             item = {

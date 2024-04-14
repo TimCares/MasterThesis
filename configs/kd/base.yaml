@@ -13,6 +13,8 @@ defaults:
 out_path: ${datamodule.data_path}
 offset: 0 # number of batches of the dataset already created
 
+average_twice: False
+
 datamodule:
   _name: ???
   model_state_dict: ???
