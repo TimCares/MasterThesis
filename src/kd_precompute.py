@@ -79,7 +79,7 @@ def extract_targets(cfg: DictConfig) -> None:
                 mask=False, # we are creating targets from a teacher model for the student model, so no mask
                 remove_extra_tokens=False,
             )
-            id = id+batch_idx_offset
+            idx = idx+batch_idx_offset
             filename = f'{idx}_{id_offset+batch["id"][0]}-{id_offset+batch["id"][-1]}.pt'
             index_items.append({
                 "path": os.path.join(dir_name, filename),
