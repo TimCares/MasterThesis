@@ -10,17 +10,16 @@ defaults:
   - override hydra/hydra_logging: colorlog
 
 
+out_path: ${datamodule.data_path}
+offset: 0 # number of batches of the dataset already created
 
 datamodule:
   _name: ???
   model_state_dict: ???
   
   data_path: ../data
-  out_path: ${datamodule.data_path}
 
   batch_size: 256
   num_workers: 5
   shuffle: False
   drop_last: False
-
-  offset: 0 # number of batches of the dataset already created

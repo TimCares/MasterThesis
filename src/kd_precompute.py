@@ -58,12 +58,12 @@ def extract_targets(cfg: DictConfig) -> None:
 
     dir_name = f'kd_{datamodule_name}'
 
-    kd_targets_path = os.path.join(cfg.datamodule.out_path, dir_name)
+    kd_targets_path = os.path.join(cfg.out_path, dir_name)
 
     os.makedirs(kd_targets_path, exist_ok=True)
 
-    batch_idx_offset = cfg.datamodule.offset
-    id_offset = cfg.datamodule.offset*cfg.datamodule.batch_size
+    batch_idx_offset = cfg.offset
+    id_offset = batch_idx_offset*cfg.datamodule.batch_size
 
     index_items = []
     key = None

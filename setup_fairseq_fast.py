@@ -27,7 +27,7 @@ class NumpyExtension(Extension):
 
 extensions = [
     Extension(
-        "fairseq.libbleu",
+        "src.fairseq.libbleu",
         sources=[
             "src/fairseq/clib/libbleu/libbleu.cpp",
             "src/fairseq/clib/libbleu/module.cpp",
@@ -35,17 +35,27 @@ extensions = [
         extra_compile_args=extra_compile_args,
     ),
     NumpyExtension(
-        "fairseq.data.data_utils_fast",
+        "src.fairseq.data.data_utils_fast",
         sources=["src/fairseq/data/data_utils_fast.pyx"],
         language="c++",
         extra_compile_args=extra_compile_args,
     ),
     NumpyExtension(
-        "fairseq.data.token_block_utils_fast",
+        "src.fairseq.data.token_block_utils_fast",
         sources=["src/fairseq/data/token_block_utils_fast.pyx"],
         language="c++",
         extra_compile_args=extra_compile_args,
     ),
 ]
 
-setup(ext_modules=extensions)
+
+if __name__ == "__main__":
+    if len(sys.argv) <= 1:
+        print("Usage: setup_fairseq_fast.py build_ext --inplace")
+        sys.exit(1)
+
+    setup(ext_modules=extensions)
+
+    print()
+    print()
+    print("Setup successful, build Cython components.")
