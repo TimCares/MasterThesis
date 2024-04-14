@@ -1,5 +1,4 @@
-from setuptools import Extension, find_packages, setup
-from torch.utils import cpp_extension
+from setuptools import Extension, setup
 import sys
 
 
@@ -30,20 +29,20 @@ extensions = [
     Extension(
         "fairseq.libbleu",
         sources=[
-            "fairseq/clib/libbleu/libbleu.cpp",
-            "fairseq/clib/libbleu/module.cpp",
+            "src/fairseq/clib/libbleu/libbleu.cpp",
+            "src/fairseq/clib/libbleu/module.cpp",
         ],
         extra_compile_args=extra_compile_args,
     ),
     NumpyExtension(
         "fairseq.data.data_utils_fast",
-        sources=["fairseq/data/data_utils_fast.pyx"],
+        sources=["src/fairseq/data/data_utils_fast.pyx"],
         language="c++",
         extra_compile_args=extra_compile_args,
     ),
     NumpyExtension(
         "fairseq.data.token_block_utils_fast",
-        sources=["fairseq/data/token_block_utils_fast.pyx"],
+        sources=["src/fairseq/data/token_block_utils_fast.pyx"],
         language="c++",
         extra_compile_args=extra_compile_args,
     ),
