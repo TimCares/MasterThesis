@@ -11,7 +11,7 @@ import logging
 import lightning as L
 import math
 from omegaconf import II
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datasets_ import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup
 from kd_precompute import instance_norm_and_average
@@ -83,7 +83,7 @@ class PretrainedStateDictsConfig():
 @dataclass
 class KDMMData2VecConfig():
     pretrained_path:str = '../models'
-    pretrained: PretrainedStateDictsConfig = PretrainedStateDictsConfig()
+    pretrained: PretrainedStateDictsConfig = field(default_factory=PretrainedStateDictsConfig)
 
     loss_scale: Optional[float] = field(
         default=None,
@@ -173,7 +173,7 @@ class KDMMData2Vec(nn.Module):
             self.norm = make_layer_norm(self.cfg.embed_dim)
 
         self.layerdrop = self.cfg.layerdrop
-        self.mask_seed = self.cfg.mask_seed
+        self.mask_seed = self.cfg.seed
 
         self.apply(self._init_except_pretrained)
 
@@ -184,8 +184,9 @@ class KDMMData2Vec(nn.Module):
 
     def _get_modality_encoders(self) -> None:
         modality_encoders = {}
-        for mode, state_dict_name in self.cfg.pretrained.items():
-            mode_enum:Modality = Modality[mode.upper()] # Modality[mode.upper()]: e.g. 'text' => Modality.Text
+        for mode in fields(self.cfg.pretrained):
+            state_dict_name = getattr(self.cfg.pretrained, mode.name)
+            mode_enum:Modality = Modality[mode.name.upper()] # Modality[mode.upper()]: e.g. 'text' => Modality.Text
             logger.info(f'Loading modality encoder for: {mode_enum}')
             state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
             d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
@@ -219,7 +220,15 @@ class KDMMData2Vec(nn.Module):
         assert n_sources==1,\
             f"This model accepts exactly one modality data source at a time, got {n_sources}."
         mode = modes[0].name # is now a string, ModuleDict does not support enums as keys
-        source = audio or image or text
+        
+        if audio is not None:
+            source = audio
+        elif image is not None:
+            source = image
+        elif text is not None:
+            source = text
+        else:
+            raise ValueError("Audio, image or text must be provided, found all to be None.")
 
         mask_seeds = None
         if id is not None:
@@ -309,7 +318,9 @@ class KDMMData2Vec(nn.Module):
             assert len(mode)==1, 'Only one modality allowed when calling "encode_modality".'
             mode = mode[0]
         # at this point Modality has to be of type "Modality".
-        audio, image, text = None
+        audio = None
+        image = None
+        text = None
         if mode == Modality.AUDIO:
             audio = source
         elif mode == Modality.IMAGE:
@@ -317,7 +328,7 @@ class KDMMData2Vec(nn.Module):
         elif mode == Modality.TEXT:
             text = source
         else:
-            raise ValueError(f"Did not find mand for modality {mode}, allowed modes are: [{Modality.AUDIO}, {Modality.IMAGE}, {Modality.TEXT}]")
+            raise ValueError(f"Did not find mode for modality \"{mode}\", allowed modes are: [{Modality.AUDIO}, {Modality.IMAGE}, {Modality.TEXT}]")
 
         output = self.extract_features(
             audio=audio,
@@ -327,7 +338,7 @@ class KDMMData2Vec(nn.Module):
             padding_mask=padding_mask,
             remove_extra_tokens=False,
         )['x']
-        output = self.projections[mode](output[:, 0, :])
+        output = self.projections[mode.name](output[:, 0, :])
 
         if normalize:
             output = F.normalize(output, dim=-1)

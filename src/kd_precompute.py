@@ -69,7 +69,10 @@ def extract_targets(cfg: DictConfig) -> None:
 
     train_dataloader = datamodule.train_dataloader()
 
-    dir_name = f'kd_{datamodule_name}'
+    if cfg.average_twice:
+        dir_name = f'kd_{datamodule_name}_at'
+    else:
+        dir_name = f'kd_{datamodule_name}'
 
     kd_targets_path = os.path.join(cfg.out_path, dir_name)
 

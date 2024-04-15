@@ -110,21 +110,21 @@ def run_multimodal_zero_shot(model:Callable,
 
 
 @torch.no_grad()
-def _get_knn_data(model, data_loader:DataLoader) ->Tuple[np.ndarray, np.ndarray]:
+def _get_knn_data(model, data_loader:DataLoader, device:str) ->Tuple[np.ndarray, np.ndarray]:
     X = []
     y = []
     for batch in data_loader:
-        source = batch[batch['modes'][0].name.lower()].to(model.device)
-        padding_mask = batch['padding_mask'].to(model.device) if 'padding_mask' in batch else None
+        source = batch[batch['modes'][0].name.lower()].to(device)
+        padding_mask = batch['padding_mask'].to(device) if 'padding_mask' in batch else None
         out = model.encode_modality(mode=batch['modes'], source=source, padding_mask=padding_mask,
                                     normalize=True) # norm output
 
-        X.append(out)
+        X.append(out.cpu())
         y.append(batch['target'])
     # shape after "cat" will be (n_samples, 1, embed_dim)
     # so transform to (n_samples, embed_dim) with "squeeze"
     X = torch.cat(X, dim=0).squeeze(1)
-    X = X.cpu().numpy()
+    X = X.numpy()
     y = torch.cat(y, dim=0).cpu().numpy()
     return X, y
 
@@ -134,25 +134,31 @@ def make_knn_predictions(model:Callable,
                          n_neighbors:int,
                          train_loader:DataLoader,
                          test_loader:DataLoader,
+                         device:str,
                          name:str) -> Tuple[Callable, float]:
     
-    X_train, y_train = _get_knn_data(model=model, data_loader=train_loader)
+    X_train, y_train = _get_knn_data(model=model, data_loader=train_loader, device=device)
 
     knn = KNeighborsClassifier(n_neighbors=n_neighbors)
     logger.info(f"Training KNN with {n_neighbors} neighbors")
     knn.fit(X_train, y_train)
 
-    X_test, y_test = _get_knn_data(model=model, data_loader=test_loader)
+    X_test, y_test = _get_knn_data(model=model, data_loader=test_loader, device=device)
  
+    results = {}
+
     logger.info(f"Predicting with KNN")
     y_hat_test = knn.predict_proba(X_test)
     acc = accuracy_score(y_test, y_hat_test.argmax(axis=1)) # .argmax(axis=1) -> convert class scores to class labels
-    acc5 = top_k_accuracy_score(y_test, y_hat_test, k=5)
-    logger.info(f"{name}, zero-shot: top1-accuracy: {acc}, top5-accuracy: {acc5}")
-
-    results = {}
     results[f"unimodal-{name}-knn--zeroshot-top1-acc"] = acc
-    results[f"unimodal-{name}-knn--zeroshot-top5-acc"] = acc5
+    logger.info(f"{name}, zero-shot: top1-accuracy: {acc}")
+    try: # if data has less than 5 classes, top5-accuracy will throw an error
+        acc5 = top_k_accuracy_score(y_test, y_hat_test, k=5)
+        results[f"unimodal-{name}-knn--zeroshot-top5-acc"] = acc5
+        logger.info(f"{name}, zero-shot: top5-accuracy: {acc5}")
+    except:
+        pass
+
     return knn, results
 
 
@@ -174,13 +180,14 @@ class ZeroShotCallback(Callback):
     def on_validation_start(self, trainer, pl_module, **kwargs) -> None:
         for name_key in self.datamodules.keys():
             self.datamodules[name_key].prepare_data()
-            self.datamodules[name_key].setup(stage='train')
+            self.datamodules[name_key].setup(stage='fit')
             self.datamodules[name_key].setup(stage='test')
             _, metrics = make_knn_predictions(
                 model=pl_module.model,
                 n_neighbors=self.n_neighbors,
                 train_loader=self.datamodules[name_key].train_dataloader(),
                 test_loader=self.datamodules[name_key].test_dataloader(),
+                device=pl_module.device,
                 name=name_key,
             )
             if metrics is not None:
