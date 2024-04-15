@@ -179,7 +179,7 @@ class AudioDataset(BaseDataset):
 
     @property
     def modes(self) -> List[Modality]:
-        raise [Modality.AUDIO]
+        return [Modality.AUDIO]
 
     def collater(self, samples):
         if len(samples) == 0:

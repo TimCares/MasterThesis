@@ -198,4 +198,5 @@ class ZeroShotCallback(Callback):
                         prog_bar=True,
                         logger=True,
                         rank_zero_only=True,
+                        #on_step=True,
                     )
