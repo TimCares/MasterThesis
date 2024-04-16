@@ -59,37 +59,24 @@ class OpenWebTextDataset(NLPDataset):
             os.system(f"unxz {file}")
         self.log("Inflated all tar files.")
 
-        pattern = rb'\x00+'
-
         self.log("Cleaning...")
         files = os.listdir(dataset_path)
         for file in files:
-            with open(os.path.join(dataset_path, file), 'rb') as f:
-                first_line = f.readline()
-                rest_of_file = f.read()
-            
-            matches = list(re.finditer(pattern, first_line))
-            if matches:
-                first_line = first_line[matches[-1].end():]
-
-            with open(os.path.join(dataset_path, file), 'wb') as f:
-                f.write(first_line)
-                f.write(rest_of_file)
-
-            with open(os.path.join(dataset_path, file), 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-            
-            with open(os.path.join(dataset_path, file), 'w', encoding='utf-8') as f:
+            with open(os.path.join(dataset_path, file), 'r+', encoding='utf-8', errors='ignore') as reader:
+                lines = reader.readlines()
+                reader.seek(0)
+                reader.truncate()
                 for line in lines:
-                    stripped_line = line.strip()
-                    if stripped_line != '' and stripped_line != '---':
-                        f.write(line)
+                    line = line.strip()
+                    if '\x00' not in line and line != '' and line != '---': # remove null bytes and empty lines
+                        reader.write(line)
+                        reader.write('\n')
 
         self.log("Joining...")
-        with open(os.path.join(dataset_path, 'openwebtext.txt'), 'w') as f:
+        with open(os.path.join(dataset_path, 'openwebtext.txt'), 'w', encoding='utf-8') as f:
             for file in files:
                 path_to_file = os.path.join(dataset_path, file)
-                with open(path_to_file, 'r') as f2:
+                with open(path_to_file, 'r', encoding='utf-8') as f2:
                     f.write(f2.read())
                 os.remove(path_to_file)
 
