@@ -1,4 +1,4 @@
-# @package _group_
+# @package _global_
 
 hydra:
   run:
@@ -58,13 +58,11 @@ data:
   drop_last: False
 
   _kd_datamodule:
-    dataset: openwebtext # openwebtext_at
+    - dataset: openwebtext # openwebtext_at
 
-  _kd_datamodule:
-    dataset: imagenet # imagenet_at
+    - dataset: imagenet # imagenet_at
 
-  _kd_datamodule:
-    dataset: librispeech # librispeech_at
+    - dataset: librispeech # librispeech_at
 
 #   _openwebtext:
 #     num_max_bpe_tokens: ${nlp_context_length}
@@ -95,15 +93,19 @@ zero_shot_val:
     _imdb:
       data_path: ${data_path}
       num_max_bpe_tokens: ${nlp_context_length}
+      batch_size: 256
     _cifar10:
       data_path: ${data_path}
+      batch_size: 256
     _cifar100:
       data_path: ${data_path}
+      batch_size: 256
     _speechcommands:
       data_path: ${data_path}
       min_sample_size: 0 # take all samples
       normalize: True
       pad: True
+      batch_size: 256
 
 checkpoint:
   dirpath: ${model_path}

@@ -1,6 +1,5 @@
 import hydra
-from omegaconf import OmegaConf
-from omegaconf.dictconfig import DictConfig
+from omegaconf import OmegaConf, open_dict, DictConfig
 import os
 import logging
 from pytorch_lightning import seed_everything, Trainer
@@ -28,7 +27,7 @@ def main(cfg: DictConfig) -> None:
 
     OmegaConf.resolve(cfg=cfg) # resolving done in-place
 
-    datamodules_keys = [name for name in cfg.data if name.startswith('_')]
+    datamodules_key = [name for name in cfg.data if name.startswith('_')][0] # only ever one "_kd_datamodules" key
     dataloader_keys = [name for name in cfg.data if not name.startswith('_')]
     
     # resolving before is needed here to select a subset
@@ -36,17 +35,20 @@ def main(cfg: DictConfig) -> None:
     dataloader_args = {key: cfg.data[key] for key in dataloader_keys}
 
     datamodules = []
-    for name in datamodules_keys:
-        args = OmegaConf.merge(cfg.data[name], dataloader_args)
+    for dataset_args in cfg.data[datamodules_key]:
+        with open_dict(dataset_args):
+            args = OmegaConf.merge(dataset_args, dataloader_args)
         
-        datamodules.append(DATAMODULE_REGISTRY[name[1:]](**args))
+        datamodules.append(DATAMODULE_REGISTRY[datamodules_key[1:]](**args))
+        logger.info(args)
     
     datamodule = MultiDataModule(datamodules=datamodules)
 
     val_cfg = cfg.zero_shot_val
     zero_shot_modules = dict()
     for name in val_cfg.datamodules:
-        args = OmegaConf.merge(val_cfg.datamodules[name], dataloader_args)
+        with open_dict(val_cfg.datamodules[name]):
+            args = OmegaConf.merge(val_cfg.datamodules[name], dataloader_args)
 
         zero_shot_modules[name[1:]] = DATAMODULE_REGISTRY[name[1:]](**args)
 

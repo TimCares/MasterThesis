@@ -28,12 +28,8 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.cfg = cfg
-        assert self.cfg.average_top_k_layers_student <= self.cfg.model.depth,\
-            f"Can't aggregate more layers {self.cfg.average_top_k_layers_student} than available {self.cfg.model.depth}"
-        if not cfg.dry_run:
-            self.model = KDMMData2Vec(cfg=cfg.model)
-        else:
-            self.model = None
+        
+        self.model = KDMMData2Vec(cfg=cfg.model)
 
     def forward(self, input_dict):
         return self.model(**input_dict)
@@ -184,9 +180,9 @@ class KDMMData2Vec(nn.Module):
 
     def _get_modality_encoders(self) -> None:
         modality_encoders = {}
-        for mode in fields(self.cfg.pretrained):
-            state_dict_name = getattr(self.cfg.pretrained, mode.name)
-            mode_enum:Modality = Modality[mode.name.upper()] # Modality[mode.upper()]: e.g. 'text' => Modality.Text
+        for mode in self.cfg.pretrained.keys():
+            state_dict_name = self.cfg.pretrained[mode]
+            mode_enum:Modality = Modality[mode.upper()] # Modality[mode.upper()]: e.g. 'text' => Modality.Text
             logger.info(f'Loading modality encoder for: {mode_enum}')
             state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
             d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
