@@ -81,7 +81,7 @@ class PretrainedStateDictsConfig():
 class KDMMData2VecConfig():
     pretrained_path:str = '../models'
     pretrained: PretrainedStateDictsConfig = field(default_factory=PretrainedStateDictsConfig)
-    
+
     init_block_from: Optional[str] = None
     init_strategy: Optional[str] = None # 'ffill' or 'leave_one_out'
     freeze_attention: bool = False
@@ -364,50 +364,6 @@ class KDMMData2Vec(nn.Module):
                                      padding_mask=padding_mask,
                                      normalize=normalize)
 
-
-class InitializedD2V(KDMMData2Vec):
-    def __init__(self,
-                 cfg: KDMMData2VecConfig):
-        super().__init__(cfg)
-        self._init_blocks()
-        if self.cfg.freeze_attention:
-            logger.info("Freezing attention weights.")
-            self.freeze_attention()
-
-    def freeze_attention(self):
-        if self.cfg.freeze_attention:
-            for block in self.blocks:
-                for param in block.attn.parameters():
-                    param.requires_grad = False
-                block.attn.eval()
-
-    def unfreeze_attention(self):
-        if self.cfg.freeze_attention:
-            for block in self.blocks:
-                for param in block.attn.parameters():
-                    param.requires_grad = True
-                block.attn.train()
-                
-    
-    def _init_blocks(self) -> None:
-        logger.info(f"Initializing transformer blocks from: {self.cfg.init_block_from}")
-        assert self.cfg.init_block_from in self.cfg.pretrained.keys(), f"Could not find pretrained state dict for: {self.cfg.init_block_from} "
-        "(Used to initialize the transformer blocks)"
-
-        state_dict_name = self.cfg.pretrained[self.cfg.init_block_from]
-        state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
-        d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
-
-        if self.cfg.init_strategy == 'ffill':
-            indices = [i for i in range(self.cfg.depth)]
-        elif self.cfg.init_strategy == 'leave_one_out':
-            indices = self._get_pretrained_block_indices(depth=self.cfg.depth, n_blocks_pretrained=len(d2v_model.blocks))
-        else:
-            raise ValueError(f"Unknown initialization strategy: {self.cfg.init_strategy}")
-        
-        self.blocks = nn.ModuleList([d2v_model.blocks[i] for i in indices])
-        self.blocks.is_pretrained = True
-
     def _get_pretrained_block_indices(self, depth, n_blocks_pretrained) -> List[int]:
         blocks_pretrained = [i for i in range(n_blocks_pretrained)]
         blocks = []
@@ -434,13 +390,31 @@ class InitializedD2V(KDMMData2Vec):
         assert len(blocks) == depth
 
         return blocks
+    
+    def freeze_attention_blocks(self):
+        if self.cfg.freeze_attention:
+            for block in self.blocks:
+                for param in block.attn.parameters():
+                    param.requires_grad = False
+                block.attn.eval()
 
-class MoMEInitializedD2V(InitializedD2V):
+    def unfreeze_attention_blocks(self):
+        if self.cfg.freeze_attention:
+            for block in self.blocks:
+                for param in block.attn.parameters():
+                    param.requires_grad = True
+                block.attn.train()
+
+
+class InitializedD2V(KDMMData2Vec):
     def __init__(self,
                  cfg: KDMMData2VecConfig):
         super().__init__(cfg)
         self._init_blocks()
-
+        if self.cfg.freeze_attention:
+            logger.info("Freezing attention weights.")
+            self.freeze_attention_blocks()
+    
     def _init_blocks(self) -> None:
         logger.info(f"Initializing transformer blocks from: {self.cfg.init_block_from}")
         assert self.cfg.init_block_from in self.cfg.pretrained.keys(), f"Could not find pretrained state dict for: {self.cfg.init_block_from} "
@@ -457,17 +431,46 @@ class MoMEInitializedD2V(InitializedD2V):
         else:
             raise ValueError(f"Unknown initialization strategy: {self.cfg.init_strategy}")
         
+        self.blocks = nn.ModuleList([d2v_model.blocks[i] for i in indices])
+        self.blocks.is_pretrained = True
+
+class MoMEInitializedD2V(KDMMData2Vec):
+    def __init__(self,
+                 cfg: KDMMData2VecConfig):
+        super().__init__(cfg)
+        self._init_blocks()
+        if self.cfg.freeze_attention:
+            logger.info("Freezing attention weights.")
+            self.freeze_attention_blocks()
+
+    def _init_blocks(self) -> None:
+        logger.info(f"Initializing Mlps in transformer blocks from all modalities using MoME.")
+        assert self.cfg.init_block_from in self.cfg.pretrained.keys(), f"Could not find pretrained state dict for: {self.cfg.init_block_from} "
+        "(Used to initialize the transformer blocks)"
+
+        state_dict_name = self.cfg.pretrained[self.cfg.init_block_from]
+        state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
+        d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
+
+        if self.cfg.init_strategy == 'ffill':
+            indices = [i for i in range(self.cfg.depth)]
+        elif self.cfg.init_strategy == 'leave_one_out':
+            indices = self._get_pretrained_block_indices(depth=self.cfg.depth, n_blocks_pretrained=len(d2v_model.blocks))
+        else:
+            raise ValueError(f"Unknown initialization strategy: {self.cfg.init_strategy}")
+        
         for mode in [Modality.AUDIO, Modality.IMAGE, Modality.TEXT]:
             if self.cfg.init_attention_from is not None and self.cfg.init_attention_from == mode.name.lower():
+                logger.info(f"Initializing Attation in transformer blocks from modality: {mode.name}")
                 for i in range(self.cfg.depth):
-                    self.blocks[i].init_from_pretrained(pretained_block=d2v_model.blocks[indices[i]],
+                    self.blocks[i].init_from_pretrained(pretained_block=d2v_model.blocks[indices[i]], # blocks defined in KDMMData2Vec constructor
                                                         mode=mode.name.lower(),
                                                         init_attention=True)
             else:
                 for i in range(self.cfg.depth):
-                    self.blocks[i].init_from_pretrained(pretained_block=d2v_model.blocks[indices[i]],
+                    self.blocks[i].init_from_pretrained(pretained_block=d2v_model.blocks[indices[i]], # blocks defined in KDMMData2Vec constructor
                                                         mode=mode.name.lower(),
-                                                        init_attention=True)
+                                                        init_attention=False)
         
         self.blocks.is_pretrained = True
 
