@@ -7,7 +7,7 @@ max_sample_size: 320000
 min_sample_size: 32000
 normalize: True
 pad: True
-precompute_mask_config:
-  feature_encoder_spec: '[(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512,2,2)] + [(512,2,2)]'
-type_train:
-type_test:
+precompute_mask_config: # no values mean 'None' -> No precomputed mask
+#  feature_encoder_spec: '[(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512,2,2)] + [(512,2,2)]'
+type_train: [train-clean-100, train-clean-360]
+type_test: []

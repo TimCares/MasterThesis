@@ -2,7 +2,6 @@ import os
 import logging
 import torch
 import json
-import re
 from typing import *
 from functools import partial
 import shutil
@@ -14,7 +13,7 @@ from fairseq.data.audio.raw_audio_dataset import FileAudioDataset
 from .wav2vec_manifest import create_manifests
 from bpe_encoder import encode, get_bpe_encoder
 
-from fairseq.data import Dictionary
+from fairseq.data import Dictionary, ConcatDataset
 from fairseq_cli.preprocess import preprocess
 
 from torchaudio.datasets import LIBRISPEECH, SPEECHCOMMANDS
@@ -158,9 +157,13 @@ class LibriSpeechDataset(AudioDataset):
             min_sample_size:int,
             normalize:bool,
             pad:bool,
-            type:str,
-            precompute_mask_config:Dict[str, Any]={},
+            types:Tuple[str],
+            precompute_mask_config:Dict[str, Any]=None,
             ):
+        compute_mask = precompute_mask_config is not None
+        mask_args = {}
+        if compute_mask:
+            mask_args = precompute_mask_config 
         super().__init__(data_path=data_path, 
                          split=split, 
                          sample_rate=sample_rate, 
@@ -168,40 +171,49 @@ class LibriSpeechDataset(AudioDataset):
                          min_sample_size=min_sample_size, 
                          normalize=normalize, 
                          pad=pad,
-                         **precompute_mask_config)
+                         **mask_args)
         self.precompute_mask_config = precompute_mask_config
 
         os.makedirs(self.data_path, exist_ok=True)
 
-        LIBRISPEECH(root=self.data_path, url=type, download=True)
+        manifest_paths = []
+        for type in types:
+            LIBRISPEECH(root=self.data_path, url=type, download=True)
 
-        tar_file_path = os.path.join(self.data_path, f"{type}.tar.gz")
-        if os.path.exists(tar_file_path):
-            os.remove(tar_file_path)
+            tar_file_path = os.path.join(self.data_path, f"{type}.tar.gz")
+            if os.path.exists(tar_file_path):
+                os.remove(tar_file_path)
 
-        self.manifest_path = os.path.join(self.data_path, 'LibriSpeech', type)
-    
-        # still done even if data has already been created, but this is very fast, so id doesn't really matter
-        create_manifests(root=self.manifest_path, valid_percent=0, dest=self.manifest_path)
+            manifest_path = os.path.join(self.data_path, 'LibriSpeech', type)
+        
+            # still done even if data has already been created, but this is very fast, so id doesn't really matter
+            create_manifests(root=manifest_path, valid_percent=0, dest=manifest_path)
+            manifest_paths.append(manifest_path)
+        self.manifest_paths = manifest_paths
 
     def load(self):
-        manifest_path = os.path.join(self.manifest_path, "{}.tsv".format('train'))
+        datasets = []
+        for manifest_path in self.manifest_paths:
+            manifest_path = os.path.join(manifest_path, "{}.tsv".format('train')) # TODO: change to self.split?
 
-        compute_mask = self.precompute_mask_config is not None
-        mask_args = {}
-        if compute_mask:
-            mask_args = self.precompute_mask_config    
+            compute_mask = self.precompute_mask_config is not None
+            mask_args = {}
+            if compute_mask:
+                mask_args = self.precompute_mask_config    
 
-        self.dataset = FileAudioDataset(
-            manifest_path=manifest_path,
-            sample_rate=self.sample_rate,
-            max_sample_size=self.max_sample_size,
-            min_sample_size=self.min_sample_size,
-            pad=self.pad,
-            normalize=self.normalize,
-            compute_mask=compute_mask,
-            **mask_args,
-        )
+            dataset = FileAudioDataset(
+                manifest_path=manifest_path,
+                sample_rate=self.sample_rate,
+                max_sample_size=self.max_sample_size,
+                min_sample_size=self.min_sample_size,
+                pad=self.pad,
+                normalize=self.normalize,
+                compute_mask=compute_mask,
+                **mask_args,
+            )
+            datasets.append(dataset)
+
+        self.dataset = ConcatDataset(datasets)
 
     def __getitem__(self, index):
         return self.dataset[index]
@@ -214,10 +226,11 @@ class LibriSpeechDataset(AudioDataset):
         res = {
             'id': collater_res['id'],
             'audio': collater_res['net_input']['source'],
-            'precomputed_mask': collater_res['net_input']['precomputed_mask'],
             'padding_mask': collater_res['net_input']['padding_mask'],
             'modes': self.modes
         }
+        if 'precomputed_mask' in collater_res['net_input']:
+            res['precomputed_mask'] = collater_res['net_input']['precomputed_mask'],
         return res
 
 

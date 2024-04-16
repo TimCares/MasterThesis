@@ -1,6 +1,6 @@
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, List
 from datasets_ import IMDBDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, OpenWebTextDataset
 from datasets_ import DATASET_REGISTRY
 from functools import partial
@@ -217,18 +217,22 @@ class LibriSpeechDataModule(BaseDataModule):
                  sample_rate:int,
                  max_sample_size:int,
                  min_sample_size:int,
+                 normalize:bool,
+                 pad:bool,
+                 types_train:Tuple[str],
+                 types_test:Tuple[str],
                  precompute_mask_config,
-                 type_train:str,
-                 type_test:str,
                  *args,
                  **kwargs):
         super().__init__(data_path, *args, **kwargs)
         self.sample_rate = sample_rate
         self.max_sample_size = max_sample_size
         self.min_sample_size = min_sample_size
+        self.normalize = normalize
+        self.pad = pad
+        self.types_train = types_train
+        self.types_test = types_test
         self.precompute_mask_config = precompute_mask_config
-        self.type_train = type_train
-        self.type_test = type_test
 
     def prepare_data(self):
         if not self.prepared:
@@ -249,17 +253,21 @@ class LibriSpeechDataModule(BaseDataModule):
                                                 sample_rate=self.sample_rate,
                                                 max_sample_size=self.max_sample_size,
                                                 min_sample_size=self.min_sample_size,
-                                                precompute_mask_config=self.precompute_mask_config,
-                                                type=self.type_train,)
+                                                normalize=self.normalize,
+                                                pad=self.pad,
+                                                types=self.types_train,
+                                                precompute_mask_config=self.precompute_mask_config,)
 
     def set_test_dataset(self):
         self.test_dataset = LibriSpeechDataset(data_path=self.data_path,
                                                split='test',
                                                sample_rate=self.sample_rate,
                                                max_sample_size=self.max_sample_size,
-                                               min_sample_size=self.min_sample_size,
-                                               precompute_mask_config=None,
-                                               type=self.type_test,)
+                                               min_sample_size=0,
+                                               normalize=self.normalize,
+                                               pad=self.pad,
+                                               types=self.types_test,
+                                               precompute_mask_config=None,)
         
 
 class SpeechCommandsDataModule(BaseDataModule):
