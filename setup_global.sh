@@ -6,7 +6,7 @@ pip install hydra-core --upgrade
 
 pip install hydra_colorlog --upgrade
 
-pip install lightning soundfile pydub rich bitarray sacrebleu timm torchtext==0.17.0 tensorboardX pandas
+pip install lightning soundfile pydub rich bitarray sacrebleu timm torchtext==0.17.0 tensorboardX pandas transformers datasets hapless
 
 pip install -U scikit-learn
 
@@ -18,3 +18,7 @@ tar xvf ffmpeg-git-amd64-static.tar.xz
 
 # on error, check date of download and update the folder name accordingly
 mv ffmpeg-git-20240301-amd64-static/ffmpeg ffmpeg-git-20240301-amd64-static/ffprobe /usr/local/bin/
+
+rm -r ffmpeg-git-amd64-static.tar.xz
+
+rm -r ffmpeg-git-20240301-amd64-static/
