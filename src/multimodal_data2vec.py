@@ -11,13 +11,14 @@ import logging
 import lightning as L
 import math
 from omegaconf import II
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 from datasets_ import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup
 from kd_precompute import instance_norm_and_average
 
 from data2vec_fairseq.models.modalities.modules import AltBlock
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
+from mome_alt_attention import MOMEAltBlock
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,12 @@ class PretrainedStateDictsConfig():
 class KDMMData2VecConfig():
     pretrained_path:str = '../models'
     pretrained: PretrainedStateDictsConfig = field(default_factory=PretrainedStateDictsConfig)
+    
+    init_block_from: Optional[str] = None
+    init_strategy: Optional[str] = None # 'ffill' or 'leave_one_out'
+    freeze_attention: bool = False
+
+    init_attention_from: Optional[str] = None
 
     loss_scale: Optional[float] = field(
         default=None,
@@ -88,7 +95,7 @@ class KDMMData2VecConfig():
         },
     )
 
-    encoders_embed_dim: int = II("embed_dim") # only as a first test
+    encoders_embed_dim: int = II("embed_dim")
     embed_dim: int = 768
 
     depth: int = 8
@@ -105,10 +112,6 @@ class KDMMData2VecConfig():
     start_drop_path_rate: float = 0
     end_drop_path_rate: float = 0
     layerdrop: float = 0.0
-
-    average_top_k_layers: int = field(
-        default=8, metadata={"help": "how many layers to average"}
-    )
 
     end_of_block_targets: bool = False
 
@@ -137,22 +140,6 @@ class KDMMData2Vec(nn.Module):
         make_layer_norm = partial(
             nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
         )
-
-        def make_block(drop_path, dim=None, heads=None):
-            return AltBlock(
-                dim=self.cfg.embed_dim if dim is None else dim,
-                num_heads=self.cfg.num_heads if heads is None else heads,
-                mlp_ratio=self.cfg.mlp_ratio,
-                qkv_bias=True,
-                drop=self.cfg.encoder_dropout,
-                attn_drop=self.cfg.attention_dropout,
-                mlp_drop=self.cfg.activation_dropout,
-                post_mlp_drop=self.cfg.post_mlp_drop,
-                drop_path=drop_path,
-                norm_layer=make_layer_norm,
-                layer_norm_first=self.cfg.layer_norm_first,
-                ffn_targets=not self.cfg.end_of_block_targets,
-            )
         
         self.alibi_biases = {}
 
@@ -162,7 +149,7 @@ class KDMMData2Vec(nn.Module):
 
         dpr = np.linspace(self.cfg.start_drop_path_rate, self.cfg.end_drop_path_rate, self.cfg.depth)
 
-        self.blocks = nn.ModuleList([make_block(dpr[i]) for i in range(self.cfg.depth)])
+        self.blocks = nn.ModuleList([self.make_block(dpr[i]) for i in range(self.cfg.depth)])
 
         self.norm = None
         if self.cfg.layer_norm_first:
@@ -177,6 +164,25 @@ class KDMMData2Vec(nn.Module):
             if len(p.shape) == 1 or pn.endswith(".bias") or "alibi_scale" in pn:
                 p.optim_overrides = {"optimizer": {"weight_decay_scale": 0}}
         
+    def make_block(self, drop_path, dim=None, heads=None):
+        make_layer_norm = partial(
+            nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
+        )
+
+        return AltBlock(
+            dim=self.cfg.embed_dim if dim is None else dim,
+            num_heads=self.cfg.num_heads if heads is None else heads,
+            mlp_ratio=self.cfg.mlp_ratio,
+            qkv_bias=True,
+            drop=self.cfg.encoder_dropout,
+            attn_drop=self.cfg.attention_dropout,
+            mlp_drop=self.cfg.activation_dropout,
+            post_mlp_drop=self.cfg.post_mlp_drop,
+            drop_path=drop_path,
+            norm_layer=make_layer_norm,
+            layer_norm_first=self.cfg.layer_norm_first,
+            ffn_targets=not self.cfg.end_of_block_targets,
+        )
 
     def _get_modality_encoders(self) -> None:
         modality_encoders = {}
@@ -363,19 +369,125 @@ class InitializedD2V(KDMMData2Vec):
     def __init__(self,
                  cfg: KDMMData2VecConfig):
         super().__init__(cfg)
+        self._init_blocks()
+        if self.cfg.freeze_attention:
+            logger.info("Freezing attention weights.")
+            self.freeze_attention()
 
+    def freeze_attention(self):
+        if self.cfg.freeze_attention:
+            for block in self.blocks:
+                for param in block.attn.parameters():
+                    param.requires_grad = False
+                block.attn.eval()
 
-    def _get_modality_encoders(self) -> None:
-        modality_encoders = {}
-        for mode, state_dict_name in self.cfg.pretrained.items():
-            mode_enum:Modality = Modality[mode.upper()] # Modality[mode.upper()]: e.g. 'text' => Modality.Text
-            logger.info(f'Loading modality encoder for: {mode_enum}')
-            state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
-            d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
-            mode_feature_extractor = d2v_model.modality_encoders[mode_enum.name]
-            modality_encoders[mode_enum.name] = mode_feature_extractor
-
-        return nn.ModuleDict(modality_encoders)
+    def unfreeze_attention(self):
+        if self.cfg.freeze_attention:
+            for block in self.blocks:
+                for param in block.attn.parameters():
+                    param.requires_grad = True
+                block.attn.train()
+                
     
-    def _init_blocks() -> None:
-        pass
+    def _init_blocks(self) -> None:
+        logger.info(f"Initializing transformer blocks from: {self.cfg.init_block_from}")
+        assert self.cfg.init_block_from in self.cfg.pretrained.keys(), f"Could not find pretrained state dict for: {self.cfg.init_block_from} "
+        "(Used to initialize the transformer blocks)"
+
+        state_dict_name = self.cfg.pretrained[self.cfg.init_block_from]
+        state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
+        d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
+
+        if self.cfg.init_strategy == 'ffill':
+            indices = [i for i in range(self.cfg.depth)]
+        elif self.cfg.init_strategy == 'leave_one_out':
+            indices = self._get_pretrained_block_indices(depth=self.cfg.depth, n_blocks_pretrained=len(d2v_model.blocks))
+        else:
+            raise ValueError(f"Unknown initialization strategy: {self.cfg.init_strategy}")
+        
+        self.blocks = nn.ModuleList([d2v_model.blocks[i] for i in indices])
+        self.blocks.is_pretrained = True
+
+    def _get_pretrained_block_indices(self, depth, n_blocks_pretrained) -> List[int]:
+        blocks_pretrained = [i for i in range(n_blocks_pretrained)]
+        blocks = []
+        pretrained_blocks_count = len(blocks_pretrained)
+
+        if depth*2 > pretrained_blocks_count:
+            pretrained_remaining = pretrained_blocks_count
+            model_remaining = depth
+            current_block_idx = 0
+            while model_remaining*2 > pretrained_remaining and model_remaining > 0:
+                blocks.append(blocks_pretrained[current_block_idx])
+                pretrained_remaining -= 1
+                model_remaining -= 1
+                current_block_idx += 1
+            
+            if model_remaining > 0:
+                for i in range(0, depth-current_block_idx):
+                    take_block_idx = i*2+current_block_idx
+                    blocks.append(blocks_pretrained[take_block_idx])
+        else:
+            for i in range(depth):
+                blocks.append(blocks_pretrained[i*2])
+        
+        assert len(blocks) == depth
+
+        return blocks
+
+class MoMEInitializedD2V(InitializedD2V):
+    def __init__(self,
+                 cfg: KDMMData2VecConfig):
+        super().__init__(cfg)
+        self._init_blocks()
+
+    def _init_blocks(self) -> None:
+        logger.info(f"Initializing transformer blocks from: {self.cfg.init_block_from}")
+        assert self.cfg.init_block_from in self.cfg.pretrained.keys(), f"Could not find pretrained state dict for: {self.cfg.init_block_from} "
+        "(Used to initialize the transformer blocks)"
+
+        state_dict_name = self.cfg.pretrained[self.cfg.init_block_from]
+        state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
+        d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
+
+        if self.cfg.init_strategy == 'ffill':
+            indices = [i for i in range(self.cfg.depth)]
+        elif self.cfg.init_strategy == 'leave_one_out':
+            indices = self._get_pretrained_block_indices(depth=self.cfg.depth, n_blocks_pretrained=len(d2v_model.blocks))
+        else:
+            raise ValueError(f"Unknown initialization strategy: {self.cfg.init_strategy}")
+        
+        for mode in [Modality.AUDIO, Modality.IMAGE, Modality.TEXT]:
+            if self.cfg.init_attention_from is not None and self.cfg.init_attention_from == mode.name.lower():
+                for i in range(self.cfg.depth):
+                    self.blocks[i].init_from_pretrained(pretained_block=d2v_model.blocks[indices[i]],
+                                                        mode=mode.name.lower(),
+                                                        init_attention=True)
+            else:
+                for i in range(self.cfg.depth):
+                    self.blocks[i].init_from_pretrained(pretained_block=d2v_model.blocks[indices[i]],
+                                                        mode=mode.name.lower(),
+                                                        init_attention=True)
+        
+        self.blocks.is_pretrained = True
+
+
+    def make_block(self, drop_path, dim=None, heads=None):
+        make_layer_norm = partial(
+            nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
+        )
+
+        return MOMEAltBlock(
+            dim=self.cfg.embed_dim if dim is None else dim,
+            num_heads=self.cfg.num_heads if heads is None else heads,
+            mlp_ratio=self.cfg.mlp_ratio,
+            qkv_bias=True,
+            drop=self.cfg.encoder_dropout,
+            attn_drop=self.cfg.attention_dropout,
+            mlp_drop=self.cfg.activation_dropout,
+            post_mlp_drop=self.cfg.post_mlp_drop,
+            drop_path=drop_path,
+            norm_layer=make_layer_norm,
+            layer_norm_first=self.cfg.layer_norm_first,
+            ffn_targets=not self.cfg.end_of_block_targets,
+        )
