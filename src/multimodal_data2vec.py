@@ -2,7 +2,6 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from functools import partial
-from collections import namedtuple
 from typing import Dict, Any, Optional, List, Union
 import numpy as np
 import os
@@ -17,12 +16,11 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from kd_precompute import special_token_and_average, average_twice
 
 from data2vec_fairseq.models.modalities.modules import AltBlock
+from data2vec_fairseq.models.modalities.base import MaskSeed
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from mome_alt_attention import MOMEAltBlock
 
 logger = logging.getLogger(__name__)
-
-MaskSeed = namedtuple("MaskSeed", ["seed", "update", "ids"])
 
 class KDData2VecPreTrainingLightningModule(L.LightningModule):
     def __init__(self, cfg):

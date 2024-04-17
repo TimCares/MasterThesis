@@ -600,6 +600,10 @@ class BaseImageAudio(AudioDataset):
         pad:bool=True,
         precompute_mask_config:Dict[str, Any]={},
     ):
+        compute_mask = precompute_mask_config is not None
+        mask_args = {}
+        if compute_mask:
+            mask_args = precompute_mask_config 
         super().__init__(data_path=data_path, 
                          split=split, 
                          sample_rate=sample_rate, 
@@ -607,7 +611,7 @@ class BaseImageAudio(AudioDataset):
                          min_sample_size=min_sample_size, 
                          normalize=normalize, 
                          pad=pad,
-                         **precompute_mask_config)
+                         **mask_args)
         self.transform_jitter = transform_jitter
         self.beit_transforms = beit_transforms
         self.no_transform = no_transform
@@ -692,6 +696,10 @@ class BaseTextAudio(AudioDataset):
         pad:bool=True,
         precompute_mask_config:Dict[str, Any]={},
     ):
+        compute_mask = precompute_mask_config is not None
+        mask_args = {}
+        if compute_mask:
+            mask_args = precompute_mask_config 
         super().__init__(data_path=data_path, 
                          split=split, 
                          sample_rate=sample_rate, 
@@ -699,7 +707,7 @@ class BaseTextAudio(AudioDataset):
                          min_sample_size=min_sample_size, 
                          normalize=normalize, 
                          pad=pad,
-                         **precompute_mask_config)
+                         **mask_args)
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.path_to_data = None
 

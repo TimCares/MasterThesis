@@ -27,7 +27,7 @@ def special_token_and_average(target_layer_results:List[torch.Tensor]) -> torch.
     y = y.div_(len(target_layer_results))
     return y.squeeze(1) # BTC -> BC
 
-def average_twice(target_layer_results:List[torch.Tensor]) -> torch.Tensor:
+def average_twice(target_layer_results:List[torch.Tensor], padding_mask:torch.Tensor=None) -> torch.Tensor:
     target_layer_results = [
         F.instance_norm(tl.transpose(1, 2).float()).transpose(1, 2)
         for tl in target_layer_results  # BTC -> BCT -> BTC
@@ -37,7 +37,13 @@ def average_twice(target_layer_results:List[torch.Tensor]) -> torch.Tensor:
     for tl in target_layer_results[1:]:
         y.add_(tl.float())
     y = y.div_(len(target_layer_results))
-    y = y.mean(dim=1) # BTC -> BC
+    if padding_mask is None:
+        y = y.mean(dim=1) # BTC -> BC
+    else:
+        non_padded_avg = []
+        for i in range(y.size(0)):
+            non_padded_avg.append(y[i][~p[i]].mean(dim=0)) # list of B*(tensors of shape (C,))
+        y = torch.stack(non_padded_avg) # list of B*(tensors of shape (C,)) -> BC
     return y
 
 
@@ -103,24 +109,24 @@ def extract_targets(cfg: DictConfig) -> None:
             })
 
             pred.pop('x', None) # output of final layer not interesting, also, it is contained in 'layer_results' at [-1]
-            pred.pop('mask', None) # is non here, as we do not mask the kd targets
+            pred.pop('mask', None) # is None here, as we do not mask the kd targets
             # pred in now dict with keys "padding_mask" and "layer_results"
+
+            item = {}
+
             if cfg.average_twice:
-                pred['layer_results'] = average_twice(pred['layer_results']).cpu()
-                pred['padding_mask'] = torch.full((pred['padding_mask'].sum(dim=1).max().item(),), False, dtype=torch.bool)
+                pred['layer_results'] = average_twice(pred['layer_results'], padding_mask=pred['padding_mask']).cpu()
+                if 'padding_mask' in pred:
+                    item['padding_mask'] = pred['padding_mask'].cpu()
             else:
                 pred['layer_results'] = special_token_and_average(pred['layer_results']).cpu()
-                pred['padding_mask'] = pred['padding_mask'][0]
+                assert (pred['padding_mask'][:, 0].sum()==0).item(), "Special token should not be masked"
+                # padding_mask is not needed here, as we are only interested in the special token
 
-            pred['padding_mask'] = pred['padding_mask'].cpu()
-
-            item = {
-                'target': pred,
-                key: batch[key],
-                'modes': batch['modes'],
-            }
-            if padding_mask is not None:
-                item['padding_mask'] = padding_mask
+            item['target'] = pred['layer_results']
+            item[key] = batch[key]
+            item['modes'] = batch['modes']
+            
             torch.save(item, os.path.join(kd_targets_path, filename))
 
     index = {
