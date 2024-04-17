@@ -132,7 +132,7 @@ optimizer:
     max_steps: ${lightning_trainer.max_steps}
 
 lightning_trainer:
-  devices: -1
+  devices: 1
   max_steps: 30000
   val_check_interval: 2000
   num_sanity_val_steps: 0 # mean test running "num_sanity_val_steps" batches of the validation dataloaders, but here we have no classical validation
