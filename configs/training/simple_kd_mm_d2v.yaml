@@ -120,9 +120,7 @@ checkpoint:
   mode: max
   auto_insert_metric_name: False
 
-layer_norm_target_layer: False
-instance_norm_target_layer: True
-batch_norm_target_layer: False
+average_twice: False
 
 optimizer:
   params:

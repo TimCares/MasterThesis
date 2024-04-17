@@ -14,7 +14,7 @@ from omegaconf import II
 from dataclasses import dataclass, field
 from datasets_ import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup
-from kd_precompute import instance_norm_and_average
+from kd_precompute import special_token_and_average, average_twice
 
 from data2vec_fairseq.models.modalities.modules import AltBlock
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
@@ -39,7 +39,10 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         target_dict = batch.pop('target')
         output_dict = self(batch) # call "forward"
 
-        y_hat = instance_norm_and_average(output_dict['layer_results'])
+        if self.cfg.average_twice:
+            y_hat = average_twice(output_dict['layer_results'])
+        else:
+            y_hat = special_token_and_average(output_dict['layer_results'])
 
         y_hat = y_hat[output_dict['padding_mask']]
         target = target[target_dict['padding_mask']]
@@ -494,3 +497,34 @@ class MoMEInitializedD2V(KDMMData2Vec):
             layer_norm_first=self.cfg.layer_norm_first,
             ffn_targets=not self.cfg.end_of_block_targets,
         )
+
+
+
+def dummy_model(modes:List[Modality],
+        audio:torch.Tensor=None,
+        image:torch.Tensor=None,
+        text:torch.Tensor=None,
+        id:torch.Tensor=None,
+        padding_mask:torch.Tensor=None,
+        mask:bool=True,
+        features_only:bool=False,
+        force_remove_masked:bool=False,
+        remove_extra_tokens:bool=True,
+        precomputed_mask=None,
+    ):
+
+    if audio is not None:
+        source = audio
+    elif image is not None:
+        source = image
+    elif text is not None:
+        source = text
+    else:
+        raise ValueError("Audio, image or text must be provided, found all to be None.")
+    
+    return torch.rand((source.shape[0], 768))
+
+class TestLightningModule(KDData2VecPreTrainingLightningModule):
+    def __init__(self, cfg):
+        self.save_hyperparameters()
+        self.model = dummy_model

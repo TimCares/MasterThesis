@@ -14,7 +14,7 @@ from utils import load_pretrained_d2v_model
 
 logger = logging.getLogger(__name__)
 
-def instance_norm_and_average(target_layer_results:List[torch.Tensor]) -> torch.Tensor:
+def special_token_and_average(target_layer_results:List[torch.Tensor]) -> torch.Tensor:
     target_layer_results = [
         F.instance_norm(tl.transpose(1, 2).float()).transpose(1, 2)
         for tl in target_layer_results  # BTC -> BCT -> BTC
@@ -25,9 +25,9 @@ def instance_norm_and_average(target_layer_results:List[torch.Tensor]) -> torch.
     for tl in target_layer_results[1:]:
         y.add_(tl[:, 0, :].clone().float())
     y = y.div_(len(target_layer_results))
-    return y
+    return y.squeeze(1) # BTC -> BC
 
-def _average_twice(target_layer_results:List[torch.Tensor]) -> torch.Tensor:
+def average_twice(target_layer_results:List[torch.Tensor]) -> torch.Tensor:
     target_layer_results = [
         F.instance_norm(tl.transpose(1, 2).float()).transpose(1, 2)
         for tl in target_layer_results  # BTC -> BCT -> BTC
@@ -106,9 +106,12 @@ def extract_targets(cfg: DictConfig) -> None:
             pred.pop('mask', None) # is non here, as we do not mask the kd targets
             # pred in now dict with keys "padding_mask" and "layer_results"
             if cfg.average_twice:
-                pred['layer_results'] = _average_twice(pred['layer_results']).cpu()
+                pred['layer_results'] = average_twice(pred['layer_results']).cpu()
+                pred['padding_mask'] = torch.full((pred['padding_mask'].sum(dim=1).max().item(),), False, dtype=torch.bool)
             else:
-                pred['layer_results'] = instance_norm_and_average(pred['layer_results']).cpu()
+                pred['layer_results'] = special_token_and_average(pred['layer_results']).cpu()
+                pred['padding_mask'] = pred['padding_mask'][0]
+
             pred['padding_mask'] = pred['padding_mask'].cpu()
 
             item = {
