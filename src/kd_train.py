@@ -5,7 +5,7 @@ import logging
 from pytorch_lightning import seed_everything, Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 
-from multimodal_data2vec import KDMMData2VecConfig, KDData2VecPreTrainingLightningModule
+from multimodal_data2vec import KDMMData2VecConfig, KDData2VecPreTrainingLightningModule, TestLightningModule
 from datamodules import DATAMODULE_REGISTRY
 from multi_data_loader import MultiDataModule
 from validate import ZeroShotCallback
@@ -23,7 +23,12 @@ def main(cfg: DictConfig) -> None:
     else:
         logger.info('No seed set.')
 
-    model = KDData2VecPreTrainingLightningModule(cfg=cfg)
+    if cfg.dry_run is not None and cfg.dry_run:
+        logger.info('Starting dry run.')
+        model = TestLightningModule(cfg=cfg)
+    else:
+        logger.info('Starting training.')
+        model = KDData2VecPreTrainingLightningModule(cfg=cfg)
 
     OmegaConf.resolve(cfg=cfg) # resolving done in-place
 
@@ -35,12 +40,15 @@ def main(cfg: DictConfig) -> None:
     dataloader_args = {key: cfg.data[key] for key in dataloader_keys}
 
     datamodules = []
-    for dataset_args in cfg.data[datamodules_key]:
-        with open_dict(dataset_args):
-            args = OmegaConf.merge(dataset_args, dataloader_args)
-        
-        datamodules.append(DATAMODULE_REGISTRY[datamodules_key[1:]](**args))
-        logger.info(args)
+    if cfg.dry_run is not None and cfg.dry_run:
+        datamodules.append(DATAMODULE_REGISTRY['dummy']())
+    else:
+        for dataset_args in cfg.data[datamodules_key]:
+            with open_dict(dataset_args):
+                args = OmegaConf.merge(dataset_args, dataloader_args)
+            
+            datamodules.append(DATAMODULE_REGISTRY[datamodules_key[1:]](**args))
+            logger.info(args)
     
     datamodule = MultiDataModule(datamodules=datamodules)
 

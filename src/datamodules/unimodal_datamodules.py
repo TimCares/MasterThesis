@@ -26,10 +26,10 @@ class BaseDataModule(LightningDataModule):
         raise NotImplementedError("set train dataset")
 
     def set_val_dataset(self):
-        raise NotImplementedError("set val dataset")
+        pass # optional: not all datasets have a validation set
 
     def set_test_dataset(self):
-        raise NotImplementedError("set test dataset")
+        pass # optional: not all datasets have a test set
 
     def prepare_data(self):
         if not self.prepared:

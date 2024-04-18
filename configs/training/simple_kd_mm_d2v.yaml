@@ -10,6 +10,7 @@ defaults:
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
 
+dry_run: True
 data_path: ../data
 model_path: ../models
 seed: 42
