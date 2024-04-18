@@ -42,7 +42,7 @@ def average_twice(target_layer_results:List[torch.Tensor], padding_mask:torch.Te
     else:
         non_padded_avg = []
         for i in range(y.size(0)):
-            non_padded_avg.append(y[i][~p[i]].mean(dim=0)) # list of B*(tensors of shape (C,))
+            non_padded_avg.append(y[i][~padding_mask[i]].mean(dim=0)) # list of B*(tensors of shape (C,))
         y = torch.stack(non_padded_avg) # list of B*(tensors of shape (C,)) -> BC
     return y
 
