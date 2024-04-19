@@ -34,41 +34,38 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         return self.model(**input_dict)
 
     def training_step(self, batch:Dict[str, Any], batch_idx):
-        target_dict = batch.pop('target')
+        target = batch.pop('target')
         output_dict = self(batch) # call "forward"
 
         if self.cfg.average_twice:
-            y_hat = average_twice(output_dict['layer_results'])
+            y_hat = average_twice(output_dict['layer_results'], output_dict['padding_mask'])
         else:
             y_hat = special_token_and_average(output_dict['layer_results'])
-
-        y_hat = y_hat[output_dict['padding_mask']]
-        target = target[target_dict['padding_mask']]
         
-        assert y_hat.shape == target.shape() # for simple pretraining (only variant 1!) this must be the case
+        assert y_hat.shape == target.shape # for simple pretraining this must be the case
         return self.kd_loss(y_hat=y_hat, y=target)
     
     def kd_loss(self, y_hat, y):
         y_hat = y_hat.view(-1, y_hat.size(-1)).float()
-        y = y.view(-1, y_hat.size(-1))
+        y = y.view(-1, y_hat.size(-1)).float()
 
-        loss = F.mse_loss(y_hat, y, reduction="none")
+        loss = F.mse_loss(y_hat, y, reduction="none").float()
 
-        if self.cfg.loss_scale is not None:
-            scale = self.cfg.loss_scale
+        if self.cfg.model.loss_scale is not None:
+            scale = self.cfg.model.loss_scale
         else:
             scale = 1 / math.sqrt(y_hat.size(-1))
         reg_loss = loss * scale
-
-        return reg_loss
+        
+        return reg_loss.sum()
 
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.model.parameters(), **self.cfg.params)
+        optimizer = torch.optim.AdamW(self.model.parameters(), **self.cfg.optimizer)
         scheduler = get_cosine_schedule_with_warmup(
             optimizer,
-            num_warmup_steps=self.cfg.schedule.warmup_steps,
-            num_training_steps=self.cfg.schedule.max_steps,
+            num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,
+            num_training_steps=self.cfg.optimizer_schedule.max_steps,
         )
         return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": "cosine_w_warmup"}]
 
@@ -565,7 +562,7 @@ class TestLightningModule(L.LightningModule):
         else:
             y_hat = special_token_and_average(output_dict['layer_results'])
         
-        assert y_hat.shape == target.shape # for simple pretraining (only variant 1!) this must be the case
+        assert y_hat.shape == target.shape # for simple pretraining this must be the case
         return self.kd_loss(y_hat=y_hat, y=target)
     
     def kd_loss(self, y_hat, y):
