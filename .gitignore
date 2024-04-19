@@ -1,6 +1,7 @@
 /data/*/
 /models/
 .hydra
+lightning_logs/
 
 !data/nlvr2/nlvr
 
