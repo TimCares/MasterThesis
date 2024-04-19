@@ -61,7 +61,12 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
 
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.model.parameters(), **self.cfg.optimizer)
+        optimizer = torch.optim.AdamW(params=self.model.parameters(), 
+                                      lr=self.cfg.optimizer.lr,
+                                      betas=tuple(self.cfg.optimizer.betas),
+                                      eps=self.cfg.optimizer.eps,
+                                      weight_decay=self.cfg.optimizer.weight_decay)
+        
         scheduler = get_cosine_schedule_with_warmup(
             optimizer,
             num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,
@@ -581,7 +586,12 @@ class TestLightningModule(L.LightningModule):
 
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.model.parameters(), **self.cfg.optimizer)
+        optimizer = torch.optim.AdamW(params=self.model.parameters(), 
+                                      lr=self.cfg.optimizer.lr,
+                                      betas=tuple(self.cfg.optimizer.betas),
+                                      eps=self.cfg.optimizer.eps,
+                                      weight_decay=self.cfg.optimizer.weight_decay)
+        
         scheduler = get_cosine_schedule_with_warmup(
             optimizer,
             num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,

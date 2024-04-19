@@ -55,8 +55,8 @@ data:
   data_path: ${data_path}
   # batch_size: 256
   num_workers: 5
-  shuffle: False
-  drop_last: False
+  shuffle: True
+  drop_last: True
 
   _kd_datamodule:
     - dataset: openwebtext # openwebtext_at
@@ -125,16 +125,23 @@ checkpoint:
 
 average_twice: False
 
-optimizer: {}
+optimizer:
+  lr: 0.00075 # -> 7.5e-4
+  betas: [ 0.9,0.98 ]
+  eps: 1e-06
+  weight_decay: 0.01
 
 optimizer_schedule:
-  warmup_steps: 500
+  warmup_steps: 1_000
   max_steps: ${lightning_trainer.max_steps}
 
 lightning_trainer:
-  devices: 1
-  max_steps: 1000
+  accelerator: gpu
+  devices: -1
+  #strategy: ddp # -> automatically used if multiple GPUs are available -> devices: -1
+  max_steps: 30_000
   val_check_interval: # None -> no validation
   num_sanity_val_steps: 0 # mean test running "num_sanity_val_steps" batches of the validation dataloaders, but here we have no classical validation
   limit_val_batches: 0 # no classical validation
   precision: 16-mixed
+  gradient_clip_val: 5.0 # can be a little higher, as some parts are pre-trained(?) => 5.0 (same as DistillBERT)

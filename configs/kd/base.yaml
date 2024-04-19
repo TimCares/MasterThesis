@@ -21,7 +21,7 @@ datamodule:
   
   data_path: ../data
 
-  batch_size: 512
+  batch_size: 512 # 256
   num_workers: 5
   shuffle: False
   drop_last: False
