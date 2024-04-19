@@ -306,7 +306,7 @@ class ImageNetDataset(ImageDataset):
                          dataset_type=dataset_type, 
                          local_cache_path=local_cache_path,
                          precompute_mask_config=precompute_mask_config)
-        self.path_to_data = os.path.join(self.data_path, 'imagenet')
+        self.path_to_data = os.path.join(self.data_path, 'imagenet-1k', 'data')
         if not os.path.exists(self.path_to_data):
             raise FileNotFoundError(f"Directory {self.path_to_data} does not exists, "
                                     "please create it and add the correponding files from HuggingFace: "
