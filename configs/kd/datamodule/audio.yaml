@@ -4,11 +4,11 @@ model_state_dict: base_libri.pt
 
 #num_max_bpe_tokens: 512
 sample_rate: 16_000
-max_sample_size: 320000
-min_sample_size: 32000
+max_sample_size: 160_000 # 320000 -> 20 seconds too long (?)
+min_sample_size: 32_000 # 2 seconds
 normalize: True
 pad: True
 precompute_mask_config: # no values mean 'None' -> No precomputed mask
 #  feature_encoder_spec: '[(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512,2,2)] + [(512,2,2)]'
-types_train: [train-clean-100]
+types_train: [train-clean-100, train-clean-360]
 types_test: [test-other]
