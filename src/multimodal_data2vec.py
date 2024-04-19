@@ -578,9 +578,7 @@ class TestLightningModule(L.LightningModule):
         reg_loss = loss * scale
         
         return reg_loss.sum()
-    
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        pass
+
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.model.parameters(), **self.cfg.optimizer)
