@@ -71,6 +71,8 @@ def main(cfg: DictConfig) -> None:
         ModelCheckpoint(
                 **OmegaConf.to_container(cfg.checkpoint)
             )
+        # checkpoint last, so that zero shot has been performed before saving 
+        # (ModelCheckpoint usually executed last automatically, but just to be sure)
     ]
 
     logger.info("Setting up datamodules:")
@@ -80,6 +82,7 @@ def main(cfg: DictConfig) -> None:
 
     trainer = Trainer(
         **OmegaConf.to_container(cfg.lightning_trainer),
+        enable_checkpointing=True,
         callbacks=callbacks,
     )
 
@@ -89,7 +92,7 @@ def main(cfg: DictConfig) -> None:
         ckpt_path = None
 
     # trainer.validate(module) # perform zero-shot before training
-    trainer.fit(module, datamodule=datamodule, ckpt_path=ckpt_path)
+    trainer.fit(module, train_dataloaders=datamodule.train_dataloader(), ckpt_path=ckpt_path)
     # trainer.validate(module) # perform zero-shot after training
 
 

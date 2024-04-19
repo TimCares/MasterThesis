@@ -101,7 +101,9 @@ class MultiDataLoader:
             self.current_iterator = iterator
             next_batch = next(self.current_iterator)
 
-        return {"batch": next_batch, 'datamodule_index': self.current_index}
+        #return {"batch": next_batch, 'datamodule_index': self.current_index}
+        # -> on_before_batch_transfer and on_after_batch_transfer are not needed for now
+        return next_batch
 
     def change_dataloader(self):
         choice = 0
@@ -174,17 +176,19 @@ class MultiDataModule(LightningDataModule):
 
         return MultiDataLoader(dataloaders, self.sampling_func)
 
-    def on_before_batch_transfer(self, batch, *args):
-        batch, index = batch["batch"], batch["datamodule_index"]
-        self.current_datamodule_idx = index
-        return self.datamodules[self.current_datamodule_idx].on_before_batch_transfer(
-            batch, *args
-        )
+    # the following is not needed for now
 
-    def on_after_batch_transfer(self, batch, *args):
-        return self.datamodules[self.current_datamodule_idx].on_after_batch_transfer(
-            batch, *args
-        )
+    # def on_before_batch_transfer(self, batch, *args):
+    #     batch, index = batch["batch"], batch["datamodule_index"]
+    #     self.current_datamodule_idx = index
+    #     return self.datamodules[self.current_datamodule_idx].on_before_batch_transfer(
+    #         batch, *args
+    #     )
+
+    # def on_after_batch_transfer(self, batch, *args):
+    #     return self.datamodules[self.current_datamodule_idx].on_after_batch_transfer(
+    #         batch, *args
+    #     )
 
     def teardown(self, stage):
         for datamodule in self.datamodules:

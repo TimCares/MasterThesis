@@ -8,7 +8,7 @@ import os
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
-from pytorch_lightning import Callback, LightningDataModule
+from pytorch_lightning import Callback, LightningDataModule, Trainer, LightningModule
 from pytorch_lightning.utilities import rank_zero_only
 from typing import Dict
 import sys
@@ -175,15 +175,16 @@ class ZeroShotCallback(Callback):
         self.num_max_bpe_tokens = num_max_bpe_tokens # TODO: utilize later...
         self.dictionary = Dictionary.load(os.path.join(data_path, 'dict.txt')) # TODO: utilize later...
         self.is_multimodal_aligned = is_multimodal_aligned # TODO: utilize later...
-        self.every_n_batches = val_every_n_batches
+        self.val_every_n_batches = val_every_n_batches
 
-    def on_batch_start(self, trainer, pl_module):
+    def on_train_batch_end(self, trainer:Trainer, pl_module:LightningModule, outputs, batch, batch_idx):
         # Check if the current batch count is a multiple of the specified frequency
-        if trainer.global_step % self.every_n_batches == 0:
-            self.on_validation_start(trainer, pl_module)
+        if trainer.global_step % self.val_every_n_batches == 0:
+            pl_module.eval()
+            self.validate(trainer, pl_module)
+            pl_module.train()
 
-    @torch.no_grad()
-    def on_validation_start(self, trainer, pl_module, **kwargs) -> None:
+    def validate(self, trainer, pl_module, **kwargs) -> None:
         for name_key in self.datamodules.keys():
             self.datamodules[name_key].prepare_data()
             self.datamodules[name_key].setup(stage='fit')
@@ -198,11 +199,18 @@ class ZeroShotCallback(Callback):
             )
             if metrics is not None:
                 for metric_key in metrics:
-                    self.log(
+                    pl_module.log(
                         f"val/{metric_key}",
                         metrics[metric_key],
                         prog_bar=True,
                         logger=True,
                         rank_zero_only=True,
-                        #on_step=True,
-                    )
+                        )
+                mean_acc = np.mean([metrics[key] for key in metrics if 'top5' not in key])
+                pl_module.log(
+                        "val/unimodal-mean-knn--zeroshot-top1-acc",
+                        mean_acc,
+                        prog_bar=True,
+                        logger=True,
+                        rank_zero_only=True,
+                        )
