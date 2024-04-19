@@ -91,9 +91,7 @@ def main(cfg: DictConfig) -> None:
     else:
         ckpt_path = None
 
-    # trainer.validate(module) # perform zero-shot before training
     trainer.fit(module, train_dataloaders=datamodule.train_dataloader(), ckpt_path=ckpt_path)
-    # trainer.validate(module) # perform zero-shot after training
 
 
 if __name__ == "__main__":
