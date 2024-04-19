@@ -82,8 +82,6 @@ class NLPDataset(BaseDataset):
             sample_break_mode:str='none',):
         super().__init__(data_path=data_path, 
                          split=split)
-        self.nlp_dir_path = os.path.join(self.data_path, 'language')
-        os.makedirs(self.nlp_dir_path, exist_ok=True)
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
         self.sample_break_mode = sample_break_mode

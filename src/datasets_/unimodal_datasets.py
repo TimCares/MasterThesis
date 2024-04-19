@@ -35,14 +35,14 @@ class OpenWebTextDataset(NLPDataset):
                          split=split,
                          num_max_bpe_tokens=num_max_bpe_tokens, 
                          sample_break_mode=sample_break_mode)
-        dataset_path = os.path.join(self.nlp_dir_path, 'openwebtext')
+        dataset_path = os.path.join(self.data_path, 'openwebtext')
         base_data_path = self.data_path
         self.data_path = dataset_path
 
         if self.index_exists(dataset_path=dataset_path):
             return
 
-        pattern = os.path.join(self.nlp_dir_path, '*.tar')
+        pattern = os.path.join(base_data_path, '*.tar')
         files = glob.glob(pattern)
 
         if len(files)==0:
@@ -50,7 +50,7 @@ class OpenWebTextDataset(NLPDataset):
 
         self.log(f"Found {len(files)} tar files, inflating...")
         for file in files:
-            os.system(f"tar -xf {file} -C {self.nlp_dir_path}")
+            os.system(f"tar -xf {file} -C {base_data_path}")
             os.remove(file)
         pattern = os.path.join(dataset_path, '*.xz')
         files = glob.glob(pattern)
@@ -98,7 +98,7 @@ class IMDBDataset(BaseDataset):
         super().__init__(data_path=data_path,
                          split=split)
         self.num_max_bpe_tokens = num_max_bpe_tokens
-        self.path_to_data = os.path.join(self.data_path, 'language', 'imdb')
+        self.path_to_data = os.path.join(self.data_path, 'imdb')
         self.out_jsonl_path = os.path.join(self.path_to_data, f'{self.split}.jsonl')
 
         dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))

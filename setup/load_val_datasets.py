@@ -18,8 +18,6 @@ def main(cfg:DictConfig) -> None:
     for subset in ["training", "testing"]:
         SPEECHCOMMANDS(data_path, subset=subset, download=True)
 
-
-    imdb_path = os.path.join(data_path, 'language', 'imdb')
     for subset in ["train", "test"]:
         CIFAR10(data_path, train=subset, download=True)
         CIFAR100(data_path, train=subset, download=True)
