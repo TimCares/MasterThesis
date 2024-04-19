@@ -166,8 +166,8 @@ class ZeroShotCallback(Callback):
     """
     datamodules: Dict[str, LightningDataModule] -> Dict of LightningDataModule, keys are the names of the LightningDataModule.
     """
-    def __init__(self, n_neighbors:int, datamodules: Dict[str, LightningDataModule], data_path:str, num_max_bpe_tokens:int,
-                 is_multimodal_aligned:bool, *args, **kwargs):
+    def __init__(self, n_neighbors:int, datamodules: Dict[str, LightningDataModule], data_path:str, 
+                 val_every_n_batches:int, num_max_bpe_tokens:int, is_multimodal_aligned:bool, *args, **kwargs):
         super().__init__()
         self.datamodules = datamodules
         self.n_neighbors = n_neighbors
@@ -175,6 +175,12 @@ class ZeroShotCallback(Callback):
         self.num_max_bpe_tokens = num_max_bpe_tokens # TODO: utilize later...
         self.dictionary = Dictionary.load(os.path.join(data_path, 'dict.txt')) # TODO: utilize later...
         self.is_multimodal_aligned = is_multimodal_aligned # TODO: utilize later...
+        self.every_n_batches = val_every_n_batches
+
+    def on_batch_start(self, trainer, pl_module):
+        # Check if the current batch count is a multiple of the specified frequency
+        if trainer.global_step % self.every_n_batches == 0:
+            self.on_validation_start(trainer, pl_module)
 
     @torch.no_grad()
     def on_validation_start(self, trainer, pl_module, **kwargs) -> None:

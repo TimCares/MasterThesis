@@ -25,10 +25,10 @@ def main(cfg: DictConfig) -> None:
 
     if cfg.dry_run is not None and cfg.dry_run:
         logger.info('Starting dry run.')
-        model = TestLightningModule(cfg=cfg)
+        module = TestLightningModule(cfg=cfg)
     else:
         logger.info('Starting training.')
-        model = KDData2VecPreTrainingLightningModule(cfg=cfg)
+        module = KDData2VecPreTrainingLightningModule(cfg=cfg)
 
     OmegaConf.resolve(cfg=cfg) # resolving done in-place
 
@@ -65,6 +65,7 @@ def main(cfg: DictConfig) -> None:
         ZeroShotCallback(n_neighbors=val_cfg.n_neighbors,
                          datamodules=zero_shot_modules,
                          data_path=val_cfg.data_path,
+                         val_every_n_batches=val_cfg.val_every_n_batches,
                          num_max_bpe_tokens=val_cfg.num_max_bpe_tokens,
                          is_multimodal_aligned=val_cfg.is_multimodal_aligned,),
         ModelCheckpoint(
@@ -73,7 +74,8 @@ def main(cfg: DictConfig) -> None:
     ]
 
     logger.info("Setting up datamodules:")
-    #datamodule.setup("fit")
+    datamodule.prepare_data()
+    datamodule.setup("fit")
     logger.info("Datamodule setup complete.")
 
     trainer = Trainer(
@@ -86,9 +88,9 @@ def main(cfg: DictConfig) -> None:
     else:
         ckpt_path = None
 
-    # trainer.validate(model) # perform zero-shot before training
-    # trainer.fit(model, datamodule=datamodule, ckpt_path=ckpt_path)
-    # trainer.validate(model) # perform zero-shot after training
+    # trainer.validate(module) # perform zero-shot before training
+    trainer.fit(module, datamodule=datamodule, ckpt_path=ckpt_path)
+    # trainer.validate(module) # perform zero-shot after training
 
 
 if __name__ == "__main__":

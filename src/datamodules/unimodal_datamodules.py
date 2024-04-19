@@ -56,6 +56,8 @@ class BaseDataModule(LightningDataModule):
                           drop_last=self.drop_last,)
 
     def val_dataloader(self):
+        if not hasattr(self, 'val_dataset'):
+            return None
         return DataLoader(self.val_dataset,
                           collate_fn=self.val_dataset.collater,
                           batch_size=self.batch_size,
@@ -65,6 +67,8 @@ class BaseDataModule(LightningDataModule):
                           drop_last=self.drop_last,)
 
     def test_dataloader(self):
+        if not hasattr(self, 'test_dataset'):
+            return None
         return DataLoader(self.test_dataset,
                           collate_fn=self.test_dataset.collater,
                           batch_size=self.batch_size,

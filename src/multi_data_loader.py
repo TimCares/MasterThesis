@@ -1,13 +1,13 @@
 # adapted from: https://github.com/facebookresearch/multimodal/blob/main/examples/common/data/multidata.py
 import warnings
-from typing import Callable, List, Optional, Dict
+from typing import Callable, List, Optional
 import torch
 from pytorch_lightning import LightningDataModule
 
 class MultiDataLoader:
     def __init__(
         self,
-        loaders: Dict[str, torch.utils.data.DataLoader],
+        loaders: List[torch.utils.data.DataLoader],
         sampling_func: Optional[Callable] = None,
     ):
         """MultiDataLoader takes in a list of dataloaders and a sampling function
@@ -16,8 +16,8 @@ class MultiDataLoader:
         over multiple datasets
 
         Args:
-            loaders (Dict[str, torch.utils.data.DataLoader]): Dict of dataloaders on
-                which the multitasking has to be done. Keys are the names of the dataloaders.
+            loaders (List[torch.utils.data.DataLoader]): List of dataloaders on
+                which the multitasking has to be done.
 
             sampling_func (Optional[Callable], optional): Function which will return
                 the next index to be selected. Defaults to equally weight sampling.
@@ -40,8 +40,7 @@ class MultiDataLoader:
             sampling_func = CycleN(len(loaders))
 
         self.sampling_func = sampling_func
-        self.loaders = list(loaders.values())
-        self.loaders_names = list(loaders.keys())
+        self.loaders = loaders
         self.num_datasets = len(self.loaders)
         self.iterators = [None for _ in loaders]
         self.current_index = 0
@@ -102,7 +101,7 @@ class MultiDataLoader:
             self.current_iterator = iterator
             next_batch = next(self.current_iterator)
 
-        return {"batch": next_batch, "mode": self.loaders_names[self.current_index], 'datamodule_index': self.current_index}
+        return {"batch": next_batch, 'datamodule_index': self.current_index}
 
     def change_dataloader(self):
         choice = 0

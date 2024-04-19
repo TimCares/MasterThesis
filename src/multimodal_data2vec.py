@@ -7,7 +7,7 @@ import numpy as np
 import os
 from utils import load_pretrained_d2v_model
 import logging
-import lightning as L
+import pytorch_lightning as L
 import math
 from omegaconf import II
 from dataclasses import dataclass, field
@@ -28,7 +28,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         self.save_hyperparameters()
         self.cfg = cfg
         
-        self.model = KDMMData2Vec(cfg=cfg.model)
+        self.model = KDMMData2Vec(cfg=self.cfg.model)
 
     def forward(self, input_dict):
         return self.model(**input_dict)
@@ -63,12 +63,12 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         return reg_loss
 
 
-    def configure_optimizers(self, cfg):
-        optimizer = torch.optim.AdamW(self.model.parameters(), **cfg.params)
+    def configure_optimizers(self):
+        optimizer = torch.optim.AdamW(self.model.parameters(), **self.cfg.params)
         scheduler = get_cosine_schedule_with_warmup(
             optimizer,
-            num_warmup_steps=cfg.schedule.warmup_steps,
-            num_training_steps=cfg.schedule.max_steps,
+            num_warmup_steps=self.cfg.schedule.warmup_steps,
+            num_training_steps=self.cfg.schedule.max_steps,
         )
         return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": "cosine_w_warmup"}]
 
@@ -124,7 +124,7 @@ class KDMMData2Vec(nn.Module):
     def __init__(self,
                  cfg: KDMMData2VecConfig,
                  ):
-        super().__init__()
+        super(KDMMData2Vec, self).__init__()
         self.cfg = cfg
         self.modality_encoders:nn.ModuleDict[Modality, nn.Module] = self._get_modality_encoders()
         self.modality_encoders.eval()
@@ -142,9 +142,7 @@ class KDMMData2Vec(nn.Module):
             nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
         )
         
-        self.alibi_biases = {}
-
-        self.loss_scale = self.cfg.loss_scale
+        # self.alibi_biases = {}
 
         self.dropout_input = nn.Dropout(self.cfg.dropout_input)
 
@@ -497,32 +495,101 @@ class MoMEInitializedD2V(KDMMData2Vec):
         )
 
 
+class DummyModel(nn.Module):
+    def __init__(self,
+                 cfg: KDMMData2VecConfig,
+                 ):
+        super(DummyModel, self).__init__()
+        self.cfg = cfg
+        self.embed_dim = 20
+        # so model.parameters() is not empty
+        self.lin = nn.Linear(self.embed_dim, self.embed_dim)
 
-def dummy_model(modes:List[Modality],
-        audio:torch.Tensor=None,
-        image:torch.Tensor=None,
-        text:torch.Tensor=None,
-        id:torch.Tensor=None,
-        padding_mask:torch.Tensor=None,
-        mask:bool=True,
-        features_only:bool=False,
-        force_remove_masked:bool=False,
-        remove_extra_tokens:bool=True,
-        precomputed_mask=None,
-    ):
+    def forward(self,
+                modes:List[Modality],
+                audio:torch.Tensor=None,
+                image:torch.Tensor=None,
+                text:torch.Tensor=None,
+                id:torch.Tensor=None,
+                padding_mask:torch.Tensor=None,
+                mask:bool=True,
+                features_only:bool=False,
+                force_remove_masked:bool=False,
+                remove_extra_tokens:bool=True,
+                precomputed_mask=None,
+        ):
 
-    if audio is not None:
-        source = audio
-    elif image is not None:
-        source = image
-    elif text is not None:
-        source = text
-    else:
-        raise ValueError("Audio, image or text must be provided, found all to be None.")
+        if audio is not None:
+            source = audio
+        elif image is not None:
+            source = image
+        elif text is not None:
+            source = text
+        else:
+            raise ValueError("Audio, image or text must be provided, found all to be None.")
+        
+        out = self.lin(torch.randn_like(source))
+        return {'layer_results': [out for _ in range(self.cfg.depth)],}
     
-    return torch.rand((source.shape[0], 768))
+    def encode_modality(self, mode:Union[Modality, List[Modality]], source:torch.Tensor, padding_mask=None, normalize:bool=True):
+        if isinstance(mode, List):
+            assert len(mode)==1, 'Only one modality allowed when calling "encode_modality".'
+        
+        return torch.rand((source.shape[0], 1, self.embed_dim))
+    
+    def encode_text(self, text, padding_mask, normalize:bool=True):
+        return torch.rand((text.shape[0], 1, self.embed_dim))
+    
+    def encode_image(self, image, normalize:bool=True):
+        return torch.rand((image.shape[0], 1, self.embed_dim))
+    
+    def encode_audio(self, audio, padding_mask, normalize:bool=True):
+        return torch.rand((audio.shape[0], 1, self.embed_dim))
 
-class TestLightningModule(KDData2VecPreTrainingLightningModule):
+class TestLightningModule(L.LightningModule):
     def __init__(self, cfg):
+        super().__init__()
         self.save_hyperparameters()
-        self.model = dummy_model
+        self.cfg = cfg
+        self.model = DummyModel(cfg=self.cfg.model)
+
+    def forward(self, input_dict):
+        return self.model(**input_dict)
+
+    def training_step(self, batch:Dict[str, Any], batch_idx):
+        target = batch.pop('target')
+        output_dict = self(batch) # call "forward"
+
+        if self.cfg.average_twice:
+            y_hat = average_twice(output_dict['layer_results'], output_dict['padding_mask'])
+        else:
+            y_hat = special_token_and_average(output_dict['layer_results'])
+        
+        assert y_hat.shape == target.shape # for simple pretraining (only variant 1!) this must be the case
+        return self.kd_loss(y_hat=y_hat, y=target)
+    
+    def kd_loss(self, y_hat, y):
+        y_hat = y_hat.view(-1, y_hat.size(-1)).float()
+        y = y.view(-1, y_hat.size(-1)).float()
+
+        loss = F.mse_loss(y_hat, y, reduction="none").float()
+
+        if self.cfg.model.loss_scale is not None:
+            scale = self.cfg.model.loss_scale
+        else:
+            scale = 1 / math.sqrt(y_hat.size(-1))
+        reg_loss = loss * scale
+        
+        return reg_loss.sum()
+    
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        pass
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.AdamW(self.model.parameters(), **self.cfg.optimizer)
+        scheduler = get_cosine_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,
+            num_training_steps=self.cfg.optimizer_schedule.max_steps,
+        )
+        return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": "cosine_w_warmup"}]
