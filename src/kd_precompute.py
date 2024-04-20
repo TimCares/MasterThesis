@@ -114,9 +114,14 @@ def extract_targets(cfg: DictConfig) -> None:
             item = {}
 
             if cfg.average_twice:
-                pred['layer_results'] = average_twice(pred['layer_results'], padding_mask=pred['padding_mask']).cpu()
                 if 'padding_mask' in pred:
-                    item['padding_mask'] = pred['padding_mask'].cpu()
+                    padding_mask = pred['padding_mask']
+                    item['padding_mask'] = padding_mask.cpu()
+                else:
+                    padding_mask = None
+
+                pred['layer_results'] = average_twice(pred['layer_results'], padding_mask=padding_mask).cpu()
+                
             else:
                 pred['layer_results'] = special_token_and_average(pred['layer_results']).cpu()
                 assert (pred['padding_mask'][:, 0].sum()==0).item(), "Special token should not be masked"
