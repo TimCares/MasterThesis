@@ -134,7 +134,7 @@ class KDMMData2Vec(nn.Module):
         self.modality_encoders.is_pretrained = True
 
         self.projections = nn.ModuleDict({
-            mode.name: 
+            mode.name.lower(): 
             (nn.Linear(self.cfg.encoders_embed_dim, self.cfg.embed_dim) 
              if self.cfg.modality_encoder_proj 
              else nn.Identity())
@@ -195,7 +195,7 @@ class KDMMData2Vec(nn.Module):
             state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
             d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
             mode_feature_extractor = d2v_model.modality_encoders[mode_enum.name]
-            modality_encoders[mode_enum.name] = mode_feature_extractor
+            modality_encoders[mode_enum.name.lower()] = mode_feature_extractor
             
             for name, module in mode_feature_extractor.named_children():
                 total_params = sum(p.numel() for p in module.parameters())
@@ -216,18 +216,18 @@ class KDMMData2Vec(nn.Module):
         image:torch.Tensor=None,
         text:torch.Tensor=None,
         id:torch.Tensor=None,
-        padding_mask:torch.Tensor=None, # Union[torch.Tensor, Dict[str, torch.Tensor]] for multi input later
-        mask:bool=True,
-        features_only:bool=False,
+        padding_mask:torch.Tensor=None, # Union[torch.Tensor, Dict[str, torch.Tensor]] for multi input later?
+        mask:bool=False,
+        features_only:bool=True,
         force_remove_masked:bool=False,
-        remove_extra_tokens:bool=True,
+        remove_extra_tokens:bool=False,
         precomputed_mask=None,
     ):
         assert len(modes)==1, f"This model accepts exactly modality indicator at a time, received: {modes}"
         n_sources = sum(mode is not None for mode in [audio, image, text])
         assert n_sources==1,\
             f"This model accepts exactly one modality data source at a time, got {n_sources}."
-        mode = modes[0].name # is now a string, ModuleDict does not support enums as keys
+        mode = modes[0].name.lower() # is now a string, ModuleDict does not support enums as keys
         
         if audio is not None:
             source = audio
@@ -347,29 +347,33 @@ class KDMMData2Vec(nn.Module):
             padding_mask=padding_mask,
             remove_extra_tokens=False,
         )['x']
-        output = self.projections[mode.name](output[:, 0, :])
+
+        if mode == Modality.IMAGE or mode == Modality.AUDIO:
+            output = output.mean(dim=1)
+        else:
+            output = output[:, 0, :].squeeze(1)
 
         if normalize:
             output = F.normalize(output, dim=-1)
         
-        return output # shape: (batch_size, 1, embed_dim)
+        return output # shape: (batch_size, embed_dim)
 
     def encode_audio(self, audio, padding_mask, normalize:bool=True):
         return self.encode_modality(source=audio,
-                                     mode=Modality.AUDIO,
-                                     padding_mask=padding_mask,
-                                     normalize=normalize)
+                                    mode=Modality.AUDIO,
+                                    padding_mask=padding_mask,
+                                    normalize=normalize)
     
     def encode_image(self, image, normalize:bool=True):
         return self.encode_modality(source=image,
-                                     mode=Modality.IMAGE,
-                                     normalize=normalize)
+                                    mode=Modality.IMAGE,
+                                    normalize=normalize)
 
     def encode_text(self, text, padding_mask, normalize:bool=True):
         return self.encode_modality(source=text,
-                                     mode=Modality.TEXT,
-                                     padding_mask=padding_mask,
-                                     normalize=normalize)
+                                    mode=Modality.TEXT,
+                                    padding_mask=padding_mask,
+                                    normalize=normalize)
 
     def _get_pretrained_block_indices(self, depth, n_blocks_pretrained) -> List[int]:
         blocks_pretrained = [i for i in range(n_blocks_pretrained)]

@@ -15,7 +15,7 @@ data_path: ../data
 out_path: ${data_path}
 offset: 0 # number of batches of the dataset already created
 
-average_twice: False
+average_twice: False # set to True of audio and image, False for text
 
 datamodule:
   _name: ???

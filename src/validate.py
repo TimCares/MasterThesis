@@ -121,9 +121,8 @@ def _get_knn_data(model, data_loader:DataLoader, device:str) ->Tuple[np.ndarray,
 
         X.append(out.cpu())
         y.append(batch['target'])
-    # shape after "cat" will be (n_samples, 1, embed_dim)
-    # so transform to (n_samples, embed_dim) with "squeeze"
-    X = torch.cat(X, dim=0).squeeze(1)
+    # shape after "cat" will be (n_samples, embed_dim)
+    X = torch.cat(X, dim=0)
     X = X.numpy()
     y = torch.cat(y, dim=0).cpu().numpy()
     return X, y
