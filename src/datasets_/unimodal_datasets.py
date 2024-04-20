@@ -41,7 +41,7 @@ class OpenWebTextDataset(NLPDataset):
         if self.index_exists(dataset_path=dataset_path):
             return
 
-        pattern = os.path.join(base_data_path, '*.tar')
+        pattern = os.path.join(base_data_path, 'urlsf_*.tar')
         files = glob.glob(pattern)
 
         if len(files)==0:
