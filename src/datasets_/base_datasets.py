@@ -119,16 +119,16 @@ class NLPDataset(BaseDataset):
         dataset = TokenBlockDataset(
             dataset,
             dataset.sizes,
-            self.num_max_bpe_tokens - 2,  # two less for bos and eos
+            self.num_max_bpe_tokens - 1,  # one less for bos
             pad=self.dictionary.pad(),
             eos=self.dictionary.eos(),
             break_mode=self.sample_break_mode,
         )
         logger.info("loaded {} blocks from: {}".format(len(dataset), split_path))
 
-        # prepend beginning-of-sentence and append end-of-sentence tokens
+        # prepend beginning-of-sentence
         dataset = PrependTokenDataset(dataset, self.dictionary.bos())
-        dataset = AppendTokenDataset(dataset, self.dictionary.eos())
+        #dataset = AppendTokenDataset(dataset, self.dictionary.eos()) # -> not done in data2vec
 
         input_dict = {
             "text": RightPadDataset(
