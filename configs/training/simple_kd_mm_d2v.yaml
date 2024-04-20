@@ -142,4 +142,4 @@ lightning_trainer:
   num_sanity_val_steps: 0 # mean test running "num_sanity_val_steps" batches of the validation dataloaders, but here we have no classical validation
   limit_val_batches: 0 # no classical validation
   precision: 16-mixed
-  gradient_clip_val: 5.0 # can be a little higher, as some parts are pre-trained(?) => 5.0 (same as DistillBERT)
+  gradient_clip_val: 4.0 # can be a little higher, as some parts are pre-trained(?) DistillBERT has 5.0

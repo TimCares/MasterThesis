@@ -128,10 +128,6 @@ class KDMMData2Vec(nn.Module):
                  ):
         super(KDMMData2Vec, self).__init__()
         self.cfg = cfg
-        self.modality_encoders:nn.ModuleDict[Modality, nn.Module] = self._get_modality_encoders()
-        self._freeze(self.modality_encoders)
-        self.modality_encoders.eval()
-        self.modality_encoders.is_pretrained = True
 
         self.projections = nn.ModuleDict({
             mode.name.lower(): 
@@ -144,8 +140,6 @@ class KDMMData2Vec(nn.Module):
         make_layer_norm = partial(
             nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
         )
-        
-        # self.alibi_biases = {}
 
         self.dropout_input = nn.Dropout(self.cfg.dropout_input)
 
@@ -160,11 +154,17 @@ class KDMMData2Vec(nn.Module):
         self.layerdrop = self.cfg.layerdrop
         self.mask_seed = self.cfg.seed
 
-        self.apply(self._init_except_pretrained)
+        # self.apply(self._init_except_pretrained)
+        self.apply(init_bert_params)
 
         for pn, p in self.named_parameters():
             if len(p.shape) == 1 or pn.endswith(".bias") or "alibi_scale" in pn:
                 p.optim_overrides = {"optimizer": {"weight_decay_scale": 0}}
+
+        # add modality encoders later, so that they are not part of the model's parameters when model is initialized
+        self.modality_encoders:nn.ModuleDict[Modality, nn.Module] = self._get_modality_encoders()
+        self._freeze(self.modality_encoders)
+        self.modality_encoders.eval()
         
     def make_block(self, drop_path, dim=None, heads=None):
         make_layer_norm = partial(
@@ -204,9 +204,7 @@ class KDMMData2Vec(nn.Module):
         return nn.ModuleDict(modality_encoders)
 
     def _init_except_pretrained(self, module:nn.Module):
-        if hasattr(module, "is_pretrained") and module.is_pretrained:
-            return
-        else:
+        if all(param.requires_grad for param in module.parameters(recurse=False)):
             init_bert_params(module)
 
     def forward(
