@@ -5,7 +5,7 @@ model_state_dict: base_libri.pt
 #num_max_bpe_tokens: 512
 sample_rate: 16_000
 max_sample_size: 160_000 # 320000 -> 20 seconds too long (?)
-min_sample_size: 32_000 # 2 seconds
+min_sample_size: 0 # or 32_000 -> 2 seconds
 normalize: True
 pad: True
 precompute_mask_config: # no values mean 'None' -> No precomputed mask

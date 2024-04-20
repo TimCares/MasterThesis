@@ -207,7 +207,7 @@ class KDMMData2Vec(nn.Module):
         if hasattr(module, "is_pretrained") and module.is_pretrained:
             return
         else:
-            module.apply(init_bert_params)
+            init_bert_params(module)
 
     def forward(
         self,
