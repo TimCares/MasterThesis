@@ -129,6 +129,7 @@ class KDMMData2Vec(nn.Module):
         super(KDMMData2Vec, self).__init__()
         self.cfg = cfg
         self.modality_encoders:nn.ModuleDict[Modality, nn.Module] = self._get_modality_encoders()
+        self._freeze(self.modality_encoders)
         self.modality_encoders.eval()
         self.modality_encoders.is_pretrained = True
 
@@ -195,6 +196,10 @@ class KDMMData2Vec(nn.Module):
             d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
             mode_feature_extractor = d2v_model.modality_encoders[mode_enum.name]
             modality_encoders[mode_enum.name] = mode_feature_extractor
+            
+            for name, module in mode_feature_extractor.named_children():
+                total_params = sum(p.numel() for p in module.parameters())
+                logger.info(f"{name} has {total_params} parameters")
 
         return nn.ModuleDict(modality_encoders)
 
@@ -316,6 +321,7 @@ class KDMMData2Vec(nn.Module):
         )
         return res
     
+    @torch.no_grad()
     def encode_modality(self, mode:Union[Modality, List[Modality]], source:torch.Tensor, padding_mask=None, normalize:bool=True):
         if isinstance(mode, List):
             assert len(mode)==1, 'Only one modality allowed when calling "encode_modality".'
@@ -395,16 +401,22 @@ class KDMMData2Vec(nn.Module):
     def freeze_attention_blocks(self):
         if self.cfg.freeze_attention:
             for block in self.blocks:
-                for param in block.attn.parameters():
-                    param.requires_grad = False
+                self._freeze(block.attn)
                 block.attn.eval()
 
     def unfreeze_attention_blocks(self):
         if self.cfg.freeze_attention:
             for block in self.blocks:
-                for param in block.attn.parameters():
-                    param.requires_grad = True
+                self._unfreeze(block.attn)
                 block.attn.train()
+
+    def _freeze(self, module:nn.Module) -> None:
+        for param in module.parameters():
+            param.requires_grad = False
+
+    def _unfreeze(self, module:nn.Module) -> None:
+        for param in module.parameters():
+            param.requires_grad = True
 
 
 class InitializedD2V(KDMMData2Vec):

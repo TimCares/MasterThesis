@@ -10,7 +10,7 @@ defaults:
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
 
-dry_run: True
+dry_run: False
 data_path: ../data
 model_path: ../models
 seed: 42
@@ -29,8 +29,8 @@ model:
   encoders_embed_dim: 768
   embed_dim: 768
   depth: 5
-  num_heads: 12 
-  mlp_ratio: 4.0
+  num_heads: 8 
+  mlp_ratio: 3.0
   encoder_dropout: 0.1
   attention_dropout: 0.1
   activation_dropout: 0.1
