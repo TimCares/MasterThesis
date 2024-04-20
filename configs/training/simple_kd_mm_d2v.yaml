@@ -38,7 +38,7 @@ model:
   norm_eps: 1e-6
   norm_affine: True
   layer_norm_first: False
-  loss_scale:
+  loss_scale: # Set to None -> Scaled by 1 / sqrt(embed_dim) (done for audio and image but not for text in the original implementation)
   dropout_input: 0.0
   start_drop_path_rate: 0
   end_drop_path_rate: 0
