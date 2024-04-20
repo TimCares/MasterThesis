@@ -5,7 +5,6 @@ import json
 from typing import *
 from functools import partial
 import shutil
-from rich.progress import track
 import glob
 from .data_utils import get_transforms, write_data_into_jsonl
 from .base_datasets import BaseDataset
@@ -306,7 +305,7 @@ class ImageNetDataset(ImageDataset):
                          dataset_type=dataset_type, 
                          local_cache_path=local_cache_path,
                          precompute_mask_config=precompute_mask_config)
-        self.path_to_data = os.path.join(self.data_path, 'imagenet-1k', 'data')
+        self.path_to_data = os.path.join(self.data_path, 'imagenet')
         if not os.path.exists(self.path_to_data):
             raise FileNotFoundError(f"Directory {self.path_to_data} does not exists, "
                                     "please create it and add the correponding files from HuggingFace: "
@@ -316,12 +315,12 @@ class ImageNetDataset(ImageDataset):
         os.makedirs(self.path_to_split, exist_ok=True)
 
         if not os.path.exists(os.path.join(self.path_to_data, f'imagenet.{self.split}.jsonl')):
-            tar_filenames = [f for f in os.listdir(self.path_to_data) if f.startswith(f"{self.split}_")]
-            self.log(f"Extracting tar files: {tar_filenames}")
-            for filename in track(tar_filenames, description="Extracting...", total=len(tar_filenames)):
-                tar_file_path = os.path.join(self.path_to_data, filename)
-                os.system(f"tar -xf {tar_file_path} -C {self.path_to_split}")
-                os.remove(tar_file_path)
+            # tar_filenames = [f for f in os.listdir(self.path_to_data) if f.startswith(f"{self.split}_")]
+            # self.log(f"Extracting tar files: {tar_filenames}")
+            # for filename in track(tar_filenames, description="Extracting...", total=len(tar_filenames)):
+            #     tar_file_path = os.path.join(self.path_to_data, filename)
+            #     os.system(f"tar -xf {tar_file_path} -C {self.path_to_split}")
+            #     os.remove(tar_file_path)
 
             self._make_imagnet_dataset_index()
 
