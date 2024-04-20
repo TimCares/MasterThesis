@@ -241,7 +241,8 @@ class LibriSpeechDataModule(BaseDataModule):
     def prepare_data(self):
         if not self.prepared:
             self.set_train_dataset()
-            self.set_test_dataset()
+            if self.types_test is not None:
+                self.set_test_dataset()
 
             self.prepared = True
 

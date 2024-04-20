@@ -9,8 +9,10 @@ defaults:
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
 
+model_path: ../models
+data_path: ../data
 
-out_path: ${datamodule.data_path}
+out_path: ${data_path}
 offset: 0 # number of batches of the dataset already created
 
 average_twice: False
@@ -19,7 +21,7 @@ datamodule:
   _name: ???
   model_state_dict: ???
   
-  data_path: ../data
+  data_path: ${data_path}
 
   batch_size: 256 # 512
   num_workers: 5

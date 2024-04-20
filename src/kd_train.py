@@ -69,7 +69,7 @@ def main(cfg: DictConfig) -> None:
                          num_max_bpe_tokens=val_cfg.num_max_bpe_tokens,
                          is_multimodal_aligned=val_cfg.is_multimodal_aligned,),
         ModelCheckpoint(
-                **OmegaConf.to_container(cfg.checkpoint)
+                **OmegaConf.to_container(cfg.checkpoint, resolve=True)
             )
         # checkpoint last, so that zero shot has been performed before saving 
         # (ModelCheckpoint usually executed last automatically, but just to be sure)
@@ -81,7 +81,7 @@ def main(cfg: DictConfig) -> None:
     logger.info("Datamodule setup complete.")
 
     trainer = Trainer(
-        **OmegaConf.to_container(cfg.lightning_trainer),
+        **OmegaConf.to_container(cfg.lightning_trainer, resolve=True),
         enable_checkpointing=True,
         callbacks=callbacks,
     )

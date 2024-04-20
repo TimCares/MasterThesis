@@ -52,11 +52,11 @@ def extract_targets(cfg: DictConfig) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f'Running with device: {device}')
 
-    datamodule_kwargs = OmegaConf.to_container(cfg.datamodule)
+    datamodule_kwargs = OmegaConf.to_container(cfg.datamodule, resolve=True)
     datamodule_name = datamodule_kwargs.pop('_name', None)
     model_state_dict_name = datamodule_kwargs.pop('model_state_dict', None)
 
-    model = load_pretrained_d2v_model(state_dict_path=os.path.join('..', 'models', model_state_dict_name))
+    model = load_pretrained_d2v_model(state_dict_path=os.path.join(cfg.model_path, model_state_dict_name))
     model = model.to(device)
     model.eval()
     
@@ -129,7 +129,7 @@ def extract_targets(cfg: DictConfig) -> None:
             torch.save(item, os.path.join(kd_targets_path, filename))
 
     index = {
-        'datamodule': OmegaConf.to_container(cfg.datamodule),
+        'datamodule': OmegaConf.to_container(cfg.datamodule, resolve=True),
         'model_state_dict': model_state_dict_name,
         'index': index_items,
     }
