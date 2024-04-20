@@ -11,6 +11,7 @@ from datamodules import DATAMODULE_REGISTRY
 from datamodules import BaseDataModule
 from rich.progress import track
 from utils import load_pretrained_d2v_model
+from datasets_ import Modality
 
 logger = logging.getLogger(__name__)
 
@@ -75,10 +76,7 @@ def extract_targets(cfg: DictConfig) -> None:
 
     train_dataloader = datamodule.train_dataloader()
 
-    if cfg.average_twice:
-        dir_name = f'kd_{datamodule_name}_at'
-    else:
-        dir_name = f'kd_{datamodule_name}'
+    dir_name = f'kd_{datamodule_name}'
 
     kd_targets_path = os.path.join(cfg.out_path, dir_name)
 
@@ -113,7 +111,7 @@ def extract_targets(cfg: DictConfig) -> None:
 
             item = {}
 
-            if cfg.average_twice:
+            if batch['modes'][0] == Modality.IMAGE or batch['modes'][0] == Modality.AUDIO:
                 if 'padding_mask' in pred:
                     padding_mask = pred['padding_mask']
                     item['padding_mask'] = padding_mask.cpu()

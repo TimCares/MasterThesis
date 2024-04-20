@@ -22,7 +22,6 @@ from fairseq.data import (
     NestedDictionaryDataset,
     TokenBlockDataset,
     PrependTokenDataset,
-    AppendTokenDataset,
     RightPadDataset,
     RightPaddingMaskDataset,
     IdDataset,
