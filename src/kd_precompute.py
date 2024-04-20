@@ -93,11 +93,10 @@ def extract_targets(cfg: DictConfig) -> None:
         for idx, batch in track(enumerate(train_dataloader), description="Running predictions...", total=len(train_dataloader)):
             key = batch['modes'][0].name.lower() if key is None else key
 
-            padding_mask = batch['padding_mask'] if 'padding_mask' in batch else None 
             pred = model.extract_features(
                 source=batch[key].to(device),
                 mode=None, # determined automatically in model
-                padding_mask=padding_mask.to(device),
+                padding_mask=batch['padding_mask'].to(device) if 'padding_mask' in batch else None,
                 mask=False, # we are creating targets from a teacher model for the student model, so no mask
                 remove_extra_tokens=False,
             )
