@@ -224,8 +224,8 @@ class LibriSpeechDataModule(BaseDataModule):
                  normalize:bool,
                  pad:bool,
                  types_train:Tuple[str],
-                 types_test:Tuple[str],
-                 precompute_mask_config,
+                 types_test:Tuple[str]=None,
+                 precompute_mask_config=None,
                  *args,
                  **kwargs):
         super().__init__(data_path, *args, **kwargs)
