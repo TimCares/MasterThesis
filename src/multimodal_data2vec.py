@@ -37,7 +37,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         target = batch.pop('target')
         output_dict = self(batch) # call "forward"
 
-        if batch['modes'][0] == Modality.IMAGE or batch['modes'][0] == Modality.AUDIO:
+        if batch['modes'][0] == Modality.AUDIO:
             y_hat = average_twice(output_dict['layer_results'], output_dict['padding_mask'])
         else:
             y_hat = special_token_and_average(output_dict['layer_results'])
@@ -346,7 +346,7 @@ class KDMMData2Vec(nn.Module):
             remove_extra_tokens=False,
         )['x']
 
-        if mode == Modality.IMAGE or mode == Modality.AUDIO:
+        if mode == Modality.AUDIO:
             output = output.mean(dim=1)
         else:
             output = output[:, 0, :].squeeze(1)

@@ -15,11 +15,15 @@ from datasets_ import Modality
 
 logger = logging.getLogger(__name__)
 
-def special_token_and_average(target_layer_results:List[torch.Tensor]) -> torch.Tensor:
-    target_layer_results = [
+def instance_norm_layer_results(target_layer_results:List[torch.Tensor]) -> List[torch.Tensor]:
+    return [
         F.instance_norm(tl.transpose(1, 2).float()).transpose(1, 2)
         for tl in target_layer_results  # BTC -> BCT -> BTC
     ]
+
+def special_token_and_average(target_layer_results:List[torch.Tensor], norm:bool=True) -> torch.Tensor:
+    if norm:
+        target_layer_results = instance_norm_layer_results(target_layer_results)
 
     # clone() -> only the first time step is actually retained, so we not just change the view: https://pytorch.org/docs/stable/notes/serialization.html#saving-loading-tensors
     y = target_layer_results[0][:, 0, :].clone().float()
@@ -28,11 +32,9 @@ def special_token_and_average(target_layer_results:List[torch.Tensor]) -> torch.
     y = y.div_(len(target_layer_results))
     return y.squeeze(1) # BTC -> BC
 
-def average_twice(target_layer_results:List[torch.Tensor], padding_mask:torch.Tensor=None) -> torch.Tensor:
-    target_layer_results = [
-        F.instance_norm(tl.transpose(1, 2).float()).transpose(1, 2)
-        for tl in target_layer_results  # BTC -> BCT -> BTC
-    ]
+def average_twice(target_layer_results:List[torch.Tensor], padding_mask:torch.Tensor=None, norm:bool=True) -> torch.Tensor:
+    if norm:
+        target_layer_results = instance_norm_layer_results(target_layer_results)
 
     y = target_layer_results[0].float()
     for tl in target_layer_results[1:]:
@@ -46,6 +48,12 @@ def average_twice(target_layer_results:List[torch.Tensor], padding_mask:torch.Te
             non_padded_avg.append(y[i][~padding_mask[i]].mean(dim=0)) # list of B*(tensors of shape (C,))
         y = torch.stack(non_padded_avg) # list of B*(tensors of shape (C,)) -> BC
     return y
+
+def both_special_token_and_average_twice(target_layer_results:List[torch.Tensor], padding_mask:torch.Tensor=None) -> torch.Tensor:
+    target_layer_results = instance_norm_layer_results(target_layer_results)
+    y_special_token = special_token_and_average(target_layer_results, norm=False) # BC
+    y_average = average_twice(target_layer_results, padding_mask=padding_mask, norm=False) # BC
+    return torch.stack([y_special_token, y_average], dim=1) # BC -> B2C
 
 
 @hydra.main(version_base=None, config_path=os.path.join("..", "configs", "kd"), config_name="base")
@@ -111,19 +119,17 @@ def extract_targets(cfg: DictConfig) -> None:
 
             item = {}
 
-            if batch['modes'][0] == Modality.IMAGE or batch['modes'][0] == Modality.AUDIO:
-                if 'padding_mask' in pred:
-                    padding_mask = pred['padding_mask']
-                    item['padding_mask'] = padding_mask.cpu()
-                else:
-                    padding_mask = None
-
-                pred['layer_results'] = average_twice(pred['layer_results'], padding_mask=padding_mask).cpu()
-                
+            if 'padding_mask' in pred:
+                padding_mask = pred['padding_mask']
             else:
-                pred['layer_results'] = special_token_and_average(pred['layer_results']).cpu()
-                assert (pred['padding_mask'][:, 0].sum()==0).item(), "Special token should not be masked"
-                # padding_mask is not needed here, as we are only interested in the special token
+                padding_mask = None
+
+            if batch['modes'][0] == Modality.AUDIO:
+                pred['layer_results'] = average_twice(pred['layer_results'], padding_mask=padding_mask, norm=True).cpu()
+            else:
+                if padding_mask is not None:
+                    assert (pred['padding_mask'][:, 0].sum()==0).item(), "Special token should not be masked"
+                pred['layer_results'] = both_special_token_and_average_twice(pred['layer_results'], padding_mask=padding_mask).cpu()
 
             item['target'] = pred['layer_results']
             item[key] = batch[key]
