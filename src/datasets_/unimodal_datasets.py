@@ -184,9 +184,10 @@ class LibriSpeechDataset(AudioDataset):
                 os.remove(tar_file_path)
 
             manifest_path = os.path.join(self.data_path, 'LibriSpeech', type)
-        
-            # still done even if data has already been created, but this is very fast, so id doesn't really matter
-            create_manifests(root=manifest_path, valid_percent=0, dest=manifest_path)
+
+            if not os.path.exists(os.path.join(manifest_path, "{}.tsv".format('train'))):
+                create_manifests(root=manifest_path, valid_percent=0, dest=manifest_path)
+            
             manifest_paths.append(manifest_path)
         self.manifest_paths = manifest_paths
 
