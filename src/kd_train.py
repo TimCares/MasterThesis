@@ -32,7 +32,6 @@ def main(cfg: DictConfig) -> None:
 
     OmegaConf.resolve(cfg=cfg) # resolving done in-place
 
-    datamodules_key = [name for name in cfg.data if name.startswith('_')][0] # only ever one "_kd_datamodules" key
     dataloader_keys = [name for name in cfg.data if not name.startswith('_')]
     
     # resolving before is needed here to select a subset
@@ -43,12 +42,14 @@ def main(cfg: DictConfig) -> None:
     if cfg.dry_run is not None and cfg.dry_run:
         datamodules.append(DATAMODULE_REGISTRY['dummy']())
     else:
-        for dataset_args in cfg.data[datamodules_key]:
-            with open_dict(dataset_args):
-                args = OmegaConf.merge(dataset_args, dataloader_args)
-            
-            datamodules.append(DATAMODULE_REGISTRY[datamodules_key[1:]](**args))
-            logger.info(args)
+        for datamodule_key in cfg.data.datamodules.keys():
+            dataset_name = cfg.data.datamodules[datamodule_key]
+            dataset_args = {
+                'dataset': dataset_name,
+            }
+            dataset_args.update(dataloader_args)
+            datamodules.append(DATAMODULE_REGISTRY[datamodule_key](**dataset_args))
+            logger.info(dataset_args)
     
     datamodule = MultiDataModule(datamodules=datamodules)
 

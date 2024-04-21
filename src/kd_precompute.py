@@ -68,7 +68,7 @@ def extract_targets(cfg: DictConfig) -> None:
     model = load_pretrained_d2v_model(state_dict_path=os.path.join(cfg.model_path, model_state_dict_name))
     model = model.to(device)
     model.eval()
-    
+
     if datamodule_name is None:
         raise ValueError('Field "_name" of cfg.datamodule either missing or is None!')
     
@@ -132,7 +132,7 @@ def extract_targets(cfg: DictConfig) -> None:
                 pred['layer_results'] = both_special_token_and_average_twice(pred['layer_results'], padding_mask=padding_mask).cpu()
 
             item['target'] = pred['layer_results']
-            item[key] = batch[key]
+            item['data_path'] = batch['data_path']
             item['modes'] = batch['modes']
             
             torch.save(item, os.path.join(kd_targets_path, filename))

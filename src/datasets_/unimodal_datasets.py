@@ -159,6 +159,7 @@ class LibriSpeechDataset(AudioDataset):
             pad:bool,
             types:Tuple[str],
             precompute_mask_config:Dict[str, Any]=None,
+            return_path:bool=False,
             ):
         compute_mask = precompute_mask_config is not None
         mask_args = {}
@@ -173,6 +174,7 @@ class LibriSpeechDataset(AudioDataset):
                          pad=pad,
                          **mask_args)
         self.precompute_mask_config = precompute_mask_config
+        self.return_path = return_path
 
         os.makedirs(self.data_path, exist_ok=True)
 
@@ -223,6 +225,7 @@ class LibriSpeechDataset(AudioDataset):
         return len(self.dataset)
     
     def collater(self, samples):
+        data_paths = [s['path'] for s in samples]
         collater_res = self.dataset.collater(samples)
         res = {
             'id': collater_res['id'],
@@ -232,6 +235,8 @@ class LibriSpeechDataset(AudioDataset):
         }
         if 'precomputed_mask' in collater_res['net_input']:
             res['precomputed_mask'] = collater_res['net_input']['precomputed_mask'],
+        if self.return_path:
+            res['data_path'] = data_paths
         return res
 
 
@@ -297,7 +302,8 @@ class ImageNetDataset(ImageDataset):
             crop_scale,
             dataset_type,
             local_cache_path,
-            precompute_mask_config,):
+            precompute_mask_config,
+            return_path:bool=False,):
         super().__init__(data_path=data_path, 
                          split=split, 
                          beit_transforms=beit_transforms, 
@@ -308,6 +314,7 @@ class ImageNetDataset(ImageDataset):
                          local_cache_path=local_cache_path,
                          precompute_mask_config=precompute_mask_config)
         self.path_to_data = os.path.join(self.data_path, 'imagenet')
+        self.return_path = return_path
         if not os.path.exists(self.path_to_data):
             raise FileNotFoundError(f"Directory {self.path_to_data} does not exists, "
                                     "please create it and add the correponding files from HuggingFace: "
@@ -354,11 +361,30 @@ class ImageNetDataset(ImageDataset):
     def __getitem__(self, index):
         data = self.items[index]
         image = self._get_image(image_path=data['image_path'])
-        return {
+        data = {
             'image': image,
             'id': index,
             'target': data['target']
         }
+        if self.return_path:
+            data['data_path'] = data['image_path']
+        return data
+    
+    def collater(self, samples):
+        if not self.return_path:
+            return super().collater(samples)
+        # ... else:
+        batch_tensors = {}
+        for tensor_key in samples[0]:
+            if isinstance(samples[0][tensor_key], torch.Tensor):
+                batch_tensors[tensor_key] = torch.stack([d[tensor_key] for d in samples])
+            elif isinstance(samples[0][tensor_key], str): # only this changes compared to superclass -> for returning paths (needed for precomputed kd targets)
+                batch_tensors[tensor_key] = [d[tensor_key] for d in samples]
+            else:
+                batch_tensors[tensor_key] = torch.tensor([d[tensor_key] for d in samples], dtype=torch.long)
+
+        batch_tensors['modes'] = self.modes
+        return batch_tensors
     
     def __len__(self):
         return len(self.items)

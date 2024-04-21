@@ -1,7 +1,8 @@
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from typing import Tuple, Dict, Any
-from datasets_ import KDDataset
+from functools import partial
+from datasets_ import KDDataset, ImageKDDataset, AudioKDDataset
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,6 +14,7 @@ class KDDataModule(LightningDataModule):
                  shuffle:bool,
                  drop_last:bool,
                  dataset:str,
+                 dataset_mode:str,
                  *args,
                  **kwargs):
         super().__init__(*args, **kwargs)
@@ -23,11 +25,18 @@ class KDDataModule(LightningDataModule):
         self.drop_last = drop_last
         self.prepared = False
         self.dataset = dataset
+        self.dataset_mode = dataset_mode
 
         logger.info(f"Using dataset: {self.dataset}")
     
     def set_train_dataset(self):
-        self.train_dataset = KDDataset(data_path=self.data_path, dataset=self.dataset)
+        if self.dataset_mode == 'image':
+            dataset_cls = ImageKDDataset
+        elif self.dataset_mode == 'audio':
+            dataset_cls = AudioKDDataset
+        else:
+            dataset_cls = KDDataset
+        self.train_dataset = dataset_cls(data_path=self.data_path, dataset=self.dataset)
 
     def prepare_data(self):
         if not self.prepared:
@@ -48,6 +57,9 @@ class KDDataModule(LightningDataModule):
                           shuffle=self.shuffle,
                           drop_last=self.drop_last,)
 
+
 KD_DATAMODULE_REGISTRY = {
-    'kd_datamodule': KDDataModule
+    'kd_datamodule': partial(KDDataModule, dataset_mode='text'), # default -> will yield KDDataset
+    'kd_image_datamodule': partial(KDDataModule, dataset_mode='image'),
+    'kd_audio_datamodule': partial(KDDataModule, dataset_mode='audio'),
 }

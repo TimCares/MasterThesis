@@ -41,6 +41,8 @@ from .data_utils import (
 
 from .kd_datasets import (
     KDDataset,
+    ImageKDDataset,
+    AudioKDDataset,
     KD_DATASET_REGISTRY,
 )
 

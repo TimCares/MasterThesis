@@ -58,32 +58,10 @@ data:
   shuffle: True
   drop_last: True
 
-  _kd_datamodule:
-    - dataset: openwebtext # openwebtext_at
-
-    - dataset: imagenet # imagenet_at
-
-    - dataset: librispeech # librispeech_at
-
-#   _openwebtext:
-#     num_max_bpe_tokens: ${nlp_context_length}
-#     sample_break_mode: none
-#  
-#   _imagenet:
-#     beit_transforms: False
-#     no_transform: False
-#     transform_jitter: False
-#     precompute_mask_config: 
-#     crop_scale: [0.6, 1]
-#     local_cache_path:
-#  
-#   _librispeech:
-#     sample_rate: 16000
-#     max_sample_size: 160000
-#     min_sample_size: 32000
-#     precompute_mask_config: 
-#     type_train: 
-#     type_test: 
+  datamodules:
+    kd_datamodule: openwebtext
+    kd_image_datamodule: imagenet
+    kd_audio_datamodule: librispeech
 
 zero_shot_val:
   n_neighbors: 100
