@@ -359,15 +359,15 @@ class ImageNetDataset(ImageDataset):
         return self.transform(image)
 
     def __getitem__(self, index):
-        data = self.items[index]
-        image = self._get_image(image_path=data['image_path'])
+        item = self.items[index]
+        image = self._get_image(image_path=item['image_path'])
         data = {
             'image': image,
             'id': index,
-            'target': data['target']
+            'target': item['target']
         }
         if self.return_path:
-            data['data_path'] = data['image_path']
+            data['data_path'] = item['image_path']
         return data
     
     def collater(self, samples):

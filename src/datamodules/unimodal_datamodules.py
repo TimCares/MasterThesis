@@ -172,6 +172,7 @@ class ImageNetDataModule(BaseDataModule):
                  precompute_mask_config,
                  crop_scale,
                  local_cache_path,
+                 return_path:bool=False,
                  *args,
                  **kwargs):
         super().__init__(data_path, *args, **kwargs)
@@ -181,6 +182,7 @@ class ImageNetDataModule(BaseDataModule):
         self.precompute_mask_config = precompute_mask_config
         self.crop_scale = crop_scale
         self.local_cache_path = local_cache_path
+        self.return_path = return_path
 
     def prepare_data(self):
         if not self.prepared:
@@ -203,7 +205,8 @@ class ImageNetDataModule(BaseDataModule):
                                              precompute_mask_config=self.precompute_mask_config,
                                              crop_scale=self.crop_scale,
                                              local_cache_path=self.local_cache_path,
-                                             dataset_type=None # stems from MaeImageDataset of D2V, not used here and ignored in the code
+                                             dataset_type=None, # stems from MaeImageDataset of D2V, not used here and ignored in the code
+                                             return_path=self.return_path
                                              )
 
     def set_val_dataset(self):
@@ -215,7 +218,8 @@ class ImageNetDataModule(BaseDataModule):
                                            precompute_mask_config=None,
                                            crop_scale=self.crop_scale,
                                            local_cache_path=self.local_cache_path,
-                                           dataset_type=None # stems from MaeImageDataset of D2V, not used here and ignored in the code
+                                           dataset_type=None, # stems from MaeImageDataset of D2V, not used here and ignored in the code
+                                           return_path=self.return_path
                                            )
         
 
@@ -229,6 +233,7 @@ class LibriSpeechDataModule(BaseDataModule):
                  pad:bool,
                  types_train:Tuple[str],
                  types_test:Tuple[str]=None,
+                 return_path:bool=False,
                  precompute_mask_config=None,
                  *args,
                  **kwargs):
@@ -241,6 +246,7 @@ class LibriSpeechDataModule(BaseDataModule):
         self.types_train = types_train
         self.types_test = types_test
         self.precompute_mask_config = precompute_mask_config
+        self.return_path = return_path
 
     def prepare_data(self):
         if not self.prepared:
@@ -265,7 +271,8 @@ class LibriSpeechDataModule(BaseDataModule):
                                                 normalize=self.normalize,
                                                 pad=self.pad,
                                                 types=self.types_train,
-                                                precompute_mask_config=self.precompute_mask_config,)
+                                                precompute_mask_config=self.precompute_mask_config,
+                                                return_path=self.return_path)
 
     def set_test_dataset(self):
         self.test_dataset = LibriSpeechDataset(data_path=self.data_path,
@@ -276,7 +283,8 @@ class LibriSpeechDataModule(BaseDataModule):
                                                normalize=self.normalize,
                                                pad=self.pad,
                                                types=self.types_test,
-                                               precompute_mask_config=None,)
+                                               precompute_mask_config=None,
+                                               return_path=self.return_path)
         
 
 class SpeechCommandsDataModule(BaseDataModule):
