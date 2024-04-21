@@ -21,6 +21,7 @@ from torchvision.datasets import CIFAR10, CIFAR100
 from torchvision.datasets.folder import default_loader
 
 from .base_datasets import AudioDataset, ImageDataset, NLPDataset, Modality
+from .imagenet_classes import IMAGENET2012_CLASSES
 
 logger = logging.getLogger(__name__)
 
@@ -315,6 +316,8 @@ class ImageNetDataset(ImageDataset):
         self.path_to_split = os.path.join(self.path_to_data, self.split)
         os.makedirs(self.path_to_split, exist_ok=True)
 
+        self.classes = {synset: i for i, synset in enumerate(IMAGENET2012_CLASSES.keys())}
+
         if not os.path.exists(os.path.join(self.path_to_data, f'imagenet.{self.split}.jsonl')):
             # tar_filenames = [f for f in os.listdir(self.path_to_data) if f.startswith(f"{self.split}_")]
             # self.log(f"Extracting tar files: {tar_filenames}")
@@ -370,7 +373,7 @@ class ImageNetDataset(ImageDataset):
                 synset_id = -1
             items.append({
                 'image_path': os.path.join(self.path_to_split, file),
-                'target': synset_id,
+                'target': self.classes[synset_id],
             })
 
         write_data_into_jsonl(items, os.path.join(self.path_to_data, f'imagenet.{self.split}.jsonl'))

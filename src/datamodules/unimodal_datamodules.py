@@ -202,7 +202,9 @@ class ImageNetDataModule(BaseDataModule):
                                              transform_jitter=self.transform_jitter,
                                              precompute_mask_config=self.precompute_mask_config,
                                              crop_scale=self.crop_scale,
-                                             local_cache_path=self.local_cache_path,)
+                                             local_cache_path=self.local_cache_path,
+                                             dataset_type=None # stems from MaeImageDataset of D2V, not used here and ignored in the code
+                                             )
 
     def set_val_dataset(self):
         self.val_dataset = ImageNetDataset(data_path=self.data_path,
@@ -212,7 +214,9 @@ class ImageNetDataModule(BaseDataModule):
                                            transform_jitter=False,
                                            precompute_mask_config=None,
                                            crop_scale=self.crop_scale,
-                                           local_cache_path=self.local_cache_path,)
+                                           local_cache_path=self.local_cache_path,
+                                           dataset_type=None # stems from MaeImageDataset of D2V, not used here and ignored in the code
+                                           )
         
 
 class LibriSpeechDataModule(BaseDataModule):
