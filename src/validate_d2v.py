@@ -40,19 +40,25 @@ def _get_knn_data(model, data_loader:DataLoader, device:str) ->Tuple[Dict[str, n
             if agg_strategy=="CLS":
                 out_reduced = out[:, 0, :].squeeze(1)
             elif agg_strategy=="mean":
-                non_padded_avg = []
-                for i in range(out.size(0)):
-                    non_padded_avg.append(out[i][~pred['padding_mask'][i]].mean(dim=0)) # list of B*(tensors of shape (C,))
-                out_reduced = torch.stack(non_padded_avg) # list of B*(tensors of shape (C,)) -> BC
+                if 'padding_mask' in pred and pred['padding_mask'] is not None:
+                    non_padded_avg = []
+                    for i in range(out.size(0)):
+                        non_padded_avg.append(out[i][~pred['padding_mask'][i]].mean(dim=0)) # list of B*(tensors of shape (C,))
+                    out_reduced = torch.stack(non_padded_avg) # list of B*(tensors of shape (C,)) -> BC
+                else:
+                    out_reduced = out.mean(dim=1)
                 # out_reduced = out.mean(dim=1)
             else:
-                out_reduced = out[:, 1:, :]
-                padding_mask = pred['padding_mask'][:, 1:]
-                non_padded_avg = []
-                for i in range(out_reduced.size(0)):
-                    non_padded_avg.append(out_reduced[i][~padding_mask[i]].mean(dim=0)) # list of B*(tensors of shape (C,))
-                out_reduced = torch.stack(non_padded_avg) # list of B*(tensors of shape (C,)) -> BC
-                #out_reduced = out[:, 1:, :].mean(dim=1)
+                if 'padding_mask' in pred and pred['padding_mask'] is not None:
+                    out_reduced = out[:, 1:, :]
+                    padding_mask = pred['padding_mask'][:, 1:]
+                    non_padded_avg = []
+                    for i in range(out_reduced.size(0)):
+                        non_padded_avg.append(out_reduced[i][~padding_mask[i]].mean(dim=0)) # list of B*(tensors of shape (C,))
+                    out_reduced = torch.stack(non_padded_avg) # list of B*(tensors of shape (C,)) -> BC
+                else:
+                    out_reduced = out[:, 1:, :].mean(dim=1)
+                # out_reduced = out[:, 1:, :].mean(dim=1)
 
             out_reduced = F.normalize(out_reduced, dim=-1)
 
