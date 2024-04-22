@@ -67,12 +67,12 @@ def make_knn_predictions(model:Callable,
     for agg_strategy in ['CLS', 'mean', 'mean_without_CLS']:
 
         knn = KNeighborsClassifier(n_neighbors=n_neighbors)
-        logger.info(f"Training KNN with {n_neighbors} neighbors")
+        logger.info(f"{agg_strategy}: Training KNN with {n_neighbors} neighbors")
         knn.fit(X_train[agg_strategy], y_train)
     
         results = {}
 
-        logger.info(f"Predicting with KNN")
+        logger.info(f"{agg_strategy}: Predicting with KNN")
         y_hat_test = knn.predict_proba(X_test[agg_strategy])
         acc = accuracy_score(y_test, y_hat_test.argmax(axis=1)) # .argmax(axis=1) -> convert class scores to class labels
         results[f"unimodal-{name}-knn--zeroshot-top1-acc"] = acc
@@ -119,7 +119,7 @@ def main():
     zero_shot_modules = dict()
     val_dataloader_args = val_cfg.dataloader
     for name in val_cfg.datamodules:
-        with open_dict(val_cfg.datamodules[name]):
+        with open_dict(val_dataloader_args):
             # override general dataloader args with dataloader specific args (if present)
             args = OmegaConf.merge(val_dataloader_args, val_cfg.datamodules[name])
 

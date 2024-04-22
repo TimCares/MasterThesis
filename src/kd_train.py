@@ -57,7 +57,7 @@ def main(cfg: DictConfig) -> None:
     zero_shot_modules = dict()
     val_dataloader_args = val_cfg.dataloader
     for name in val_cfg.datamodules:
-        with open_dict(val_cfg.datamodules[name]):
+        with open_dict(val_dataloader_args):
             # override general dataloader args with dataloader specific args (if present)
             args = OmegaConf.merge(val_dataloader_args, val_cfg.datamodules[name])
 
