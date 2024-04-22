@@ -25,13 +25,14 @@ def _get_knn_data(model, data_loader:DataLoader, device:str) ->Tuple[Dict[str, n
     for batch in track(data_loader): 
         source = batch[batch['modes'][0].name.lower()].to(device)
         padding_mask = batch['padding_mask'].to(device) if 'padding_mask' in batch else None
-        out = model.extract_features(
+        pred = model.extract_features(
                 source=source,
                 mode=None, # determined automatically in model
                 padding_mask=padding_mask,
                 mask=False, # we are creating targets from a teacher model for the student model, so no mask
                 remove_extra_tokens=False,
-            )['x']
+            )
+        out = pred['x']
         
         y.append(batch['target']) # only append once
 
@@ -39,9 +40,19 @@ def _get_knn_data(model, data_loader:DataLoader, device:str) ->Tuple[Dict[str, n
             if agg_strategy=="CLS":
                 out_reduced = out[:, 0, :].squeeze(1)
             elif agg_strategy=="mean":
-                out_reduced = out.mean(dim=1)
+                non_padded_avg = []
+                for i in range(out.size(0)):
+                    non_padded_avg.append(out[i][~pred['padding_mask'][i]].mean(dim=0)) # list of B*(tensors of shape (C,))
+                out_reduced = torch.stack(non_padded_avg) # list of B*(tensors of shape (C,)) -> BC
+                # out_reduced = out.mean(dim=1)
             else:
-                out_reduced = out[:, 1:, :].mean(dim=1)
+                out_reduced = out[:, 1:, :]
+                padding_mask = pred['padding_mask'][:, 1:]
+                non_padded_avg = []
+                for i in range(out_reduced.size(0)):
+                    non_padded_avg.append(out_reduced[i][~padding_mask[i]].mean(dim=0)) # list of B*(tensors of shape (C,))
+                out_reduced = torch.stack(non_padded_avg) # list of B*(tensors of shape (C,)) -> BC
+                #out_reduced = out[:, 1:, :].mean(dim=1)
 
             out_reduced = F.normalize(out_reduced, dim=-1)
 
