@@ -11,6 +11,7 @@ import pytorch_lightning as L
 import math
 from omegaconf import II
 from dataclasses import dataclass, field
+from enum import Enum, auto
 from datasets_ import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup
 from kd_precompute import special_token_and_average, average_twice
@@ -39,11 +40,15 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
 
         if batch['modes'][0] == Modality.AUDIO:
             y_hat = average_twice(output_dict['layer_results'], output_dict['padding_mask'])
+
+            assert y_hat.shape == target.shape # for simple pretraining this must be the case
+            return self.kd_loss(y_hat=y_hat, y=target)
         else:
+            if self.cfg.model.cls_loss_weight is not None and self.cfg.model.cls_loss_weight > 0:
+                
             y_hat = special_token_and_average(output_dict['layer_results'])
-        
-        assert y_hat.shape == target.shape # for simple pretraining this must be the case
-        return self.kd_loss(y_hat=y_hat, y=target)
+            assert y_hat.shape == target.shape # for simple pretraining this must be the case
+                
     
     def kd_loss(self, y_hat, y):
         y_hat = y_hat.view(-1, y_hat.size(-1)).float()
@@ -80,10 +85,17 @@ class PretrainedStateDictsConfig():
     audio:str = 'base_libri.pt'
     image:str = 'base_imagenet.pt'
     text:str = 'nlp_base.pt'
+
+class PredictionAggregationMode(Enum):
+    CLS_TOKEN = auto()
+    MEAN_POOLING = auto()
 @dataclass
 class KDMMData2VecConfig():
     pretrained_path:str = '../models'
     pretrained: PretrainedStateDictsConfig = field(default_factory=PretrainedStateDictsConfig)
+    prediction_mode: PredictionAggregationMode = PredictionAggregationMode.MEAN_POOLING
+
+    cls_loss_weight: Optional[float] = None
 
     init_block_from: Optional[str] = None
     init_strategy: Optional[str] = None # 'ffill' or 'leave_one_out'

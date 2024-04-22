@@ -11,8 +11,8 @@ defaults:
   - override hydra/hydra_logging: colorlog
 
 dry_run: False
-data_path: ../data
 model_path: ../models
+data_path: ../data
 seed: 42
 
 load_checkpoint:
@@ -25,6 +25,9 @@ model:
     audio: base_libri.pt
     image: base_imagenet.pt
     text: nlp_base.pt
+
+  prediction_mode: MEAN_POOLING
+  cls_loss_weight: 0.0 # 0.0 -> ignored/not used
 
   encoders_embed_dim: 768
   embed_dim: 768
@@ -54,7 +57,7 @@ data:
   # datasets/dataloaders must start with an underscore, the string after that is used as a key to the registries
   data_path: ${data_path}
   # batch_size: 256
-  num_workers: 5
+  num_workers: 6
   shuffle: True
   drop_last: True
 
@@ -64,28 +67,31 @@ data:
     kd_audio_datamodule: librispeech
 
 zero_shot_val:
-  n_neighbors: 100
+  n_neighbors: 20
   data_path: ${data_path}
   num_max_bpe_tokens: ${nlp_context_length}
   is_multimodal_aligned: False
-  val_every_n_batches: 100
+  val_every_n_batches: 5_000
+
+  dataloader:
+    batch_size: 256
+    num_workers: 1
+    shuffle: False
+    drop_last: False
+
   datamodules: # dataloder args are taken from top-level key "data"
     _imdb:
       data_path: ${data_path}
       num_max_bpe_tokens: ${nlp_context_length}
-      batch_size: 256
     _cifar10:
       data_path: ${data_path}
-      batch_size: 256
     _cifar100:
       data_path: ${data_path}
-      batch_size: 256
     _speechcommands:
       data_path: ${data_path}
       min_sample_size: 0 # take all samples
       normalize: True
       pad: True
-      batch_size: 256
 
 checkpoint:
   dirpath: "${model_path}/${now:%Y-%m-%d_%H-%M-%S}"
