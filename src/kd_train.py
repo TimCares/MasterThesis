@@ -61,7 +61,7 @@ def main(cfg: DictConfig) -> None:
             # override general dataloader args with dataloader specific args (if present)
             args = OmegaConf.merge(val_dataloader_args, val_cfg.datamodules[name])
 
-        zero_shot_modules[name[1:]] = DATAMODULE_REGISTRY[name[1:]](**args)
+        zero_shot_modules[name] = DATAMODULE_REGISTRY[name](**args)
 
     callbacks = [
         LearningRateMonitor(logging_interval="step"),

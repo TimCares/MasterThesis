@@ -80,14 +80,14 @@ zero_shot_val:
     drop_last: False
 
   datamodules: # dataloder args are taken from top-level key "data"
-    _imdb:
+    imdb:
       data_path: ${data_path}
       num_max_bpe_tokens: ${nlp_context_length}
-    _cifar10:
+    cifar10:
       data_path: ${data_path}
-    _cifar100:
+    cifar100:
       data_path: ${data_path}
-    _speechcommands:
+    speechcommands:
       data_path: ${data_path}
       min_sample_size: 0 # take all samples
       normalize: True
