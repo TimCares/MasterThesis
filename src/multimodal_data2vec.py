@@ -565,16 +565,16 @@ class DummyModel(nn.Module):
         if isinstance(modes, List):
             assert len(modes)==1, 'Only one modality allowed when calling "encode_modality".'
         
-        return torch.rand((source.shape[0], 1, self.embed_dim))
+        return torch.rand((source.shape[0], self.embed_dim))
     
     def encode_text(self, text, padding_mask, normalize:bool=True):
-        return torch.rand((text.shape[0], 1, self.embed_dim))
+        return torch.rand((text.shape[0], self.embed_dim))
     
     def encode_image(self, image, normalize:bool=True):
-        return torch.rand((image.shape[0], 1, self.embed_dim))
+        return torch.rand((image.shape[0], self.embed_dim))
     
     def encode_audio(self, audio, padding_mask, normalize:bool=True):
-        return torch.rand((audio.shape[0], 1, self.embed_dim))
+        return torch.rand((audio.shape[0], self.embed_dim))
 
 class TestLightningModule(L.LightningModule):
     def __init__(self, cfg):
