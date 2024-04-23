@@ -330,10 +330,10 @@ class KDMMData2Vec(nn.Module):
         return res
     
     @torch.no_grad()
-    def encode_modality(self, mode:Union[Modality, List[Modality]], source:torch.Tensor, padding_mask=None, normalize:bool=True):
-        if isinstance(mode, List):
-            assert len(mode)==1, 'Only one modality allowed when calling "encode_modality".'
-            mode = mode[0]
+    def encode_modality(self, modes:Union[Modality, List[Modality]], source:torch.Tensor, padding_mask=None, normalize:bool=True):
+        if isinstance(modes, List):
+            assert len(modes)==1, 'Only one modality allowed when calling "encode_modality".'
+            mode = modes[0]
         # at this point Modality has to be of type "Modality".
         audio = None
         image = None
@@ -353,7 +353,7 @@ class KDMMData2Vec(nn.Module):
             text=text,
             modes=[mode],
             padding_mask=padding_mask,
-            remove_extra_tokens=False,
+            remove_extra_tokens=False, # important!
         )['x']
 
         if mode == Modality.AUDIO:
@@ -368,18 +368,18 @@ class KDMMData2Vec(nn.Module):
 
     def encode_audio(self, audio, padding_mask, normalize:bool=True):
         return self.encode_modality(source=audio,
-                                    mode=Modality.AUDIO,
+                                    modes=Modality.AUDIO,
                                     padding_mask=padding_mask,
                                     normalize=normalize)
     
     def encode_image(self, image, normalize:bool=True):
         return self.encode_modality(source=image,
-                                    mode=Modality.IMAGE,
+                                    modes=Modality.IMAGE,
                                     normalize=normalize)
 
     def encode_text(self, text, padding_mask, normalize:bool=True):
         return self.encode_modality(source=text,
-                                    mode=Modality.TEXT,
+                                    modes=Modality.TEXT,
                                     padding_mask=padding_mask,
                                     normalize=normalize)
 

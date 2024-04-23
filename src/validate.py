@@ -7,6 +7,7 @@ import logging
 import os
 import torch
 import numpy as np
+from multimodal_data2vec import KDMMData2Vec
 from torch.utils.data import DataLoader
 from pytorch_lightning import Callback, LightningDataModule, Trainer, LightningModule
 from pytorch_lightning.utilities import rank_zero_only
@@ -110,13 +111,13 @@ def run_multimodal_zero_shot(model:Callable,
 
 
 @torch.no_grad()
-def _get_knn_data(model, data_loader:DataLoader, device:str) ->Tuple[np.ndarray, np.ndarray]:
+def _get_knn_data(model:KDMMData2Vec, data_loader:DataLoader, device:str) ->Tuple[np.ndarray, np.ndarray]:
     X = []
     y = []
     for batch in data_loader:
         source = batch[batch['modes'][0].name.lower()].to(device)
         padding_mask = batch['padding_mask'].to(device) if 'padding_mask' in batch else None
-        out = model.encode_modality(mode=batch['modes'], source=source, padding_mask=padding_mask,
+        out = model.encode_modality(modes=batch['modes'], source=source, padding_mask=padding_mask,
                                     normalize=True) # norm output
 
         X.append(out.cpu())
