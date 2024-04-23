@@ -2,8 +2,10 @@
 /models/
 .hydra
 lightning_logs/
+logs/*
 
 !data/nlvr2/nlvr
+!logs/.gitignore
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -4,7 +4,6 @@ import os
 import logging
 from pytorch_lightning import seed_everything, Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
-import wandb
 from pytorch_lightning.loggers import WandbLogger
 
 from multimodal_data2vec import KDMMData2VecConfig, KDData2VecPreTrainingLightningModule, TestLightningModule
@@ -86,7 +85,7 @@ def main(cfg: DictConfig) -> None:
     logger.info("Datamodule setup complete.")
 
     wandb_logger = WandbLogger(project='MMRL', save_dir=cfg.log_dir, log_model="all")
-    wandb_logger.experiment.config = OmegaConf.to_container(cfg, resolve=True)
+    wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
 
     trainer = Trainer(
         **OmegaConf.to_container(cfg.lightning_trainer, resolve=True),

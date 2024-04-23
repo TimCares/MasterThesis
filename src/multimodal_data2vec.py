@@ -560,9 +560,10 @@ class DummyModel(nn.Module):
         out = self.lin(torch.randn_like(source))
         return {'layer_results': [out for _ in range(self.cfg.depth)],}
     
-    def encode_modality(self, mode:Union[Modality, List[Modality]], source:torch.Tensor, padding_mask=None, normalize:bool=True):
-        if isinstance(mode, List):
-            assert len(mode)==1, 'Only one modality allowed when calling "encode_modality".'
+    @torch.no_grad()
+    def encode_modality(self, modes:Union[Modality, List[Modality]], source:torch.Tensor, padding_mask=None, normalize:bool=True):
+        if isinstance(modes, List):
+            assert len(modes)==1, 'Only one modality allowed when calling "encode_modality".'
         
         return torch.rand((source.shape[0], 1, self.embed_dim))
     
@@ -586,20 +587,24 @@ class TestLightningModule(L.LightningModule):
         return self.model(**input_dict)
 
     def training_step(self, batch:Dict[str, Any], batch_idx):
-        target = batch.pop('target')
+        target:torch.Tensor = batch.pop('target')
         output_dict = self(batch) # call "forward"
 
-        if self.cfg.average_twice:
-            y_hat = average_twice(output_dict['layer_results'], output_dict['padding_mask'])
+        if batch['modes'][0] == Modality.AUDIO:
+            y_hat = average_twice(output_dict['layer_results'], norm=True)
+
         else:
-            y_hat = special_token_and_average(output_dict['layer_results'])
-        
+            y_hat = special_token_and_average(output_dict['layer_results'], norm=True)
+
         assert y_hat.shape == target.shape # for simple pretraining this must be the case
-        return self.kd_loss(y_hat=y_hat, y=target)
+
+        loss = self.kd_loss(y_hat=y_hat, y=target)
+        self.log("train/loss", loss, prog_bar=True)
+        return loss
     
     def kd_loss(self, y_hat, y):
-        y_hat = y_hat.view(-1, y_hat.size(-1)).float()
-        y = y.view(-1, y_hat.size(-1)).float()
+        y_hat = y_hat.view(-1, y_hat.size(-1)).float() # (B, T, C) -> (B*T, C)
+        y = y.view(-1, y_hat.size(-1)).float() # (B, T, C) -> (B*T, C)
 
         loss = F.mse_loss(y_hat, y, reduction="none").float()
 
