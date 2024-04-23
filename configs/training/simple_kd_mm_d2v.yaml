@@ -10,7 +10,7 @@ defaults:
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
 
-dry_run: False
+dry_run: True
 base_dir: ".."
 model_path: ${base_dir}/models
 data_path: ${base_dir}/data
@@ -116,7 +116,7 @@ optimizer:
   weight_decay: 0.01
 
 optimizer_schedule:
-  warmup_steps: 1_000
+  warmup_steps: 2_500
   max_steps: ${lightning_trainer.max_steps}
 
 lightning_trainer:
@@ -124,9 +124,10 @@ lightning_trainer:
   accelerator: gpu
   devices: -1
   #strategy: ddp # -> automatically used if multiple GPUs are available -> devices: -1
-  max_steps: 30_000
+  max_steps: 50_000
   val_check_interval: # None -> no validation
   num_sanity_val_steps: 0 # mean test running "num_sanity_val_steps" batches of the validation dataloaders, but here we have no classical validation
   limit_val_batches: 0 # no classical validation
   precision: 16-mixed
   gradient_clip_val: 4.0 # can be a little higher, as some parts are pre-trained(?) DistillBERT has 5.0
+  log_every_n_steps: 50
