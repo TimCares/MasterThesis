@@ -106,7 +106,6 @@ class IMDBDataset(BaseDataset):
         bpe_encoder = get_bpe_encoder(self.data_path)
 
         bos_token_id = dictionary.bos()
-        eos_token_id = dictionary.eos()
         pad_token_id = dictionary.pad()
                 
         os.makedirs(self.path_to_data, exist_ok=True)
