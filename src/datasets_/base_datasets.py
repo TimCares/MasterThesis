@@ -16,6 +16,7 @@ import torch.nn.functional as F
 
 from data2vec_fairseq.data.path_dataset import PathDataset
 from fairseq.data.data_utils import compute_block_mask_1d, compute_block_mask_2d, load_indexed_dataset
+from utils import pad_text_sequence
 
 from fairseq.data import (
     Dictionary,
@@ -541,13 +542,10 @@ class BaseImageText(BaseDataset):
         if max_len is None:
             max_len = self.num_max_bpe_tokens
 
-        if len(tokens) > max_len - 2:
-            tokens = tokens[:max_len - 2]
+        language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=max_len,
+                                                          pad_idx=self.pad_token_id, bos_idx=self.bos_token_id)
 
-        tokens = [self.bos_token_id] + tokens[:] + [self.eos_token_id]
-        num_tokens = len(tokens)
-        padding_mask = [0] * num_tokens + [1] * (max_len - num_tokens)
-        return tokens + [self.pad_token_id] * (max_len - num_tokens), padding_mask, num_tokens
+        return language_tokens, padding_mask, max_len # language_tokens, padding_mask are lists, converted to tensors in collater
 
     def _get_image_text_example(self, index: int, data: dict):
         item = self.items[index]
@@ -752,13 +750,10 @@ class BaseTextAudio(AudioDataset):
         if max_len is None:
             max_len = self.num_max_bpe_tokens
 
-        if len(tokens) > max_len - 2:
-            tokens = tokens[:max_len - 2]
-
-        tokens = [self.bos_token_id] + tokens[:] + [self.eos_token_id]
-        num_tokens = len(tokens)
-        padding_mask = [0] * num_tokens + [1] * (max_len - num_tokens)
-        return tokens + [self.pad_token_id] * (max_len - num_tokens), padding_mask, num_tokens
+        language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=max_len,
+                                                          pad_idx=self.pad_token_id, bos_idx=self.bos_token_id)
+        
+        return language_tokens, padding_mask, max_len # language_tokens, padding_mask are lists, converted to tensors in collater
     
     def _get_audio(self, audio_path: str):
         audio, sample_rate = sf.read(audio_path, dtype="float32")

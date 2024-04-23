@@ -359,7 +359,7 @@ class VisualGenome(BaseImageText):
             token_ids = bpe_encoder.encode(caption.strip())
             # truncation will also be done when reading the data, but there we also substract 2 for the special tokens
             # so we already do it here to save time and memory
-            token_ids = token_ids[:self.num_max_bpe_tokens - 2]
+            token_ids = token_ids[:self.num_max_bpe_tokens - 1]
             items.append({
                 "image_path": image_path, 
                 "text": token_ids,

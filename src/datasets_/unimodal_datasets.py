@@ -11,6 +11,7 @@ from .base_datasets import BaseDataset
 from fairseq.data.audio.raw_audio_dataset import FileAudioDataset
 from .wav2vec_manifest import create_manifests
 from bpe_encoder import encode, get_bpe_encoder
+from utils import pad_text_sequence
 
 from fairseq.data import Dictionary, ConcatDataset
 from fairseq_cli.preprocess import preprocess
@@ -118,12 +119,8 @@ class IMDBDataset(BaseDataset):
         data_loader = iter(torchtext.datasets.IMDB(root=self.path_to_data, split=self.split))
         for label, text in data_loader:
             tokens = bpe_encoder.encode(text)
-            if len(tokens) > self.num_max_bpe_tokens - 2:
-                tokens = tokens[:self.num_max_bpe_tokens - 2]
-            tokens = [bos_token_id] + tokens + [eos_token_id]
-            num_tokens = len(tokens)
-            padding_mask = [0] * num_tokens + [1] * (self.num_max_bpe_tokens - num_tokens)
-            language_tokens =  tokens + [pad_token_id] * (self.num_max_bpe_tokens - num_tokens)
+            language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_max_bpe_tokens,
+                                                              pad_idx=pad_token_id, bos_idx=bos_token_id)
             items.append({'text': language_tokens, 'padding_mask': padding_mask, 'target': label})
 
         write_data_into_jsonl(items, self.out_jsonl_path)

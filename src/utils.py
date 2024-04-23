@@ -9,6 +9,7 @@ from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from collections import OrderedDict
 from dataclasses import is_dataclass
+from typing import List, Tuple
 
 from data2vec_fairseq.models.data2vec2 import Data2VecMultiModel
 from data2vec_fairseq.models.data2vec2 import Data2VecMultiConfig
@@ -74,3 +75,25 @@ def load_pretrained_d2v_model(state_dict_path:str):
     model.remove_pretraining_modules(modality=pretrained_model_cfg.supported_modality)
 
     return model
+
+
+def pad_text_sequence(tokens:List[int],
+                      num_max_bpe_tokens:int,
+                      pad_idx:int,
+                      bos_idx:int,
+                      eos_idx:int=None) -> Tuple[List[int], List[int]]:
+    """
+    Pads a list of language tokens to num_max_bpe_tokens and inserts bos token at front.
+    Also inserts eos token if provided.
+    """
+    
+    substract = 2 if eos_idx is not None else 1
+    
+    if len(tokens) > num_max_bpe_tokens - substract:
+        tokens = tokens[:num_max_bpe_tokens - substract]
+    tokens = [bos_idx] + tokens + ([eos_idx] if eos_idx is not None else [])
+    num_tokens = len(tokens)
+    padding_mask = [0] * num_tokens + [1] * (num_max_bpe_tokens - num_tokens)
+    language_tokens =  tokens + [pad_idx] * (num_max_bpe_tokens - num_tokens)
+
+    return language_tokens, padding_mask

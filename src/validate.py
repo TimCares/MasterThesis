@@ -21,6 +21,7 @@ from data.imagenet_zeroshot_data import (
 from rich.progress import track
 from bpe_encoder import get_bpe_encoder
 from fairseq.data import Dictionary
+from utils import pad_text_sequence
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +37,10 @@ def _zero_shot_classifier(model, device, tokenizer:BPEEncoder, num_max_bpe_token
         )
         padding_masks = []
         for i in range(len(texts)):
-            texts[i] = [dictionary.bos()] + texts[i] + [dictionary.eos()]
-            length = len(texts[i])
-            texts[i] = texts[i] + [dictionary.pad()] * (num_max_bpe_tokens - length)
-            padding_mask = [0] * length + [1] * (num_max_bpe_tokens - length)
+            language_tokens, padding_mask = pad_text_sequence(tokens=texts[i], num_max_bpe_tokens=num_max_bpe_tokens,
+                                                              pad_idx=dictionary.pad(), bos_idx=dictionary.bos())
+            
+            texts[i] = language_tokens
             padding_masks.append(padding_mask)
 
         texts = torch.tensor(texts, dtype=torch.long)
