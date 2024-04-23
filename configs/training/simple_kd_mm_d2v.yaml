@@ -11,7 +11,7 @@ defaults:
   - override hydra/hydra_logging: colorlog
 
 dry_run: True
-base_dir: ".."
+base_dir: "/workspace"
 model_path: ${base_dir}/models
 data_path: ${base_dir}/data
 log_dir: ${base_dir}/logs
@@ -75,7 +75,7 @@ data:
 
 zero_shot_val:
   n_neighbors: 20
-  data_path: ${data_path}
+  data_path: ${base_dir}
   num_max_bpe_tokens: ${nlp_context_length}
   is_multimodal_aligned: False
   val_every_n_batches: 5_000
