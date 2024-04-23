@@ -35,24 +35,22 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         return self.model(**input_dict)
 
     def training_step(self, batch:Dict[str, Any], batch_idx):
-        target = batch.pop('target')
+        target:torch.Tensor = batch.pop('target')
         output_dict = self(batch) # call "forward"
 
         if batch['modes'][0] == Modality.AUDIO:
-            y_hat = average_twice(output_dict['layer_results'], output_dict['padding_mask'])
+            y_hat = average_twice(output_dict['layer_results'], norm=True)
 
-            assert y_hat.shape == target.shape # for simple pretraining this must be the case
-            return self.kd_loss(y_hat=y_hat, y=target)
         else:
-            if self.cfg.model.cls_loss_weight is not None and self.cfg.model.cls_loss_weight > 0:
-                
-            y_hat = special_token_and_average(output_dict['layer_results'])
-            assert y_hat.shape == target.shape # for simple pretraining this must be the case
+            y_hat = special_token_and_average(output_dict['layer_results'], norm=True)
+
+        assert y_hat.shape == target.shape # for simple pretraining this must be the case
+        return self.kd_loss(y_hat=y_hat, y=target)
                 
     
     def kd_loss(self, y_hat, y):
-        y_hat = y_hat.view(-1, y_hat.size(-1)).float()
-        y = y.view(-1, y_hat.size(-1)).float()
+        y_hat = y_hat.view(-1, y_hat.size(-1)).float() # (B, T, C) -> (B*T, C)
+        y = y.view(-1, y_hat.size(-1)).float() # (B, T, C) -> (B*T, C)
 
         loss = F.mse_loss(y_hat, y, reduction="none").float()
 

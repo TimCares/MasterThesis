@@ -32,7 +32,7 @@ def special_token_and_average(target_layer_results:List[torch.Tensor], norm:bool
     y = y.div_(len(target_layer_results))
     return y.squeeze(1) # BTC -> BC
 
-def average_twice(target_layer_results:List[torch.Tensor], padding_mask:torch.Tensor=None, norm:bool=True) -> torch.Tensor:
+def average_twice(target_layer_results:List[torch.Tensor], norm:bool=True) -> torch.Tensor:
     if norm:
         target_layer_results = instance_norm_layer_results(target_layer_results)
 
@@ -40,19 +40,12 @@ def average_twice(target_layer_results:List[torch.Tensor], padding_mask:torch.Te
     for tl in target_layer_results[1:]:
         y.add_(tl.float())
     y = y.div_(len(target_layer_results))
-    if padding_mask is None:
-        y = y.mean(dim=1) # BTC -> BC
-    else:
-        non_padded_avg = []
-        for i in range(y.size(0)):
-            non_padded_avg.append(y[i][~padding_mask[i]].mean(dim=0)) # list of B*(tensors of shape (C,))
-        y = torch.stack(non_padded_avg) # list of B*(tensors of shape (C,)) -> BC
-    return y
+    return y.mean(dim=1) # BTC -> BC
 
-def both_special_token_and_average_twice(target_layer_results:List[torch.Tensor], padding_mask:torch.Tensor=None) -> torch.Tensor:
+def both_special_token_and_average_twice(target_layer_results:List[torch.Tensor]) -> torch.Tensor:
     target_layer_results = instance_norm_layer_results(target_layer_results)
     y_special_token = special_token_and_average(target_layer_results, norm=False) # BC
-    y_average = average_twice(target_layer_results, padding_mask=padding_mask, norm=False) # BC
+    y_average = average_twice(target_layer_results, norm=False) # BC
     return torch.stack([y_special_token, y_average], dim=1) # BC -> B2C
 
 
@@ -119,17 +112,12 @@ def extract_targets(cfg: DictConfig) -> None:
 
             item = {}
 
-            if 'padding_mask' in pred:
-                padding_mask = pred['padding_mask']
-            else:
-                padding_mask = None
-
             if batch['modes'][0] == Modality.AUDIO:
-                pred['layer_results'] = average_twice(pred['layer_results'], padding_mask=padding_mask, norm=True).cpu()
+                pred['layer_results'] = average_twice(pred['layer_results'], norm=True).cpu()
             else:
-                if padding_mask is not None:
+                if 'padding_mask' in pred and pred['padding_mask'] is not None:
                     assert (pred['padding_mask'][:, 0].sum()==0).item(), "Special token should not be masked"
-                pred['layer_results'] = both_special_token_and_average_twice(pred['layer_results'], padding_mask=padding_mask).cpu()
+                pred['layer_results'] = special_token_and_average(pred['layer_results'], norm=True).cpu()
 
             item['target'] = pred['layer_results']
             item['data_path'] = batch['data_path']
