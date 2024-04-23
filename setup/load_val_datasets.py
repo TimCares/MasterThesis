@@ -5,6 +5,7 @@ import logging
 
 from torchaudio.datasets import LIBRISPEECH, SPEECHCOMMANDS
 from torchvision.datasets import CIFAR10, CIFAR100
+from torchtext.datasets import IMDB
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ def main(cfg:DictConfig) -> None:
         CIFAR10(data_path, train=subset, download=True)
         CIFAR100(data_path, train=subset, download=True)
 
-        # IMDB(root=imdb_path, split=subset) -> done during setup of datamodules -> fits better there
+        IMDB(root=data_path, split=subset) #-> done during setup of datamodules -> fits better there
 
 if __name__ == "__main__":
     main()

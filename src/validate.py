@@ -130,7 +130,7 @@ def _get_knn_data(model:KDMMData2Vec, data_loader:DataLoader, device:str) ->Tupl
     return X, y
 
 
-@rank_zero_only # only needed in a distributed setting
+@rank_zero_only
 def make_knn_predictions(model:Callable,
                          n_neighbors:int,
                          train_loader:DataLoader,
