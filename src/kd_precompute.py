@@ -120,7 +120,10 @@ def extract_targets(cfg: DictConfig) -> None:
                 pred['layer_results'] = special_token_and_average(pred['layer_results'], norm=True).cpu()
 
             item['target'] = pred['layer_results']
-            item['data_path'] = batch['data_path']
+            if 'data_path' in batch:
+                item['data_path'] = batch['data_path']
+            else:
+                item[key] = batch[key] # for text we do not use a reference, as text is not that big
             item['modes'] = batch['modes']
             
             torch.save(item, os.path.join(kd_targets_path, filename))
