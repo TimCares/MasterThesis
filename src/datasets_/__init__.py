@@ -43,6 +43,7 @@ from .kd_datasets import (
     KDDataset,
     ImageKDDataset,
     AudioKDDataset,
+    TextKDDataset,
     KD_DATASET_REGISTRY,
 )
 

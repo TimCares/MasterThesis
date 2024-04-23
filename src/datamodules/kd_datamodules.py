@@ -1,8 +1,8 @@
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, List
 from functools import partial
-from datasets_ import KDDataset, ImageKDDataset, AudioKDDataset
+from datasets_ import ImageKDDataset, AudioKDDataset, TextKDDataset, Modality
 import logging
 
 logger = logging.getLogger(__name__)
@@ -34,8 +34,10 @@ class KDDataModule(LightningDataModule):
             dataset_cls = ImageKDDataset
         elif self.dataset_mode == 'audio':
             dataset_cls = AudioKDDataset
+        elif self.dataset_mode == 'text':
+            dataset_cls = TextKDDataset
         else:
-            dataset_cls = KDDataset
+            raise ValueError(f"Unknown dataset mode: {self.dataset_mode}")
         self.train_dataset = dataset_cls(data_path=self.data_path, dataset=self.dataset)
 
     def prepare_data(self):
@@ -59,7 +61,7 @@ class KDDataModule(LightningDataModule):
 
 
 KD_DATAMODULE_REGISTRY = {
-    'kd_datamodule': partial(KDDataModule, dataset_mode='text'), # default -> will yield KDDataset
     'kd_image_datamodule': partial(KDDataModule, dataset_mode='image'),
     'kd_audio_datamodule': partial(KDDataModule, dataset_mode='audio'),
+    'kd_text_datamodule': partial(KDDataModule, dataset_mode='text'),
 }

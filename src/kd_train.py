@@ -31,13 +31,11 @@ def main(cfg: DictConfig) -> None:
         logger.info('Starting training.')
         module = KDData2VecPreTrainingLightningModule(cfg=cfg)
 
-    OmegaConf.resolve(cfg=cfg) # resolving done in-place
+    logger.info(f"Running with modalities: {cfg.model.supported_modalities}")
 
-    dataloader_keys = [name for name in cfg.data if not name.startswith('_')]
+    OmegaConf.resolve(cfg=cfg) # resolving done in-place
     
-    # resolving before is needed here to select a subset
-    # unresolved field in the selected keys can't be resolved after this selection
-    dataloader_args = {key: cfg.data[key] for key in dataloader_keys}
+    dataloader_args = cfg.data.dataloader
 
     datamodules = []
     if cfg.dry_run is not None and cfg.dry_run:
@@ -50,9 +48,9 @@ def main(cfg: DictConfig) -> None:
             }
             dataset_args.update(dataloader_args)
             datamodules.append(DATAMODULE_REGISTRY[datamodule_key](**dataset_args))
-            logger.info(dataset_args)
+            logger.info(f"Train datamodule {dataset_name}: {dataset_args}")
     
-    datamodule = MultiDataModule(datamodules=datamodules)
+    multi_datamodule = MultiDataModule(datamodules=datamodules)
 
     val_cfg = cfg.zero_shot_val
     zero_shot_modules = dict()
@@ -63,6 +61,7 @@ def main(cfg: DictConfig) -> None:
             args = OmegaConf.merge(val_dataloader_args, val_cfg.datamodules[name])
 
         zero_shot_modules[name] = DATAMODULE_REGISTRY[name](**args)
+        logger.info(f"Zero-shot datamodule {name}: {args}")
 
     callbacks = [
         LearningRateMonitor(logging_interval="step"),
@@ -80,8 +79,8 @@ def main(cfg: DictConfig) -> None:
     ]
 
     logger.info("Setting up datamodules:")
-    datamodule.prepare_data()
-    datamodule.setup("fit")
+    multi_datamodule.prepare_data()
+    multi_datamodule.setup("fit")
     logger.info("Datamodule setup complete.")
 
     wandb_logger = WandbLogger(project='MMRL', save_dir=cfg.log_dir, log_model="all")
@@ -100,7 +99,7 @@ def main(cfg: DictConfig) -> None:
     else:
         ckpt_path = None
 
-    trainer.fit(module, train_dataloaders=datamodule.train_dataloader(), ckpt_path=ckpt_path)
+    trainer.fit(module, train_dataloaders=multi_datamodule.train_dataloader(), ckpt_path=ckpt_path)
 
 
 if __name__ == "__main__":

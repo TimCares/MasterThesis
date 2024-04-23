@@ -17,7 +17,6 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from kd_precompute import special_token_and_average, average_twice
 
 from data2vec_fairseq.models.modalities.modules import AltBlock
-from data2vec_fairseq.models.modalities.base import MaskSeed
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from mome_alt_attention import MOMEAltBlock
 
@@ -96,6 +95,8 @@ class KDMMData2VecConfig():
     pretrained: PretrainedStateDictsConfig = field(default_factory=PretrainedStateDictsConfig)
     prediction_mode: PredictionAggregationMode = PredictionAggregationMode.MEAN_POOLING
 
+    supported_modalities: List[Modality] = field(default_factory=lambda: [Modality.AUDIO, Modality.IMAGE, Modality.TEXT])
+
     cls_loss_weight: Optional[float] = None
 
     init_block_from: Optional[str] = None
@@ -141,13 +142,14 @@ class KDMMData2Vec(nn.Module):
                  ):
         super(KDMMData2Vec, self).__init__()
         self.cfg = cfg
+        self.supported_modalities = cfg.supported_modalities
 
         self.projections = nn.ModuleDict({
             mode.name.lower(): 
             (nn.Linear(self.cfg.encoders_embed_dim, self.cfg.embed_dim) 
              if self.cfg.modality_encoder_proj 
              else nn.Identity())
-             for mode in [Modality.AUDIO, Modality.IMAGE, Modality.TEXT]
+             for mode in self.supported_modalities
         })
 
         make_layer_norm = partial(
@@ -201,14 +203,13 @@ class KDMMData2Vec(nn.Module):
 
     def _get_modality_encoders(self) -> None:
         modality_encoders = {}
-        for mode in self.cfg.pretrained.keys():
-            state_dict_name = self.cfg.pretrained[mode]
-            mode_enum:Modality = Modality[mode.upper()] # Modality[mode.upper()]: e.g. 'text' => Modality.Text
-            logger.info(f'Loading modality encoder for: {mode_enum}')
+        for mode in self.supported_modalities: # mode is instance of Modality
+            state_dict_name = self.cfg.pretrained[mode.name.lower()]
+            logger.info(f'Loading modality encoder for: {mode}')
             state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
             d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
-            mode_feature_extractor = d2v_model.modality_encoders[mode_enum.name]
-            modality_encoders[mode_enum.name.lower()] = mode_feature_extractor
+            mode_feature_extractor = d2v_model.modality_encoders[mode.name]
+            modality_encoders[mode.name.lower()] = mode_feature_extractor
             
             for name, module in mode_feature_extractor.named_children():
                 total_params = sum(p.numel() for p in module.parameters())
@@ -238,6 +239,8 @@ class KDMMData2Vec(nn.Module):
         n_sources = sum(mode is not None for mode in [audio, image, text])
         assert n_sources==1,\
             f"This model accepts exactly one modality data source at a time, got {n_sources}."
+        
+        assert modes[0] in self.supported_modalities, f"Unsupported modality: {modes[0]}, supported modalities are: {self.supported_modalities}"
         mode = modes[0].name.lower() # is now a string, ModuleDict does not support enums as keys
         
         if audio is not None:
@@ -248,10 +251,6 @@ class KDMMData2Vec(nn.Module):
             source = text
         else:
             raise ValueError("Audio, image or text must be provided, found all to be None.")
-
-        mask_seeds = None
-        if id is not None:
-            mask_seeds = MaskSeed(seed=self.mask_seed, update=self.num_updates, ids=id)
         
         feature_extractor = self.modality_encoders[mode]
         with torch.no_grad():
@@ -261,7 +260,7 @@ class KDMMData2Vec(nn.Module):
                 mask,
                 remove_masked=not features_only or force_remove_masked,
                 clone_batch=1,
-                mask_seeds=mask_seeds,
+                mask_seeds=None,
                 precomputed_mask=precomputed_mask,
             )
 

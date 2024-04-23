@@ -44,6 +44,10 @@ class KDDataset(BaseDataset):
         return batch[0] # "batch" is just a one element list with an already prepared batch, so only indexing necessary here
     
 
+class TextKDDataset(KDDataset):
+    pass # no need to implement anything, just use the base class (kept for consistency)
+
+
 class ImageKDDataset(KDDataset):
     def load(self):
         super().load()
@@ -64,7 +68,7 @@ class ImageKDDataset(KDDataset):
         images = [self._get_image(image_path) for image_path in image_paths]
         batch['image'] = torch.stack(images)
         return batch
-    
+
 
 class AudioKDDataset(KDDataset):
     def load(self):
@@ -98,7 +102,7 @@ class AudioKDDataset(KDDataset):
 
 
 KD_DATASET_REGISTRY = {
-    "kd_dataset": KDDataset, # used for text, as binarized and small enough
     'kd_image_dataset': ImageKDDataset,
-    'kd_audio_dataset': AudioKDDataset
+    'kd_audio_dataset': AudioKDDataset,
+    'kd_text_dataset': TextKDDataset,
 }

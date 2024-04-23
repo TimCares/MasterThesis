@@ -28,6 +28,11 @@ model:
     image: base_imagenet.pt
     text: nlp_base.pt
 
+  supported_modalities:
+    # - AUDIO
+    - IMAGE
+    - TEXT
+
   prediction_mode: MEAN_POOLING
   cls_loss_weight: 0.0 # 0.0 -> ignored/not used
 
@@ -56,17 +61,17 @@ model:
   seed: ${seed}
 
 data:
-  # datasets/dataloaders must start with an underscore, the string after that is used as a key to the registries
-  data_path: ${data_path}
-  # batch_size: 256
-  num_workers: 6
-  shuffle: True
-  drop_last: True
+  dataloader:
+    data_path: ${data_path}
+    # batch_size: 256
+    num_workers: 6
+    shuffle: True
+    drop_last: True
 
   datamodules:
-    kd_datamodule: openwebtext
+    kd_text_datamodule: openwebtext
     kd_image_datamodule: imagenet
-    kd_audio_datamodule: librispeech
+    # kd_audio_datamodule: librispeech
 
 zero_shot_val:
   n_neighbors: 20
@@ -76,24 +81,21 @@ zero_shot_val:
   val_every_n_batches: 5_000
 
   dataloader:
+    data_path: ${data_path}
     batch_size: 256
-    num_workers: 1
+    num_workers: 5
     shuffle: False
     drop_last: False
 
   datamodules: # dataloder args are taken from top-level key "data"
     imdb:
-      data_path: ${data_path}
       num_max_bpe_tokens: ${nlp_context_length}
-    cifar10:
-      data_path: ${data_path}
-    cifar100:
-      data_path: ${data_path}
-    speechcommands:
-      data_path: ${data_path}
-      min_sample_size: 0 # take all samples
-      normalize: True
-      pad: True
+    cifar10: {}
+    cifar100: {}
+    # speechcommands:
+    #   min_sample_size: 0 # take all samples
+    #   normalize: True
+    #   pad: True
 
 checkpoint:
   dirpath: "${model_path}/${now:%Y-%m-%d_%H-%M-%S}"
