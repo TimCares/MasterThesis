@@ -4,6 +4,8 @@ import os
 import logging
 from pytorch_lightning import seed_everything, Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
+import wandb
+from pytorch_lightning.loggers import WandbLogger
 
 from multimodal_data2vec import KDMMData2VecConfig, KDData2VecPreTrainingLightningModule, TestLightningModule
 from datamodules import DATAMODULE_REGISTRY
@@ -83,13 +85,18 @@ def main(cfg: DictConfig) -> None:
     datamodule.setup("fit")
     logger.info("Datamodule setup complete.")
 
+    wandb_logger = WandbLogger(project='MMRL', save_dir=cfg.log_dir, log_model="all")
+    wandb_logger.experiment.config = OmegaConf.to_container(cfg, resolve=True)
+
     trainer = Trainer(
         **OmegaConf.to_container(cfg.lightning_trainer, resolve=True),
         enable_checkpointing=True,
         callbacks=callbacks,
+        logger=wandb_logger,
     )
 
     if 'load_checkpoint' in cfg and cfg.load_checkpoint is not None:
+        logger.info(f'Resuming from checkpoint: {cfg.load_checkpoint}')
         ckpt_path = os.path.join(cfg.model_path, cfg.load_checkpoint)
     else:
         ckpt_path = None

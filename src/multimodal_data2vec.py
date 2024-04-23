@@ -26,10 +26,10 @@ logger = logging.getLogger(__name__)
 class KDData2VecPreTrainingLightningModule(L.LightningModule):
     def __init__(self, cfg):
         super().__init__()
-        self.save_hyperparameters()
         self.cfg = cfg
-        
         self.model = KDMMData2Vec(cfg=self.cfg.model)
+        
+        self.save_hyperparameters()
 
     def forward(self, input_dict):
         return self.model(**input_dict)
@@ -45,7 +45,10 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
             y_hat = special_token_and_average(output_dict['layer_results'], norm=True)
 
         assert y_hat.shape == target.shape # for simple pretraining this must be the case
-        return self.kd_loss(y_hat=y_hat, y=target)
+
+        loss = self.kd_loss(y_hat=y_hat, y=target)
+        self.log("train/loss", loss, prog_bar=True)
+        return loss
                 
     
     def kd_loss(self, y_hat, y):

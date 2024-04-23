@@ -205,6 +205,7 @@ class ZeroShotCallback(Callback):
                         prog_bar=True,
                         logger=True,
                         rank_zero_only=True,
+                        on_step=True,
                         )
                 mean_acc = np.mean([metrics[key] for key in metrics if 'top5' not in key])
                 pl_module.log(
@@ -213,4 +214,5 @@ class ZeroShotCallback(Callback):
                         prog_bar=True,
                         logger=True,
                         rank_zero_only=True,
+                        on_step=True,
                         )
