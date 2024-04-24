@@ -40,7 +40,7 @@ model:
   embed_dim: 768
   depth: 5
   num_heads: 8 
-  mlp_ratio: 3.0
+  mlp_ratio: 2.5 # 3.0 or 4.0
   encoder_dropout: 0.1
   attention_dropout: 0.1
   activation_dropout: 0.1
