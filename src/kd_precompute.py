@@ -102,7 +102,7 @@ def extract_targets(cfg: DictConfig) -> None:
             idx = idx+batch_idx_offset
             filename = f'{idx}_{id_offset+batch["id"][0]}-{id_offset+batch["id"][-1]}.pt'
             index_items.append({
-                "path": os.path.join(dir_name, filename),
+                "path": os.path.join(dir_name, filename), # save with respect to the base data path (where all datasets are stored as subdirectories)
                 "batch_idx": idx,
             })
 
