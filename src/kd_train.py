@@ -63,7 +63,6 @@ def main(cfg: DictConfig) -> None:
     ]
 
     wandb_logger = WandbLogger(project='MMRL', save_dir=cfg.log_dir, log_model="all")
-    wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
 
     torch.set_float32_matmul_precision("high") # or: "highest"
     trainer = Trainer(
@@ -72,6 +71,8 @@ def main(cfg: DictConfig) -> None:
         callbacks=callbacks,
         logger=wandb_logger,
     )
+    if trainer.global_rank == 0:
+        wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
 
     dataloader_args = cfg.data.dataloader
 
