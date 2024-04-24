@@ -17,9 +17,13 @@ class KDDataset(BaseDataset):
     def __init__(
             self,
             data_path:str,
-            dataset:str,):
+            dataset:str,
+            rank:int,
+            world_size:int,):
         super().__init__(data_path, 'train') # Knowledge-Distillation is always training
         self.dataset = dataset
+        self.rank = rank
+        self.world_size = world_size
         available_datasets = os.listdir(self.data_path)
         prefix = 'kd_'
         prefix_len = len(prefix)
@@ -35,7 +39,8 @@ class KDDataset(BaseDataset):
         self.index = data['index']
         self.meta = data['datamodule']
         self.batch_size = self.meta['batch_size']
-        self.items = [os.path.join(self.data_path, data_info['path']) for data_info in self.index]
+        all_items = [os.path.join(self.data_path, data_info['path']) for data_info in self.index]
+        self.items = all_items[self.rank::self.world_size] # split data across ranks
 
     def __getitem__(self, index: int):
         return torch.load(self.items[index])

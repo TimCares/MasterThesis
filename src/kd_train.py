@@ -1,6 +1,7 @@
 import hydra
 from omegaconf import OmegaConf, open_dict, DictConfig
 import os
+import torch
 import logging
 from pytorch_lightning import seed_everything, Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
@@ -34,23 +35,6 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Running with modalities: {cfg.model.supported_modalities}")
 
     OmegaConf.resolve(cfg=cfg) # resolving done in-place
-    
-    dataloader_args = cfg.data.dataloader
-
-    datamodules = []
-    if cfg.dry_run is not None and cfg.dry_run:
-        datamodules.append(DATAMODULE_REGISTRY['dummy']())
-    else:
-        for datamodule_key in cfg.data.datamodules.keys():
-            dataset_name = cfg.data.datamodules[datamodule_key]
-            dataset_args = {
-                'dataset': dataset_name,
-            }
-            dataset_args.update(dataloader_args)
-            datamodules.append(DATAMODULE_REGISTRY[datamodule_key](**dataset_args))
-            logger.info(f"Train datamodule {dataset_name}: {dataset_args}")
-    
-    multi_datamodule = MultiDataModule(datamodules=datamodules)
 
     val_cfg = cfg.zero_shot_val
     zero_shot_modules = dict()
@@ -78,20 +62,40 @@ def main(cfg: DictConfig) -> None:
         # (ModelCheckpoint usually executed last automatically, but just to be sure)
     ]
 
-    logger.info("Setting up datamodules:")
-    multi_datamodule.prepare_data()
-    multi_datamodule.setup("fit")
-    logger.info("Datamodule setup complete.")
-
     wandb_logger = WandbLogger(project='MMRL', save_dir=cfg.log_dir, log_model="all")
     wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
 
+    torch.set_float32_matmul_precision("high") # or: "highest"
     trainer = Trainer(
         **OmegaConf.to_container(cfg.lightning_trainer, resolve=True),
         enable_checkpointing=True,
         callbacks=callbacks,
         logger=wandb_logger,
     )
+
+    dataloader_args = cfg.data.dataloader
+
+    datamodules = []
+    if cfg.dry_run is not None and cfg.dry_run:
+        datamodules.append(DATAMODULE_REGISTRY['dummy']())
+    else:
+        for datamodule_key in cfg.data.datamodules.keys():
+            dataset_name = cfg.data.datamodules[datamodule_key]
+            dataset_args = {
+                'dataset': dataset_name,
+                'rank': trainer.global_rank,
+                'world_size': trainer.world_size,
+            }
+            dataset_args.update(dataloader_args)
+            datamodules.append(DATAMODULE_REGISTRY[datamodule_key](**dataset_args))
+            logger.info(f"Train datamodule {dataset_name}: {dataset_args}")
+    
+    multi_datamodule = MultiDataModule(datamodules=datamodules)
+
+    logger.info("Setting up datamodules:")
+    multi_datamodule.prepare_data()
+    multi_datamodule.setup("fit")
+    logger.info("Datamodule setup complete.")
 
     if 'load_checkpoint' in cfg and cfg.load_checkpoint is not None:
         logger.info(f'Resuming from checkpoint: {cfg.load_checkpoint}')

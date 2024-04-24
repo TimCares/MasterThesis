@@ -2,7 +2,7 @@ from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from typing import Tuple, Dict, Any, List
 from functools import partial
-from datasets_ import ImageKDDataset, AudioKDDataset, TextKDDataset, Modality
+from datasets_ import ImageKDDataset, AudioKDDataset, TextKDDataset
 import logging
 
 logger = logging.getLogger(__name__)
@@ -10,22 +10,26 @@ logger = logging.getLogger(__name__)
 class KDDataModule(LightningDataModule):
     def __init__(self,
                  data_path:str,
+                 dataset:str,
+                 dataset_mode:str,
+                 rank:int,
+                 world_size:int,
                  num_workers:int,
                  shuffle:bool,
                  drop_last:bool,
-                 dataset:str,
-                 dataset_mode:str,
                  *args,
                  **kwargs):
         super().__init__(*args, **kwargs)
         self.data_path = data_path
+        self.dataset = dataset
+        self.dataset_mode = dataset_mode
+        self.rank = rank
+        self.world_size = world_size
         self.batch_size = 1
         self.num_workers = num_workers
         self.shuffle = shuffle
         self.drop_last = drop_last
         self.prepared = False
-        self.dataset = dataset
-        self.dataset_mode = dataset_mode
 
         logger.info(f"Using dataset: {self.dataset}")
     
@@ -38,7 +42,8 @@ class KDDataModule(LightningDataModule):
             dataset_cls = TextKDDataset
         else:
             raise ValueError(f"Unknown dataset mode: {self.dataset_mode}")
-        self.train_dataset = dataset_cls(data_path=self.data_path, dataset=self.dataset)
+        self.train_dataset = dataset_cls(data_path=self.data_path, dataset=self.dataset,
+                                         rank=self.rank, world_size=self.world_size)
 
     def prepare_data(self):
         if not self.prepared:
