@@ -9,8 +9,8 @@ defaults:
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
 
-model_path: ../models
-data_path: ../data
+model_path: /workspace/models
+data_path: /workspace
 
 out_path: ${data_path}
 offset: 0 # number of batches of the dataset already created

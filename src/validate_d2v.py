@@ -140,7 +140,7 @@ def main():
             # override general dataloader args with dataloader specific args (if present)
             args = OmegaConf.merge(val_dataloader_args, val_cfg.datamodules[name])
 
-        zero_shot_modules[name[1:]] = DATAMODULE_REGISTRY[name[1:]](**args)
+        zero_shot_modules[name] = DATAMODULE_REGISTRY[name](**args)
         
     d2v = load_pretrained_d2v_model(state_dict_path=os.path.join(cfg.model.pretrained_path, cfg.model.pretrained.image))
     d2v = d2v.to(device)
