@@ -10,7 +10,7 @@ from pytorch_lightning.loggers import WandbLogger
 from multimodal_data2vec import KDMMData2VecConfig, KDData2VecPreTrainingLightningModule, TestLightningModule
 from datamodules import DATAMODULE_REGISTRY
 from multi_data_loader import MultiDataModule
-from validate import ZeroShotCallback
+from callbacks import ZeroShotKNNCallback, WallClockCallback
 
 from fairseq.dataclass.utils import merge_with_parent
 
@@ -49,12 +49,13 @@ def main(cfg: DictConfig) -> None:
 
     callbacks = [
         LearningRateMonitor(logging_interval="step"),
-        ZeroShotCallback(n_neighbors=val_cfg.n_neighbors,
+        ZeroShotKNNCallback(n_neighbors=val_cfg.n_neighbors,
                          datamodules=zero_shot_modules,
                          data_path=val_cfg.data_path,
                          val_every_n_batches=val_cfg.val_every_n_batches,
                          num_max_bpe_tokens=val_cfg.num_max_bpe_tokens,
                          is_multimodal_aligned=val_cfg.is_multimodal_aligned,),
+        WallClockCallback(),
         ModelCheckpoint(
                 **OmegaConf.to_container(cfg.checkpoint, resolve=True)
             )

@@ -163,20 +163,78 @@ def make_knn_predictions(model:Callable,
     return knn, results
 
 
+@torch.no_grad()
+def _get_zero_shot_retrieval_embeddings(model:KDMMData2Vec, dataloader:DataLoader, device:str) -> Tuple[torch.Tensor, torch.Tensor]:
+    embedding_table = []
+    ground_truth = []
+    for batch in dataloader:
+        source = batch[batch['modes'][0].name.lower()].to(device)
+        padding_mask = batch['padding_mask'].to(device) if 'padding_mask' in batch else None
+        # encoding also normalizes the output
+        emb = model.encode_modality(modes=batch['modes'], source=source, padding_mask=padding_mask, normalize=True)
+        embedding_table.append(emb.detach().cpu())
+        ground_truth.append(batch['target'])
+
+    embedding_table = torch.cat(embedding_table, 0)
+    ground_truth = torch.cat(ground_truth, 0)
+    return embedding_table, ground_truth
+
+def _get_all_match(similarity_scores:torch.Tensor,
+                   m_bank_targets:torch.Tensor,
+                   q_targets:torch.Tensor,
+                   k:int) -> Tuple[float, float]:
+    
+    _, indices = similarity_scores.topk(k, dim=-1)
+    return (m_bank_targets[indices]==q_targets.unsqueeze(1)).all(dim=-1).sum().div(len(q_targets))
+
+@rank_zero_only
+def unimodal_zero_shot_retrieval(model:KDMMData2Vec,
+                                 train_loader:DataLoader,
+                                 test_loader:DataLoader,
+                                 device:str,
+                                 name:str) -> None:
+    results = {}
+    
+    memory_bank, memory_bank_targets = _get_zero_shot_retrieval_embeddings(model=model, dataloader=train_loader, device=device)
+    query, query_targets = _get_zero_shot_retrieval_embeddings(model=model, dataloader=test_loader, device=device)
+
+    similarity_scores = query @ memory_bank.t()
+    similarity_scores_t = similarity_scores.t()
+    train_test_top1 = _get_all_match(similarity_scores, memory_bank_targets, query_targets, k=1)
+    test_train_top1 = _get_all_match(similarity_scores_t, query_targets, memory_bank_targets, k=1)
+
+    results[f"unimodal-{name}-retrieval--zeroshot-train-test-top1"] = train_test_top1.item()
+    results[f"unimodal-{name}-retrieval--zeroshot-test-train-top1"] = test_train_top1.item()
+
+    try:
+        train_test_top3 = _get_all_match(similarity_scores, memory_bank_targets, query_targets, k=3)
+        test_train_top3 = _get_all_match(similarity_scores_t, query_targets, memory_bank_targets, k=3)
+
+        results[f"unimodal-{name}-retrieval--zeroshot-train-test-top3"] = train_test_top3.item()
+        results[f"unimodal-{name}-retrieval--zeroshot-test-train-top3"] = test_train_top3.item()
+    except:
+        pass # if data has less than 5 classes, top5-accuracy will throw an error
+
+    return results
+
+
 class ZeroShotCallback(Callback):
     """
     datamodules: Dict[str, LightningDataModule] -> Dict of LightningDataModule, keys are the names of the LightningDataModule.
     """
-    def __init__(self, n_neighbors:int, datamodules: Dict[str, LightningDataModule], data_path:str, 
-                 val_every_n_batches:int, num_max_bpe_tokens:int, is_multimodal_aligned:bool, *args, **kwargs):
+    def __init__(self, datamodules: Dict[str, LightningDataModule], val_every_n_batches:int, ):
         super().__init__()
         self.datamodules = datamodules
-        self.n_neighbors = n_neighbors
-        self.encoder = get_bpe_encoder(data_path)
-        self.num_max_bpe_tokens = num_max_bpe_tokens # TODO: utilize later...
-        self.dictionary = Dictionary.load(os.path.join(data_path, 'dict.txt')) # TODO: utilize later...
-        self.is_multimodal_aligned = is_multimodal_aligned # TODO: utilize later...
         self.val_every_n_batches = val_every_n_batches
+
+        for name_key in self.datamodules.keys():
+            self.datamodules[name_key].prepare_data()
+
+    # validation at the start of training to get initial performance (will be close to random)
+    def on_fit_start(self, trainer:Trainer, pl_module:LightningModule) -> None:
+        pl_module.eval()
+        self.validate(trainer, pl_module)
+        pl_module.train()
 
     def on_train_batch_end(self, trainer:Trainer, pl_module:LightningModule, outputs, batch, batch_idx):
         # Check if the current batch count is a multiple of the specified frequency
@@ -185,7 +243,35 @@ class ZeroShotCallback(Callback):
             self.validate(trainer, pl_module)
             pl_module.train()
 
-    def validate(self, trainer, pl_module, **kwargs) -> None:
+    def validate(self, trainer, pl_module) -> None:
+        for name_key in self.datamodules.keys():
+            self.datamodules[name_key].setup(stage='fit')
+            self.datamodules[name_key].setup(stage='test')
+
+    def cleanup(self) -> None:
+        for name_key in self.datamodules.keys():
+            self.datamodules[name_key].teardown(stage='fit')
+            self.datamodules[name_key].teardown(stage='test')
+
+
+class ZeroShotKNNCallback(ZeroShotCallback):
+    def __init__(self, n_neighbors:int, datamodules: Dict[str, LightningDataModule], data_path:str, 
+                 val_every_n_batches:int, num_max_bpe_tokens:int, is_multimodal_aligned:bool, *args, **kwargs):
+        super().__init__(
+            datamodules=datamodules,
+            val_every_n_batches=val_every_n_batches,
+        )
+
+        self.n_neighbors = n_neighbors
+        self.encoder = get_bpe_encoder(data_path)
+        self.num_max_bpe_tokens = num_max_bpe_tokens # TODO: utilize later...
+        self.dictionary = Dictionary.load(os.path.join(data_path, 'dict.txt')) # TODO: utilize later...
+        self.is_multimodal_aligned = is_multimodal_aligned # TODO: utilize later...
+    
+
+    def validate(self, trainer, pl_module) -> None:
+        super().validate(trainer, pl_module)
+
         for name_key in self.datamodules.keys():
             self.datamodules[name_key].prepare_data()
             self.datamodules[name_key].setup(stage='fit')
@@ -203,7 +289,6 @@ class ZeroShotCallback(Callback):
                     pl_module.log(
                         f"val/{metric_key}",
                         metrics[metric_key],
-                        prog_bar=True,
                         logger=True,
                         rank_zero_only=True,
                         on_step=True,
@@ -217,3 +302,37 @@ class ZeroShotCallback(Callback):
                         rank_zero_only=True,
                         on_step=True,
                         )
+        self.cleanup() # release memory
+
+
+class ZeroShotRetrievalCallback(ZeroShotCallback):
+    def validate(self, trainer, pl_module) -> None:
+        super().validate(trainer, pl_module)
+
+        for name_key in self.datamodules.keys():
+            metrics = unimodal_zero_shot_retrieval(
+                model=pl_module.model,
+                train_loader=self.datamodules[name_key].train_dataloader(),
+                test_loader=self.datamodules[name_key].test_dataloader(),
+                device=pl_module.device,
+                name=name_key,
+            )
+            if metrics is not None:
+                for metric_key in metrics:
+                    pl_module.log(
+                        f"val/{metric_key}",
+                        metrics[metric_key],
+                        logger=True,
+                        rank_zero_only=True,
+                        on_step=True,
+                        )
+                mean_score = np.mean([metrics[key] for key in metrics if 'top3' in key])
+                pl_module.log(
+                        "val/unimodal-mean-retrieval--zeroshot-top3",
+                        mean_score,
+                        prog_bar=True,
+                        logger=True,
+                        rank_zero_only=True,
+                        on_step=True,
+                        )
+        self.cleanup() # release memory
