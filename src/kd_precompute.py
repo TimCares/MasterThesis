@@ -52,7 +52,7 @@ def special_tokens(target_layer_results:List[torch.Tensor], norm:bool=True) -> t
     if norm:
         target_layer_results = instance_norm_layer_results(target_layer_results)
 
-    target_layer_results = torch.stack(target_layer_results)
+    target_layer_results = torch.stack(target_layer_results, dim=1)
     return target_layer_results[:, :, 0, :].clone().float()
 
 
