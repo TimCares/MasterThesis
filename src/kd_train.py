@@ -12,7 +12,7 @@ from datamodules import DATAMODULE_REGISTRY
 from multi_data_loader import MultiDataModule
 from validate import ZeroShotCallback
 
-from utils import merge_with_parent
+from fairseq.dataclass.utils import merge_with_parent
 
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ def main(cfg: DictConfig) -> None:
 
     wandb_logger = WandbLogger(project='MMRL', save_dir=cfg.log_dir, log_model="all")
 
-    torch.set_float32_matmul_precision("high") # or: "highest"
+    torch.set_float32_matmul_precision("highest") # or: "high"
     trainer = Trainer(
         **OmegaConf.to_container(cfg.lightning_trainer, resolve=True),
         enable_checkpointing=True,

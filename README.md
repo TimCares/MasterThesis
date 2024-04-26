@@ -11,13 +11,26 @@ scp -P <tcp-port> -i ~/.ssh/<private ssh key> -r /path/to/local/dir root@xxx.xxx
 ### Download Imagnet
 
 ```bash
-git lfs install
+curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+```
+
+```bash
+sudo apt-get install git-lfs
+```
+
+```bash
+pip install -U "huggingface_hub[cli]"
+```
+
+```bash
+huggingface-cli login
 ```
 
 ```bash
 git clone https://huggingface.co/datasets/imagenet-1k
 ```
 
+If not automatically all is downloaded:
 ```bash
 git lfs pull --include="<path/to/file1>,<path/to/file2>"
 ```

@@ -30,7 +30,7 @@ def special_token_and_average(target_layer_results:List[torch.Tensor], norm:bool
     for tl in target_layer_results[1:]:
         y.add_(tl[:, 0, :].clone().float())
     y = y.div_(len(target_layer_results))
-    return y.squeeze(1) # BTC -> BC
+    return y # BC
 
 def average_twice(target_layer_results:List[torch.Tensor], norm:bool=True) -> torch.Tensor:
     if norm:
@@ -40,13 +40,20 @@ def average_twice(target_layer_results:List[torch.Tensor], norm:bool=True) -> to
     for tl in target_layer_results[1:]:
         y.add_(tl.float())
     y = y.div_(len(target_layer_results))
-    return y.mean(dim=1) # BTC -> BC
+    return y.mean(dim=1) # BTC -> BC, because of mean, instance norm can't be applied here -> all 0s
 
 def both_special_token_and_average_twice(target_layer_results:List[torch.Tensor]) -> torch.Tensor:
     target_layer_results = instance_norm_layer_results(target_layer_results)
     y_special_token = special_token_and_average(target_layer_results, norm=False) # BC
     y_average = average_twice(target_layer_results, norm=False) # BC
     return torch.stack([y_special_token, y_average], dim=1) # BC -> B2C
+
+def special_tokens(target_layer_results:List[torch.Tensor], norm:bool=True) -> torch.Tensor:
+    if norm:
+        target_layer_results = instance_norm_layer_results(target_layer_results)
+
+    target_layer_results = torch.stack(target_layer_results)
+    return target_layer_results[:, :, 0, :].clone().float()
 
 
 @hydra.main(version_base=None, config_path=os.path.join("..", "configs", "kd"), config_name="base")
@@ -117,7 +124,8 @@ def extract_targets(cfg: DictConfig) -> None:
             else:
                 if 'padding_mask' in pred and pred['padding_mask'] is not None:
                     assert (pred['padding_mask'][:, 0].sum()==0).item(), "Special token should not be masked"
-                pred['layer_results'] = special_token_and_average(pred['layer_results'], norm=True).cpu()
+                #pred['layer_results'] = special_token_and_average(pred['layer_results'], norm=True).cpu()
+                pred['layer_results'] = special_tokens(pred['layer_results']).cpu()
 
             item['target'] = pred['layer_results']
             if 'data_path' in batch:

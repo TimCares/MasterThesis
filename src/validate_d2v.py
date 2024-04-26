@@ -38,7 +38,7 @@ def _get_knn_data(model, data_loader:DataLoader, device:str) ->Tuple[Dict[str, n
 
         for agg_strategy in agg_strategies:
             if agg_strategy=="CLS":
-                out_reduced = out[:, 0, :].squeeze(1)
+                out_reduced = out[:, 0, :]
             elif agg_strategy=="mean":
                 if 'padding_mask' in pred and pred['padding_mask'] is not None:
                     non_padded_avg = []

@@ -21,6 +21,11 @@ load_checkpoint:
 
 nlp_context_length: 512
 
+image_transforms:
+  beit_transforms: False
+  no_transform: False
+  transform_jitter: False
+
 model:
   pretrained_path: ${model_path}
   pretrained:

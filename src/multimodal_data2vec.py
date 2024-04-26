@@ -14,7 +14,8 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from datasets_ import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup
-from kd_precompute import special_token_and_average, average_twice
+from kd_precompute import special_token_and_average, average_twice, special_tokens
+from datasets_.data_utils import get_transforms
 
 from data2vec_fairseq.models.modalities.modules import AltBlock
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
@@ -27,6 +28,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         super().__init__()
         self.cfg = cfg
         self.model = KDMMData2Vec(cfg=self.cfg.model)
+        self.transform = get_transforms(**cfg.image_transforms)
         
         self.save_hyperparameters()
 
@@ -35,24 +37,36 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
 
     def training_step(self, batch:Dict[str, Any], batch_idx):
         target:torch.Tensor = batch.pop('target')
+        if batch['modes'][0] == Modality.IMAGE:
+            batch['image'] = self.transform(batch['image'])
+        
         output_dict = self(batch) # call "forward"
 
         if batch['modes'][0] == Modality.AUDIO:
             y_hat = average_twice(output_dict['layer_results'], norm=True)
 
         else:
-            y_hat = special_token_and_average(output_dict['layer_results'], norm=True)
+            #y_hat = special_token_and_average(output_dict['layer_results'], norm=True)
+            y_hat = special_tokens(output_dict['layer_results']) # B, L, C
 
-        assert y_hat.shape == target.shape # for simple pretraining this must be the case
+            target = target[:, -self.cfg.model.depth:, :] # only take the last layers so that the target has the same shape as y_hat
+
+        assert y_hat.shape == target.shape # this must be the case
 
         loss = self.kd_loss(y_hat=y_hat, y=target)
         self.log("train/loss", loss, prog_bar=True)
+        if batch['modes'][0] == Modality.IMAGE:
+            self.log("train/loss_img", loss, prog_bar=True)
+        elif batch['modes'][0] == Modality.AUDIO:
+            self.log("train/loss_audio", loss, prog_bar=True)
+        else:
+            self.log("train/loss_text", loss, prog_bar=True)
         return loss
                 
     
     def kd_loss(self, y_hat, y):
-        y_hat = y_hat.view(-1, y_hat.size(-1)).float() # (B, T, C) -> (B*T, C)
-        y = y.view(-1, y_hat.size(-1)).float() # (B, T, C) -> (B*T, C)
+        y_hat = y_hat.view(-1, y_hat.size(-1)).float() # (B, D, C) -> (B*D, C)
+        y = y.view(-1, y_hat.size(-1)).float() # (B, D, C) -> (B*D, C)
 
         loss = F.mse_loss(y_hat, y, reduction="none").float()
 
@@ -60,9 +74,10 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
             scale = self.cfg.model.loss_scale
         else:
             scale = 1 / math.sqrt(y_hat.size(-1))
+        
         reg_loss = loss * scale
         
-        return reg_loss.sum()
+        return reg_loss.sum(dim=-1).mean() # sum over the last dimension and then take the mean over the batch
 
 
     def configure_optimizers(self):
@@ -228,7 +243,7 @@ class KDMMData2Vec(nn.Module):
         image:torch.Tensor=None,
         text:torch.Tensor=None,
         id:torch.Tensor=None,
-        padding_mask:torch.Tensor=None, # Union[torch.Tensor, Dict[str, torch.Tensor]] for multi input later?
+        padding_mask:torch.Tensor=None, 
         mask:bool=False,
         features_only:bool=True,
         force_remove_masked:bool=False,
@@ -361,7 +376,7 @@ class KDMMData2Vec(nn.Module):
         if mode == Modality.AUDIO:
             output = output.mean(dim=1)
         else:
-            output = output[:, 0, :].squeeze(1)
+            output = output[:, 0, :]
 
         if normalize:
             output = F.normalize(output, dim=-1)
@@ -432,6 +447,17 @@ class KDMMData2Vec(nn.Module):
         for param in module.parameters():
             param.requires_grad = True
 
+    def remove_modalities_except(self, keep_modes:List[Modality]) -> None:
+        """
+        Removes all modalities from the model except the ones specified.
+        Useful when fine-tuning the model on downstream task
+        involving only a subset of the supported modalities.
+        """
+        for modality in self.supported_modalities:
+            if modality not in keep_modes:
+                del self.projections[modality.name.lower()]
+                del self.modality_encoders[modality.name.lower()]
+
 
 class InitializedD2V(KDMMData2Vec):
     def __init__(self,
@@ -460,6 +486,15 @@ class InitializedD2V(KDMMData2Vec):
         
         self.blocks = nn.ModuleList([d2v_model.blocks[i] for i in indices])
         self.blocks.is_pretrained = True
+
+    def remove_modalities_except(self, keep_modes:List[Modality]) -> None:
+        """
+        Removes all modalities from the model except the ones specified.
+        Useful when fine-tuning the model on downstream task
+        involving only a subset of the supported modalities.
+        """
+        super().remove_modalities_except(keep_modes)
+        # TODO
 
 class MoMEInitializedD2V(KDMMData2Vec):
     def __init__(self,
@@ -522,6 +557,14 @@ class MoMEInitializedD2V(KDMMData2Vec):
             ffn_targets=not self.cfg.end_of_block_targets,
         )
 
+    def remove_modalities_except(self, keep_modes:List[Modality]) -> None:
+        """
+        Removes all modalities from the model except the ones specified.
+        Useful when fine-tuning the model on downstream task
+        involving only a subset of the supported modalities.
+        """
+        super().remove_modalities_except(keep_modes)
+        # TODO
 
 class DummyModel(nn.Module):
     def __init__(self,
