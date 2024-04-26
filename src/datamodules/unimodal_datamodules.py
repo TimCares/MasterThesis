@@ -77,6 +77,16 @@ class BaseDataModule(LightningDataModule):
                           shuffle=self.shuffle,
                           drop_last=self.drop_last,)
     
+    def teardown(self, stage: str) -> None:
+        if stage == 'fit' or stage is None:
+            if hasattr(self, 'train_dataset'):
+                del self.train_dataset
+            if hasattr(self, 'val_dataset'):
+                del self.val_dataset
+        if stage == 'test' or stage is None:
+            if hasattr(self, 'test_dataset'):
+                del self.test_dataset
+
 
 class IMDBDataModule(BaseDataModule):
     def __init__(self, 
