@@ -61,9 +61,9 @@ def _get_zero_shot_retrieval_embeddings(model, dataloader:DataLoader, device:str
         y.append(batch['target'])
 
     for agg_strategy in agg_strategies:
-        X_data_dict[agg_strategy] = torch.cat(X_data_dict[agg_strategy], dim=0).numpy()
+        X_data_dict[agg_strategy] = torch.cat(X_data_dict[agg_strategy], dim=0)
 
-    y = torch.cat(y, dim=0).cpu().numpy()
+    y = torch.cat(y, dim=0).cpu()
 
     return X_data_dict, y
 
@@ -74,6 +74,14 @@ def _get_all_match(similarity_scores:torch.Tensor,
     
     _, indices = similarity_scores.topk(k, dim=-1)
     return (m_bank_targets[indices]==q_targets.unsqueeze(1)).all(dim=-1).sum().div(len(q_targets))
+
+def _get_any_match(similarity_scores:torch.Tensor,
+                   m_bank_targets:torch.Tensor,
+                   q_targets:torch.Tensor,
+                   k:int) -> Tuple[float, float]:
+    # equivalent to top-k accuracy
+    _, indices = similarity_scores.topk(k, dim=-1)
+    return (m_bank_targets[indices]==q_targets.unsqueeze(1)).any(dim=-1).sum().div(len(q_targets))
 
 
 def unimodal_zero_shot_retrieval(model,
@@ -106,7 +114,7 @@ def unimodal_zero_shot_retrieval(model,
 
 
 
-def perform_representation_test(model, datamodules, n_neighbors, device) -> None:
+def perform_representation_test(model, datamodules, device) -> None:
     for name, datamodule in datamodules.items():
         datamodule.prepare_data()
         datamodule.setup(stage='fit')
@@ -147,21 +155,21 @@ def main():
 
     image_datamodules = {key: value for key, value in zero_shot_modules.items() if 'cifar' in key}
 
-    perform_representation_test(model=d2v, datamodules=image_datamodules, n_neighbors=val_cfg.n_neighbors, device=device)
+    perform_representation_test(model=d2v, datamodules=image_datamodules, device=device)
 
     d2v = load_pretrained_d2v_model(state_dict_path=os.path.join(cfg.model.pretrained_path, cfg.model.pretrained.audio))
     d2v = d2v.to(device)
     
     audio_datamodules = {key: value for key, value in zero_shot_modules.items() if 'speech' in key}
 
-    perform_representation_test(model=d2v, datamodules=audio_datamodules, n_neighbors=val_cfg.n_neighbors, device=device)
+    perform_representation_test(model=d2v, datamodules=audio_datamodules, device=device)
 
     d2v = load_pretrained_d2v_model(state_dict_path=os.path.join(cfg.model.pretrained_path, cfg.model.pretrained.text))
     d2v = d2v.to(device)
 
     text_datamodules = {key: value for key, value in zero_shot_modules.items() if 'imdb' in key}
 
-    perform_representation_test(model=d2v, datamodules=text_datamodules, n_neighbors=val_cfg.n_neighbors, device=device)
+    perform_representation_test(model=d2v, datamodules=text_datamodules, device=device)
 
 if "__main__" == __name__:
     main()

@@ -187,6 +187,14 @@ def _get_all_match(similarity_scores:torch.Tensor,
     _, indices = similarity_scores.topk(k, dim=-1)
     return (m_bank_targets[indices]==q_targets.unsqueeze(1)).all(dim=-1).sum().div(len(q_targets))
 
+def _get_any_match(similarity_scores:torch.Tensor,
+                   m_bank_targets:torch.Tensor,
+                   q_targets:torch.Tensor,
+                   k:int) -> Tuple[float, float]:
+    # equivalent to top-k accuracy
+    _, indices = similarity_scores.topk(k, dim=-1)
+    return (m_bank_targets[indices]==q_targets.unsqueeze(1)).any(dim=-1).sum().div(len(q_targets))
+
 @rank_zero_only
 def unimodal_zero_shot_retrieval(model:KDMMData2Vec,
                                  train_loader:DataLoader,
