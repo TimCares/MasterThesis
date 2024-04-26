@@ -227,9 +227,6 @@ class ZeroShotCallback(Callback):
         self.datamodules = datamodules
         self.val_every_n_batches = val_every_n_batches
 
-        for name_key in self.datamodules.keys():
-            self.datamodules[name_key].prepare_data()
-
     # validation at the start of training to get initial performance (will be close to random)
     def on_fit_start(self, trainer:Trainer, pl_module:LightningModule) -> None:
         pl_module.eval()
@@ -245,6 +242,7 @@ class ZeroShotCallback(Callback):
 
     def validate(self, trainer, pl_module) -> None:
         for name_key in self.datamodules.keys():
+            self.datamodules[name_key].prepare_data()
             self.datamodules[name_key].setup(stage='fit')
             self.datamodules[name_key].setup(stage='test')
 
