@@ -43,7 +43,7 @@ model:
 
   encoders_embed_dim: 768
   embed_dim: 768
-  depth: 5
+  depth: 6
   num_heads: 8 
   mlp_ratio: 2.5 # 3.0 or 4.0
   encoder_dropout: 0.1
