@@ -120,6 +120,7 @@ class IMDBDataset(BaseDataset):
             tokens = bpe_encoder.encode(text)
             language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_max_bpe_tokens,
                                                               pad_idx=pad_token_id, bos_idx=bos_token_id)
+            label = label-1 # 1 -> 0, 2 -> 1
             items.append({'text': language_tokens, 'padding_mask': padding_mask, 'target': label})
 
         write_data_into_jsonl(items, self.out_jsonl_path)

@@ -23,7 +23,7 @@ def main(cfg:DictConfig) -> None:
         CIFAR10(data_path, train=subset, download=True)
         CIFAR100(data_path, train=subset, download=True)
 
-        IMDB(root=data_path, split=subset) #-> done during setup of datamodules -> fits better there
+        IMDB(root=data_path, split=subset)
 
 if __name__ == "__main__":
     main()
