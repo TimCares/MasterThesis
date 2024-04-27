@@ -21,7 +21,8 @@ import torchtext
 from torchvision.datasets import CIFAR10, CIFAR100
 from torchvision.datasets.folder import default_loader
 
-from .base_datasets import AudioDataset, ImageDataset, NLPDataset, Modality
+from .base_datasets import AudioDataset, ImageDataset, NLPDataset
+from data2vec_fairseq.data.modality import Modality
 from .imagenet_classes import IMAGENET2012_CLASSES
 
 logger = logging.getLogger(__name__)

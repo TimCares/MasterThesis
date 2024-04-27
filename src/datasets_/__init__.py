@@ -1,5 +1,4 @@
 from .base_datasets import (
-    Modality,
     BaseDataset,
     NLPDataset,
     AudioDataset,

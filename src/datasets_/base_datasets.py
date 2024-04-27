@@ -9,13 +9,13 @@ import numpy as np
 from shutil import copyfile
 from functools import partial
 import soundfile as sf
-from enum import Enum, auto
 from .data_utils import get_transforms 
 from bpe_encoder import get_bpe_encoder as get_bpe_encoder_from_utils
 import torch.nn.functional as F
 
 from data2vec_fairseq.data.path_dataset import PathDataset
 from fairseq.data.data_utils import compute_block_mask_1d, compute_block_mask_2d, load_indexed_dataset
+from data2vec_fairseq.data.modality import Modality
 from utils import pad_text_sequence
 
 from fairseq.data import (
@@ -33,12 +33,6 @@ from torchvision.datasets.folder import default_loader
 from torchvision.datasets import ImageFolder
 
 logger = logging.getLogger(__name__)
-
-# is the same as in data2vec: https://github.com/facebookresearch/fairseq/blob/bedb259bf34a9fc22073c13a1cee23192fa70ef3/examples/data2vec/data/modality.py#L12
-class Modality(Enum):
-    AUDIO = auto()
-    IMAGE = auto()
-    TEXT = auto()
 
 class BaseDataset(torch.utils.data.Dataset):
     def __init__(self, data_path:str, split:str):

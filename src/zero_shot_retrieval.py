@@ -13,7 +13,7 @@ from flava.data.transforms import (
     default_text_transform,
 )
 from torch import nn
-from datasets_ import Modality
+from data2vec_fairseq.data.modality import Modality
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()

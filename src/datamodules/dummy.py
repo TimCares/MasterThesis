@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import Dataset
 from .unimodal_datamodules import BaseDataModule
-from datasets_ import Modality
+from data2vec_fairseq.data.modality import Modality
 
 class DummyDataset(Dataset):
     def __init__(self, size=50000, dim=20):

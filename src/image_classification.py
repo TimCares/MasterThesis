@@ -6,7 +6,7 @@ from typing import *
 import pytorch_lightning as L
 import torch.nn.functional as F
 from transformers.optimization import get_cosine_schedule_with_warmup
-from datasets_ import Modality
+from data2vec_fairseq.data.modality import Modality
 from sklearn.metrics import accuracy_score, top_k_accuracy_score
 
 

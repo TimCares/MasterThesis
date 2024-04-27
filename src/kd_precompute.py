@@ -11,7 +11,7 @@ from datamodules import DATAMODULE_REGISTRY
 from datamodules import BaseDataModule
 from rich.progress import track
 from utils import load_pretrained_d2v_model
-from datasets_ import Modality
+from data2vec_fairseq.data.modality import Modality
 
 logger = logging.getLogger(__name__)
 

@@ -1,12 +1,11 @@
-from timm.data import Mixup
 import torch
 import torch.nn as nn
-from multimodal_data2vec import KDMMData2VecConfig, KDMMData2Vec, KDData2VecPreTrainingLightningModule
+from multimodal_data2vec import KDMMData2Vec, KDData2VecPreTrainingLightningModule
 from typing import *
 import pytorch_lightning as L
 import torch.nn.functional as F
 from transformers.optimization import get_cosine_schedule_with_warmup
-from datasets_ import Modality
+from data2vec_fairseq.data.modality import Modality
 from sklearn.metrics import accuracy_score, top_k_accuracy_score
 from fairseq.models.roberta.model import RobertaClassificationHead
 
