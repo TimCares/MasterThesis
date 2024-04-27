@@ -87,13 +87,15 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
                                       betas=tuple(self.cfg.optimizer.betas),
                                       eps=self.cfg.optimizer.eps,
                                       weight_decay=self.cfg.optimizer.weight_decay)
-        
-        scheduler = get_cosine_schedule_with_warmup(
-            optimizer,
-            num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,
-            num_training_steps=self.cfg.optimizer_schedule.max_steps,
-        )
-        return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": "cosine_w_warmup"}]
+        if self.cfg.optimizer.warmup:
+            scheduler = get_cosine_schedule_with_warmup(
+                optimizer,
+                num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,
+                num_training_steps=self.cfg.optimizer_schedule.max_steps,
+            )
+            return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": "cosine_w_warmup"}]
+        else:
+            return optimizer
 
 
 @dataclass
