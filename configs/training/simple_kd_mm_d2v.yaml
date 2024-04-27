@@ -43,9 +43,9 @@ model:
 
   encoders_embed_dim: 768
   embed_dim: 768
-  depth: 6
+  depth: 5
   num_heads: 8 
-  mlp_ratio: 2.5 # 3.0 or 4.0
+  mlp_ratio: 3 # 3.0 or 4.0
   encoder_dropout: 0.1
   attention_dropout: 0.1
   activation_dropout: 0.1
@@ -83,7 +83,7 @@ zero_shot_val:
   data_path: ${base_dir}
   # num_max_bpe_tokens: ${nlp_context_length}
   # is_multimodal_aligned: False
-  val_every_n_batches: 5_000
+  val_every_n_batches: 3_000
 
   dataloader:
     data_path: ${data_path}
@@ -112,12 +112,12 @@ checkpoint:
   every_n_train_steps: ${zero_shot_val.val_every_n_batches}
   save_on_train_epoch_end: False # False -> run at end of validation
   verbose: True
-  monitor: val/unimodal-mean-knn--zeroshot-top1-acc # logged in: ZeroShotCallback
+  monitor: val/unimodal-mean-retrieval--zeroshot-top3 # logged in: ZeroShotRetrievalCallback
   mode: max
   auto_insert_metric_name: False
 
 optimizer:
-  lr: 0.00075 # -> 7.5e-4
+  lr: 0.0005 # -> 5e-4
   betas: [ 0.9,0.98 ]
   eps: 1e-06
   weight_decay: 0.01
@@ -131,7 +131,7 @@ lightning_trainer:
   accelerator: gpu
   devices: -1
   #strategy: ddp # -> automatically used if multiple GPUs are available -> devices: -1
-  max_steps: 50_000
+  max_steps: 30_000
   val_check_interval: # None -> no validation
   num_sanity_val_steps: 0 # mean test running "num_sanity_val_steps" batches of the validation dataloaders, but here we have no classical validation
   limit_val_batches: 0 # no classical validation

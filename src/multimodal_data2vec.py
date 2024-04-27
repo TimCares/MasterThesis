@@ -66,7 +66,8 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
     
     def kd_loss(self, y_hat, y):
         y_hat = y_hat.view(-1, y_hat.size(-1)).float() # (B, D, C) -> (B*D, C)
-        y = y.view(-1, y_hat.size(-1)).float() # (B, D, C) -> (B*D, C)
+        y = y.contiguous()
+        y = y.view(-1, y.size(-1)).float() # (B, D, C) -> (B*D, C)
 
         loss = F.mse_loss(y_hat, y, reduction="none").float()
 

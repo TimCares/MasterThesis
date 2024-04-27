@@ -97,12 +97,9 @@ class IMDBDataModule(BaseDataModule):
         super().__init__(data_path, *args, **kwargs)
         self.num_max_bpe_tokens = num_max_bpe_tokens
 
-    def prepare_data(self):
-        if not self.prepared:
-            self.set_train_dataset()
-            self.set_test_dataset()
-
-            self.prepared = True
+    def prepare_data(self): # only for validation datasets
+        self.set_train_dataset()
+        self.set_test_dataset()
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
@@ -153,12 +150,9 @@ class CIFARDataModule(BaseDataModule):
         assert type in ['cifar10', 'cifar100'], "Cifar dataset type must be in ['cifar10', 'cifar100']."
         self.type = type
 
-    def prepare_data(self):
-        if not self.prepared:
-            self.set_train_dataset()
-            self.set_test_dataset()
-
-            self.prepared = True
+    def prepare_data(self): # only for validation datasets
+        self.set_train_dataset()
+        self.set_test_dataset()
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
@@ -311,12 +305,9 @@ class SpeechCommandsDataModule(BaseDataModule):
         self.normalize = normalize
         self.pad = pad
 
-    def prepare_data(self):
-        if not self.prepared:
-            self.set_train_dataset()
-            self.set_test_dataset()
-
-            self.prepared = True
+    def prepare_data(self): # only for validation datasets
+        self.set_train_dataset()
+        self.set_test_dataset()
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
