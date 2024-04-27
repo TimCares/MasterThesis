@@ -235,12 +235,6 @@ class ZeroShotCallback(Callback):
         self.datamodules = datamodules
         self.val_every_n_batches = val_every_n_batches
 
-    # validation at the start of training to get initial performance (will be close to random)
-    def on_fit_start(self, trainer:Trainer, pl_module:LightningModule) -> None:
-        pl_module.eval()
-        self.validate(trainer, pl_module)
-        pl_module.train()
-
     def on_train_batch_end(self, trainer:Trainer, pl_module:LightningModule, outputs, batch, batch_idx):
         # Check if the current batch count is a multiple of the specified frequency
         if trainer.global_step % self.val_every_n_batches == 0:
