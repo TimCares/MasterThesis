@@ -93,7 +93,7 @@ zero_shot_val:
     drop_last: False
 
   datamodules: # dataloder args are taken from top-level key "data"
-    imdb:
+    qqp:
       num_max_bpe_tokens: ${nlp_context_length}
     cifar10: {}
     cifar100: {}
