@@ -42,6 +42,7 @@ model:
 
   prediction_mode: MEAN_POOLING
   cls_loss_weight: 0.0 # 0.0 -> ignored/not used
+  loss_fn: cosine_similarity # cosine_similarity or mse
 
   encoders_embed_dim: 768
   embed_dim: 768

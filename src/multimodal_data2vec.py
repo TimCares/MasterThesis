@@ -23,12 +23,22 @@ from mome_alt_attention import MOMEAltBlock
 
 logger = logging.getLogger(__name__)
 
+def cosine_similarity_loss(y_hat, y):
+    y_hat = F.normalize(y_hat, dim=-1)
+    y = F.normalize(y, dim=-1)
+    return 1 - F.cosine_similarity(y_hat, y, dim=-1).mean()
+
 class KDData2VecPreTrainingLightningModule(L.LightningModule):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
         self.model = KDMMData2Vec(cfg=self.cfg.model)
         self.transform = get_transforms(**cfg.image_transforms)
+
+        if self.cfg.model.loss_fn == 'cosine_similarity':
+            self.loss_fn = cosine_similarity_loss
+        else:
+            self.loss_fn = partial(F.mse_loss, reduction='mean')
         
         self.save_hyperparameters()
 
@@ -56,7 +66,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         target = target.view(-1, target.size(-1)).float() # BLT -> (B*L)T
         assert y_hat.shape == target.shape # this must be the case
 
-        loss = F.mse_loss(y_hat.float(), target.float(), reduction="mean").float()
+        loss = self.loss_fn(y_hat=y_hat, y=target)
         self.log("train/loss", loss, prog_bar=True)
         if batch['modes'][0] == Modality.IMAGE:
             self.log("train/loss_img", loss, prog_bar=True)
@@ -119,6 +129,7 @@ class KDMMData2VecConfig():
     supported_modalities: List[Modality] = field(default_factory=lambda: [Modality.AUDIO, Modality.IMAGE, Modality.TEXT])
 
     cls_loss_weight: Optional[float] = None
+    loss_fn: str = 'cosine_similarity' # 'cosine_similarity' or 'mse'
 
     init_block_from: Optional[str] = None
     init_strategy: Optional[str] = None # 'ffill' or 'leave_one_out'
