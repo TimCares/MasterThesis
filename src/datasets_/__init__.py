@@ -16,6 +16,7 @@ from .unimodal_datasets import (
     SpeechCommandsDataset,
     ImageNetDataset,
     CIFARDataset,
+    QQPDataset,
     UNIMODAL_DATASET_REGISTRY,
 )
 

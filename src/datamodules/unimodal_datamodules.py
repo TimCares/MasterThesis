@@ -1,7 +1,7 @@
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from typing import Tuple, Dict, Any, List
-from datasets_ import IMDBDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, OpenWebTextDataset
+from datasets_ import IMDBDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, OpenWebTextDataset, QQPDataset
 from datasets_ import DATASET_REGISTRY
 from functools import partial
 
@@ -112,6 +112,25 @@ class IMDBDataModule(BaseDataModule):
 
     def set_test_dataset(self):
         self.test_dataset = IMDBDataset(data_path=self.data_path, split='test', num_max_bpe_tokens=self.num_max_bpe_tokens)
+
+class QQPDataModule(BaseDataModule):
+    def __init__(self, 
+                 data_path:str,
+                 num_max_bpe_tokens:int,
+                 *args,
+                 **kwargs):
+        super().__init__(data_path, *args, **kwargs)
+        self.num_max_bpe_tokens = num_max_bpe_tokens
+
+    def prepare_data(self): # only for validation datasets
+        self.set_train_dataset()
+
+    def setup(self, stage=None):
+        if stage == 'fit' or stage is None:
+            self.train_dataset.load()
+
+    def set_train_dataset(self):
+        self.train_dataset = QQPDataset(data_path=self.data_path, num_max_bpe_tokens=self.num_max_bpe_tokens)
 
 
 class OpenWebTextDataModule(BaseDataModule):
@@ -335,5 +354,6 @@ UNIMODAL_DATAMODULE_REGISTRY = {
     'cifar100': partial(CIFARDataModule, type='cifar100'),
     'imagenet': ImageNetDataModule,
     'librispeech': LibriSpeechDataModule,
-    'speechcommands': SpeechCommandsDataModule
+    'speechcommands': SpeechCommandsDataModule,
+    'qqp': QQPDataModule,
 }

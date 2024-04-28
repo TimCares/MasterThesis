@@ -143,6 +143,65 @@ class IMDBDataset(BaseDataset):
     def __getitem__(self, index):
         item = self.items[index]
         return item
+    
+class QQPDataset(BaseDataset):
+    def __init__(
+            self,
+            data_path:str,
+            num_max_bpe_tokens:int,):
+        super().__init__(data_path=data_path,
+                         split='train') # only one split available
+        self.num_max_bpe_tokens = num_max_bpe_tokens
+        self.path_to_data = os.path.join(self.data_path, 'qqp')
+        self.out_jsonl_path = os.path.join(self.path_to_data, f'{self.split}.jsonl')
+        self.n_pairs = 50_000
+
+        dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
+        bpe_encoder = get_bpe_encoder(self.data_path)
+
+        bos_token_id = dictionary.bos()
+        pad_token_id = dictionary.pad()
+                
+        os.makedirs(self.path_to_data, exist_ok=True)
+        
+        if os.path.exists(self.out_jsonl_path):
+            self.log(f'Data already exists. Skip creating it.')
+            return
+        
+        items = []
+        data_loader = iter(torchtext.datasets.QQP(root=self.path_to_data))
+        for pair_no, (_, text1, text2) in enumerate(data_loader):
+            pair = dict()
+            for i, text in enumerate([text1, text2]):
+                tokens = bpe_encoder.encode(text)
+                language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_max_bpe_tokens,
+                                                                  pad_idx=pad_token_id, bos_idx=bos_token_id)
+                pair[f'text{i}'] = language_tokens
+                pair[f'padding_mask{i}'] = padding_mask
+            
+            items.append(pair)
+            if pair_no+1 == self.n_pairs:
+                break
+
+        write_data_into_jsonl(items, self.out_jsonl_path)
+        shutil.rmtree(f'{self.path_to_data}/datasets')
+
+    @property
+    def modes(self) -> List[Modality]:
+        return [Modality.TEXT]
+                
+    def load(self):
+        items = []
+        with open(self.out_jsonl_path, mode="r", encoding="utf-8") as reader:
+            for line in reader:
+                data = json.loads(line)
+                items.append(data)
+            self.log("Load %d text examples." % len(items))
+        self.items = items
+
+    def __getitem__(self, index):
+        item = self.items[index]
+        return item
 
 
 class LibriSpeechDataset(AudioDataset):
@@ -445,5 +504,6 @@ UNIMODAL_DATASET_REGISTRY = {
     "speechcommands": SpeechCommandsDataset,
     "imagenet": ImageNetDataset,
     "cifar10": partial(CIFARDataset, type='cifar10'),
-    "cifar100": partial(CIFARDataset, type='cifar100')
+    "cifar100": partial(CIFARDataset, type='cifar100'),
+    "qqp": QQPDataset,
 }

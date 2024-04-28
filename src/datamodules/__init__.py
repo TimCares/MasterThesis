@@ -6,6 +6,7 @@ from .unimodal_datamodules import (
     ImageNetDataModule,
     LibriSpeechDataModule,
     SpeechCommandsDataModule,
+    QQPDataModule,
     UNIMODAL_DATAMODULE_REGISTRY
 )
 
