@@ -112,58 +112,6 @@ def run_multimodal_zero_shot(model:Callable,
 
 
 @torch.no_grad()
-def _get_knn_data(model:KDMMData2Vec, data_loader:DataLoader, device:str) ->Tuple[np.ndarray, np.ndarray]:
-    X = []
-    y = []
-    for batch in data_loader:
-        source = batch[batch['modes'][0].name.lower()].to(device)
-        padding_mask = batch['padding_mask'].to(device) if 'padding_mask' in batch else None
-        out = model.encode_modality(modes=batch['modes'], source=source, padding_mask=padding_mask,
-                                    normalize=True) # norm output
-
-        X.append(out.cpu())
-        y.append(batch['target'])
-    # shape after "cat" will be (n_samples, embed_dim)
-    X = torch.cat(X, dim=0)
-    X = X.numpy()
-    y = torch.cat(y, dim=0).cpu().numpy()
-    return X, y
-
-
-@rank_zero_only
-def make_knn_predictions(model:Callable,
-                         n_neighbors:int,
-                         train_loader:DataLoader,
-                         test_loader:DataLoader,
-                         device:str,
-                         name:str) -> Tuple[Callable, float]:
-    
-    X_train, y_train = _get_knn_data(model=model, data_loader=train_loader, device=device)
-
-    knn = KNeighborsClassifier(n_neighbors=n_neighbors)
-    logger.info(f"Training KNN with {n_neighbors} neighbors")
-    knn.fit(X_train, y_train)
-
-    X_test, y_test = _get_knn_data(model=model, data_loader=test_loader, device=device)
- 
-    results = {}
-
-    logger.info(f"Predicting with KNN")
-    y_hat_test = knn.predict_proba(X_test)
-    acc = accuracy_score(y_test, y_hat_test.argmax(axis=1)) # .argmax(axis=1) -> convert class scores to class labels
-    results[f"unimodal-{name}-knn--zeroshot-top1-acc"] = acc
-    logger.info(f"{name}, zero-shot: top1-accuracy: {acc}")
-    try: # if data has less than 5 classes, top5-accuracy will throw an error
-        acc5 = top_k_accuracy_score(y_test, y_hat_test, k=5)
-        results[f"unimodal-{name}-knn--zeroshot-top5-acc"] = acc5
-        logger.info(f"{name}, zero-shot: top5-accuracy: {acc5}")
-    except:
-        pass
-
-    return knn, results
-
-
-@torch.no_grad()
 def _get_zero_shot_retrieval_embeddings(model:KDMMData2Vec, dataloader:DataLoader, device:str) -> Tuple[torch.Tensor, torch.Tensor]:
     embedding_table = []
     ground_truth = []
@@ -252,57 +200,6 @@ class ZeroShotCallback(Callback):
         for name_key in self.datamodules.keys():
             self.datamodules[name_key].teardown(stage='fit')
             self.datamodules[name_key].teardown(stage='test')
-
-
-class ZeroShotKNNCallback(ZeroShotCallback):
-    def __init__(self, n_neighbors:int, datamodules: Dict[str, LightningDataModule], data_path:str, 
-                 val_every_n_batches:int, num_max_bpe_tokens:int, is_multimodal_aligned:bool, *args, **kwargs):
-        super().__init__(
-            datamodules=datamodules,
-            val_every_n_batches=val_every_n_batches,
-        )
-
-        self.n_neighbors = n_neighbors
-        self.encoder = get_bpe_encoder(data_path)
-        self.num_max_bpe_tokens = num_max_bpe_tokens # TODO: utilize later...
-        self.dictionary = Dictionary.load(os.path.join(data_path, 'dict.txt')) # TODO: utilize later...
-        self.is_multimodal_aligned = is_multimodal_aligned # TODO: utilize later...
-    
-
-    def validate(self, trainer, pl_module) -> None:
-        super().validate(trainer, pl_module)
-
-        for name_key in self.datamodules.keys():
-            self.datamodules[name_key].prepare_data()
-            self.datamodules[name_key].setup(stage='fit')
-            self.datamodules[name_key].setup(stage='test')
-            _, metrics = make_knn_predictions(
-                model=pl_module.model,
-                n_neighbors=self.n_neighbors,
-                train_loader=self.datamodules[name_key].train_dataloader(),
-                test_loader=self.datamodules[name_key].test_dataloader(),
-                device=pl_module.device,
-                name=name_key,
-            )
-            if metrics is not None:
-                for metric_key in metrics:
-                    pl_module.log(
-                        f"val/{metric_key}",
-                        metrics[metric_key],
-                        logger=True,
-                        rank_zero_only=True,
-                        on_step=True,
-                        )
-                mean_acc = np.mean([metrics[key] for key in metrics if 'top5' not in key])
-                pl_module.log(
-                        "val/unimodal-mean-knn--zeroshot-top1-acc",
-                        mean_acc,
-                        prog_bar=True,
-                        logger=True,
-                        rank_zero_only=True,
-                        on_step=True,
-                        )
-        self.cleanup() # release memory
 
 
 class ZeroShotRetrievalCallback(ZeroShotCallback):
