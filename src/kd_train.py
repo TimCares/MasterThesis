@@ -10,7 +10,7 @@ from pytorch_lightning.loggers import WandbLogger
 from multimodal_data2vec import KDMMData2VecConfig, KDData2VecPreTrainingLightningModule, TestLightningModule
 from datamodules import DATAMODULE_REGISTRY
 from multi_data_loader import MultiDataModule
-from callbacks import ZeroShotKNNCallback, ZeroShotRetrievalCallback, WallClockCallback
+from callbacks import ZeroShotRetrievalCallback, WallClockCallback
 
 from fairseq.dataclass.utils import merge_with_parent
 
