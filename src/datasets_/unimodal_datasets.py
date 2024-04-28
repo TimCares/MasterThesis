@@ -154,7 +154,7 @@ class QQPDataset(BaseDataset):
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.path_to_data = os.path.join(self.data_path, 'qqp')
         self.out_jsonl_path = os.path.join(self.path_to_data, f'{self.split}.jsonl')
-        self.n_pairs = 50_000
+        self.n_pairs = 25_000
 
         dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
         bpe_encoder = get_bpe_encoder(self.data_path)

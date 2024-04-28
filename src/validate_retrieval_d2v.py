@@ -124,16 +124,12 @@ def compute_recall(similarity_scores: torch.Tensor, k: int = 5) -> float:
 @torch.no_grad()
 def _get_zero_shot_pair_retrieval_embeddings(model, dataloader:DataLoader, device:str) -> Tuple[torch.Tensor, torch.Tensor]:
     agg_strategies = ['CLS', 'mean', 'mean_without_CLS']
-    X_data_dict = {strategy: {
-        1: [],
-        2: [],
-    }
-    for strategy in agg_strategies}
+    X_data_dict = {strategy: {i: [] for i in range(2)} for strategy in agg_strategies}
     
-    for batch in dataloader:
-        for i in [1,2]: # for each element in the pair
-            source = batch[f"{batch['modes'][0].name.lower()}{i}"].to(device) # "text1", "text2"
-            padding_mask = batch[f'padding_mask{i}'].to(device) if f'padding_mask{i}' in batch else None # "padding_mask1", "padding_mask2"
+    for batch in track(dataloader):
+        for i in range(2): # for each element in the pair
+            source = batch[f"{batch['modes'][0].name.lower()}{i}"].to(device) # "text0", "text1"
+            padding_mask = batch[f'padding_mask{i}'].to(device) if f'padding_mask{i}' in batch else None # "padding_mask0", "padding_mask1"
             # encoding also normalizes the output
             pred = model.extract_features(
                 source=source,
@@ -171,7 +167,7 @@ def _get_zero_shot_pair_retrieval_embeddings(model, dataloader:DataLoader, devic
                 X_data_dict[agg_strategy][i].append(out_reduced.cpu())
 
     for agg_strategy in agg_strategies:
-        for i in [1,2]:
+        for i in range(2):
             X_data_dict[agg_strategy][i] = torch.cat(X_data_dict[agg_strategy][i], dim=0)
 
     return X_data_dict
@@ -186,18 +182,18 @@ def unimodal_zero_shot_pair_retrieval(model,
 
     for agg_strategy in ['CLS', 'mean', 'mean_without_CLS']:
 
-        similarity_scores = memory_bank[agg_strategy][1] @ memory_bank[agg_strategy][2].t()
+        similarity_scores = memory_bank[agg_strategy][0] @ memory_bank[agg_strategy][1].t()
         similarity_scores_t = similarity_scores.t()
 
-        pair1_to_2_r1 = compute_recall(similarity_scores, k=1)
-        pair1_to_2_r5 = compute_recall(similarity_scores, k=5)
-        pair2_to_1_r1 = compute_recall(similarity_scores_t, k=1)
-        pair2_to_1_r5 = compute_recall(similarity_scores_t, k=5)
+        pair0_to_1_r1 = compute_recall(similarity_scores, k=1)
+        pair0_to_1_r5 = compute_recall(similarity_scores, k=5)
+        pair1_to_0_r1 = compute_recall(similarity_scores_t, k=1)
+        pair1_to_0_r5 = compute_recall(similarity_scores_t, k=5)
 
-        logger.info(f"{agg_strategy} unimodal-{name}-pair1_2-retrieval--zeroshot-recall@1: {pair1_to_2_r1}")
-        logger.info(f"{agg_strategy} unimodal-{name}-pair1_2-retrieval--zeroshot-recall@5: {pair1_to_2_r5}")
-        logger.info(f"{agg_strategy} unimodal-{name}-pair2_1-retrieval--zeroshot-recall@1: {pair2_to_1_r1}")
-        logger.info(f"{agg_strategy} unimodal-{name}-pair2_1-retrieval--zeroshot-recall@5: {pair2_to_1_r5}")
+        logger.info(f"{agg_strategy} unimodal-{name}-pair0_1-retrieval--zeroshot-recall@1: {pair0_to_1_r1}")
+        logger.info(f"{agg_strategy} unimodal-{name}-pair0_1-retrieval--zeroshot-recall@5: {pair0_to_1_r5}")
+        logger.info(f"{agg_strategy} unimodal-{name}-pair1_0-retrieval--zeroshot-recall@1: {pair1_to_0_r1}")
+        logger.info(f"{agg_strategy} unimodal-{name}-pair1_0-retrieval--zeroshot-recall@5: {pair1_to_0_r5}")
 
 
 def perform_representation_test(model, datamodules, pair, device) -> None:

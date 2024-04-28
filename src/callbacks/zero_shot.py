@@ -184,19 +184,16 @@ def compute_recall(similarity_scores: torch.Tensor, k: int = 5) -> float:
 
 @torch.no_grad()
 def _get_zero_shot_pair_retrieval_embeddings(model:KDMMData2Vec, dataloader:DataLoader, device:str) -> Tuple[torch.Tensor, torch.Tensor]:
-    embedding_tables = {
-        1: [],
-        2: [],
-    }
+    embedding_tables = {i: [] for i in range(2)}
     for batch in dataloader:
-        for i in [1,2]: # for each element in the pair
-            source = batch[f"{batch['modes'][0].name.lower()}{i}"].to(device) # "text1", "text2"
-            padding_mask = batch[f'padding_mask{i}'].to(device) if f'padding_mask{i}' in batch else None # "padding_mask1", "padding_mask2"
+        for i in range(2): # for each element in the pair
+            source = batch[f"{batch['modes'][0].name.lower()}{i}"].to(device) # "text0", "text1"
+            padding_mask = batch[f'padding_mask{i}'].to(device) if f'padding_mask{i}' in batch else None # "padding_mask0", "padding_mask1"
             # encoding also normalizes the output
             emb = model.encode_modality(modes=batch['modes'], source=source, padding_mask=padding_mask, normalize=True)
             embedding_tables[i].append(emb.detach().cpu())
 
-    return torch.cat(embedding_tables[1], 0), torch.cat(embedding_tables[2], 0)
+    return torch.cat(embedding_tables[0], 0), torch.cat(embedding_tables[1], 0)
 
 @rank_zero_only
 def unimodal_zero_shot_pair_retrieval(model:KDMMData2Vec,
@@ -210,16 +207,16 @@ def unimodal_zero_shot_pair_retrieval(model:KDMMData2Vec,
     similarity_scores = memory_bank1 @ memory_bank2.t()
     similarity_scores_t = similarity_scores.t()
 
-    pair1_to_2_r1 = compute_recall(similarity_scores, k=1)
-    pair1_to_2_r5 = compute_recall(similarity_scores, k=5)
-    pair2_to_1_r1 = compute_recall(similarity_scores_t, k=1)
-    pair2_to_1_r5 = compute_recall(similarity_scores_t, k=5)
+    pair0_to_1_r1 = compute_recall(similarity_scores, k=1)
+    pair0_to_1_r5 = compute_recall(similarity_scores, k=5)
+    pair1_to_0_r1 = compute_recall(similarity_scores_t, k=1)
+    pair1_to_0_r5 = compute_recall(similarity_scores_t, k=5)
 
-    results[f"unimodal-{name}-pair1_2-retrieval--zeroshot-recall@1"] = pair1_to_2_r1
-    results[f"unimodal-{name}-pair1_2-retrieval--zeroshot-recall@5"] = pair1_to_2_r5
+    results[f"unimodal-{name}-pair1_2-retrieval--zeroshot-recall@1"] = pair0_to_1_r1
+    results[f"unimodal-{name}-pair1_2-retrieval--zeroshot-recall@5"] = pair0_to_1_r5
 
-    results[f"unimodal-{name}-pair2_1-retrieval--zeroshot-recall@1"] = pair2_to_1_r1
-    results[f"unimodal-{name}-pair2_1-retrieval--zeroshot-recall@5"] = pair2_to_1_r5
+    results[f"unimodal-{name}-pair2_1-retrieval--zeroshot-recall@1"] = pair1_to_0_r1
+    results[f"unimodal-{name}-pair2_1-retrieval--zeroshot-recall@5"] = pair1_to_0_r5
 
     return results
 
