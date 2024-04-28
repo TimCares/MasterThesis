@@ -113,20 +113,114 @@ def unimodal_zero_shot_retrieval(model,
             pass # if data has less than 5 classes, top5-accuracy will throw an error
 
 
+def compute_recall(similarity_scores: torch.Tensor, k: int = 5) -> float:
+    dataset_size = similarity_scores.size(0)
+    targets = torch.arange(dataset_size).view(dataset_size, -1)
+    _, topk_idx = torch.topk(similarity_scores, k)
+    recall = targets.eq(topk_idx).sum()
+    recall = recall / dataset_size
+    return recall
 
-def perform_representation_test(model, datamodules, device) -> None:
+@torch.no_grad()
+def _get_zero_shot_pair_retrieval_embeddings(model, dataloader:DataLoader, device:str) -> Tuple[torch.Tensor, torch.Tensor]:
+    agg_strategies = ['CLS', 'mean', 'mean_without_CLS']
+    X_data_dict = {strategy: {
+        1: [],
+        2: [],
+    }
+    for strategy in agg_strategies}
+    
+    for batch in dataloader:
+        for i in [1,2]: # for each element in the pair
+            source = batch[f"{batch['modes'][0].name.lower()}{i}"].to(device) # "text1", "text2"
+            padding_mask = batch[f'padding_mask{i}'].to(device) if f'padding_mask{i}' in batch else None # "padding_mask1", "padding_mask2"
+            # encoding also normalizes the output
+            pred = model.extract_features(
+                source=source,
+                mode=None, # determined automatically in model
+                padding_mask=padding_mask,
+                mask=False, # we are creating targets from a teacher model for the student model, so no mask
+                remove_extra_tokens=False,
+            )
+            out = pred['x']
+            
+            for agg_strategy in agg_strategies:
+                if agg_strategy=="CLS":
+                    out_reduced = out[:, 0, :]
+                elif agg_strategy=="mean":
+                    if f'padding_mask{i}' in pred and pred[f'padding_mask{i}'] is not None:
+                        non_padded_avg = []
+                        for i in range(out.size(0)):
+                            non_padded_avg.append(out[i][~pred[f'padding_mask{i}'][i]].mean(dim=0)) # list of B*(tensors of shape (C,))
+                        out_reduced = torch.stack(non_padded_avg) # list of B*(tensors of shape (C,)) -> BC
+                    else:
+                        out_reduced = out.mean(dim=1)
+                else:
+                    if f'padding_mask{i}' in pred and pred[f'padding_mask{i}'] is not None:
+                        out_reduced = out[:, 1:, :]
+                        padding_mask = pred[f'padding_mask{i}'][:, 1:]
+                        non_padded_avg = []
+                        for i in range(out_reduced.size(0)):
+                            non_padded_avg.append(out_reduced[i][~padding_mask[i]].mean(dim=0)) # list of B*(tensors of shape (C,))
+                        out_reduced = torch.stack(non_padded_avg) # list of B*(tensors of shape (C,)) -> BC
+                    else:
+                        out_reduced = out[:, 1:, :].mean(dim=1)
+
+                out_reduced = F.normalize(out_reduced, dim=-1)
+
+                X_data_dict[agg_strategy][i].append(out_reduced.cpu())
+
+    for agg_strategy in agg_strategies:
+        for i in [1,2]:
+            X_data_dict[agg_strategy][i] = torch.cat(X_data_dict[agg_strategy][i], dim=0)
+
+    return X_data_dict
+
+
+def unimodal_zero_shot_pair_retrieval(model,
+                                      train_loader:DataLoader,
+                                      device:str,
+                                      name:str) -> None:
+    
+    memory_bank = _get_zero_shot_pair_retrieval_embeddings(model=model, dataloader=train_loader, device=device)
+
+    for agg_strategy in ['CLS', 'mean', 'mean_without_CLS']:
+
+        similarity_scores = memory_bank[agg_strategy][1] @ memory_bank[agg_strategy][2].t()
+        similarity_scores_t = similarity_scores.t()
+
+        pair1_to_2_r1 = compute_recall(similarity_scores, k=1)
+        pair1_to_2_r5 = compute_recall(similarity_scores, k=5)
+        pair2_to_1_r1 = compute_recall(similarity_scores_t, k=1)
+        pair2_to_1_r5 = compute_recall(similarity_scores_t, k=5)
+
+        logger.info(f"{agg_strategy} unimodal-{name}-pair1_2-retrieval--zeroshot-recall@1: {pair1_to_2_r1}")
+        logger.info(f"{agg_strategy} unimodal-{name}-pair1_2-retrieval--zeroshot-recall@5: {pair1_to_2_r5}")
+        logger.info(f"{agg_strategy} unimodal-{name}-pair2_1-retrieval--zeroshot-recall@1: {pair2_to_1_r1}")
+        logger.info(f"{agg_strategy} unimodal-{name}-pair2_1-retrieval--zeroshot-recall@5: {pair2_to_1_r5}")
+
+
+def perform_representation_test(model, datamodules, pair, device) -> None:
     for name, datamodule in datamodules.items():
         datamodule.prepare_data()
         datamodule.setup(stage='fit')
         datamodule.setup(stage='test')
         
-        unimodal_zero_shot_retrieval(
-            model=model,
-            train_loader=datamodule.train_dataloader(),
-            test_loader=datamodule.test_dataloader(),
-            device=device,
-            name=name,
-            )
+        if not pair:
+            unimodal_zero_shot_retrieval(
+                model=model,
+                train_loader=datamodule.train_dataloader(),
+                test_loader=datamodule.test_dataloader(),
+                device=device,
+                name=name,
+                )
+        else:
+            unimodal_zero_shot_pair_retrieval(
+                model=model,
+                train_loader=datamodule.train_dataloader(),
+                device=device,
+                name=name,
+                )
         
 
 def main():
@@ -155,21 +249,21 @@ def main():
 
     image_datamodules = {key: value for key, value in zero_shot_modules.items() if 'cifar' in key}
 
-    perform_representation_test(model=d2v, datamodules=image_datamodules, device=device)
+    perform_representation_test(model=d2v, datamodules=image_datamodules, pair=False, device=device)
 
     d2v = load_pretrained_d2v_model(state_dict_path=os.path.join(cfg.model.pretrained_path, cfg.model.pretrained.audio))
     d2v = d2v.to(device)
     
     audio_datamodules = {key: value for key, value in zero_shot_modules.items() if 'speech' in key}
 
-    perform_representation_test(model=d2v, datamodules=audio_datamodules, device=device)
+    perform_representation_test(model=d2v, datamodules=audio_datamodules, pair=False, device=device)
 
     d2v = load_pretrained_d2v_model(state_dict_path=os.path.join(cfg.model.pretrained_path, cfg.model.pretrained.text))
     d2v = d2v.to(device)
 
-    text_datamodules = {key: value for key, value in zero_shot_modules.items() if 'imdb' in key}
+    text_datamodules = {key: value for key, value in zero_shot_modules.items() if 'qqp' in key}
 
-    perform_representation_test(model=d2v, datamodules=text_datamodules, device=device)
+    perform_representation_test(model=d2v, datamodules=text_datamodules, pair=True, device=device)
 
 if "__main__" == __name__:
     main()
