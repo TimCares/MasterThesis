@@ -53,7 +53,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
 
         assert y_hat.shape == target.shape # this must be the case
 
-        loss = self.kd_loss(y_hat=y_hat, y=target)
+        loss = F.mse_loss(y_hat.float(), target.float(), reduction="mean").float()
         self.log("train/loss", loss, prog_bar=True)
         if batch['modes'][0] == Modality.IMAGE:
             self.log("train/loss_img", loss, prog_bar=True)
