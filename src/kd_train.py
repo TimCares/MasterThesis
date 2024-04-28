@@ -61,9 +61,12 @@ def main(cfg: DictConfig) -> None:
         # (ModelCheckpoint usually executed last automatically, but just to be sure)
     ]
 
-    wandb_logger = WandbLogger(project='MMRL', save_dir=cfg.log_dir, log_model="all")
+    wandb_logger = WandbLogger(project='MMRL',
+                               name=cfg.run_name,
+                               save_dir=cfg.log_dir,
+                               log_model="all")
 
-    torch.set_float32_matmul_precision("highest") # or: "high"
+    torch.set_float32_matmul_precision("high") # or: "highest"
     trainer = Trainer(
         **OmegaConf.to_container(cfg.lightning_trainer, resolve=True),
         enable_checkpointing=True,

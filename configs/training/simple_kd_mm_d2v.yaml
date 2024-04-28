@@ -17,6 +17,8 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
+run_name: img_normal_mean_mse_lr_0.0001
+
 load_checkpoint:
 
 nlp_context_length: 512
