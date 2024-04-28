@@ -51,7 +51,7 @@ def both_special_token_and_average_twice(target_layer_results:List[torch.Tensor]
 def special_tokens(target_layer_results:List[torch.Tensor]) -> torch.Tensor:
     target_layer_results = torch.stack(target_layer_results, dim=1)
     target_layer_results = target_layer_results[:, :, 0, :].clone().float()
-    return target_layer_results.view(-1, target_layer_results.size(-1)).float() # BLT -> (B*L)T
+    return target_layer_results
 
 
 @hydra.main(version_base=None, config_path=os.path.join("..", "configs", "kd"), config_name="base")
