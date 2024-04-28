@@ -207,16 +207,16 @@ def unimodal_zero_shot_pair_retrieval(model:KDMMData2Vec,
     similarity_scores = memory_bank1 @ memory_bank2.t()
     similarity_scores_t = similarity_scores.t()
 
-    pair0_to_1_r1 = compute_recall(similarity_scores, k=1)
     pair0_to_1_r5 = compute_recall(similarity_scores, k=5)
-    pair1_to_0_r1 = compute_recall(similarity_scores_t, k=1)
+    pair0_to_1_r10 = compute_recall(similarity_scores, k=10)
     pair1_to_0_r5 = compute_recall(similarity_scores_t, k=5)
+    pair1_to_0_r10 = compute_recall(similarity_scores_t, k=10)
 
-    results[f"unimodal-{name}-pair1_2-retrieval--zeroshot-recall@1"] = pair0_to_1_r1
     results[f"unimodal-{name}-pair1_2-retrieval--zeroshot-recall@5"] = pair0_to_1_r5
+    results[f"unimodal-{name}-pair1_2-retrieval--zeroshot-recall@10"] = pair0_to_1_r10
 
-    results[f"unimodal-{name}-pair2_1-retrieval--zeroshot-recall@1"] = pair1_to_0_r1
     results[f"unimodal-{name}-pair2_1-retrieval--zeroshot-recall@5"] = pair1_to_0_r5
+    results[f"unimodal-{name}-pair2_1-retrieval--zeroshot-recall@10"] = pair1_to_0_r10
 
     return results
 

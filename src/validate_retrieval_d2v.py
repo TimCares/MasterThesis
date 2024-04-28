@@ -185,15 +185,15 @@ def unimodal_zero_shot_pair_retrieval(model,
         similarity_scores = memory_bank[agg_strategy][0] @ memory_bank[agg_strategy][1].t()
         similarity_scores_t = similarity_scores.t()
 
-        pair0_to_1_r1 = compute_recall(similarity_scores, k=1)
         pair0_to_1_r5 = compute_recall(similarity_scores, k=5)
-        pair1_to_0_r1 = compute_recall(similarity_scores_t, k=1)
+        pair0_to_1_r10 = compute_recall(similarity_scores, k=10)
         pair1_to_0_r5 = compute_recall(similarity_scores_t, k=5)
+        pair1_to_0_r10 = compute_recall(similarity_scores_t, k=10)
 
-        logger.info(f"{agg_strategy} unimodal-{name}-pair0_1-retrieval--zeroshot-recall@1: {pair0_to_1_r1}")
         logger.info(f"{agg_strategy} unimodal-{name}-pair0_1-retrieval--zeroshot-recall@5: {pair0_to_1_r5}")
-        logger.info(f"{agg_strategy} unimodal-{name}-pair1_0-retrieval--zeroshot-recall@1: {pair1_to_0_r1}")
+        logger.info(f"{agg_strategy} unimodal-{name}-pair0_1-retrieval--zeroshot-recall@10: {pair0_to_1_r10}")
         logger.info(f"{agg_strategy} unimodal-{name}-pair1_0-retrieval--zeroshot-recall@5: {pair1_to_0_r5}")
+        logger.info(f"{agg_strategy} unimodal-{name}-pair1_0-retrieval--zeroshot-recall@10: {pair1_to_0_r10}")
 
 
 def perform_representation_test(model, datamodules, pair, device) -> None:
