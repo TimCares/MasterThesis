@@ -52,6 +52,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
             target = target[:, -self.cfg.model.depth:, :] # only take the last layers so that the target has the same shape as y_hat
 
         y_hat = y_hat.view(-1, y_hat.size(-1)).float() # BLT -> (B*L)T
+        target = target.contiguous()
         target = target.view(-1, target.size(-1)).float() # BLT -> (B*L)T
         assert y_hat.shape == target.shape # this must be the case
 

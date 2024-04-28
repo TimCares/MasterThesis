@@ -21,7 +21,4 @@ class WallClockCallback(Callback):
     def on_train_end(self, trainer:Trainer, pl_module:LightningModule) -> None:
         logger.info(f"GPU Wall Clock Time: {self.gpu_wall_clock_time/60:.2f} minutes")
         logger.info(f"GPU Wall Clock Time: {self.gpu_wall_clock_time/3600:.2f} hours")
-        self.log("gpu_wall_clock_time", 
-                 self.gpu_wall_clock_time,
-                 logger=True,
-                 rank_zero_only=True,)
+        trainer.logger.experiment.log({"gpu_wall_clock_time": self.gpu_wall_clock_time})

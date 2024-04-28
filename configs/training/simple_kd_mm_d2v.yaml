@@ -114,7 +114,7 @@ checkpoint:
   every_n_train_steps: ${zero_shot_val.val_every_n_batches}
   save_on_train_epoch_end: False # False -> run at end of validation
   verbose: True
-  monitor: val/unimodal-mean-retrieval--zeroshot-top3 # logged in: ZeroShotRetrievalCallback
+  monitor: val/unimodal-mean-retrieval--zeroshot # logged in: ZeroShotRetrievalCallback
   mode: max
   auto_insert_metric_name: False
 

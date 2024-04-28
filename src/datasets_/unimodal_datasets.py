@@ -170,7 +170,12 @@ class QQPDataset(BaseDataset):
         
         items = []
         data_loader = iter(torchtext.datasets.QQP(root=self.path_to_data))
-        for pair_no, (_, text1, text2) in enumerate(data_loader):
+        pairs_collected = 0
+        for target, text1, text2 in data_loader:
+            if pairs_collected == self.n_pairs:
+                break
+            if target == 0: # only collect duplicated questions
+                continue
             pair = dict()
             for i, text in enumerate([text1, text2]):
                 tokens = bpe_encoder.encode(text)
@@ -180,8 +185,7 @@ class QQPDataset(BaseDataset):
                 pair[f'padding_mask{i}'] = padding_mask
             
             items.append(pair)
-            if pair_no+1 == self.n_pairs:
-                break
+            pairs_collected += 1
 
         write_data_into_jsonl(items, self.out_jsonl_path)
         shutil.rmtree(f'{self.path_to_data}/datasets')
