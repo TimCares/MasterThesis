@@ -148,7 +148,7 @@ def unimodal_zero_shot_retrieval(model:KDMMData2Vec,
                                  train_loader:DataLoader,
                                  test_loader:DataLoader,
                                  device:str,
-                                 name:str) -> None:
+                                 name:str) -> Dict[str, float]:
     results = {}
     
     memory_bank, memory_bank_targets = _get_zero_shot_retrieval_embeddings(model=model, dataloader=train_loader, device=device)
@@ -173,6 +173,55 @@ def unimodal_zero_shot_retrieval(model:KDMMData2Vec,
 
     return results
 
+
+def compute_recall(similarity_scores: torch.Tensor, k: int = 5) -> float:
+    dataset_size = similarity_scores.size(0)
+    targets = torch.arange(dataset_size).view(dataset_size, -1)
+    _, topk_idx = torch.topk(similarity_scores, k)
+    recall = targets.eq(topk_idx).sum()
+    recall = recall / dataset_size
+    return recall
+
+@torch.no_grad()
+def _get_zero_shot_pair_retrieval_embeddings(model:KDMMData2Vec, dataloader:DataLoader, device:str) -> Tuple[torch.Tensor, torch.Tensor]:
+    embedding_tables = {
+        1: [],
+        2: [],
+    }
+    for batch in dataloader:
+        for i in [1,2]: # for each element in the pair
+            source = batch[f"{batch['modes'][0].name.lower()}{i}"].to(device) # "text1", "text2"
+            padding_mask = batch[f'padding_mask{i}'].to(device) if f'padding_mask{i}' in batch else None # "padding_mask1", "padding_mask2"
+            # encoding also normalizes the output
+            emb = model.encode_modality(modes=batch['modes'], source=source, padding_mask=padding_mask, normalize=True)
+            embedding_tables[i].append(emb.detach().cpu())
+
+    return torch.cat(embedding_tables[1], 0), torch.cat(embedding_tables[2], 0)
+
+@rank_zero_only
+def unimodal_zero_shot_pair_retrieval(model:KDMMData2Vec,
+                                      train_loader:DataLoader,
+                                      device:str,
+                                      name:str) -> Dict[str, float]:
+    results = {}
+    
+    memory_bank1, memory_bank2 = _get_zero_shot_pair_retrieval_embeddings(model=model, dataloader=train_loader, device=device)
+
+    similarity_scores = memory_bank1 @ memory_bank2.t()
+    similarity_scores_t = similarity_scores.t()
+
+    pair1_to_2_r1 = compute_recall(similarity_scores, k=1)
+    pair1_to_2_r5 = compute_recall(similarity_scores, k=5)
+    pair2_to_1_r1 = compute_recall(similarity_scores_t, k=1)
+    pair2_to_1_r5 = compute_recall(similarity_scores_t, k=5)
+
+    results[f"unimodal-{name}-pair1_2-retrieval--zeroshot-recall@1"] = pair1_to_2_r1
+    results[f"unimodal-{name}-pair1_2-retrieval--zeroshot-recall@5"] = pair1_to_2_r5
+
+    results[f"unimodal-{name}-pair2_1-retrieval--zeroshot-recall@1"] = pair2_to_1_r1
+    results[f"unimodal-{name}-pair2_1-retrieval--zeroshot-recall@5"] = pair2_to_1_r5
+
+    return results
 
 class ZeroShotCallback(Callback):
     """
@@ -205,31 +254,41 @@ class ZeroShotCallback(Callback):
 class ZeroShotRetrievalCallback(ZeroShotCallback):
     def validate(self, trainer, pl_module) -> None:
         super().validate(trainer, pl_module)
-
+        all_metrics = []
         for name_key in self.datamodules.keys():
-            metrics = unimodal_zero_shot_retrieval(
-                model=pl_module.model,
-                train_loader=self.datamodules[name_key].train_dataloader(),
-                test_loader=self.datamodules[name_key].test_dataloader(),
-                device=pl_module.device,
-                name=name_key,
-            )
-            if metrics is not None:
-                for metric_key in metrics:
-                    pl_module.log(
-                        f"val/{metric_key}",
-                        metrics[metric_key],
-                        logger=True,
-                        rank_zero_only=True,
-                        on_step=True,
-                        )
-                mean_score = np.mean([metrics[key] for key in metrics if 'top3' in key])
+            if name_key != 'qqp':
+                metrics = unimodal_zero_shot_retrieval(
+                    model=pl_module.model,
+                    train_loader=self.datamodules[name_key].train_dataloader(),
+                    test_loader=self.datamodules[name_key].test_dataloader(),
+                    device=pl_module.device,
+                    name=name_key,
+                )
+            else:
+                metrics = unimodal_zero_shot_pair_retrieval(
+                    model=pl_module.model,
+                    train_loader=self.datamodules[name_key].train_dataloader(),
+                    device=pl_module.device,
+                    name=name_key,
+                )
+            for metric_key in metrics:
                 pl_module.log(
-                        "val/unimodal-mean-retrieval--zeroshot-top3",
-                        mean_score,
-                        prog_bar=True,
-                        logger=True,
-                        rank_zero_only=True,
-                        on_step=True,
-                        )
+                    f"val/{metric_key}",
+                    metrics[metric_key],
+                    logger=True,
+                    rank_zero_only=True,
+                    on_step=True,
+                    )
+                all_metrics.append(metrics[metric_key])
+        
+        mean_score = np.mean(all_metrics)
+        pl_module.log(
+                "val/unimodal-mean-retrieval--zeroshot",
+                mean_score,
+                prog_bar=True,
+                logger=True,
+                rank_zero_only=True,
+                on_step=True,
+                )
+        
         self.cleanup() # release memory
