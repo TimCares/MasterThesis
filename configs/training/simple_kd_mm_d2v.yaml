@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: img_normal_mean_mse_lr_0.0001
+run_name: img_nrmd_cos_lr_1e4_no_reg_block
 
 load_checkpoint:
 
@@ -120,7 +120,7 @@ checkpoint:
   auto_insert_metric_name: False
 
 optimizer:
-  lr: 0.0001 # -> 5e-4
+  lr: 0.0001 # -> 1e-4
   betas: [ 0.9,0.98 ]
   eps: 1e-06
   weight_decay: 0.01

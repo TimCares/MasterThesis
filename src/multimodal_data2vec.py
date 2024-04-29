@@ -20,7 +20,7 @@ from datasets_.data_utils import get_transforms
 from data2vec_fairseq.models.modalities.modules import AltBlock
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from mome_alt_attention import MOMEAltBlock
-from timm.models.vision_transformer import Block
+from modules import LayerResultBlock
 
 logger = logging.getLogger(__name__)
 
@@ -219,7 +219,7 @@ class KDMMData2Vec(nn.Module):
             nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
         )
 
-        return Block(
+        return LayerResultBlock(
             dim=self.cfg.embed_dim if dim is None else dim,
             num_heads=self.cfg.num_heads if heads is None else heads,
             mlp_ratio=self.cfg.mlp_ratio,
@@ -228,6 +228,7 @@ class KDMMData2Vec(nn.Module):
             attn_drop=self.cfg.attention_dropout,
             drop_path=drop_path,
             norm_layer=make_layer_norm,
+            layer_norm_first=self.cfg.layer_norm_first,
         )
 
     def _get_modality_encoders(self) -> None:
@@ -298,32 +299,31 @@ class KDMMData2Vec(nn.Module):
         x = extractor_out["x"]
         encoder_mask = extractor_out["encoder_mask"]
         masked_padding_mask = extractor_out["padding_mask"]
-        masked_alibi_bias = extractor_out.get("alibi_bias", None)
-        alibi_scale = extractor_out.get("alibi_scale", None)
+        # masked_alibi_bias = extractor_out.get("alibi_bias", None)
+        # alibi_scale = extractor_out.get("alibi_scale", None)
 
         if self.dropout_input is not None:
             x = self.dropout_input(x)
 
         layer_results = []
-        for i, blk in enumerate(self.blocks):
+        for blk in self.blocks:
             if (
                 not self.training
                 or self.layerdrop == 0
                 or (np.random.random() > self.layerdrop)
             ):
-                ab = masked_alibi_bias
-                if ab is not None and alibi_scale is not None:
-                    scale = (
-                        alibi_scale[i]
-                        if alibi_scale.size(0) > 1
-                        else alibi_scale.squeeze(0)
-                    )
-                    ab = ab * scale.type_as(ab)
+                # ab = masked_alibi_bias
+                # if ab is not None and alibi_scale is not None:
+                #     scale = (
+                #         alibi_scale[i]
+                #         if alibi_scale.size(0) > 1
+                #         else alibi_scale.squeeze(0)
+                #     )
+                #     ab = ab * scale.type_as(ab)
 
                 x, lr = blk(
                     x,
-                    padding_mask=masked_padding_mask,
-                    alibi_bias=ab,
+                    #padding_mask=masked_padding_mask,
                 )
                 if features_only:
                     layer_results.append(lr)
