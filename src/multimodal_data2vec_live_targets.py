@@ -8,18 +8,13 @@ import os
 from utils import load_pretrained_d2v_model
 import logging
 import pytorch_lightning as L
-import math
 from omegaconf import II
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from data2vec_fairseq.data.modality import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup
-from kd_precompute import special_token_and_average, average_twice, special_tokens
-from datasets_.data_utils import get_transforms
 
-from data2vec_fairseq.models.modalities.modules import AltBlock
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
-from mome_alt_attention import MOMEAltBlock
 from modules import LayerResultBlock
 
 logger = logging.getLogger(__name__)
@@ -29,12 +24,29 @@ def cosine_similarity_loss(input, target):
     target = F.normalize(target, dim=-1)
     return (1 - F.cosine_similarity(input, target, dim=-1)).mean()
 
-class KDData2VecPreTrainingLightningModule(L.LightningModule):
+def prepare_output(out:List[torch.Tensor]) -> List[torch.Tensor]:
+    out = [
+        F.instance_norm(tl.transpose(1, 2).float()).transpose(1, 2)
+        for tl in out  # BTC -> BCT -> BTC
+    ]
+
+    y = out[0].float()
+    for tl in out[1:]:
+        y.add_(tl.float())
+    y = y.div_(len(out))
+    return y
+
+class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
-        self.model = KDMMData2Vec(cfg=self.cfg.model)
-        self.transform = get_transforms(**cfg.image_transforms)
+
+        state_dict_name = self.cfg.model.pretrained['image']
+        state_dict_path = os.path.join(self.cfg.model.pretrained_path, state_dict_name)
+        self.teacher = load_pretrained_d2v_model(state_dict_path=state_dict_path)
+        del self.teacher.modality_encoders
+        
+        self.model = KDSharedMMData2Vec(cfg=self.cfg.model)
 
         if self.cfg.model.loss_fn == 'cosine_similarity':
             self.loss_fn = cosine_similarity_loss
@@ -44,30 +56,33 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, input_dict):
-        return self.model(**input_dict)
+        return self.model(**input_dict, return_encoder_output=True)
 
     def training_step(self, batch:Dict[str, Any], batch_idx):
-        target:torch.Tensor = batch.pop('target')
-        if batch['modes'][0] == Modality.IMAGE:
-            batch['image'] = self.transform(batch['image'])
-        
+        if 'target' in batch:
+            batch.pop('target')
         output_dict = self(batch) # call "forward"
 
-        if batch['modes'][0] == Modality.AUDIO:
-            y_hat = average_twice(output_dict['layer_results'], norm=True)
+        with torch.no_grad():
+            target = self.teacher.extract_features(
+                    source=batch['image'],
+                    mode=None, # determined automatically in model
+                    padding_mask=None,
+                    mask=False, # we are creating targets from a teacher model for the student model, so no mask
+                    remove_extra_tokens=False,
+                    precomputed_encoder_output=output_dict['encoder_output'],
+                )
+        
+        target = target['layer_results']
+        target = prepare_output(target[-self.cfg.model.depth:])
+        pred = output_dict['layer_results']
+        pred = prepare_output(pred)
 
-        else:
-            #y_hat = special_token_and_average(output_dict['layer_results'], norm=True)
-            y_hat = special_tokens(output_dict['layer_results']) # B, L, C
-
-            target = target[:, -self.cfg.model.depth:, :] # only take the last layers so that the target has the same shape as y_hat
-
-        y_hat = y_hat.view(-1, y_hat.size(-1)).float() # BLT -> (B*L)T
-        target = target.contiguous()
+        pred = pred.view(-1, pred.size(-1)).float() # BLT -> (B*L)T
         target = target.view(-1, target.size(-1)).float() # BLT -> (B*L)T
-        assert y_hat.shape == target.shape # this must be the case
+        assert pred.shape == target.shape # this must be the case
 
-        loss = self.loss_fn(input=y_hat, target=target)
+        loss = self.loss_fn(input=pred, target=target).float()
         self.log("train/loss", loss, prog_bar=True)
         if batch['modes'][0] == Modality.IMAGE:
             self.log("train/loss_img", loss, prog_bar=True)
@@ -83,16 +98,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         y = y.contiguous()
         y = y.view(-1, y.size(-1)).float() # (B, D, C) -> (B*D, C)
 
-        loss = F.mse_loss(y_hat, y, reduction="none").float()
-
-        if self.cfg.model.loss_scale is not None:
-            scale = self.cfg.model.loss_scale
-        else:
-            scale = 1 / math.sqrt(y_hat.size(-1))
-        
-        reg_loss = loss * scale
-        
-        return reg_loss.sum(dim=-1).mean() # sum over the last dimension and then take the mean over the batch
+        return F.mse_loss(y_hat, y, reduction="mean").float()
 
 
     def configure_optimizers(self):
@@ -169,21 +175,13 @@ class KDMMData2VecConfig():
 
     seed: int = 42
 
-class KDMMData2Vec(nn.Module):
+class KDSharedMMData2Vec(nn.Module):
     def __init__(self,
                  cfg: KDMMData2VecConfig,
                  ):
-        super(KDMMData2Vec, self).__init__()
+        super(KDSharedMMData2Vec, self).__init__()
         self.cfg = cfg
         self.supported_modalities = cfg.supported_modalities
-
-        self.projections = nn.ModuleDict({
-            mode.name.lower(): 
-            (nn.Linear(self.cfg.encoders_embed_dim, self.cfg.embed_dim) 
-             if self.cfg.modality_encoder_proj 
-             else nn.Identity())
-             for mode in self.supported_modalities
-        })
 
         make_layer_norm = partial(
             nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
@@ -264,6 +262,7 @@ class KDMMData2Vec(nn.Module):
         force_remove_masked:bool=False,
         remove_extra_tokens:bool=False,
         precomputed_mask=None,
+        return_encoder_output:bool=False,
     ):
         assert len(modes)==1, f"This model accepts exactly modality indicator at a time, received: {modes}"
         n_sources = sum(mode is not None for mode in [audio, image, text])
@@ -293,8 +292,6 @@ class KDMMData2Vec(nn.Module):
                 mask_seeds=None,
                 precomputed_mask=precomputed_mask,
             )
-
-        extractor_out = self.projections[mode](extractor_out)
 
         x = extractor_out["x"]
         encoder_mask = extractor_out["encoder_mask"]
@@ -338,12 +335,15 @@ class KDMMData2Vec(nn.Module):
                     :, feature_extractor.modality_cfg.num_extra_tokens :
                 ]
 
-        return {
+        out = {
             "x": x,
             "padding_mask": masked_padding_mask,
             "layer_results": layer_results,
             "mask": encoder_mask,
         }
+        if return_encoder_output:
+            out["encoder_output"] = extractor_out
+        return out
     
     def extract_features(
         self, audio=None, image=None, text=None, modes:List[Modality]=None, padding_mask=None, mask=False, remove_extra_tokens=True
@@ -469,220 +469,4 @@ class KDMMData2Vec(nn.Module):
         """
         for modality in self.supported_modalities:
             if modality not in keep_modes:
-                del self.projections[modality.name.lower()]
                 del self.modality_encoders[modality.name.lower()]
-
-
-class InitializedD2V(KDMMData2Vec):
-    def __init__(self,
-                 cfg: KDMMData2VecConfig):
-        super().__init__(cfg)
-        self._init_blocks()
-        if self.cfg.freeze_attention:
-            logger.info("Freezing attention weights.")
-            self.freeze_attention_blocks()
-    
-    def _init_blocks(self) -> None:
-        logger.info(f"Initializing transformer blocks from: {self.cfg.init_block_from}")
-        assert self.cfg.init_block_from in self.cfg.pretrained.keys(), f"Could not find pretrained state dict for: {self.cfg.init_block_from} "
-        "(Used to initialize the transformer blocks)"
-
-        state_dict_name = self.cfg.pretrained[self.cfg.init_block_from]
-        state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
-        d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
-
-        if self.cfg.init_strategy == 'ffill':
-            indices = [i for i in range(self.cfg.depth)]
-        elif self.cfg.init_strategy == 'leave_one_out':
-            indices = self._get_pretrained_block_indices(depth=self.cfg.depth, n_blocks_pretrained=len(d2v_model.blocks))
-        else:
-            raise ValueError(f"Unknown initialization strategy: {self.cfg.init_strategy}")
-        
-        self.blocks = nn.ModuleList([d2v_model.blocks[i] for i in indices])
-        self.blocks.is_pretrained = True
-
-    def remove_modalities_except(self, keep_modes:List[Modality]) -> None:
-        """
-        Removes all modalities from the model except the ones specified.
-        Useful when fine-tuning the model on downstream task
-        involving only a subset of the supported modalities.
-        """
-        super().remove_modalities_except(keep_modes)
-        # TODO
-
-class MoMEInitializedD2V(KDMMData2Vec):
-    def __init__(self,
-                 cfg: KDMMData2VecConfig):
-        super().__init__(cfg)
-        self._init_blocks()
-        if self.cfg.freeze_attention:
-            logger.info("Freezing attention weights.")
-            self.freeze_attention_blocks()
-
-    def _init_blocks(self) -> None:
-        logger.info(f"Initializing Mlps in transformer blocks from all modalities using MoME.")
-        assert self.cfg.init_block_from in self.cfg.pretrained.keys(), f"Could not find pretrained state dict for: {self.cfg.init_block_from} "
-        "(Used to initialize the transformer blocks)"
-
-        state_dict_name = self.cfg.pretrained[self.cfg.init_block_from]
-        state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
-        d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
-
-        if self.cfg.init_strategy == 'ffill':
-            indices = [i for i in range(self.cfg.depth)]
-        elif self.cfg.init_strategy == 'leave_one_out':
-            indices = self._get_pretrained_block_indices(depth=self.cfg.depth, n_blocks_pretrained=len(d2v_model.blocks))
-        else:
-            raise ValueError(f"Unknown initialization strategy: {self.cfg.init_strategy}")
-        
-        for mode in [Modality.AUDIO, Modality.IMAGE, Modality.TEXT]:
-            if self.cfg.init_attention_from is not None and self.cfg.init_attention_from == mode.name.lower():
-                logger.info(f"Initializing Attation in transformer blocks from modality: {mode.name}")
-                for i in range(self.cfg.depth):
-                    self.blocks[i].init_from_pretrained(pretained_block=d2v_model.blocks[indices[i]], # blocks defined in KDMMData2Vec constructor
-                                                        mode=mode.name.lower(),
-                                                        init_attention=True)
-            else:
-                for i in range(self.cfg.depth):
-                    self.blocks[i].init_from_pretrained(pretained_block=d2v_model.blocks[indices[i]], # blocks defined in KDMMData2Vec constructor
-                                                        mode=mode.name.lower(),
-                                                        init_attention=False)
-        
-        self.blocks.is_pretrained = True
-
-
-    def make_block(self, drop_path, dim=None, heads=None):
-        make_layer_norm = partial(
-            nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
-        )
-
-        return MOMEAltBlock(
-            dim=self.cfg.embed_dim if dim is None else dim,
-            num_heads=self.cfg.num_heads if heads is None else heads,
-            mlp_ratio=self.cfg.mlp_ratio,
-            qkv_bias=True,
-            drop=self.cfg.encoder_dropout,
-            attn_drop=self.cfg.attention_dropout,
-            mlp_drop=self.cfg.activation_dropout,
-            post_mlp_drop=self.cfg.post_mlp_drop,
-            drop_path=drop_path,
-            norm_layer=make_layer_norm,
-            layer_norm_first=self.cfg.layer_norm_first,
-            ffn_targets=not self.cfg.end_of_block_targets,
-        )
-
-    def remove_modalities_except(self, keep_modes:List[Modality]) -> None:
-        """
-        Removes all modalities from the model except the ones specified.
-        Useful when fine-tuning the model on downstream task
-        involving only a subset of the supported modalities.
-        """
-        super().remove_modalities_except(keep_modes)
-        # TODO
-
-class DummyModel(nn.Module):
-    def __init__(self,
-                 cfg: KDMMData2VecConfig,
-                 ):
-        super(DummyModel, self).__init__()
-        self.cfg = cfg
-        self.embed_dim = 20
-        # so model.parameters() is not empty
-        self.lin = nn.Linear(self.embed_dim, self.embed_dim)
-
-    def forward(self,
-                modes:List[Modality],
-                audio:torch.Tensor=None,
-                image:torch.Tensor=None,
-                text:torch.Tensor=None,
-                id:torch.Tensor=None,
-                padding_mask:torch.Tensor=None,
-                mask:bool=True,
-                features_only:bool=False,
-                force_remove_masked:bool=False,
-                remove_extra_tokens:bool=True,
-                precomputed_mask=None,
-        ):
-
-        if audio is not None:
-            source = audio
-        elif image is not None:
-            source = image
-        elif text is not None:
-            source = text
-        else:
-            raise ValueError("Audio, image or text must be provided, found all to be None.")
-        
-        out = self.lin(torch.randn_like(source))
-        return {'layer_results': [out for _ in range(self.cfg.depth)],}
-    
-    @torch.no_grad()
-    def encode_modality(self, modes:Union[Modality, List[Modality]], source:torch.Tensor, padding_mask=None, normalize:bool=True):
-        if isinstance(modes, List):
-            assert len(modes)==1, 'Only one modality allowed when calling "encode_modality".'
-        
-        return torch.rand((source.shape[0], self.embed_dim))
-    
-    def encode_text(self, text, padding_mask, normalize:bool=True):
-        return torch.rand((text.shape[0], self.embed_dim))
-    
-    def encode_image(self, image, normalize:bool=True):
-        return torch.rand((image.shape[0], self.embed_dim))
-    
-    def encode_audio(self, audio, padding_mask, normalize:bool=True):
-        return torch.rand((audio.shape[0], self.embed_dim))
-
-class TestLightningModule(L.LightningModule):
-    def __init__(self, cfg):
-        super().__init__()
-        self.save_hyperparameters()
-        self.cfg = cfg
-        self.model = DummyModel(cfg=self.cfg.model)
-
-    def forward(self, input_dict):
-        return self.model(**input_dict)
-
-    def training_step(self, batch:Dict[str, Any], batch_idx):
-        target:torch.Tensor = batch.pop('target')
-        output_dict = self(batch) # call "forward"
-
-        if batch['modes'][0] == Modality.AUDIO:
-            y_hat = average_twice(output_dict['layer_results'], norm=True)
-
-        else:
-            y_hat = special_token_and_average(output_dict['layer_results'], norm=True)
-
-        assert y_hat.shape == target.shape # for simple pretraining this must be the case
-
-        loss = self.kd_loss(y_hat=y_hat, y=target)
-        self.log("train/loss", loss, prog_bar=True)
-        return loss
-    
-    def kd_loss(self, y_hat, y):
-        y_hat = y_hat.view(-1, y_hat.size(-1)).float() # (B, T, C) -> (B*T, C)
-        y = y.view(-1, y_hat.size(-1)).float() # (B, T, C) -> (B*T, C)
-
-        loss = F.mse_loss(y_hat, y, reduction="none").float()
-
-        if self.cfg.model.loss_scale is not None:
-            scale = self.cfg.model.loss_scale
-        else:
-            scale = 1 / math.sqrt(y_hat.size(-1))
-        reg_loss = loss * scale
-        
-        return reg_loss.sum()
-
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(params=self.model.parameters(), 
-                                      lr=self.cfg.optimizer.lr,
-                                      betas=tuple(self.cfg.optimizer.betas),
-                                      eps=self.cfg.optimizer.eps,
-                                      weight_decay=self.cfg.optimizer.weight_decay)
-        
-        scheduler = get_cosine_schedule_with_warmup(
-            optimizer,
-            num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,
-            num_training_steps=self.cfg.optimizer_schedule.max_steps,
-        )
-        return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": "cosine_w_warmup"}]

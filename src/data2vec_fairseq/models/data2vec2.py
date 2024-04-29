@@ -403,6 +403,7 @@ class Data2VecMultiModel(BaseFairseqModel):
         force_remove_masked=False,
         remove_extra_tokens=True,
         precomputed_mask=None,
+        precomputed_encoder_output=None,
     ):
         if mode is None:
             assert self.cfg.supported_modality is not None
@@ -411,21 +412,23 @@ class Data2VecMultiModel(BaseFairseqModel):
         if isinstance(mode, Modality):
             mode = mode.name
 
-        feature_extractor = self.modality_encoders[mode]
-
         mask_seeds = None
         if id is not None:
             mask_seeds = MaskSeed(seed=self.cfg.seed, update=self.num_updates, ids=id)
 
-        extractor_out = feature_extractor(
-            source,
-            padding_mask,
-            mask,
-            remove_masked=not features_only or force_remove_masked,
-            clone_batch=self.cfg.clone_batch if not features_only else 1,
-            mask_seeds=mask_seeds,
-            precomputed_mask=precomputed_mask,
-        )
+        extractor_out = precomputed_encoder_output
+        if precomputed_encoder_output is None:
+            feature_extractor = self.modality_encoders[mode]
+            
+            extractor_out = feature_extractor(
+                source,
+                padding_mask,
+                mask,
+                remove_masked=not features_only or force_remove_masked,
+                clone_batch=self.cfg.clone_batch if not features_only else 1,
+                mask_seeds=mask_seeds,
+                precomputed_mask=precomputed_mask,
+            )
 
         x = extractor_out["x"]
         encoder_mask = extractor_out["encoder_mask"]
@@ -781,7 +784,8 @@ class Data2VecMultiModel(BaseFairseqModel):
             return torch.sqrt(y.var(dim=0) + 1e-6).mean()
 
     def extract_features(
-        self, source, mode=None, padding_mask=None, mask=False, remove_extra_tokens=True
+        self, source, mode=None, padding_mask=None, mask=False, remove_extra_tokens=True, 
+        precomputed_encoder_output=None,
     ):
         res = self.forward(
             source,
@@ -790,6 +794,7 @@ class Data2VecMultiModel(BaseFairseqModel):
             mask=mask,
             features_only=True,
             remove_extra_tokens=remove_extra_tokens,
+            precomputed_encoder_output=precomputed_encoder_output,
         )
         return res
 

@@ -1,0 +1,148 @@
+# @package _global_
+
+hydra:
+  run:
+    dir: .
+
+defaults:
+  - _self_ # this first, so that the base config can be overridden by others
+  
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+
+dry_run: False
+base_dir: "/workspace"
+model_path: ${base_dir}/models
+data_path: ${base_dir}
+log_dir: ${base_dir}/logs
+seed: 42
+
+run_name: live_img_mse_lr_1e4_no_reg_block_ffn_targets
+
+load_checkpoint:
+
+nlp_context_length: 512
+
+image_transforms:
+  beit_transforms: False
+  no_transform: False
+  transform_jitter: False
+
+model:
+  pretrained_path: ${model_path}
+  pretrained:
+    audio: base_libri.pt
+    image: base_imagenet.pt
+    text: nlp_base.pt
+
+  supported_modalities:
+    # - AUDIO
+    - IMAGE
+    # - TEXT
+
+  prediction_mode: MEAN_POOLING
+  cls_loss_weight: 0.0 # 0.0 -> ignored/not used
+  loss_fn: mse # cosine_similarity or mse
+
+  encoders_embed_dim: 768
+  embed_dim: 768
+  depth: 5
+  num_heads: 8 
+  mlp_ratio: 3 # 3.0 or 4.0
+  encoder_dropout: 0.0
+  dropout_input: 0.0
+  attention_dropout: 0.0
+  activation_dropout: 0.0
+  post_mlp_drop: 0.0
+  norm_eps: 1e-6
+  norm_affine: True
+  layer_norm_first: False
+  loss_scale: # Set to None -> Scaled by 1 / sqrt(embed_dim) (done for audio and image but not for text in the original implementation)
+  start_drop_path_rate: 0
+  end_drop_path_rate: 0
+  layerdrop: 0.0
+
+  end_of_block_targets: False
+
+  modality_encoder_proj: False
+
+  seed: ${seed}
+
+data:
+  dataloader:
+    data_path: ${data_path}
+    batch_size: 256
+    num_workers: 12
+    shuffle: True
+    drop_last: True
+
+  datamodules:
+    imagenet:
+      beit_transforms: False
+      no_transform: False
+      transform_jitter: False
+      precompute_mask_config:
+      crop_scale:
+      local_cache_path:
+
+zero_shot_val:
+  # n_neighbors: 20
+  data_path: ${base_dir}
+  # num_max_bpe_tokens: ${nlp_context_length}
+  # is_multimodal_aligned: False
+  val_every_n_batches: 2_000
+
+  dataloader:
+    data_path: ${data_path}
+    batch_size: 256
+    num_workers: 5
+    shuffle: False
+    drop_last: False
+
+  datamodules: # dataloder args are taken from top-level key "data"
+    # qqp:
+    #   num_max_bpe_tokens: ${nlp_context_length}
+    cifar10: {}
+    cifar100: {}
+    # speechcommands:
+    #   min_sample_size: 0 # take all samples
+    #   normalize: True
+    #   pad: True
+
+checkpoint:
+  dirpath: "${model_path}/${now:%Y-%m-%d_%H-%M-%S}"
+  # monitor key is also computed in a callback, ModelCheckpoint callbacks are the last checkpoints executed,
+  # so the key will be computed right beforehand (therefore it is always up to date)
+  filename: mm-d2v-{step}-{${checkpoint.monitor}:.4f}
+  save_last: link # save last checkpoint -> easier access, as it has a fixed name (last.ckpt) -> not set to True here, as a link saves space
+  enable_version_counter: False # only ever one "last.ckpt" file
+  every_n_train_steps: ${zero_shot_val.val_every_n_batches}
+  save_on_train_epoch_end: False # False -> run at end of validation
+  verbose: True
+  monitor: val/unimodal-mean-retrieval--zeroshot # logged in: ZeroShotRetrievalCallback
+  mode: max
+  auto_insert_metric_name: False
+
+optimizer:
+  lr: 0.0001 # -> 1e-4
+  betas: [ 0.9,0.98 ]
+  eps: 1e-06
+  weight_decay: 0.01
+  warmup: False
+
+optimizer_schedule:
+  warmup_steps: 2_500
+  max_steps: ${lightning_trainer.max_steps}
+
+lightning_trainer:
+  default_root_dir: ${log_dir}
+  accelerator: gpu
+  devices: -1
+  #strategy: ddp # -> automatically used if multiple GPUs are available -> devices: -1
+  max_steps: 5_000
+  val_check_interval: # None -> no validation
+  num_sanity_val_steps: 0 # mean test running "num_sanity_val_steps" batches of the validation dataloaders, but here we have no classical validation
+  limit_val_batches: 0 # no classical validation
+  precision: 16-mixed
+  # gradient_clip_val: 4.0 # can be a little higher, as some parts are pre-trained(?) DistillBERT has 5.0
+  log_every_n_steps: 50
