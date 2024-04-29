@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 def cosine_similarity_loss(y_hat, y):
     y_hat = F.normalize(y_hat, dim=-1)
     y = F.normalize(y, dim=-1)
-    return 1 - F.cosine_similarity(y_hat, y, dim=-1).mean()
+    return (1 - F.cosine_similarity(y_hat, y, dim=-1)).mean()
 
 class KDData2VecPreTrainingLightningModule(L.LightningModule):
     def __init__(self, cfg):
