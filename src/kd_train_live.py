@@ -80,7 +80,8 @@ def main(cfg: DictConfig) -> None:
     else:
         for datamodule_key in cfg.data.datamodules.keys():
             dataset_args = cfg.data.datamodules[datamodule_key]
-            dataset_args.update(dataloader_args)
+            with open_dict(dataset_args):
+                dataset_args.update(dataloader_args)
             datamodules.append(DATAMODULE_REGISTRY[datamodule_key](**dataset_args))
             logger.info(f"Train datamodule {datamodule_key}: {dataset_args}")
     

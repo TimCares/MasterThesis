@@ -78,7 +78,9 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
         pred = output_dict['layer_results']
         pred = prepare_output(pred)
 
+        pred = pred.contiguous()
         pred = pred.view(-1, pred.size(-1)).float() # BLT -> (B*L)T
+        target = target.contiguous()
         target = target.view(-1, target.size(-1)).float() # BLT -> (B*L)T
         assert pred.shape == target.shape # this must be the case
 
