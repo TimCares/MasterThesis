@@ -49,15 +49,15 @@ model:
   depth: 5
   num_heads: 8 
   mlp_ratio: 3 # 3.0 or 4.0
-  encoder_dropout: 0.1
-  attention_dropout: 0.1
-  activation_dropout: 0.1
-  post_mlp_drop: 0.1
+  encoder_dropout: 0.0
+  dropout_input: 0.0
+  attention_dropout: 0.0
+  activation_dropout: 0.0
+  post_mlp_drop: 0.0
   norm_eps: 1e-6
   norm_affine: True
   layer_norm_first: False
   loss_scale: # Set to None -> Scaled by 1 / sqrt(embed_dim) (done for audio and image but not for text in the original implementation)
-  dropout_input: 0.0
   start_drop_path_rate: 0
   end_drop_path_rate: 0
   layerdrop: 0.0

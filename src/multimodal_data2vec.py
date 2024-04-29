@@ -20,6 +20,7 @@ from datasets_.data_utils import get_transforms
 from data2vec_fairseq.models.modalities.modules import AltBlock
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from mome_alt_attention import MOMEAltBlock
+from timm.models.vision_transformer import Block
 
 logger = logging.getLogger(__name__)
 
@@ -218,19 +219,15 @@ class KDMMData2Vec(nn.Module):
             nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
         )
 
-        return AltBlock(
+        return Block(
             dim=self.cfg.embed_dim if dim is None else dim,
             num_heads=self.cfg.num_heads if heads is None else heads,
             mlp_ratio=self.cfg.mlp_ratio,
             qkv_bias=True,
-            drop=self.cfg.encoder_dropout,
+            proj_drop=self.cfg.encoder_dropout,
             attn_drop=self.cfg.attention_dropout,
-            mlp_drop=self.cfg.activation_dropout,
-            post_mlp_drop=self.cfg.post_mlp_drop,
             drop_path=drop_path,
             norm_layer=make_layer_norm,
-            layer_norm_first=self.cfg.layer_norm_first,
-            ffn_targets=not self.cfg.end_of_block_targets,
         )
 
     def _get_modality_encoders(self) -> None:
