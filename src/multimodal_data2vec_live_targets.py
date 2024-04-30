@@ -14,6 +14,7 @@ from data2vec_fairseq.data.modality import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup
 import contextlib
 import math
+from copy import deepcopy
 
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from modules import LayerResultBlock
@@ -130,8 +131,7 @@ class KDMMData2VecConfig():
 
     supported_modalities: List[Modality] = field(default_factory=lambda: [Modality.AUDIO, Modality.IMAGE, Modality.TEXT])
 
-    init_block_from: Optional[str] = None
-    init_strategy: Optional[str] = None # 'ffill' or 'leave_one_out'
+    init_blocks_from_mode: Optional[Modality] = None
     freeze_attention: bool = False
 
     init_attention_from: Optional[str] = None
@@ -180,7 +180,8 @@ class KDSharedMMData2Vec(nn.Module):
 
         dpr = np.linspace(self.cfg.start_drop_path_rate, self.cfg.end_drop_path_rate, self.cfg.depth)
 
-        self.blocks = nn.ModuleList([self.make_block(dpr[i]) for i in range(self.cfg.depth)])
+        if self.cfg.init_blocks_from_mode is None:
+            self.blocks = nn.ModuleList([self.make_block(dpr[i]) for i in range(self.cfg.depth)])
 
         self.norm = None
         if self.cfg.layer_norm_first:
@@ -200,6 +201,11 @@ class KDSharedMMData2Vec(nn.Module):
         self.modality_encoders:nn.ModuleDict[Modality, nn.Module] = self._get_modality_encoders()
         self._freeze(self.modality_encoders)
         self.modality_encoders.eval()
+
+        # only here done, not at the point where blocks are defined else,
+        # so that we do not initialize pretrained blocks
+        if self.cfg.init_blocks_from_mode is not None:
+            self._init_blocks()
         
     def make_block(self, drop_path, dim=None, heads=None):
         make_layer_norm = partial(
@@ -400,32 +406,28 @@ class KDSharedMMData2Vec(nn.Module):
                                     padding_mask=padding_mask,
                                     normalize=normalize)
 
-    def _get_pretrained_block_indices(self, depth, n_blocks_pretrained) -> List[int]:
-        blocks_pretrained = [i for i in range(n_blocks_pretrained)]
-        blocks = []
-        pretrained_blocks_count = len(blocks_pretrained)
-
-        if depth*2 > pretrained_blocks_count:
-            pretrained_remaining = pretrained_blocks_count
-            model_remaining = depth
-            current_block_idx = 0
-            while model_remaining*2 > pretrained_remaining and model_remaining > 0:
-                blocks.append(blocks_pretrained[current_block_idx])
-                pretrained_remaining -= 1
-                model_remaining -= 1
-                current_block_idx += 1
-            
-            if model_remaining > 0:
-                for i in range(0, depth-current_block_idx):
-                    take_block_idx = i*2+current_block_idx
-                    blocks.append(blocks_pretrained[take_block_idx])
-        else:
-            for i in range(depth):
-                blocks.append(blocks_pretrained[i*2])
+    def _init_blocks(self) -> None:
+        assert self.cfg.init_blocks_from_mode in self.cfg.pretrained.keys(), \
+            f"Could not find pretrained state dict for: {self.cfg.init_blocks_from_mode} " \
+                "(Used to initialize the transformer blocks)"
         
-        assert len(blocks) == depth
+        assert self.cfg.init_blocks_from_mode in self.supported_modalities, \
+            f"Unsupported modality for initialization of blocks: {self.cfg.init_blocks_from_mode}, " \
+                f"supported modalities are: {self.supported_modalities}"
 
-        return blocks
+        logger.info(f"Initializing blocks from pretrained mode: {self.cfg.init_blocks_from_mode}")
+
+        state_dict_name = self.cfg.pretrained[self.cfg.init_blocks_from_mode]
+        state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
+        d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
+        
+        pretrained_blocks = d2v_model.blocks[-self.cfg.depth:]
+        for i in range(len(self.cfg.depth)):
+            self.blocks[i] = deepcopy(pretrained_blocks[i])
+        
+        if self.cfg.freeze_attention:
+            logger.info("Freezing block attention weights.")
+            self.freeze_attention_blocks()
     
     def freeze_attention_blocks(self):
         if self.cfg.freeze_attention:

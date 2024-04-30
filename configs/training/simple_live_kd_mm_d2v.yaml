@@ -40,6 +40,9 @@ model:
     - IMAGE
     # - TEXT
 
+  init_blocks_from_mode:
+  freeze_attention: False
+
   encoders_embed_dim: 768
   embed_dim: 768
   depth: 5
