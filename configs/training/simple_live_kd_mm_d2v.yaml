@@ -17,16 +17,11 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: live_img_mse_lr_warum_5e4_no_reg_block_ffn_targets
+run_name: live_masked_img_scaled_mse_lr_warmup_5e4
 
 load_checkpoint:
 
 nlp_context_length: 512
-
-image_transforms:
-  beit_transforms: False
-  no_transform: False
-  transform_jitter: False
 
 model:
   pretrained_path: ${model_path}
@@ -43,7 +38,7 @@ model:
   init_blocks_from_mode:
   freeze_attention: False
 
-  mask_student_input: False
+  mask_student_input: True
 
   encoders_embed_dim: 768
   embed_dim: 768
