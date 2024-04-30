@@ -17,7 +17,7 @@ import math
 from copy import deepcopy
 
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
-from modules import LayerResultBlock
+from data2vec_fairseq.models.modalities.modules import AltBlock
 
 logger = logging.getLogger(__name__)
 
@@ -212,16 +212,19 @@ class KDSharedMMData2Vec(nn.Module):
             nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
         )
 
-        return LayerResultBlock(
-            dim=self.cfg.embed_dim if dim is None else dim,
-            num_heads=self.cfg.num_heads if heads is None else heads,
-            mlp_ratio=self.cfg.mlp_ratio,
+        return AltBlock(
+            self.cfg.embed_dim if dim is None else dim,
+            self.cfg.num_heads if heads is None else heads,
+            self.cfg.mlp_ratio,
             qkv_bias=True,
-            proj_drop=self.cfg.encoder_dropout,
+            drop=self.cfg.encoder_dropout,
             attn_drop=self.cfg.attention_dropout,
+            mlp_drop=self.cfg.activation_dropout,
+            post_mlp_drop=self.cfg.post_mlp_drop,
             drop_path=drop_path,
             norm_layer=make_layer_norm,
             layer_norm_first=self.cfg.layer_norm_first,
+            ffn_targets=True,
         )
 
     def _get_modality_encoders(self) -> None:
@@ -313,8 +316,8 @@ class KDSharedMMData2Vec(nn.Module):
 
                 x, lr = blk(
                     x,
-                    # padding_mask=masked_padding_mask,
-                    # alibi_bias=ab,
+                    padding_mask=masked_padding_mask,
+                    alibi_bias=ab,
                 )
                 layer_results.append(lr)
 
