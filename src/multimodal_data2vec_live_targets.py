@@ -464,6 +464,7 @@ class KDSharedMMData2Vec(nn.Module):
     def prepare_fine_tuning(self, keep_modes:List[Modality]) -> None:
         self.fine_tuning = True
         self._remove_modalities_except(keep_modes=keep_modes)
+        self._unfreeze(self.modality_encoders)
 
     def _remove_modalities_except(self, keep_modes:List[Modality]) -> None:
         """
