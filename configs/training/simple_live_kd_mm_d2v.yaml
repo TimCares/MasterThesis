@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: live_img_mse_lr_1e4_no_reg_block_ffn_targets
+run_name: live_img_mse_lr_warum_5e4_no_reg_block_ffn_targets
 
 load_checkpoint:
 
@@ -90,7 +90,7 @@ zero_shot_val:
   data_path: ${base_dir}
   # num_max_bpe_tokens: ${nlp_context_length}
   # is_multimodal_aligned: False
-  val_every_n_batches: 2_000
+  val_every_n_batches: 5_000
 
   dataloader:
     data_path: ${data_path}
@@ -124,14 +124,14 @@ checkpoint:
   auto_insert_metric_name: False
 
 optimizer:
-  lr: 0.0001 # -> 1e-4
+  lr: 0.0005 # -> 5e-4
   betas: [ 0.9,0.98 ]
   eps: 1e-06
   weight_decay: 0.01
-  warmup: False
+  warmup: True
 
 optimizer_schedule:
-  warmup_steps: 2_500
+  warmup_steps: 3_000
   max_steps: ${lightning_trainer.max_steps}
 
 lightning_trainer:
@@ -139,7 +139,7 @@ lightning_trainer:
   accelerator: gpu
   devices: -1
   #strategy: ddp # -> automatically used if multiple GPUs are available -> devices: -1
-  max_steps: 5_000
+  max_steps: 30_000
   val_check_interval: # None -> no validation
   num_sanity_val_steps: 0 # mean test running "num_sanity_val_steps" batches of the validation dataloaders, but here we have no classical validation
   limit_val_batches: 0 # no classical validation
