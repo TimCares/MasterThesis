@@ -223,7 +223,7 @@ class ImageEncoder(ModalitySpecificEncoder):
                 inverse_mask=self.modality_cfg.inverse_mask,
                 require_same_masks=True,
                 mask_dropout=self.modality_cfg.mask_dropout,
-            )
+            ).to(device=x.device)
 
         mask_info = self.make_maskinfo(x, mask, shape)
         if apply:

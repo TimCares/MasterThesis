@@ -41,6 +41,9 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
         state_dict_name = self.cfg.model.pretrained['image']
         state_dict_path = os.path.join(self.cfg.model.pretrained_path, state_dict_name)
         self.teacher = load_pretrained_d2v_model(state_dict_path=state_dict_path)
+        for param in self.teacher.parameters():
+            param.requires_grad = False
+        self.teacher.eval()
         del self.teacher.modality_encoders
         
         self.model = KDSharedMMData2Vec(cfg=self.cfg.model)
