@@ -394,7 +394,7 @@ class ImageNetDataset(ImageDataset):
             #     os.system(f"tar -xf {tar_file_path} -C {self.path_to_split}")
             #     os.remove(tar_file_path)
 
-            self._make_imagnet_dataset_index()
+            self._make_imagenet_dataset_index()
 
         if self.split != 'train':
             self.transform = get_transforms(no_transform=True,
@@ -450,7 +450,7 @@ class ImageNetDataset(ImageDataset):
     def __len__(self):
         return len(self.items)
     
-    def _make_imagnet_dataset_index(self):
+    def _make_imagenet_dataset_index(self):
         items = []
         for file in os.listdir(self.path_to_split):
             if self.split != 'test':
