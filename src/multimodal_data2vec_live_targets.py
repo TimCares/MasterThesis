@@ -62,13 +62,15 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
         if self.cfg.model.mask_student_input:
             # we do knowledge distillation the same way d2v is trained => teacher gets unmasked input
             precomputed_encoder_output['x'] = precomputed_encoder_output['x_unmasked']
+            precomputed_encoder_output['padding_mask'] = precomputed_encoder_output['original_padding_mask']
             del precomputed_encoder_output['x_unmasked']
+            del precomputed_encoder_output['original_padding_mask']
 
         with torch.no_grad():
             target = self.teacher.extract_features(
                     source=batch['image'],
                     mode=None, # determined automatically in model
-                    padding_mask=None, # TODO: do we need padding mask here for other modalities, since we are providing precomputed encoder output?
+                    padding_mask=precomputed_encoder_output['padding_mask'], # TODO: do we need padding mask here for other modalities, since we are providing precomputed encoder output?
                     mask=False, # we are creating targets from a teacher model for the student model, so no mask
                     remove_extra_tokens=False,
                     precomputed_encoder_output=precomputed_encoder_output,

@@ -330,7 +330,7 @@ class ModalitySpecificEncoder(nn.Module):
         if process_unmasked:
             x_unmasked = self.context_encoder(
                 x_unmasked,
-                masked_padding_mask,
+                padding_mask,
                 alibi_bias,
                 alibi_scale[: self.modality_cfg.prenet_depth]
                 if alibi_scale is not None
@@ -347,6 +347,7 @@ class ModalitySpecificEncoder(nn.Module):
             if alibi_scale is not None and alibi_scale.size(0) > 1
             else alibi_scale,
             "encoder_mask": mask_info,
+            "original_padding_mask": padding_mask if mask else None,
         }
 
     def forward(
