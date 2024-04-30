@@ -262,8 +262,6 @@ class KDSharedMMData2Vec(nn.Module):
         id:torch.Tensor=None,
         padding_mask:torch.Tensor=None, 
         mask:bool=False,
-        features_only:bool=True,
-        force_remove_masked:bool=False,
         remove_extra_tokens:bool=False,
         precomputed_mask=None,
         return_encoder_output:bool=False,
@@ -291,7 +289,7 @@ class KDSharedMMData2Vec(nn.Module):
                 source,
                 padding_mask,
                 mask,
-                remove_masked=not features_only or force_remove_masked,
+                remove_masked=False,
                 clone_batch=1,
                 mask_seeds=None,
                 precomputed_mask=precomputed_mask,
@@ -300,34 +298,34 @@ class KDSharedMMData2Vec(nn.Module):
         x = extractor_out["x"]
         encoder_mask = extractor_out["encoder_mask"]
         masked_padding_mask = extractor_out["padding_mask"]
-        # masked_alibi_bias = extractor_out.get("alibi_bias", None)
-        # alibi_scale = extractor_out.get("alibi_scale", None)
+        masked_alibi_bias = extractor_out.get("alibi_bias", None)
+        alibi_scale = extractor_out.get("alibi_scale", None)
 
         if self.dropout_input is not None:
             x = self.dropout_input(x)
 
         layer_results = []
-        for blk in self.blocks:
+        for i, blk in enumerate(self.blocks):
             if (
                 not self.training
                 or self.layerdrop == 0
                 or (np.random.random() > self.layerdrop)
             ):
-                # ab = masked_alibi_bias
-                # if ab is not None and alibi_scale is not None:
-                #     scale = (
-                #         alibi_scale[i]
-                #         if alibi_scale.size(0) > 1
-                #         else alibi_scale.squeeze(0)
-                #     )
-                #     ab = ab * scale.type_as(ab)
+                ab = masked_alibi_bias
+                if ab is not None and alibi_scale is not None:
+                    scale = (
+                        alibi_scale[i]
+                        if alibi_scale.size(0) > 1
+                        else alibi_scale.squeeze(0)
+                    )
+                    ab = ab * scale.type_as(ab)
 
                 x, lr = blk(
                     x,
-                    #padding_mask=masked_padding_mask,
+                    # padding_mask=masked_padding_mask,
+                    # alibi_bias=ab,
                 )
-                if features_only:
-                    layer_results.append(lr)
+                layer_results.append(lr)
 
         if self.norm is not None:
             x = self.norm(x)
@@ -359,7 +357,6 @@ class KDSharedMMData2Vec(nn.Module):
             modes=modes,
             padding_mask=padding_mask,
             mask=mask,
-            features_only=True,
             remove_extra_tokens=remove_extra_tokens,
         )
         return res
