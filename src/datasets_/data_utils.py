@@ -185,7 +185,9 @@ class RandomResizedCropAndInterpolationWithTwoPic:
             )
 
 def get_transforms(no_transform=False, beit_transforms=False,
-                   transform_jitter=False, crop_scale=(0.08, 1.0)):
+                   transform_jitter=False, crop_scale=None):
+    if crop_scale is None:
+        crop_scale = (0.08, 1.0)
     
     transform_prepare = transforms.Compose(
             [

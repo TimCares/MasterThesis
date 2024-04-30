@@ -1,19 +1,14 @@
 import os
 import logging
 import torch
-import random
-import time
 import json
 from typing import *
 import numpy as np
-from shutil import copyfile
-from functools import partial
 import soundfile as sf
 from .data_utils import get_transforms 
 from bpe_encoder import get_bpe_encoder as get_bpe_encoder_from_utils
 import torch.nn.functional as F
 
-from data2vec_fairseq.data.path_dataset import PathDataset
 from fairseq.data.data_utils import compute_block_mask_1d, compute_block_mask_2d, load_indexed_dataset
 from data2vec_fairseq.data.modality import Modality
 from utils import pad_text_sequence
@@ -28,16 +23,15 @@ from fairseq.data import (
     IdDataset,
 )
 
-from torchvision import datasets
 from torchvision.datasets.folder import default_loader
-from torchvision.datasets import ImageFolder
 
 logger = logging.getLogger(__name__)
 
 class BaseDataset(torch.utils.data.Dataset):
-    def __init__(self, data_path:str, split:str):
+    def __init__(self, data_path:str, split:str, precompute_mask_config:Dict[str, Any]=None):
         self.data_path = data_path
         self.split = split
+        self.precompute_mask_config = precompute_mask_config
 
     def get_bpe_encoder(self):
         return get_bpe_encoder_from_utils(self.data_path)
@@ -47,6 +41,16 @@ class BaseDataset(torch.utils.data.Dataset):
     
     def __len__(self):
         return len(self.items)
+    
+    # TODO: Maybe do in collator of this class by detecting if precompute_mask_config is not None and
+    # which type of mask to compute
+    def precompute_mask(self):
+        if self.precompute_mask_config.mask_length == 1:
+            mask_func = compute_block_mask_1d
+        else:
+            mask_func = compute_block_mask_2d
+
+        return mask_func(**self.precompute_mask_config)
     
     @property
     def modes(self) -> List[Modality]:
@@ -275,192 +279,35 @@ class ImageDataset(BaseDataset):
             no_transform,
             transform_jitter,
             crop_scale,
-            dataset_type,
-            local_cache_path,
             precompute_mask_config,):
         super().__init__(data_path=data_path,
-                         split=split)
+                         split=split,
+                         precompute_mask_config=precompute_mask_config)
         self.beit_transforms = beit_transforms
         self.no_transform = no_transform
         self.transform_jitter = transform_jitter
         self.crop_scale = crop_scale
-        self.dataset_type = dataset_type
-        self.local_cache_path = local_cache_path
-        self.precompute_mask_config = precompute_mask_config
+
+        self.loader = default_loader
+
+        if self.split != 'train':
+            self.transform = get_transforms(no_transform=True,
+                                            beit_transforms=False, 
+                                            transform_jitter=False,
+                                            crop_scale=(1.0, 1.0))
+        else:
+            self.transform = get_transforms(no_transform=self.no_transform,
+                                            beit_transforms=self.beit_transforms, 
+                                            transform_jitter=self.transform_jitter,
+                                            crop_scale=self.crop_scale)
+
+    def _get_image(self, image_path: str):
+        image = self.loader(image_path)
+        return self.transform(image)
 
     @property
     def modes(self) -> List[Modality]:
         return [Modality.IMAGE]
-    
-
-def load(path, loader, cache):
-    if hasattr(caching_loader, "cache_root"):
-        cache = caching_loader.cache_root
-
-    cached_path = cache + path
-
-    num_tries = 3
-    for curr_try in range(num_tries):
-        try:
-            if curr_try == 2:
-                return loader(path)
-            if not os.path.exists(cached_path) or curr_try > 0:
-                os.makedirs(os.path.dirname(cached_path), exist_ok=True)
-                copyfile(path, cached_path)
-                os.chmod(cached_path, 0o777)
-            return loader(cached_path)
-        except Exception as e:
-            logger.warning(str(e))
-            if "Errno 13" in str(e):
-                caching_loader.cache_root = f"/scratch/{random.randint(0, 69420)}"
-                logger.warning(f"setting cache root to {caching_loader.cache_root}")
-                cached_path = caching_loader.cache_root + path
-            if curr_try == (num_tries - 1):
-                raise
-            time.sleep(2)
-
-
-def caching_loader(cache_root: str, loader):
-    if cache_root is None:
-        return loader
-
-    if cache_root == "slurm_tmpdir":
-        cache_root = os.environ["SLURM_TMPDIR"]
-        assert len(cache_root) > 0
-
-    if not cache_root.endswith("/"):
-        cache_root += "/"
-
-    return partial(load, loader=loader, cache=cache_root)
-
-# adapted from: https://github.com/facebookresearch/fairseq/blob/34973a94d09ecc12092a5ecc8afece5e536b7692/examples/data2vec/data/mae_image_dataset.py
-class MaeImageDataset():
-    def __init__(
-        self,
-        root: str,
-        split: str,
-        input_size,
-        local_cache_path=None,
-        shuffle=True,
-        beit_transforms=False,
-        no_transform=False,
-        transform_jitter=False,
-        crop_scale=(0.6, 1.0),
-        compute_mask=False,
-        patch_size: int = 16,
-        mask_prob: float = 0.75,
-        mask_prob_adjust: float = 0,
-        mask_length: int = 1,
-        inverse_mask: bool = False,
-        expand_adjacent: bool = False,
-        mask_dropout: float = 0,
-        non_overlapping: bool = False,
-        require_same_masks: bool = True,
-        clone_batch: int = 1,
-        dataset_type: str = "imagefolder",
-    ):
-
-        self.shuffle = shuffle
-        self.key = 'image'
-
-        loader = caching_loader(local_cache_path, datasets.folder.default_loader)
-
-        if split == "train":
-            self.transform = get_transforms(no_transform=no_transform,
-                                            beit_transforms=beit_transforms,
-                                            transform_jitter=transform_jitter,
-                                            crop_scale=crop_scale)
-        else:
-            self.transform = get_transforms(no_transform=True, beit_transforms=False, transform_jitter=False)
-
-        if dataset_type == "imagefolder":
-            self.dataset = ImageFolder(
-                os.path.join(root, split), loader=loader
-            )
-        elif dataset_type == "path":
-            self.dataset = PathDataset(
-                root,
-                loader,
-                None,
-                None,
-            )
-        else:
-            raise Exception(f"invalid dataset type {dataset_type}")
-
-        logger.info(
-            f"transform: {self.transform}"
-        )
-        logger.info(f"loaded {len(self.dataset)} examples")
-
-        self.is_compute_mask = compute_mask
-        self.patches = (input_size // patch_size) ** 2
-        self.mask_prob = mask_prob
-        self.mask_prob_adjust = mask_prob_adjust
-        self.mask_length = mask_length
-        self.inverse_mask = inverse_mask
-        self.expand_adjacent = expand_adjacent
-        self.mask_dropout = mask_dropout
-        self.non_overlapping = non_overlapping
-        self.require_same_masks = require_same_masks
-        self.clone_batch = clone_batch
-
-    def __getitem__(self, index):
-        img, _ = self.dataset[index]
-
-        img = self.transform(img)
-
-        v = {"id": index, self.key: img}
-
-        if self.is_compute_mask:
-            if self.mask_length == 1:
-                mask = compute_block_mask_1d(
-                    shape=(self.clone_batch, self.patches),
-                    mask_prob=self.mask_prob,
-                    mask_length=self.mask_length,
-                    mask_prob_adjust=self.mask_prob_adjust,
-                    inverse_mask=self.inverse_mask,
-                    require_same_masks=True,
-                )
-            else:
-                mask = compute_block_mask_2d(
-                    shape=(self.clone_batch, self.patches),
-                    mask_prob=self.mask_prob,
-                    mask_length=self.mask_length,
-                    mask_prob_adjust=self.mask_prob_adjust,
-                    inverse_mask=self.inverse_mask,
-                    require_same_masks=True,
-                    expand_adjcent=self.expand_adjacent,
-                    mask_dropout=self.mask_dropout,
-                    non_overlapping=self.non_overlapping,
-                )
-
-            v["precomputed_mask"] = mask
-
-        return v
-
-    def __len__(self):
-        return len(self.dataset)
-
-    def collater(self, samples):
-        if len(samples) == 0:
-            return {}
-
-        collated_img = torch.stack([s[self.key] for s in samples], dim=0)
-
-        res = {
-            # "id": torch.LongTensor([s["id"] for s in samples]),
-            self.key: collated_img,
-        }
-
-        if "target" in samples[0]:
-            collated_target = torch.stack([s["target"] for s in samples], dim=0)
-            res["target"] = collated_target
-
-        if "precomputed_mask" in samples[0]:
-            collated_mask = torch.cat([s["precomputed_mask"] for s in samples], dim=0)
-            res["precomputed_mask"] = collated_mask
-
-        return res
     
 
 class BaseImageText(BaseDataset):
@@ -489,7 +336,7 @@ class BaseImageText(BaseDataset):
         self.eos_token_id = self.dictionary.eos()
         self.pad_token_id = self.dictionary.pad()
         self.loader = default_loader
-        self.transform = get_transforms(no_transform=self.no_transform,
+        self.transform = get_transforms(no_transform=self.no_transform, # TODO: Do as in ImageDataset -> Inherit from it?
                                         beit_transforms=self.beit_transforms,
                                         transform_jitter=self.transform_jitter,
                                         crop_scale=self.crop_scale)

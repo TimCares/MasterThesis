@@ -361,21 +361,16 @@ class ImageNetDataset(ImageDataset):
             no_transform,
             transform_jitter,
             crop_scale,
-            dataset_type,
-            local_cache_path,
             precompute_mask_config,
-            return_path:bool=False,):
+    ):
         super().__init__(data_path=data_path, 
                          split=split, 
                          beit_transforms=beit_transforms, 
                          no_transform=no_transform,
                          transform_jitter=transform_jitter,
                          crop_scale=crop_scale,
-                         dataset_type=dataset_type, 
-                         local_cache_path=local_cache_path,
                          precompute_mask_config=precompute_mask_config)
         self.path_to_data = os.path.join(self.data_path, 'imagenet')
-        self.return_path = return_path
         if not os.path.exists(self.path_to_data):
             raise FileNotFoundError(f"Directory {self.path_to_data} does not exists, "
                                     "please create it and add the correponding files from HuggingFace: "
@@ -389,16 +384,6 @@ class ImageNetDataset(ImageDataset):
         if not os.path.exists(os.path.join(self.path_to_data, f'imagenet.{self.split}.jsonl')):
             self._make_imagenet_dataset_index()
 
-        if self.split != 'train':
-            self.transform = get_transforms(no_transform=True,
-                                            beit_transforms=False, 
-                                            transform_jitter=False)
-        else:
-            self.transform = get_transforms(no_transform=self.no_transform,
-                                            beit_transforms=self.beit_transforms, 
-                                            transform_jitter=self.transform_jitter)
-        self.loader = default_loader
-
     def load(self):
         items = []
         with open(os.path.join(self.path_to_data, f'imagenet.{self.split}.jsonl'), 'r', encoding="utf-8") as reader:
@@ -408,10 +393,6 @@ class ImageNetDataset(ImageDataset):
             self.log(f"Loaded {len(items)} {self.split} examples.")
         self.items = items
 
-    def _get_image(self, image_path: str):
-        image = self.loader(image_path)
-        return self.transform(image)
-
     def __getitem__(self, index):
         item = self.items[index]
         image = self._get_image(image_path=item['image_path'])
@@ -420,26 +401,8 @@ class ImageNetDataset(ImageDataset):
             'id': index,
             'target': item['target']
         }
-        if self.return_path:
-            data['data_path'] = item['image_path']
         return data
-    
-    def collater(self, samples):
-        if not self.return_path:
-            return super().collater(samples)
-        # ... else:
-        batch_tensors = {}
-        for tensor_key in samples[0]:
-            if isinstance(samples[0][tensor_key], torch.Tensor):
-                batch_tensors[tensor_key] = torch.stack([d[tensor_key] for d in samples])
-            elif isinstance(samples[0][tensor_key], str): # only this changes compared to superclass -> for returning paths (needed for precomputed kd targets)
-                batch_tensors[tensor_key] = [d[tensor_key] for d in samples]
-            else:
-                batch_tensors[tensor_key] = torch.tensor([d[tensor_key] for d in samples], dtype=torch.long)
 
-        batch_tensors['modes'] = self.modes
-        return batch_tensors
-    
     def __len__(self):
         return len(self.items)
     

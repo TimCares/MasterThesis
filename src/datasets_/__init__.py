@@ -3,7 +3,6 @@ from .base_datasets import (
     NLPDataset,
     AudioDataset,
     ImageDataset,
-    MaeImageDataset,
     BaseImageText,
     BaseImageAudio,
     BaseTextAudio,

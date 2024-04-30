@@ -78,7 +78,6 @@ data:
       transform_jitter: False
       precompute_mask_config:
       crop_scale:
-      local_cache_path:
 
 zero_shot_val:
   # n_neighbors: 20
