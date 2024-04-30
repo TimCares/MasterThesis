@@ -387,13 +387,6 @@ class ImageNetDataset(ImageDataset):
         self.classes = {synset: i for i, synset in enumerate(IMAGENET2012_CLASSES.keys())}
 
         if not os.path.exists(os.path.join(self.path_to_data, f'imagenet.{self.split}.jsonl')):
-            # tar_filenames = [f for f in os.listdir(self.path_to_data) if f.startswith(f"{self.split}_")]
-            # self.log(f"Extracting tar files: {tar_filenames}")
-            # for filename in track(tar_filenames, description="Extracting...", total=len(tar_filenames)):
-            #     tar_file_path = os.path.join(self.path_to_data, filename)
-            #     os.system(f"tar -xf {tar_file_path} -C {self.path_to_split}")
-            #     os.remove(tar_file_path)
-
             self._make_imagenet_dataset_index()
 
         if self.split != 'train':
