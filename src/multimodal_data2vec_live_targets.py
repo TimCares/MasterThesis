@@ -10,20 +10,15 @@ import logging
 import pytorch_lightning as L
 from omegaconf import II
 from dataclasses import dataclass, field
-from enum import Enum, auto
 from data2vec_fairseq.data.modality import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup
 import contextlib
+import math
 
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from modules import LayerResultBlock
 
 logger = logging.getLogger(__name__)
-
-def cosine_similarity_loss(input, target):
-    input = F.normalize(input, dim=-1)
-    target = F.normalize(target, dim=-1)
-    return (1 - F.cosine_similarity(input, target, dim=-1)).mean()
 
 def prepare_output(out:List[torch.Tensor]) -> List[torch.Tensor]:
     out = [
@@ -48,11 +43,6 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
         del self.teacher.modality_encoders
         
         self.model = KDSharedMMData2Vec(cfg=self.cfg.model)
-
-        if self.cfg.model.loss_fn == 'cosine_similarity':
-            self.loss_fn = cosine_similarity_loss
-        else:
-            self.loss_fn = partial(F.mse_loss, reduction='mean')
         
         self.save_hyperparameters()
 
@@ -79,13 +69,7 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
         pred = output_dict['layer_results']
         pred = prepare_output(pred)
 
-        pred = pred.contiguous()
-        pred = pred.view(-1, pred.size(-1)).float() # BLT -> (B*L)T
-        target = target.contiguous()
-        target = target.view(-1, target.size(-1)).float() # BLT -> (B*L)T
-        assert pred.shape == target.shape # this must be the case
-
-        loss = self.loss_fn(input=pred, target=target).float()
+        loss = self.kd_loss(input=pred, target=target)
         self.log("train/loss", loss, prog_bar=True)
         if batch['modes'][0] == Modality.IMAGE:
             self.log("train/loss_img", loss, prog_bar=True)
@@ -96,12 +80,24 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
         return loss
                 
     
-    def kd_loss(self, y_hat, y):
-        y_hat = y_hat.view(-1, y_hat.size(-1)).float() # (B, D, C) -> (B*D, C)
-        y = y.contiguous()
-        y = y.view(-1, y.size(-1)).float() # (B, D, C) -> (B*D, C)
+    def kd_loss(self, input:torch.Tensor, target:torch.Tensor) -> float:
+        input = input.contiguous()
+        input = input.view(-1, input.size(-1)).float() # (B, D, C) -> (B*D, C)
+        target = target.contiguous()
+        target = target.view(-1, target.size(-1)).float() # (B, D, C) -> (B*D, C)
 
-        return F.mse_loss(y_hat, y, reduction="mean").float()
+        assert input.shape == target.shape # this must be the case
+
+        loss = F.mse_loss(input, target, reduction="none").float()
+
+        if self.cfg.model.loss_scale is not None:
+            scale = self.cfg.model.loss_scale
+        else:
+            scale = 1 / math.sqrt(input.size(-1))
+        
+        reg_loss = loss * scale
+        
+        return reg_loss.mean().float()
 
 
     def configure_optimizers(self):
@@ -127,19 +123,12 @@ class PretrainedStateDictsConfig():
     image:str = 'base_imagenet.pt'
     text:str = 'nlp_base.pt'
 
-class PredictionAggregationMode(Enum):
-    CLS_TOKEN = auto()
-    MEAN_POOLING = auto()
 @dataclass
 class KDMMData2VecConfig():
     pretrained_path:str = '../models'
     pretrained: PretrainedStateDictsConfig = field(default_factory=PretrainedStateDictsConfig)
-    prediction_mode: PredictionAggregationMode = PredictionAggregationMode.MEAN_POOLING
 
     supported_modalities: List[Modality] = field(default_factory=lambda: [Modality.AUDIO, Modality.IMAGE, Modality.TEXT])
-
-    cls_loss_weight: Optional[float] = None
-    loss_fn: str = 'cosine_similarity' # 'cosine_similarity' or 'mse'
 
     init_block_from: Optional[str] = None
     init_strategy: Optional[str] = None # 'ffill' or 'leave_one_out'
@@ -171,10 +160,6 @@ class KDMMData2VecConfig():
     start_drop_path_rate: float = 0
     end_drop_path_rate: float = 0
     layerdrop: float = 0.0
-
-    end_of_block_targets: bool = False
-
-    modality_encoder_proj: bool = False
 
     seed: int = 42
 

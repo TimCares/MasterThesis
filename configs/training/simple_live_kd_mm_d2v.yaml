@@ -40,10 +40,6 @@ model:
     - IMAGE
     # - TEXT
 
-  prediction_mode: MEAN_POOLING
-  cls_loss_weight: 0.0 # 0.0 -> ignored/not used
-  loss_fn: mse # cosine_similarity or mse
-
   encoders_embed_dim: 768
   embed_dim: 768
   depth: 5
@@ -61,10 +57,6 @@ model:
   start_drop_path_rate: 0
   end_drop_path_rate: 0
   layerdrop: 0.0
-
-  end_of_block_targets: False
-
-  modality_encoder_proj: False
 
   seed: ${seed}
 

@@ -4,11 +4,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# from datasets import load_dataset
-# 
-# # If the dataset is gated/private, make sure you have run huggingface-cli login
-# dataset = load_dataset("imagenet-1k", data_dir='/workspace', data_files='data/val_images.tar.gz')
-
 # adapted from: https://arxiv.org/pdf/2212.07525.pdf
 # source: https://github.com/facebookresearch/fairseq/blob/main/examples/data2vec/models/modalities/modules.py
 class MOMEAltBlock(nn.Module):
