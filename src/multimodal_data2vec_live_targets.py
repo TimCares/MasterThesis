@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from data2vec_fairseq.data.modality import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup
+import contextlib
 
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from modules import LayerResultBlock
@@ -184,6 +185,7 @@ class KDSharedMMData2Vec(nn.Module):
         super(KDSharedMMData2Vec, self).__init__()
         self.cfg = cfg
         self.supported_modalities = cfg.supported_modalities
+        self.fine_tuning = False
 
         make_layer_norm = partial(
             nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
@@ -284,7 +286,7 @@ class KDSharedMMData2Vec(nn.Module):
             raise ValueError("Audio, image or text must be provided, found all to be None.")
         
         feature_extractor = self.modality_encoders[mode]
-        with torch.no_grad():
+        with torch.no_grad() if not self.fine_tuning else contextlib.ExitStack():
             extractor_out = feature_extractor(
                 source,
                 padding_mask,
@@ -463,7 +465,11 @@ class KDSharedMMData2Vec(nn.Module):
         for param in module.parameters():
             param.requires_grad = True
 
-    def remove_modalities_except(self, keep_modes:List[Modality]) -> None:
+    def prepare_fine_tuning(self, keep_modes:List[Modality]) -> None:
+        self.fine_tuning = True
+        self._remove_modalities_except(keep_modes=keep_modes)
+
+    def _remove_modalities_except(self, keep_modes:List[Modality]) -> None:
         """
         Removes all modalities from the model except the ones specified.
         Useful when fine-tuning the model on downstream task
