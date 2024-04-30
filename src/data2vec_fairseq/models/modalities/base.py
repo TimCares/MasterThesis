@@ -211,6 +211,7 @@ class ModalitySpecificEncoder(nn.Module):
         clone_batch: int = 1,
         mask_seeds: Optional[torch.Tensor] = None,
         precomputed_mask=None,
+        process_unmasked:bool=False,
     ):
 
         if padding_mask is not None:
@@ -227,6 +228,9 @@ class ModalitySpecificEncoder(nn.Module):
         x_pos = None
         if self.fixed_positional_encoder is not None:
             x = x + self.fixed_positional_encoder(x, padding_mask)
+
+        if process_unmasked:
+            x_unmasked = x.clone()
 
         if mask:
             if clone_batch > 1:
@@ -258,6 +262,8 @@ class ModalitySpecificEncoder(nn.Module):
 
         if self.relative_positional_encoder is not None:
             x_pos = self.relative_positional_encoder(x)
+            if process_unmasked:
+                x_pos_unmasked = self.relative_positional_encoder(x_unmasked)
 
         masked_padding_mask = padding_mask
         if mask and remove_masked:
@@ -274,6 +280,8 @@ class ModalitySpecificEncoder(nn.Module):
 
         elif x_pos is not None:
             x = x + x_pos
+            if process_unmasked:
+                x_unmasked = x_unmasked + x_pos_unmasked
 
         alibi_bias = None
         alibi_scale = self.alibi_scale
@@ -302,6 +310,8 @@ class ModalitySpecificEncoder(nn.Module):
         if self.extra_tokens is not None:
             num = self.extra_tokens.size(1)
             x = torch.cat([self.extra_tokens.expand(x.size(0), -1, -1), x], dim=1)
+            if process_unmasked:
+                x_unmasked = torch.cat([self.extra_tokens.expand(x_unmasked.size(0), -1, -1), x_unmasked], dim=1)
             if masked_padding_mask is not None:
                 # B x T
                 masked_padding_mask = F.pad(masked_padding_mask, (num, 0))
@@ -317,9 +327,19 @@ class ModalitySpecificEncoder(nn.Module):
             if alibi_scale is not None
             else None,
         )
+        if process_unmasked:
+            x_unmasked = self.context_encoder(
+                x_unmasked,
+                masked_padding_mask,
+                alibi_bias,
+                alibi_scale[: self.modality_cfg.prenet_depth]
+                if alibi_scale is not None
+                else None,
+            )
 
         return {
             "x": x,
+            "x_unmasked": x_unmasked if process_unmasked else None,
             "local_features": local_features,
             "padding_mask": masked_padding_mask,
             "alibi_bias": alibi_bias,
@@ -338,6 +358,7 @@ class ModalitySpecificEncoder(nn.Module):
         clone_batch: int = 1,
         mask_seeds: Optional[torch.Tensor] = None,
         precomputed_mask=None,
+        process_unmasked:bool=False,
     ):
         x = self.local_features(features)
         return self.contextualized_features(
@@ -348,6 +369,7 @@ class ModalitySpecificEncoder(nn.Module):
             clone_batch,
             mask_seeds,
             precomputed_mask,
+            process_unmasked,
         )
 
     def reset_parameters(self):

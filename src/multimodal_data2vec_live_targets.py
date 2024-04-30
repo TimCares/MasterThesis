@@ -48,21 +48,27 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, input_dict):
-        return self.model(**input_dict, return_encoder_output=True)
+        return self.model(**input_dict, features_only=False, return_encoder_output=True)
 
     def training_step(self, batch:Dict[str, Any], batch_idx):
         if 'target' in batch:
             batch.pop('target')
         output_dict = self(batch) # call "forward"
 
+        precomputed_encoder_output = output_dict['encoder_output']
+        if self.cfg.model.mask_student_input:
+            # we do knowledge distillation the same way d2v is trained => teacher gets unmasked input
+            precomputed_encoder_output['x'] = precomputed_encoder_output['x_unmasked']
+            del precomputed_encoder_output['x_unmasked']
+
         with torch.no_grad():
             target = self.teacher.extract_features(
                     source=batch['image'],
                     mode=None, # determined automatically in model
-                    padding_mask=None,
+                    padding_mask=None, # TODO: do we need padding mask here for other modalities, since we are providing precomputed encoder output?
                     mask=False, # we are creating targets from a teacher model for the student model, so no mask
                     remove_extra_tokens=False,
-                    precomputed_encoder_output=output_dict['encoder_output'],
+                    precomputed_encoder_output=precomputed_encoder_output,
                 )
         
         target = target['layer_results']
@@ -135,6 +141,8 @@ class KDMMData2VecConfig():
     freeze_attention: bool = False
 
     init_attention_from: Optional[str] = None
+
+    mask_student_input: bool = False
 
     loss_scale: Optional[float] = field(
         default=None,
@@ -254,11 +262,11 @@ class KDSharedMMData2Vec(nn.Module):
         image:torch.Tensor=None,
         text:torch.Tensor=None,
         id:torch.Tensor=None,
-        padding_mask:torch.Tensor=None, 
-        mask:bool=False,
+        padding_mask:torch.Tensor=None,
         remove_extra_tokens:bool=False,
         precomputed_mask=None,
         return_encoder_output:bool=False,
+        features_only:bool=False,
     ):
         assert len(modes)==1, f"This model accepts exactly modality indicator at a time, received: {modes}"
         n_sources = sum(mode is not None for mode in [audio, image, text])
@@ -282,11 +290,12 @@ class KDSharedMMData2Vec(nn.Module):
             extractor_out = feature_extractor(
                 source,
                 padding_mask,
-                mask,
+                mask=self.cfg.mask_student_input and not features_only,
                 remove_masked=False,
                 clone_batch=1,
                 mask_seeds=None,
                 precomputed_mask=precomputed_mask,
+                process_unmasked=self.cfg.mask_student_input and not features_only, # if True, then "x_unmasked" is in "extractor_out" dict
             )
 
         x = extractor_out["x"]
@@ -342,7 +351,7 @@ class KDSharedMMData2Vec(nn.Module):
         return out
     
     def extract_features(
-        self, audio=None, image=None, text=None, modes:List[Modality]=None, padding_mask=None, mask=False, remove_extra_tokens=True
+        self, audio=None, image=None, text=None, modes:List[Modality]=None, padding_mask=None, remove_extra_tokens=True
     ):
         res = self.forward(
             audio=audio,
@@ -350,8 +359,8 @@ class KDSharedMMData2Vec(nn.Module):
             text=text,
             modes=modes,
             padding_mask=padding_mask,
-            mask=mask,
             remove_extra_tokens=remove_extra_tokens,
+            features_only=True,
         )
         return res
     

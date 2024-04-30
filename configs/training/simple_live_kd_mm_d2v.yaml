@@ -43,6 +43,8 @@ model:
   init_blocks_from_mode:
   freeze_attention: False
 
+  mask_student_input: False
+
   encoders_embed_dim: 768
   embed_dim: 768
   depth: 5
