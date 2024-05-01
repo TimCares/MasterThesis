@@ -90,7 +90,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         target = target['layer_results']
         target = prepare_output(target, Modality.IMAGE)
 
-        if self.cfg.model.mask_student_input:
+        if self.cfg.model.mask_student_input and self.cfg.model.d2v_masking:
             pred = output_dict['x']
 
             if self.cfg.model.clone_batch > 1:
@@ -175,6 +175,7 @@ class KDMMData2VecConfig():
 
     mask_student_input: bool = False
     regress_masked_only: bool = False
+    d2v_masking: bool = False
 
     loss_scale: Optional[float] = field(
         default=None,
@@ -248,6 +249,11 @@ class KDMMData2Vec(nn.Module):
         # so that we do not initialize pretrained blocks
         if self.cfg.init_blocks_from_mode is not None:
             self._init_blocks()
+
+        if self.cfg.mask_student_input and not self.cfg.d2v_masking:
+            self.mask_embed = nn.Parameter(
+                torch.zeros(1, 1, self.cfg.embed_dim)
+            )
         
     def make_block(self, drop_path, dim=None, heads=None):
         make_layer_norm = partial(
@@ -328,7 +334,7 @@ class KDMMData2Vec(nn.Module):
                 source,
                 padding_mask,
                 mask=mask_condition,
-                remove_masked=mask_condition,
+                remove_masked=mask_condition and self.cfg.d2v_masking, # we only remove masked timesteps if we use d2v masking
                 clone_batch=self.cfg.clone_batch if mask_condition else 1,
                 mask_seeds=None,
                 precomputed_mask=precomputed_mask,
@@ -343,6 +349,10 @@ class KDMMData2Vec(nn.Module):
 
         if self.dropout_input is not None:
             x = self.dropout_input(x)
+
+        if encoder_mask is not None and self.mask_embed is not None: # if not self.cfg.d2v_masking and self.cfg.mask_student_input
+            mask_idx = encoder_mask.mask.bool()
+            x[mask_idx] = self.mask_embed
 
         layer_results = []
         for i, blk in enumerate(self.blocks):
@@ -370,7 +380,8 @@ class KDMMData2Vec(nn.Module):
         if self.norm is not None:
             x = self.norm(x)
 
-        if features_only or not self.cfg.mask_student_input:
+        # we do not use the decoder for features extraction, when we use vanilla KD, or when we use masked KD without d2v masking
+        if features_only or not self.cfg.mask_student_input or not self.cfg.d2v_masking:
             if remove_extra_tokens:
                 x = x[:, feature_extractor.modality_cfg.num_extra_tokens :]
                 if masked_padding_mask is not None:
