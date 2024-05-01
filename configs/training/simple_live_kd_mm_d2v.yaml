@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: live_masked_cloned_img_scaled_mse_warmup_lr_5e4
+run_name: live_masked_cloned_img_warmup_lr_5e4
 
 load_checkpoint:
 
@@ -56,7 +56,9 @@ model:
   norm_eps: 1e-6
   norm_affine: True
   layer_norm_first: False
-  loss_scale: 1.0 # Set to None -> Scaled by 1 / sqrt(embed_dim) (done for audio and image but not for text in the original implementation)
+  # loss_scale -> Set to None => Scaled by 1 / sqrt(embed_dim) (done for audio and image but not for text in the original implementation)
+  # if set to 1.0, no scaling is done
+  loss_scale: 1.0
   start_drop_path_rate: 0
   end_drop_path_rate: 0
   layerdrop: 0.0
