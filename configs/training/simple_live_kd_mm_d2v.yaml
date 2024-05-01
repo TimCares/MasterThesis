@@ -42,6 +42,9 @@ model:
 
   encoders_embed_dim: 768
   embed_dim: 768
+
+  clone_batch: 1
+
   depth: 5
   num_heads: 8 
   mlp_ratio: 3 # 3.0 or 4.0
