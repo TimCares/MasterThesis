@@ -472,7 +472,7 @@ class Data2VecMultiModel(BaseFairseqModel):
                     if precomputed_encoder_output is not None and remove_extra_tokens:
                         # from this case we can infer that we masked the student input (in KD, so this model is the teacher)
                         # why? because if we do not mask the student input, then we also regress the extra tokens, so "remove_extra_tokens" should be False
-                        lr = lr[extra_tokens:]
+                        lr = lr[:, extra_tokens:]
                     layer_results.append(lr)
 
         if self.norm is not None:
