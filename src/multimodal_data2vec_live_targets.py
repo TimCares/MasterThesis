@@ -71,7 +71,7 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
                 )
         
         target = target['layer_results']
-        target = prepare_output(target[-self.cfg.model.depth:])
+        target = prepare_output(target)
         pred = output_dict['layer_results']
         pred = prepare_output(pred)
 
