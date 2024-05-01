@@ -1,10 +1,6 @@
 from bpe_encoder import BPEEncoder
-from sklearn.metrics import accuracy_score
-from sklearn.metrics import top_k_accuracy_score
 from typing import Tuple, Callable
-from sklearn.neighbors import KNeighborsClassifier
 import logging
-import os
 import torch
 import numpy as np
 from multimodal_data2vec import KDMMData2Vec
