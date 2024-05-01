@@ -305,17 +305,19 @@ class KDSharedMMData2Vec(nn.Module):
         else:
             raise ValueError("Audio, image or text must be provided, found all to be None.")
         
+        mask_condition = self.cfg.mask_student_input and not features_only
+
         feature_extractor = self.modality_encoders[mode]
         with torch.no_grad() if not self.fine_tuning else contextlib.ExitStack():
             extractor_out = feature_extractor(
                 source,
                 padding_mask,
-                mask=self.cfg.mask_student_input and not features_only,
+                mask=mask_condition,
                 remove_masked=False,
-                clone_batch=self.cfg.clone_batch if not features_only else 1,
+                clone_batch=self.cfg.clone_batch if mask_condition else 1,
                 mask_seeds=None,
                 precomputed_mask=precomputed_mask,
-                process_unmasked=self.cfg.mask_student_input and not features_only, # if True, then "x_unmasked" is in "extractor_out" dict
+                process_unmasked=mask_condition, # if True, then "x_unmasked" is in "extractor_out" dict
             )
 
         x = extractor_out["x"]
@@ -367,6 +369,8 @@ class KDSharedMMData2Vec(nn.Module):
                 "layer_results": layer_results,
                 "mask": encoder_mask,
             }
+            if return_encoder_output:
+                out["encoder_output"] = extractor_out
             return out
         
         del layer_results # not needed
@@ -471,7 +475,7 @@ class KDSharedMMData2Vec(nn.Module):
                                     normalize=normalize)
 
     def _init_blocks(self) -> None:
-        assert self.cfg.init_blocks_from_mode in self.cfg.pretrained.keys(), \
+        assert self.cfg.init_blocks_from_mode.name.lower() in self.cfg.pretrained.keys(), \
             f"Could not find pretrained state dict for: {self.cfg.init_blocks_from_mode} " \
                 "(Used to initialize the transformer blocks)"
         
@@ -481,7 +485,7 @@ class KDSharedMMData2Vec(nn.Module):
 
         logger.info(f"Initializing blocks from pretrained mode: {self.cfg.init_blocks_from_mode}")
 
-        state_dict_name = self.cfg.pretrained[self.cfg.init_blocks_from_mode]
+        state_dict_name = self.cfg.pretrained[self.cfg.init_blocks_from_mode.name.lower()]
         state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
         d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
         
