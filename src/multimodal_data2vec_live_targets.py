@@ -71,7 +71,9 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
                     mode=None, # determined automatically in model
                     padding_mask=precomputed_encoder_output['padding_mask'], # TODO: do we need padding mask here for other modalities, since we are providing precomputed encoder output?
                     mask=False, # we are creating targets from a teacher model for the student model, so no mask
-                    remove_extra_tokens=False,
+                    remove_extra_tokens=self.cfg.model.mask_student_input, # "decoder_input" in d2v (decoder in student model) removes extra tokens
+                    # ... so we need to remove them from the teacher output as well if we mask the student input. If not, then we do not need to remove them
+                    # because we also regress the extra tokens, if they are present.
                     precomputed_encoder_output=precomputed_encoder_output,
                 )
         

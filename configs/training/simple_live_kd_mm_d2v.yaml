@@ -38,7 +38,7 @@ model:
   init_blocks_from_mode:
   freeze_attention: False
 
-  mask_student_input: True
+  mask_student_input: True # if set to False we do normal KD of all the features (or timesteps respectively)
 
   encoders_embed_dim: 768
   embed_dim: 768
