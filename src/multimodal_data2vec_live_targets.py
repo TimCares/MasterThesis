@@ -14,7 +14,6 @@ from data2vec_fairseq.data.modality import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup
 import contextlib
 import math
-from copy import deepcopy
 
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from data2vec_fairseq.models.modalities.modules import AltBlock
@@ -486,9 +485,7 @@ class KDSharedMMData2Vec(nn.Module):
         state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
         d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
         
-        pretrained_blocks = d2v_model.blocks[-self.cfg.depth:]
-        for i in range(len(self.cfg.depth)):
-            self.blocks[i] = deepcopy(pretrained_blocks[i])
+        self.blocks = d2v_model.blocks[-self.cfg.depth:]
         
         if self.cfg.freeze_attention:
             logger.info("Freezing block attention weights.")
