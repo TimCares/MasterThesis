@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from data2vec_fairseq.data.modality import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup
-from kd_precompute import special_token_and_average, average_twice, special_tokens
+from src.kd_precompute.kd_precompute import special_token_and_average, average_twice, special_tokens
 from datasets_.data_utils import get_transforms
 
 from data2vec_fairseq.models.modalities.modules import AltBlock
