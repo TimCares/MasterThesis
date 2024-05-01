@@ -59,12 +59,6 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
         output_dict = self(batch) # call "forward"
 
         precomputed_encoder_output = output_dict['encoder_output']
-        if self.cfg.model.mask_student_input:
-            # we do knowledge distillation the same way d2v is trained => teacher gets unmasked input
-            precomputed_encoder_output['x'] = precomputed_encoder_output['x_unmasked']
-            precomputed_encoder_output['padding_mask'] = precomputed_encoder_output['original_padding_mask']
-            del precomputed_encoder_output['x_unmasked']
-            del precomputed_encoder_output['original_padding_mask']
 
         with torch.no_grad():
             target = self.teacher.extract_features(
@@ -338,22 +332,45 @@ class KDSharedMMData2Vec(nn.Module):
         if self.norm is not None:
             x = self.norm(x)
 
-        if remove_extra_tokens:
-            x = x[:, feature_extractor.modality_cfg.num_extra_tokens :]
-            if masked_padding_mask is not None:
-                masked_padding_mask = masked_padding_mask[
-                    :, feature_extractor.modality_cfg.num_extra_tokens :
-                ]
+        if features_only:
+            if remove_extra_tokens:
+                x = x[:, feature_extractor.modality_cfg.num_extra_tokens :]
+                if masked_padding_mask is not None:
+                    masked_padding_mask = masked_padding_mask[
+                        :, feature_extractor.modality_cfg.num_extra_tokens :
+                    ]
 
-        out = {
-            "x": x,
-            "padding_mask": masked_padding_mask,
-            "layer_results": layer_results,
-            "mask": encoder_mask,
-        }
-        if return_encoder_output:
-            out["encoder_output"] = extractor_out
-        return out
+            out = {
+                "x": x,
+                "padding_mask": masked_padding_mask,
+                "layer_results": layer_results,
+                "mask": encoder_mask,
+            }
+            if return_encoder_output:
+                out["encoder_output"] = extractor_out
+            return out
+    
+        xs = []
+
+        if self.shared_decoder is not None:
+            dx = self.forward_decoder(
+                x,
+                feature_extractor,
+                self.shared_decoder,
+                encoder_mask,
+            )
+            xs.append(dx)
+        if feature_extractor.decoder is not None:
+            dx = self.forward_decoder(
+                x,
+                feature_extractor,
+                feature_extractor.decoder,
+                encoder_mask,
+            )
+            xs.append(dx)
+            orig_x = x
+
+        assert len(xs) > 0
     
     def extract_features(
         self, audio=None, image=None, text=None, modes:List[Modality]=None, padding_mask=None, remove_extra_tokens=True

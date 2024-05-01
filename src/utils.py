@@ -40,13 +40,13 @@ def load_model(pretrained_model_cfg:DictConfig,
     return model
 
 
-def load_pretrained_d2v_model(state_dict_path:str):
+def load_pretrained_d2v_model(state_dict_path:str, keep_decoder:bool=False) -> Data2VecMultiModel:
     model_meta_data = torch.load(state_dict_path)
     pretrained_model_cfg = OmegaConf.create(model_meta_data['cfg']['model'])
     model = load_model(pretrained_model_cfg=pretrained_model_cfg, model_state_dict=model_meta_data['model'])
 
     # removes decoder, and all encoders with modality != supported modality
-    model.remove_pretraining_modules(modality=pretrained_model_cfg.supported_modality)
+    model.remove_pretraining_modules(modality=pretrained_model_cfg.supported_modality, keep_decoder=keep_decoder)
 
     return model
 
