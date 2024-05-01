@@ -35,7 +35,7 @@ def prepare_output(out:List[torch.Tensor], modality:Modality) -> List[torch.Tens
         y = F.layer_norm(y, y.shape[-1:])
     return y
 
-class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
+class KDData2VecPreTrainingLightningModule(L.LightningModule):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
@@ -51,7 +51,7 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
         teacher_extra_tokens = self.teacher.modality_encoders[teacher_mode].modality_cfg.num_extra_tokens
         del self.teacher.modality_encoders # we share it between teacher and student
         
-        self.model = KDSharedMMData2Vec(cfg=self.cfg.model)
+        self.model = KDMMData2Vec(cfg=self.cfg.model)
         
         assert self.model.modality_encoders['image'].modality_cfg.num_extra_tokens == teacher_extra_tokens, \
             f"Extra tokens mismatch: {self.model.modality_encoders['image'].modality_cfg.num_extra_tokens} != {teacher_extra_tokens} " \
@@ -202,11 +202,11 @@ class KDMMData2VecConfig():
 
     seed: int = 42
 
-class KDSharedMMData2Vec(nn.Module):
+class KDMMData2Vec(nn.Module):
     def __init__(self,
                  cfg: KDMMData2VecConfig,
                  ):
-        super(KDSharedMMData2Vec, self).__init__()
+        super(KDMMData2Vec, self).__init__()
         self.cfg = cfg
         self.supported_modalities = cfg.supported_modalities
         self.fine_tuning = False
