@@ -40,11 +40,11 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
 
         state_dict_name = self.cfg.model.pretrained['image']
         state_dict_path = os.path.join(self.cfg.model.pretrained_path, state_dict_name)
-        self.teacher = load_pretrained_d2v_model(state_dict_path=state_dict_path)
+        self.teacher = load_pretrained_d2v_model(state_dict_path=state_dict_path, keep_decoder=False)
         for param in self.teacher.parameters():
             param.requires_grad = False
         self.teacher.eval()
-        del self.teacher.modality_encoders
+        del self.teacher.modality_encoders # we share it between teacher and student
         
         self.model = KDSharedMMData2Vec(cfg=self.cfg.model)
         
@@ -59,6 +59,12 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
         output_dict = self(batch) # call "forward"
 
         precomputed_encoder_output = output_dict['encoder_output']
+        if self.cfg.model.mask_student_input:
+            # we do knowledge distillation the same way d2v is trained => teacher gets unmasked input
+            precomputed_encoder_output['x'] = precomputed_encoder_output['x_unmasked']
+            precomputed_encoder_output['padding_mask'] = precomputed_encoder_output['original_padding_mask']
+            del precomputed_encoder_output['x_unmasked']
+            del precomputed_encoder_output['original_padding_mask']
 
         with torch.no_grad():
             target = self.teacher.extract_features(
@@ -72,8 +78,18 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
         
         target = target['layer_results']
         target = prepare_output(target)
-        pred = output_dict['layer_results']
-        pred = prepare_output(pred)
+
+        if self.cfg.model.mask_student_input:
+            masked_b = output_dict['mask'].mask.bool()
+            pred = output_dict['x']
+            assert pred.size(1) == masked_b.size(1), f"Size mismatch: {pred.size(1)} != {masked_b.size(1)}"
+            pred = pred[masked_b]
+            assert target.size(1) == masked_b.size(1), f"Size mismatch: {target.size(1)} != {masked_b.size(1)}"
+            target = target[masked_b]
+        else:
+            pred = output_dict['layer_results']
+            pred = prepare_output(pred)
+        
 
         loss = self.kd_loss(input=pred, target=target)
         self.log("train/loss", loss, prog_bar=True)
@@ -240,7 +256,8 @@ class KDSharedMMData2Vec(nn.Module):
             state_dict_name = self.cfg.pretrained[mode.name.lower()]
             logger.info(f'Loading modality encoder for: {mode}')
             state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
-            d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
+            # if we are masking the input to the student model, then we need to keep the decoder
+            d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path, keep_decoder=self.cfg.mask_student_input)
             mode_feature_extractor = d2v_model.modality_encoders[mode.name]
             modality_encoders[mode.name.lower()] = mode_feature_extractor
             
@@ -332,7 +349,7 @@ class KDSharedMMData2Vec(nn.Module):
         if self.norm is not None:
             x = self.norm(x)
 
-        if features_only:
+        if features_only or not self.cfg.mask_student_input:
             if remove_extra_tokens:
                 x = x[:, feature_extractor.modality_cfg.num_extra_tokens :]
                 if masked_padding_mask is not None:
@@ -346,31 +363,40 @@ class KDSharedMMData2Vec(nn.Module):
                 "layer_results": layer_results,
                 "mask": encoder_mask,
             }
-            if return_encoder_output:
-                out["encoder_output"] = extractor_out
             return out
+        
+        del layer_results # not needed
     
-        xs = []
-
-        if self.shared_decoder is not None:
-            dx = self.forward_decoder(
-                x,
-                feature_extractor,
-                self.shared_decoder,
-                encoder_mask,
-            )
-            xs.append(dx)
         if feature_extractor.decoder is not None:
-            dx = self.forward_decoder(
+            x = self.forward_decoder(
                 x,
                 feature_extractor,
                 feature_extractor.decoder,
                 encoder_mask,
             )
-            xs.append(dx)
-            orig_x = x
 
-        assert len(xs) > 0
+        out = {
+            "x": x,
+            "padding_mask": masked_padding_mask,
+            "mask": encoder_mask,
+        }
+        if return_encoder_output:
+            out["encoder_output"] = extractor_out
+
+        return out
+
+
+    def forward_decoder(
+        self,
+        x,
+        feature_extractor,
+        decoder,
+        mask_info,
+    ):
+        x = feature_extractor.decoder_input(x, mask_info)
+        x = decoder(*x)
+
+        return x
     
     def extract_features(
         self, audio=None, image=None, text=None, modes:List[Modality]=None, padding_mask=None, remove_extra_tokens=True
@@ -496,4 +522,6 @@ class KDSharedMMData2Vec(nn.Module):
         """
         for modality in self.supported_modalities:
             if modality not in keep_modes:
-                del self.modality_encoders[modality.name.lower()]
+                del self.modality_encoders[modality.name.lower()] # includes removing the decoder
+            else:
+                del self.modality_encoders[modality.name.lower()].decoder # not needed in any case
