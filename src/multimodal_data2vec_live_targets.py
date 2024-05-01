@@ -84,6 +84,9 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
             pred = output_dict['x']
             assert pred.size(1) == masked_b.size(1), f"Size mismatch: {pred.size(1)} != {masked_b.size(1)}"
             pred = pred[masked_b]
+
+            if self.cfg.model.clone_batch > 1:
+                target = target.repeat_interleave(self.cfg.model.clone_batch, 0)
             assert target.size(1) == masked_b.size(1), f"Size mismatch: {target.size(1)} != {masked_b.size(1)}"
             target = target[masked_b]
         else:
@@ -168,6 +171,8 @@ class KDMMData2VecConfig():
 
     encoders_embed_dim: int = II("embed_dim")
     embed_dim: int = 768
+
+    clone_batch: int = 1
 
     depth: int = 8
     num_heads: int = 12
@@ -308,7 +313,7 @@ class KDSharedMMData2Vec(nn.Module):
                 padding_mask,
                 mask=self.cfg.mask_student_input and not features_only,
                 remove_masked=False,
-                clone_batch=1,
+                clone_batch=self.cfg.clone_batch if not features_only else 1,
                 mask_seeds=None,
                 precomputed_mask=precomputed_mask,
                 process_unmasked=self.cfg.mask_student_input and not features_only, # if True, then "x_unmasked" is in "extractor_out" dict
@@ -510,6 +515,7 @@ class KDSharedMMData2Vec(nn.Module):
             param.requires_grad = True
 
     def prepare_fine_tuning(self, keep_modes:List[Modality]) -> None:
+        self.cfg.clone_batch = 1
         self.fine_tuning = True
         self._remove_modalities_except(keep_modes=keep_modes)
         self._unfreeze(self.modality_encoders)
