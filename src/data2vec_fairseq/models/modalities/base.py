@@ -229,8 +229,10 @@ class ModalitySpecificEncoder(nn.Module):
         if self.fixed_positional_encoder is not None:
             x = x + self.fixed_positional_encoder(x, padding_mask)
 
+        original_padding_mask = None
         if process_unmasked:
             x_unmasked = x.clone()
+            original_padding_mask = padding_mask.copy() if padding_mask is not None else None
 
         if mask:
             if clone_batch > 1:
@@ -315,6 +317,7 @@ class ModalitySpecificEncoder(nn.Module):
             if masked_padding_mask is not None:
                 # B x T
                 masked_padding_mask = F.pad(masked_padding_mask, (num, 0))
+                original_padding_mask = F.pad(original_padding_mask, (num, 0))
             if alibi_bias is not None:
                 # B x H x T x T
                 alibi_bias = F.pad(alibi_bias, (num, 0, num, 0))
@@ -330,7 +333,7 @@ class ModalitySpecificEncoder(nn.Module):
         if process_unmasked:
             x_unmasked = self.context_encoder(
                 x_unmasked,
-                padding_mask,
+                original_padding_mask,
                 alibi_bias,
                 alibi_scale[: self.modality_cfg.prenet_depth]
                 if alibi_scale is not None
@@ -347,7 +350,7 @@ class ModalitySpecificEncoder(nn.Module):
             if alibi_scale is not None and alibi_scale.size(0) > 1
             else alibi_scale,
             "encoder_mask": mask_info,
-            "original_padding_mask": padding_mask if process_unmasked else None,
+            "original_padding_mask": original_padding_mask,
         }
 
     def forward(

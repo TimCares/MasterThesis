@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: live_masked_img_scaled_mse_warmup_lr_5e4
+run_name: live_masked_cloned_img_scaled_mse_warmup_lr_5e4
 
 load_checkpoint:
 
@@ -43,7 +43,7 @@ model:
   encoders_embed_dim: 768
   embed_dim: 768
 
-  clone_batch: 1
+  clone_batch: 8
 
   depth: 5
   num_heads: 8 
