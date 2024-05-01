@@ -313,7 +313,7 @@ class KDSharedMMData2Vec(nn.Module):
                 source,
                 padding_mask,
                 mask=mask_condition,
-                remove_masked=False,
+                remove_masked=mask_condition,
                 clone_batch=self.cfg.clone_batch if mask_condition else 1,
                 mask_seeds=None,
                 precomputed_mask=precomputed_mask,
