@@ -376,7 +376,7 @@ class KDSharedMMData2Vec(nn.Module):
         del layer_results # not needed
     
         if feature_extractor.decoder is not None:
-            x = self.forward_decoder(
+            x = self.forward_decoder( # expands input back to original size -> adds masked time steps back
                 x,
                 feature_extractor,
                 feature_extractor.decoder,
