@@ -91,15 +91,17 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         target = prepare_output(target, Modality.IMAGE)
 
         if self.cfg.model.mask_student_input:
-            masked_b = output_dict['mask'].mask.bool()
             pred = output_dict['x']
-            assert pred.size(1) == masked_b.size(1), f"Size mismatch: {pred.size(1)} != {masked_b.size(1)}"
-            pred = pred[masked_b]
 
             if self.cfg.model.clone_batch > 1:
                 target = target.repeat_interleave(self.cfg.model.clone_batch, 0)
-            assert target.size(1) == masked_b.size(1), f"Size mismatch: {target.size(1)} != {masked_b.size(1)}"
-            target = target[masked_b]
+            
+            if self.cfg.model.regress_masked_only:
+                masked_b = output_dict['mask'].mask.bool()
+                assert pred.size(1) == masked_b.size(1), f"Size mismatch: {pred.size(1)} != {masked_b.size(1)}"
+                assert target.size(1) == masked_b.size(1), f"Size mismatch: {target.size(1)} != {masked_b.size(1)}"
+                pred = pred[masked_b]
+                target = target[masked_b]
         else:
             pred = output_dict['layer_results']
             pred = prepare_output(pred, Modality.IMAGE)
@@ -172,6 +174,7 @@ class KDMMData2VecConfig():
     init_attention_from: Optional[str] = None
 
     mask_student_input: bool = False
+    regress_masked_only: bool = False
 
     loss_scale: Optional[float] = field(
         default=None,
@@ -387,13 +390,14 @@ class KDMMData2Vec(nn.Module):
         
         del layer_results # not needed
     
-        if feature_extractor.decoder is not None:
-            x = self.forward_decoder( # expands input back to original size -> adds masked time steps back
-                x,
-                feature_extractor,
-                feature_extractor.decoder,
-                encoder_mask,
-            )
+        with torch.no_grad():
+            if feature_extractor.decoder is not None:
+                x = self.forward_decoder( # expands input back to original size -> adds masked time steps back
+                    x,
+                    feature_extractor,
+                    feature_extractor.decoder,
+                    encoder_mask,
+                )
 
         out = {
             "x": x,
