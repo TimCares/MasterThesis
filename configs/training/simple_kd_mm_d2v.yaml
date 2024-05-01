@@ -38,7 +38,7 @@ model:
   init_blocks_from_mode:
   freeze_attention: False
 
-  mask_student_input: True # if set to False we do normal KD of all the features (or timesteps respectively)
+  mask_student_input: True # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
   # TODO: for not d2v masking, regress all or just masked timesteps?
   regress_masked_only: False # if set to True, only masked timesteps are used for the regression target, ignored if "mask_student_input" is False
   d2v_masking: True # if set to True, then we use the D2V masking scheme, which includes the decoder in the masking process
