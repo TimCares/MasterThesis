@@ -250,6 +250,7 @@ class KDMMData2Vec(nn.Module):
         if self.cfg.init_blocks_from_mode is not None:
             self._init_blocks()
 
+        self.mask_embed = None
         if self.cfg.mask_student_input and not self.cfg.d2v_masking:
             self.mask_embed = nn.Parameter(
                 torch.zeros(1, 1, self.cfg.embed_dim)
