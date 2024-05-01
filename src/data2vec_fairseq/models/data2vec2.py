@@ -270,7 +270,7 @@ class Data2VecMultiModel(BaseFairseqModel):
         self.num_updates = 0
 
         assert self.cfg.supported_modality is not None, "supported_modality must be set"
-        self.modality_encoder_num_extra_tokens = self.modality_encoders[self.cfg.supported_modality].modality_cfg.num_extra_tokens
+        self.modality_encoder_num_extra_tokens = self.modality_encoders[self.cfg.supported_modality.name].modality_cfg.num_extra_tokens
 
     def _init_weights(self, m):
 
@@ -442,6 +442,11 @@ class Data2VecMultiModel(BaseFairseqModel):
         if self.dropout_input is not None:
             x = self.dropout_input(x)
 
+        if precomputed_encoder_output is None:
+            extra_tokens = feature_extractor.modality_cfg.num_extra_tokens
+        else:
+            extra_tokens = self.modality_encoder_num_extra_tokens # self.modality_encoders have been removed in this case
+
         layer_results = []
         for i, blk in enumerate(self.blocks):
             if (
@@ -464,6 +469,10 @@ class Data2VecMultiModel(BaseFairseqModel):
                     alibi_bias=ab,
                 )
                 if features_only:
+                    if precomputed_encoder_output is not None and remove_extra_tokens:
+                        # from this case we can infer that we masked the student input (in KD, so this model is the teacher)
+                        # why? because if we do not mask the student input, then we also regress the extra tokens, so "remove_extra_tokens" should be False
+                        lr = lr[extra_tokens:]
                     layer_results.append(lr)
 
         if self.norm is not None:
@@ -471,11 +480,6 @@ class Data2VecMultiModel(BaseFairseqModel):
 
         if features_only:
             if remove_extra_tokens:
-                if precomputed_encoder_output is None:
-                    extra_tokens = feature_extractor.modality_cfg.num_extra_tokens
-                else:
-                    extra_tokens = self.modality_encoder_num_extra_tokens # self.modality_encoders have been removed in this case
-
                 x = x[:, extra_tokens :]
                 if masked_padding_mask is not None:
                     masked_padding_mask = masked_padding_mask[
@@ -580,10 +584,6 @@ class Data2VecMultiModel(BaseFairseqModel):
 
             y = []
             ema_x = []
-            if precomputed_encoder_output is None:
-                extra_tokens = feature_extractor.modality_cfg.num_extra_tokens
-            else:
-                extra_tokens = self.modality_encoder_num_extra_tokens # self.modality_encoders have been removed in this case
             for i, blk in enumerate(ema_blocks):
                 ab = ema_alibi_bias
                 if ab is not None and alibi_scale is not None:

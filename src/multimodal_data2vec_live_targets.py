@@ -44,7 +44,8 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
             param.requires_grad = False
         self.teacher.eval()
         
-        teacher_extra_tokens = self.teacher.modality_encoders['image'].modality_cfg.num_extra_tokens
+        teacher_mode = self.teacher.cfg.supported_modality.name
+        teacher_extra_tokens = self.teacher.modality_encoders[teacher_mode].modality_cfg.num_extra_tokens
         del self.teacher.modality_encoders # we share it between teacher and student
         
         self.model = KDSharedMMData2Vec(cfg=self.cfg.model)
