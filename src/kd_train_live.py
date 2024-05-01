@@ -72,6 +72,12 @@ def main(cfg: DictConfig) -> None:
     if trainer.global_rank == 0:
         wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
 
+    if cfg.model.mask_student_input and cfg.model.clone_batch > 1:
+        prev_batch_size = cfg.data.dataloader.batch_size
+        with open_dict(cfg):
+            cfg.data.dataloader.batch_size = int(cfg.data.dataloader.batch_size / cfg.model.clone_batch)
+        logger.info(f"Actual batch size reduced to {cfg.data.dataloader.batch_size} (from {prev_batch_size}) due to clone_batch > 1.")
+
     dataloader_args = cfg.data.dataloader
 
     datamodules = []
