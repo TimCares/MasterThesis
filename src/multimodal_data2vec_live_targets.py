@@ -43,9 +43,15 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
         for param in self.teacher.parameters():
             param.requires_grad = False
         self.teacher.eval()
+        
+        teacher_extra_tokens = self.teacher.modality_encoders['image'].modality_cfg.num_extra_tokens
         del self.teacher.modality_encoders # we share it between teacher and student
         
         self.model = KDSharedMMData2Vec(cfg=self.cfg.model)
+        
+        assert self.model.modality_encoders['image'].modality_cfg.num_extra_tokens == teacher_extra_tokens, \
+            f"Extra tokens mismatch: {self.model.modality_encoders['image'].modality_cfg.num_extra_tokens} != {teacher_extra_tokens} " \
+                "between student and teacher model for modality 'image'" # TODO: add support for other modalities
         
         self.save_hyperparameters()
 

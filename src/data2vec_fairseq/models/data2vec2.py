@@ -269,6 +269,9 @@ class Data2VecMultiModel(BaseFairseqModel):
 
         self.num_updates = 0
 
+        assert self.cfg.supported_modality is not None, "supported_modality must be set"
+        self.modality_encoder_num_extra_tokens = self.modality_encoders[self.cfg.supported_modality].modality_cfg.num_extra_tokens
+
     def _init_weights(self, m):
 
         try:
@@ -468,10 +471,15 @@ class Data2VecMultiModel(BaseFairseqModel):
 
         if features_only:
             if remove_extra_tokens:
-                x = x[:, feature_extractor.modality_cfg.num_extra_tokens :]
+                if precomputed_encoder_output is None:
+                    extra_tokens = feature_extractor.modality_cfg.num_extra_tokens
+                else:
+                    extra_tokens = self.modality_encoder_num_extra_tokens # self.modality_encoders have been removed in this case
+
+                x = x[:, extra_tokens :]
                 if masked_padding_mask is not None:
                     masked_padding_mask = masked_padding_mask[
-                        :, feature_extractor.modality_cfg.num_extra_tokens :
+                        :, extra_tokens :
                     ]
 
             return {
@@ -572,7 +580,10 @@ class Data2VecMultiModel(BaseFairseqModel):
 
             y = []
             ema_x = []
-            extra_tokens = feature_extractor.modality_cfg.num_extra_tokens
+            if precomputed_encoder_output is None:
+                extra_tokens = feature_extractor.modality_cfg.num_extra_tokens
+            else:
+                extra_tokens = self.modality_encoder_num_extra_tokens # self.modality_encoders have been removed in this case
             for i, blk in enumerate(ema_blocks):
                 ab = ema_alibi_bias
                 if ab is not None and alibi_scale is not None:
