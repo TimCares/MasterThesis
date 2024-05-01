@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: live_masked_cloned_img_warmup_lr_5e4
+run_name: live_masked_cloned_img_IN_regress_all_warmup_lr_5e4
 
 load_checkpoint:
 
