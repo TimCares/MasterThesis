@@ -20,7 +20,7 @@ from data2vec_fairseq.models.modalities.modules import AltBlock
 
 logger = logging.getLogger(__name__)
 
-def prepare_output(out:List[torch.Tensor]) -> List[torch.Tensor]:
+def prepare_output(out:List[torch.Tensor], modality:Modality) -> List[torch.Tensor]:
     out = [
         F.instance_norm(tl.transpose(1, 2).float()).transpose(1, 2)
         for tl in out  # BTC -> BCT -> BTC
@@ -30,6 +30,9 @@ def prepare_output(out:List[torch.Tensor]) -> List[torch.Tensor]:
     for tl in out[1:]:
         y.add_(tl.float())
     y = y.div_(len(out))
+
+    if modality == Modality.IMAGE:
+        y = F.layer_norm(y, y.shape[-1:])
     return y
 
 class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
@@ -85,7 +88,7 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
                 )
         
         target = target['layer_results']
-        target = prepare_output(target)
+        target = prepare_output(target, Modality.IMAGE)
 
         if self.cfg.model.mask_student_input:
             masked_b = output_dict['mask'].mask.bool()
@@ -99,7 +102,7 @@ class KDSharedData2VecPreTrainingLightningModule(L.LightningModule):
             target = target[masked_b]
         else:
             pred = output_dict['layer_results']
-            pred = prepare_output(pred)
+            pred = prepare_output(pred, Modality.IMAGE)
         
 
         loss = self.kd_loss(input=pred, target=target)
