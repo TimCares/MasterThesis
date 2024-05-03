@@ -255,6 +255,7 @@ class KDMMData2Vec(nn.Module):
             self.mask_embed = nn.Parameter(
                 torch.zeros(1, 1, self.cfg.embed_dim)
             )
+            nn.init.trunc_normal_(self.mask_embed, 0.02)
         
     def make_block(self, drop_path, dim=None, heads=None):
         make_layer_norm = partial(
