@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: live_masked_cloned_img_IN_regress_all_warmup_lr_5e4
+run_name: live_init_spaced_img_IN_warmup_lr_5e4
 
 load_checkpoint:
 
@@ -35,10 +35,10 @@ model:
     - IMAGE
     # - TEXT
 
-  init_blocks_from_mode:
+  init_blocks_from_mode: IMAGE
   freeze_attention: False
 
-  mask_student_input: True # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
+  mask_student_input: False # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
   # TODO: for not d2v masking, regress all or just masked timesteps?
   regress_masked_only: False # if set to True, only masked timesteps are used for the regression target, ignored if "mask_student_input" is False
   d2v_masking: True # if set to True, then we use the D2V masking scheme, which includes the decoder in the masking process

@@ -517,7 +517,14 @@ class KDMMData2Vec(nn.Module):
         state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
         d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
         
-        self.blocks = d2v_model.blocks[-self.cfg.depth:]
+        start_layer_idx = len(d2v_model.blocks)-2*self.cfg.depth+1
+        take_block_indices = [i for i in range(len(d2v_model.blocks))][start_layer_idx::2]
+
+        self.blocks = []
+        for idx in take_block_indices:
+            self.blocks.append(d2v_model.blocks[idx])
+        self.blocks = nn.ModuleList(self.blocks)
+        logger.info(f'Taking pretrained block indices: {take_block_indices}')
         
         if self.cfg.freeze_attention:
             logger.info("Freezing block attention weights.")
