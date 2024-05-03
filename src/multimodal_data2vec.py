@@ -79,7 +79,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
             target = self.teacher.extract_features(
                     source=batch['image'],
                     mode=None, # determined automatically in model
-                    padding_mask=precomputed_encoder_output['padding_mask'], # TODO: do we need padding mask here for other modalities, since we are providing precomputed encoder output?
+                    padding_mask=None, # the padding mask is provided in the precomputed_encoder_output and used by the teacher model
                     mask=False, # we are creating targets from a teacher model for the student model, so no mask
                     remove_extra_tokens=self.cfg.model.mask_student_input, # "decoder_input" in d2v (decoder in student model) removes extra tokens
                     # ... so we need to remove them from the teacher output as well if we mask the student input. If not, then we do not need to remove them
