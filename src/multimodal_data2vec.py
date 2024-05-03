@@ -90,18 +90,23 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         target = target['layer_results']
         target = prepare_output(target, Modality.IMAGE)
 
-        if self.cfg.model.mask_student_input and self.cfg.model.d2v_masking:
-            pred = output_dict['x']
-
+        if self.cfg.model.mask_student_input:
             if self.cfg.model.clone_batch > 1:
                 target = target.repeat_interleave(self.cfg.model.clone_batch, 0)
             
-            if self.cfg.model.regress_masked_only:
-                masked_b = output_dict['mask'].mask.bool()
-                assert pred.size(1) == masked_b.size(1), f"Size mismatch: {pred.size(1)} != {masked_b.size(1)}"
-                assert target.size(1) == masked_b.size(1), f"Size mismatch: {target.size(1)} != {masked_b.size(1)}"
-                pred = pred[masked_b]
-                target = target[masked_b]
+            if self.cfg.model.d2v_masking:
+                pred = output_dict['x']
+                
+                
+                if self.cfg.model.regress_masked_only:
+                    masked_b = output_dict['mask'].mask.bool()
+                    assert pred.size(1) == masked_b.size(1), f"Size mismatch: {pred.size(1)} != {masked_b.size(1)}"
+                    assert target.size(1) == masked_b.size(1), f"Size mismatch: {target.size(1)} != {masked_b.size(1)}"
+                    pred = pred[masked_b]
+                    target = target[masked_b]
+            else:
+                pred = output_dict['layer_results']
+                pred = prepare_output(pred, Modality.IMAGE)
         else:
             pred = output_dict['layer_results']
             pred = prepare_output(pred, Modality.IMAGE)
