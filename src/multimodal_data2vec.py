@@ -243,6 +243,15 @@ class KDMMData2Vec(nn.Module):
             if len(p.shape) == 1 or pn.endswith(".bias") or "alibi_scale" in pn:
                 p.optim_overrides = {"optimizer": {"weight_decay_scale": 0}}
 
+        if self.cfg.init_blocks_from_mode is None:
+            logger.info("Initializing and freezing attention blocks from pretrained model")
+            state_dict_name = self.cfg.pretrained[self.cfg.init_blocks_from_mode.name.lower()]
+            state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
+            d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
+            for i in range(self.cfg.depth):
+                self.blocks[i].attn = d2v_model.blocks[i].attn
+            self.freeze_attention_blocks()
+
         # add modality encoders later, so that they are not part of the model's parameters when model is initialized
         self.modality_encoders:nn.ModuleDict[Modality, nn.Module] = self._get_modality_encoders()
         self._freeze(self.modality_encoders)
@@ -551,16 +560,14 @@ class KDMMData2Vec(nn.Module):
                 self.blocks[idx].eval()
     
     def freeze_attention_blocks(self):
-        if self.cfg.freeze_attention:
-            for block in self.blocks:
-                self._freeze(block.attn)
-                block.attn.eval()
+        for block in self.blocks:
+            self._freeze(block.attn)
+            block.attn.eval()
 
     def unfreeze_attention_blocks(self):
-        if self.cfg.freeze_attention:
-            for block in self.blocks:
-                self._unfreeze(block.attn)
-                block.attn.train()
+        for block in self.blocks:
+            self._unfreeze(block.attn)
+            block.attn.train()
 
     def _freeze(self, module:nn.Module) -> None:
         for param in module.parameters():

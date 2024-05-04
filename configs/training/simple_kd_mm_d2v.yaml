@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: live_init_freeze_2_img_lr_1e3
+run_name: live_init_freeze_attn_img_lr_5e-4
 
 load_checkpoint:
 
@@ -35,9 +35,9 @@ model:
     - IMAGE
     # - TEXT
 
-  init_blocks_from_mode: IMAGE
-  block_indices: [0,1]
-  freeze_blocks: [0,1] # just the specified ones are frozen
+  init_blocks_from_mode:
+  block_indices:
+  freeze_blocks: # just the specified ones are frozen
   freeze_attention: False # if set to True, only the attention weights are frozen
 
   mask_student_input: False # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
@@ -50,7 +50,7 @@ model:
   clone_batch: 8
 
   depth: 5
-  num_heads: 8 
+  num_heads: 12 
   mlp_ratio: 3.0 # 3.0 or 4.0
   encoder_dropout: 0.0
   dropout_input: 0.0
