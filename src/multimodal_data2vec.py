@@ -11,7 +11,8 @@ import pytorch_lightning as L
 from omegaconf import II
 from dataclasses import dataclass, field
 from data2vec_fairseq.data.modality import Modality
-from transformers.optimization import get_cosine_schedule_with_warmup
+from data2vec_fairseq.models.modalities.base import MaskInfo, ModalitySpecificEncoder
+from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 import contextlib
 import math
 
@@ -149,11 +150,17 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
                                       eps=self.cfg.optimizer.eps,
                                       weight_decay=self.cfg.optimizer.weight_decay)
         if self.cfg.optimizer.warmup:
-            scheduler = get_cosine_schedule_with_warmup(
-                optimizer,
-                num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,
-                num_training_steps=self.cfg.optimizer_schedule.max_steps,
-            )
+            if self.cfg.optimizer_schedule.type == 'cosine':
+                scheduler = get_cosine_schedule_with_warmup(
+                    optimizer,
+                    num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,
+                    num_training_steps=self.cfg.optimizer_schedule.max_steps,
+                )
+            else:
+                scheduler = get_constant_schedule_with_warmup(
+                    optimizer,
+                    num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,
+                )
             return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": "cosine_w_warmup"}]
         else:
             return optimizer
