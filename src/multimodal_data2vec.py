@@ -586,4 +586,5 @@ class KDMMData2Vec(nn.Module):
             if modality not in keep_modes:
                 del self.modality_encoders[modality.name.lower()] # includes removing the decoder
             else:
-                del self.modality_encoders[modality.name.lower()].decoder # not needed in any case
+                if hasattr(self.modality_encoders[modality.name.lower()], 'decoder'):
+                    del self.modality_encoders[modality.name.lower()].decoder # not needed in any case
