@@ -94,14 +94,10 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         target = prepare_output(target, Modality.IMAGE)
 
         if self.cfg.model.mask_student_input:
+            pred = output_dict['x']
+
             if self.cfg.model.clone_batch > 1:
                 target = target.repeat_interleave(self.cfg.model.clone_batch, 0)
-            
-            if self.cfg.model.d2v_masking:
-                pred = output_dict['x']
-            else:
-                pred = output_dict['layer_results']
-                pred = prepare_output(pred, Modality.IMAGE)
 
             if self.cfg.model.regress_masked_only:
                 masked_b = output_dict['mask'].mask.bool()
@@ -192,7 +188,6 @@ class KDMMData2VecConfig():
 
     mask_student_input: bool = False
     regress_masked_only: bool = False
-    d2v_masking: bool = False
 
     loss_scale: Optional[float] = field(
         default=None,
@@ -259,18 +254,6 @@ class KDMMData2Vec(nn.Module):
         # init pretrained later, so that they are not part of the model's parameters when model is initialized
         self._init_from_pretrained()
         assert hasattr(self, 'blocks'), "Blocks must be initialized before initializing the model."
-
-        self.mask_embed = None
-        if self.cfg.mask_student_input and not self.cfg.d2v_masking:
-            self.mask_embed = nn.Parameter(
-                torch.zeros(1, 1, self.cfg.embed_dim)
-            )
-            nn.init.trunc_normal_(self.mask_embed, 0.02)
-            for encoder in self.modality_encoders.values():
-                with open_dict(encoder.modality_cfg):
-                    # add positional encoding to input (with mask embeddings)
-                    encoder.modality_cfg.decoder.add_positions_all = True
-                    encoder.modality_cfg.decoder.add_positions_masked = False # ensured we do not do it twice
         
     def make_block(self, drop_path, dim=None, heads=None):
         make_layer_norm = partial(
@@ -356,7 +339,7 @@ class KDMMData2Vec(nn.Module):
                 source,
                 padding_mask,
                 mask=mask_condition,
-                remove_masked=mask_condition and self.cfg.d2v_masking, # we only remove masked timesteps if we use d2v masking
+                remove_masked=mask_condition,
                 clone_batch=self.cfg.clone_batch if mask_condition else 1,
                 mask_seeds=None,
                 precomputed_mask=precomputed_mask,
@@ -371,10 +354,6 @@ class KDMMData2Vec(nn.Module):
 
         if self.dropout_input is not None:
             x = self.dropout_input(x)
-
-        if encoder_mask is not None and self.mask_embed is not None: # if not self.cfg.d2v_masking and self.cfg.mask_student_input
-            mask_idx = encoder_mask.mask.bool()
-            x[mask_idx] = self.mask_embed
 
         layer_results = []
         for i, blk in enumerate(self.blocks):
@@ -402,8 +381,8 @@ class KDMMData2Vec(nn.Module):
         if self.norm is not None:
             x = self.norm(x)
 
-        # we do not use the decoder for features extraction, when we use vanilla KD, or when we use masked KD without d2v masking
-        if features_only or not self.cfg.mask_student_input or not self.cfg.d2v_masking:
+        # we do not use the decoder for features extraction, when we use vanilla KD
+        if features_only or not self.cfg.mask_student_input:
             if remove_extra_tokens:
                 x = x[:, feature_extractor.modality_cfg.num_extra_tokens :]
                 if masked_padding_mask is not None:

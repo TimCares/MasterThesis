@@ -37,14 +37,12 @@ model:
 
   block_init_cfg:
     init_from: IMAGE
-    init_type: attention # 'attention' or 'block'
+    init_type: attention # 'attention' -> only attention layers are initialized from pretrained, if 'block', then whole Transformer blocks are initialized
     block_indices: # if None, then all blocks are initialized
     freeze_blocks: # if None, then all blocks are frozen, if empty list, then no blocks are frozen
 
   mask_student_input: False # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
-  # TODO: for not d2v masking, regress all or just masked timesteps?
   regress_masked_only: False # if set to True, only masked timesteps are used for the regression target, ignored if "mask_student_input" is False
-  d2v_masking: False # if set to True, then we use the D2V masking scheme, which includes the decoder in the masking process
 
   embed_dim: 768
 
