@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: live_img_mlpr_4_head_12_IN_warmup_lr_5e4
+run_name: live_init_freeze_2_img_lr_1e3
 
 load_checkpoint:
 
@@ -36,8 +36,8 @@ model:
     # - TEXT
 
   init_blocks_from_mode: IMAGE
-  block_indices: 5 # single integer => arange(0, integer)
-  freeze_blocks: False # if set to True or list of indices, freezes the whole pretrained blocks (or just the specified ones)
+  block_indices: [0,1] # single integer => arange(0, integer)
+  freeze_blocks: [0,1] # if set to True or list of indices, freezes the whole pretrained blocks (or just the specified ones)
   freeze_attention: False # if set to True, only the attention weights are frozen
 
   mask_student_input: False # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)

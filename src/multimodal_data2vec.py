@@ -533,11 +533,18 @@ class KDMMData2Vec(nn.Module):
         # start_layer_idx = len(d2v_model.blocks)-2*self.cfg.depth+1
         # take_block_indices = [i for i in range(len(d2v_model.blocks))][start_layer_idx::2]
 
+        logger.info(f'Taking pretrained block indices: {take_block_indices}')
+
         self.blocks = []
         for idx in take_block_indices:
             self.blocks.append(d2v_model.blocks[idx])
+
+        if len(take_block_indices) < self.cfg.depth:
+            dpr = np.linspace(self.cfg.start_drop_path_rate, self.cfg.end_drop_path_rate, self.cfg.depth-len(take_block_indices))
+            for i in range(self.cfg.depth-len(take_block_indices)):
+                self.blocks.append(self.make_block(dpr[i]))
+        
         self.blocks = nn.ModuleList(self.blocks)
-        logger.info(f'Taking pretrained block indices: {take_block_indices}')
         
         if isinstance(self.cfg.freeze_blocks, bool):
             if self.cfg.freeze_blocks:
