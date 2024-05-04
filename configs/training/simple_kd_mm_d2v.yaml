@@ -35,22 +35,23 @@ model:
     - IMAGE
     # - TEXT
 
-  init_blocks_from_mode:
-  freeze_attention: False
+  init_blocks_from_mode: IMAGE
+  block_indices: 5 # single integer => arange(0, integer)
+  freeze_blocks: False # if set to True or list of indices, freezes the whole pretrained blocks (or just the specified ones)
+  freeze_attention: False # if set to True, only the attention weights are frozen
 
   mask_student_input: False # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
   # TODO: for not d2v masking, regress all or just masked timesteps?
   regress_masked_only: False # if set to True, only masked timesteps are used for the regression target, ignored if "mask_student_input" is False
   d2v_masking: False # if set to True, then we use the D2V masking scheme, which includes the decoder in the masking process
 
-  encoders_embed_dim: 768
   embed_dim: 768
 
   clone_batch: 8
 
   depth: 5
-  num_heads: 12 
-  mlp_ratio: 4 # 3.0 or 4.0
+  num_heads: 8 
+  mlp_ratio: 3.0 # 3.0 or 4.0
   encoder_dropout: 0.0
   dropout_input: 0.0
   attention_dropout: 0.0
