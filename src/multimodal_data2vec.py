@@ -173,8 +173,8 @@ class KDMMData2VecConfig():
     supported_modalities: List[Modality] = field(default_factory=lambda: [Modality.AUDIO, Modality.IMAGE, Modality.TEXT])
 
     init_blocks_from_mode: Optional[Modality] = None
-    block_indices: Optional[Union[int, List[int]]] = None # single integer => arange(0, integer)
-    freeze_blocks: Union[bool, List[int]] = False # if set to True, freezes the whole pretrained blocks
+    block_indices: Optional[List[int]] = None
+    freeze_blocks: Optional[List[int]] = None
     freeze_attention: bool = False
 
     mask_student_input: bool = False
@@ -251,6 +251,7 @@ class KDMMData2Vec(nn.Module):
         # only here done, not at the point where blocks are defined else,
         # so that we do not initialize pretrained blocks
         if self.cfg.init_blocks_from_mode is not None:
+            assert self.cfg.block_indices is not None, "Block indices must be specified for initialization of blocks."
             self._init_blocks()
 
         self.mask_embed = None
@@ -517,12 +518,8 @@ class KDMMData2Vec(nn.Module):
         
         assert self.cfg.block_indices is not None, "Block indices must be specified for initialization of blocks."
         
-        if isinstance(self.cfg.block_indices, int):
-            assert 0 <= self.cfg.block_indices < self.cfg.depth, \
-                f"Block indices must be in range [0, {self.cfg.depth-1}], found: {self.cfg.block_indices}"
-            take_block_indices = list(range(self.cfg.block_indices))
-        else:
-            take_block_indices = self.cfg.block_indices
+        
+        take_block_indices = self.cfg.block_indices
 
         logger.info(f"Initializing blocks from pretrained mode: {self.cfg.init_blocks_from_mode}")
 
@@ -548,10 +545,7 @@ class KDMMData2Vec(nn.Module):
         
         self.blocks = nn.ModuleList(self.blocks)
         
-        if isinstance(self.cfg.freeze_blocks, bool):
-            if self.cfg.freeze_blocks:
-                self._freeze(self.blocks)
-        else:
+        if self.cfg.freeze_blocks is not None:
             for idx in self.cfg.freeze_blocks:
                 self._freeze(self.blocks[idx])
     
