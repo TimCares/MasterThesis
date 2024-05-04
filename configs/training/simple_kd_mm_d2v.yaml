@@ -38,15 +38,15 @@ model:
   block_init_cfg:
     init_from: IMAGE
     init_type: attention # 'attention' -> only attention layers are initialized from pretrained, if 'block', then whole Transformer blocks are initialized
-    block_indices: # if None, then all blocks are initialized
-    freeze_blocks: # if None, then all blocks are frozen, if empty list, then no blocks are frozen
+    block_indices: # if None, then all init blocks (can also be just attention layers) are initialized
+    freeze_blocks: # if None, then all init blocks (can also be just attention layers) are frozen, if empty list, then no blocks are frozen
 
   mask_student_input: False # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
   regress_masked_only: False # if set to True, only masked timesteps are used for the regression target, ignored if "mask_student_input" is False
 
   embed_dim: 768
 
-  clone_batch: 8
+  clone_batch: 8 # only relevant if "mask_student_input" is True
 
   depth: 5
   num_heads: 12 
