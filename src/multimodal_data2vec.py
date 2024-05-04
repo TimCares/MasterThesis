@@ -548,6 +548,7 @@ class KDMMData2Vec(nn.Module):
         if self.cfg.freeze_blocks is not None:
             for idx in self.cfg.freeze_blocks:
                 self._freeze(self.blocks[idx])
+                self.blocks[idx].eval()
     
     def freeze_attention_blocks(self):
         if self.cfg.freeze_attention:
