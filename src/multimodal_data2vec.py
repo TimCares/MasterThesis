@@ -511,6 +511,7 @@ class KDMMData2Vec(nn.Module):
             take_block_indices = init_cfg.block_indices
 
         logger.info(f"Initializing blocks from pretrained mode: {init_cfg.init_from}")
+        logger.info(f"Init type: {init_cfg.init_type}")
         logger.info(f'Taking pretrained block indices: {take_block_indices}')
 
         if init_cfg.init_type == 'attention':
@@ -537,16 +538,20 @@ class KDMMData2Vec(nn.Module):
 
         if init_cfg.freeze_blocks is None:
             if init_cfg.init_type == 'attention':
+                logger.info("Freezing all attention blocks")
                 self.freeze_attention_blocks()
             else:
+                logger.info("Freezing all blocks")
                 self._freeze(self.blocks)
         elif len(init_cfg.freeze_blocks) == 0:
             pass # do not freeze any blocks
         else:
             if init_cfg.init_type == 'attention':
+                logger.info(f"Freezing attention block indices: {init_cfg.freeze_blocks}")
                 for idx in init_cfg.freeze_blocks:
                     self._freeze(self.blocks[idx].attn)
             else:
+                logger.info(f"Freezing block indices: {init_cfg.freeze_blocks}")
                 for idx in init_cfg.freeze_blocks:
                     self._freeze(self.blocks[idx])
         
