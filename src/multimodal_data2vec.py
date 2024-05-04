@@ -539,9 +539,11 @@ class KDMMData2Vec(nn.Module):
         for idx in take_block_indices:
             self.blocks.append(d2v_model.blocks[idx])
 
-        if len(take_block_indices) < self.cfg.depth:
-            dpr = np.linspace(self.cfg.start_drop_path_rate, self.cfg.end_drop_path_rate, self.cfg.depth-len(take_block_indices))
-            for i in range(self.cfg.depth-len(take_block_indices)):
+        n_blocks_missing = self.cfg.depth - len(take_block_indices)
+        if n_blocks_missing > 0:
+            logger.info(f"Adding {n_blocks_missing} new blocks")
+            dpr = np.linspace(self.cfg.start_drop_path_rate, self.cfg.end_drop_path_rate, n_blocks_missing)
+            for i in range(n_blocks_missing):
                 self.blocks.append(self.make_block(dpr[i]))
         
         self.blocks = nn.ModuleList(self.blocks)
