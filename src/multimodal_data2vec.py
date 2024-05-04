@@ -11,10 +11,12 @@ import pytorch_lightning as L
 from omegaconf import II
 from dataclasses import dataclass, field
 from data2vec_fairseq.data.modality import Modality
+from data2vec_fairseq.models.data2vec2 import Data2VecMultiModel
 from data2vec_fairseq.models.modalities.base import MaskInfo, ModalitySpecificEncoder
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 import contextlib
 import math
+from omegaconf import open_dict
 
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from data2vec_fairseq.models.modalities.modules import AltBlock
@@ -173,16 +175,20 @@ class PretrainedStateDictsConfig():
     text:str = 'nlp_base.pt'
 
 @dataclass
+class BlockInitConfig():
+    init_from: Optional[Modality] = Modality.IMAGE # if None, then no blocks are initialized
+    init_type: str = 'attention' # 'attention' or 'block'
+    block_indices: Optional[List[int]] = None # if None, then all blocks are initialized
+    freeze_blocks: Optional[List[int]] = None # if None, then all blocks are frozen, if empty list, then no blocks are frozen
+
+@dataclass
 class KDMMData2VecConfig():
     pretrained_path:str = '../models'
     pretrained: PretrainedStateDictsConfig = field(default_factory=PretrainedStateDictsConfig)
 
     supported_modalities: List[Modality] = field(default_factory=lambda: [Modality.AUDIO, Modality.IMAGE, Modality.TEXT])
 
-    init_blocks_from_mode: Optional[Modality] = None
-    block_indices: Optional[List[int]] = None
-    freeze_blocks: Optional[List[int]] = None
-    freeze_attention: bool = False
+    block_init_cfg: BlockInitConfig = field(default_factory=BlockInitConfig)
 
     mask_student_input: bool = False
     regress_masked_only: bool = False
@@ -233,7 +239,7 @@ class KDMMData2Vec(nn.Module):
 
         dpr = np.linspace(self.cfg.start_drop_path_rate, self.cfg.end_drop_path_rate, self.cfg.depth)
 
-        if self.cfg.init_blocks_from_mode is None:
+        if self.cfg.block_init_cfg.init_from is None:
             self.blocks = nn.ModuleList([self.make_block(dpr[i]) for i in range(self.cfg.depth)])
 
         self.norm = None
@@ -250,25 +256,9 @@ class KDMMData2Vec(nn.Module):
             if len(p.shape) == 1 or pn.endswith(".bias") or "alibi_scale" in pn:
                 p.optim_overrides = {"optimizer": {"weight_decay_scale": 0}}
 
-        if self.cfg.init_blocks_from_mode is None:
-            logger.info("Initializing and freezing attention blocks from pretrained model")
-            state_dict_name = self.cfg.pretrained[self.cfg.init_blocks_from_mode.name.lower()]
-            state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
-            d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
-            for i in range(self.cfg.depth):
-                self.blocks[i].attn = d2v_model.blocks[i].attn
-            self.freeze_attention_blocks()
-
-        # add modality encoders later, so that they are not part of the model's parameters when model is initialized
-        self.modality_encoders:nn.ModuleDict[Modality, nn.Module] = self._get_modality_encoders()
-        self._freeze(self.modality_encoders)
-        self.modality_encoders.eval()
-
-        # only here done, not at the point where blocks are defined else,
-        # so that we do not initialize pretrained blocks
-        if self.cfg.init_blocks_from_mode is not None:
-            assert self.cfg.block_indices is not None, "Block indices must be specified for initialization of blocks."
-            self._init_blocks()
+        # init pretrained later, so that they are not part of the model's parameters when model is initialized
+        self._init_from_pretrained()
+        assert hasattr(self, 'blocks'), "Blocks must be initialized before initializing the model."
 
         self.mask_embed = None
         if self.cfg.mask_student_input and not self.cfg.d2v_masking:
@@ -276,6 +266,11 @@ class KDMMData2Vec(nn.Module):
                 torch.zeros(1, 1, self.cfg.embed_dim)
             )
             nn.init.trunc_normal_(self.mask_embed, 0.02)
+            for encoder in self.modality_encoders.values():
+                with open_dict(encoder.modality_cfg):
+                    # add positional encoding to input (with mask embeddings)
+                    encoder.modality_cfg.decoder.add_positions_all = True
+                    encoder.modality_cfg.decoder.add_positions_masked = False # ensured we do not do it twice
         
     def make_block(self, drop_path, dim=None, heads=None):
         make_layer_norm = partial(
@@ -297,7 +292,7 @@ class KDMMData2Vec(nn.Module):
             ffn_targets=True,
         )
 
-    def _get_modality_encoders(self) -> None:
+    def _init_from_pretrained(self) -> None:
         modality_encoders = {}
         for mode in self.supported_modalities: # mode is instance of Modality
             state_dict_name = self.cfg.pretrained[mode.name.lower()]
@@ -312,7 +307,12 @@ class KDMMData2Vec(nn.Module):
                 total_params = sum(p.numel() for p in module.parameters())
                 logger.info(f"{name} has {total_params} parameters")
 
-        return nn.ModuleDict(modality_encoders)
+            if self.cfg.block_init_cfg.init_from is not None and mode == self.cfg.block_init_cfg.init_from:
+                self._init_blocks(d2v_model=d2v_model)
+
+        self.modality_encoders:nn.ModuleDict[str, nn.Module] = nn.ModuleDict(modality_encoders)
+        self._freeze(self.modality_encoders)
+        self.modality_encoders.eval()
 
     def _init_except_pretrained(self, module:nn.Module):
         if all(param.requires_grad for param in module.parameters(recurse=False)):
@@ -523,66 +523,73 @@ class KDMMData2Vec(nn.Module):
                                     padding_mask=padding_mask,
                                     normalize=normalize)
 
-    def _init_blocks(self) -> None:
-        assert self.cfg.init_blocks_from_mode.name.lower() in self.cfg.pretrained.keys(), \
-            f"Could not find pretrained state dict for: {self.cfg.init_blocks_from_mode} " \
-                "(Used to initialize the transformer blocks)"
+    def _init_blocks(self, d2v_model:Data2VecMultiModel) -> None:
+        init_cfg:BlockInitConfig = self.cfg.block_init_cfg
         
-        assert self.cfg.init_blocks_from_mode in self.supported_modalities, \
-            f"Unsupported modality for initialization of blocks: {self.cfg.init_blocks_from_mode}, " \
-                f"supported modalities are: {self.supported_modalities}"
-        
-        assert self.cfg.block_indices is not None, "Block indices must be specified for initialization of blocks."
-        
-        
-        take_block_indices = self.cfg.block_indices
+        if init_cfg.block_indices is None:
+            take_block_indices = [i for i in range(self.cfg.depth)]
+        else:
+            take_block_indices = init_cfg.block_indices
 
-        logger.info(f"Initializing blocks from pretrained mode: {self.cfg.init_blocks_from_mode}")
-
-        state_dict_name = self.cfg.pretrained[self.cfg.init_blocks_from_mode.name.lower()]
-        state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
-        d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
-        
-        # start_layer_idx = len(d2v_model.blocks)-2*self.cfg.depth+1
-        # take_block_indices = [i for i in range(len(d2v_model.blocks))][start_layer_idx::2]
-
+        logger.info(f"Initializing blocks from pretrained mode: {init_cfg.init_from}")
         logger.info(f'Taking pretrained block indices: {take_block_indices}')
 
-        self.blocks = []
+        if init_cfg.init_type == 'attention':
+            dpr = np.linspace(self.cfg.start_drop_path_rate, self.cfg.end_drop_path_rate, self.cfg.depth)
+            self.blocks = [self.make_block(dpr[i]) for i in range(self.cfg.depth)]
+        else:
+            self.blocks = []
+
         for idx in take_block_indices:
-            self.blocks.append(d2v_model.blocks[idx])
+            if init_cfg.init_type == 'attention':
+                self.blocks[idx].attn = d2v_model.blocks[idx].attn
+            else:
+                self.blocks.append(d2v_model.blocks[idx])
 
         n_blocks_missing = self.cfg.depth - len(take_block_indices)
         if n_blocks_missing > 0:
+            assert init_cfg.init_type == 'block', "Only 'block' initialization supports adding new blocks"
             logger.info(f"Adding {n_blocks_missing} new blocks")
             dpr = np.linspace(self.cfg.start_drop_path_rate, self.cfg.end_drop_path_rate, n_blocks_missing)
             for i in range(n_blocks_missing):
                 self.blocks.append(self.make_block(dpr[i]))
-        
+
         self.blocks = nn.ModuleList(self.blocks)
+
+        if init_cfg.freeze_blocks is None:
+            if init_cfg.init_type == 'attention':
+                self.freeze_attention_blocks()
+            else:
+                self._freeze(self.blocks)
+        elif len(init_cfg.freeze_blocks) == 0:
+            pass # do not freeze any blocks
+        else:
+            if init_cfg.init_type == 'attention':
+                for idx in init_cfg.freeze_blocks:
+                    self._freeze(self.blocks[idx].attn)
+            else:
+                for idx in init_cfg.freeze_blocks:
+                    self._freeze(self.blocks[idx])
         
-        if self.cfg.freeze_blocks is not None:
-            for idx in self.cfg.freeze_blocks:
-                self._freeze(self.blocks[idx])
-                self.blocks[idx].eval()
     
     def freeze_attention_blocks(self):
         for block in self.blocks:
             self._freeze(block.attn)
-            block.attn.eval()
 
     def unfreeze_attention_blocks(self):
         for block in self.blocks:
             self._unfreeze(block.attn)
-            block.attn.train()
 
     def _freeze(self, module:nn.Module) -> None:
         for param in module.parameters():
             param.requires_grad = False
+        module.eval()
 
     def _unfreeze(self, module:nn.Module) -> None:
         for param in module.parameters():
             param.requires_grad = True
+        module.train()
+
 
     def prepare_fine_tuning(self, keep_modes:List[Modality]) -> None:
         self.cfg.clone_batch = 1

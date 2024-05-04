@@ -35,10 +35,11 @@ model:
     - IMAGE
     # - TEXT
 
-  init_blocks_from_mode:
-  block_indices:
-  freeze_blocks: # just the specified ones are frozen
-  freeze_attention: False # if set to True, only the attention weights are frozen
+  block_init_cfg:
+    init_from: IMAGE
+    init_type: attention # 'attention' or 'block'
+    block_indices: # if None, then all blocks are initialized
+    freeze_blocks: # if None, then all blocks are frozen, if empty list, then no blocks are frozen
 
   mask_student_input: False # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
   # TODO: for not d2v masking, regress all or just masked timesteps?
