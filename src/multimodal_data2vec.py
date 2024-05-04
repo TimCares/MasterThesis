@@ -12,11 +12,9 @@ from omegaconf import II
 from dataclasses import dataclass, field
 from data2vec_fairseq.data.modality import Modality
 from data2vec_fairseq.models.data2vec2 import Data2VecMultiModel
-from data2vec_fairseq.models.modalities.base import MaskInfo, ModalitySpecificEncoder
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 import contextlib
 import math
-from omegaconf import open_dict
 
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from data2vec_fairseq.models.modalities.modules import AltBlock
