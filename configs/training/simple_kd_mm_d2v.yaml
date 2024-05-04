@@ -129,7 +129,8 @@ optimizer:
   weight_decay: 0.01
   warmup: True
 
-optimizer_schedule:
+optimizer_schedule: # relevant if "optimizer.warmup" is True
+  type: constant # constant or cosine
   warmup_steps: 3_000
   max_steps: ${lightning_trainer.max_steps}
 
