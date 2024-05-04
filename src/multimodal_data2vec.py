@@ -148,7 +148,8 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
                                       eps=self.cfg.optimizer.eps,
                                       weight_decay=self.cfg.optimizer.weight_decay)
         if self.cfg.optimizer.warmup:
-            if self.cfg.optimizer_schedule.type == 'cosine':
+            name = self.cfg.optimizer_schedule.type
+            if name == 'cosine':
                 scheduler = get_cosine_schedule_with_warmup(
                     optimizer,
                     num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,
@@ -159,7 +160,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
                     optimizer,
                     num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,
                 )
-            return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": "cosine_w_warmup"}]
+            return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": name}]
         else:
             return optimizer
 
