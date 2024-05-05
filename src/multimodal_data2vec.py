@@ -401,14 +401,18 @@ class KDMMData2Vec(nn.Module):
         
         del layer_results # not needed
     
-        with torch.no_grad():
-            if feature_extractor.decoder is not None:
-                x = self.forward_decoder( # expands input back to original size -> adds masked time steps back
-                    x,
-                    feature_extractor,
-                    feature_extractor.decoder,
-                    encoder_mask,
-                )
+        assert hasattr(feature_extractor, 'decoder') and feature_extractor.decoder is not None, \
+            "Decoder must be present in the feature extractor for masking the student input."
+        # expands input back to original size -> adds masked time steps back
+        # decoder weight are frozen as part of "self._freeze(self.modality_encoders)" in "_init_from_pretrained"
+        # no @torch_no_grad() here, because we need to compute the loss,
+        # ... and gradients need to flow through the decoder to the blocks!
+        x = self.forward_decoder(
+            x,
+            feature_extractor,
+            feature_extractor.decoder,
+            encoder_mask,
+        )
 
         out = {
             "x": x,

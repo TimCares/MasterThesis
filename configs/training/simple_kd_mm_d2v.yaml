@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: live_init_freeze_attn_img_lr_5e-4
+run_name: init_attn_freeze_masked_cloned_img_warm_lr_constant_5e-4
 
 load_checkpoint:
 
@@ -41,8 +41,8 @@ model:
     block_indices: # if None, then all init blocks (can also be just attention layers) are initialized
     freeze_blocks: # if None, then all init blocks (can also be just attention layers) are frozen, if empty list, then no blocks are frozen
 
-  mask_student_input: False # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
-  regress_masked_only: False # if set to True, only masked timesteps are used for the regression target, ignored if "mask_student_input" is False
+  mask_student_input: True # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
+  regress_masked_only: True # if set to True, only masked timesteps are used for the regression target, ignored if "mask_student_input" is False
 
   embed_dim: 768
 
