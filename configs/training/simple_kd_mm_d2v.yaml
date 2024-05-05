@@ -85,7 +85,6 @@ data:
       crop_scale:
 
 zero_shot_val:
-  # n_neighbors: 20
   data_path: ${base_dir}
   # num_max_bpe_tokens: ${nlp_context_length}
   # is_multimodal_aligned: False
