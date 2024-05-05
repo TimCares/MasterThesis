@@ -20,9 +20,12 @@ wget https://johnvansickle.com/ffmpeg/builds/ffmpeg-git-amd64-static.tar.xz
 
 tar xvf ffmpeg-git-amd64-static.tar.xz
 
+# find the folder name
+ffmpeg_dir=$(find . -maxdepth 1 -type d -name "ffmpeg-git-*-amd64-static" -print -quit)
+
 # on error, check date of download and update the folder name accordingly
-mv ffmpeg-git-20240301-amd64-static/ffmpeg ffmpeg-git-20240301-amd64-static/ffprobe /usr/local/bin/
+mv "$ffmpeg_dir/ffmpeg" "$ffmpeg_dir/ffprobe" /usr/local/bin/
 
 rm -r ffmpeg-git-amd64-static.tar.xz
 
-rm -r ffmpeg-git-20240301-amd64-static/
+rm -r $ffmpeg_dir
