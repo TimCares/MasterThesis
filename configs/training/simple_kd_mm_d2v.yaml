@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: init_attn_freeze_masked_cloned_img_warm_lr_constant_5e-4
+run_name: init_attn_freeze_masked_cloned_later_img_lr_5e-4
 
 load_checkpoint:
 
@@ -41,8 +41,10 @@ model:
     block_indices: # if None, then all init blocks (can also be just attention layers) are initialized
     freeze_blocks: # if None, then all init blocks (can also be just attention layers) are frozen, if empty list, then no blocks are frozen
 
-  mask_student_input: True # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
-  regress_masked_only: True # if set to True, only masked timesteps are used for the regression target, ignored if "mask_student_input" is False
+  mask_student_input: False # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
+  regress_masked_only: False # if set to True, only masked timesteps are used for the regression target, ignored if "mask_student_input" is False
+  d2v_masking: False
+  num_keep_tokens: 10 # only used for MaskedKD, if "mask_student_input" is True and "d2v_masking" is False
 
   embed_dim: 768
 
@@ -59,9 +61,6 @@ model:
   norm_eps: 1e-6
   norm_affine: True
   layer_norm_first: False
-  # loss_scale -> Set to None => Scaled by 1 / sqrt(embed_dim) (done for audio and image but not for text in the original implementation)
-  # if set to 1.0, no scaling is done
-  loss_scale: 1.0
   start_drop_path_rate: 0
   end_drop_path_rate: 0
   layerdrop: 0.0
@@ -129,7 +128,7 @@ optimizer:
   warmup: True
 
 optimizer_schedule: # relevant if "optimizer.warmup" is True
-  type: constant # constant or cosine
+  type: cosine # constant or cosine
   warmup_steps: 3_000
   max_steps: ${lightning_trainer.max_steps}
 

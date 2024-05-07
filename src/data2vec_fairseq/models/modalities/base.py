@@ -309,7 +309,7 @@ class ModalitySpecificEncoder(nn.Module):
                 # B x H x T x T
                 alibi_bias = F.pad(alibi_bias, (num, 0, num, 0))
 
-        x = self.context_encoder(
+        x_context = self.context_encoder(
             x,
             masked_padding_mask,
             alibi_bias,
@@ -319,7 +319,8 @@ class ModalitySpecificEncoder(nn.Module):
         )
 
         return {
-            "x": x,
+            "x": x_context,
+            "x_pre_context": x,
             "local_features": local_features,
             "padding_mask": masked_padding_mask,
             "alibi_bias": alibi_bias,

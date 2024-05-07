@@ -303,16 +303,18 @@ class AltBlock(nn.Module):
         )
         self.post_mlp_dropout = nn.Dropout(post_mlp_drop, inplace=False)
 
-    def forward(self, x, padding_mask=None, alibi_bias=None):
+    def forward(self, x, padding_mask=None, alibi_bias=None, return_att_scores=False):
         if self.layer_norm_first:
-            x = x + self.drop_path(self.attn(self.norm1(x), padding_mask, alibi_bias))
+            att_x, att = self.attn(self.norm1(x), padding_mask, alibi_bias)
+            x = x + self.drop_path(att_x)
             r = x = self.mlp(self.norm2(x))
             t = x
             x = r + self.drop_path(self.post_mlp_dropout(x))
             if not self.ffn_targets:
                 t = x
         else:
-            x = x + self.drop_path(self.attn(x, padding_mask, alibi_bias))
+            att_x, att = self.attn(x, padding_mask, alibi_bias)
+            x = x + self.drop_path(att_x)
             r = x = self.norm1(x)
             x = self.mlp(x)
             t = x
@@ -320,7 +322,9 @@ class AltBlock(nn.Module):
             if not self.ffn_targets:
                 t = x
 
-        return x, t
+        if return_att_scores:
+            return x, t, att
+        return x, t # else
 
 
 class AltAttention(nn.Module):
@@ -393,7 +397,7 @@ class AltAttention(nn.Module):
         x = x.reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
-        return x
+        return x, attn
 
 
 class EncDecAttention(nn.Module):

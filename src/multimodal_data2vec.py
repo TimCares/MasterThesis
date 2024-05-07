@@ -42,6 +42,9 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         super().__init__()
         self.cfg = cfg
 
+        self.d2v_masking = self.cfg.model.mask_student_input and self.cfg.model.d2v_masking
+        self.masked_kd = self.cfg.model.mask_student_input and not self.cfg.model.d2v_masking
+
         state_dict_name = self.cfg.model.pretrained['image']
         state_dict_path = os.path.join(self.cfg.model.pretrained_path, state_dict_name)
         self.teacher = load_pretrained_d2v_model(state_dict_path=state_dict_path, keep_decoder=False)
@@ -66,7 +69,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
 
     def training_step(self, batch:Dict[str, Any], batch_idx):
         if 'target' in batch:
-            batch.pop('target')
+            batch.pop('target') # unused, layer activations are the targets
         output_dict = self(batch) # call "forward"
 
         # in output_dict, because "return_encoder_output=True" in "forward"
@@ -78,7 +81,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
                     mode=None, # determined automatically in model
                     padding_mask=None, # the padding mask is provided in the precomputed_encoder_output and used by the teacher model
                     mask=False, # we are creating targets from a teacher model for the student model, so no mask
-                    remove_extra_tokens=self.cfg.model.mask_student_input, # "decoder_input" in d2v (decoder in student model) removes extra tokens
+                    remove_extra_tokens=self.d2v_masking, # "decoder_input" in d2v (decoder in student model) removes extra tokens
                     # ... so we need to remove them from the teacher output as well if we mask the student input. If not, then we do not need to remove them
                     # because we also regress the extra tokens, if they are present.
                     precomputed_encoder_output=precomputed_encoder_output,
@@ -87,7 +90,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         target = target['layer_results']
         target = prepare_output(target, Modality.IMAGE)
 
-        if self.cfg.model.mask_student_input:
+        if self.d2v_masking:
             pred = output_dict['x']
 
             if self.cfg.model.clone_batch > 1:
@@ -99,6 +102,8 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
                 assert target.size(1) == masked_b.size(1), f"Size mismatch: {target.size(1)} != {masked_b.size(1)}"
                 pred = pred[masked_b]
                 target = target[masked_b]
+        elif self.masked_kd:
+            pred = output_dict['layer_results'] # already prepared
         else:
             pred = output_dict['layer_results']
             pred = prepare_output(pred, Modality.IMAGE)
@@ -123,16 +128,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
 
         assert input.shape == target.shape # this must be the case
 
-        loss = F.mse_loss(input, target, reduction="none").float()
-
-        if self.cfg.model.loss_scale is not None:
-            scale = self.cfg.model.loss_scale
-        else:
-            scale = 1 / math.sqrt(input.size(-1))
-        
-        reg_loss = loss * scale
-        
-        return reg_loss.mean().float()
+        return F.mse_loss(input, target, reduction="none").float().mean()
 
 
     def configure_optimizers(self):
@@ -183,13 +179,8 @@ class KDMMData2VecConfig():
 
     mask_student_input: bool = False
     regress_masked_only: bool = False
-
-    loss_scale: Optional[float] = field(
-        default=None,
-        metadata={
-            "help": "scale the reconstruction loss by this constant. if None then scales by 1/sqrt(dim)"
-        },
-    )
+    d2v_masking: bool = False
+    num_keep_tokens: int = 10 # only used for MaskedKD
 
     embed_dim: int = 768
 
@@ -327,6 +318,8 @@ class KDMMData2Vec(nn.Module):
             raise ValueError("Audio, image or text must be provided, found all to be None.")
         
         mask_condition = self.cfg.mask_student_input and not features_only
+        d2v_masking = mask_condition and self.cfg.d2v_masking
+        masked_kd = mask_condition and not self.cfg.d2v_masking
 
         feature_extractor:ModalitySpecificEncoder = self.modality_encoders[mode]
         with torch.no_grad() if not self.fine_tuning else contextlib.ExitStack():
@@ -338,7 +331,7 @@ class KDMMData2Vec(nn.Module):
                 remove_masked=False,
             )
             
-            if mask_condition:
+            if d2v_masking:
                 extractor_out_masked = feature_extractor.contextualized_features(
                     x=x_local,
                     padding_mask=padding_mask,
@@ -361,6 +354,9 @@ class KDMMData2Vec(nn.Module):
         if self.dropout_input is not None:
             x = self.dropout_input(x)
 
+        if masked_kd:
+            attn_results = []
+        
         layer_results = []
         for i, blk in enumerate(self.blocks):
             if (
@@ -377,24 +373,90 @@ class KDMMData2Vec(nn.Module):
                     )
                     ab = ab * scale.type_as(ab)
 
-                x, lr = blk(
+                block_out = blk(
                     x,
                     padding_mask=masked_padding_mask,
                     alibi_bias=ab,
+                    return_att_scores=masked_kd,
                 )
-                layer_results.append(lr)
+                if masked_kd:
+                    x, lr, attn = block_out
+                    attn_results.append(attn)
+                else:
+                    x, lr = block_out
+                
+                if not features_only:
+                    layer_results.append(lr)
+
+        if masked_kd:
+            # TODO: think about option for audio -> no special token at the beginning
+            assert not d2v_masking, "MaskedKD and d2v masking are mutually exclusive."
+            attn_score = attn_results[0].float()
+            for tl in attn_results[1:]:
+                attn_score.add_(tl.float())
+            attn_score = attn_score.div_(len(attn_results))
+
+            ### partly adapted from: https://arxiv.org/pdf/2302.10494 (MaskedKD) ###
+            keep_timesteps = torch.topk(attn_score.mean(dim=1)[:, 0, 1:], self.cfg.num_keep_tokens).indices
+
+            x_unmasked = extractor_out['x_pre_context'] # will definitely be unmasked, as "d2v_masking" is False
+            # pre context already contains special token at the beginning
+            cls_save = x_unmasked[:, 0, :].unsqueeze(dim=1) # B x 1 x D
+            x_unmasked = x_unmasked[:, 1:, :]
+
+            index = keep_timesteps.unsqueeze(-1).repeat(1, 1, self.cfg.embed_dim)
+            x_unmasked_tokens_only = torch.gather(x_unmasked, dim=1, index=index)
+            x_unmasked_tokens_only = torch.cat((cls_save , x_unmasked_tokens_only), dim=1)
+            # B x self.cfg.num_keep_tokens+1 x D -> one (+1) stems from additional special token
+
+            ### end of adaptation ###
+            
+            padding_masked_unmasked_tokens = torch.gather(masked_padding_mask[:, 1:], dim=1, index=keep_timesteps)
+            # the following should never raise and exception, as long as "self.cfg.num_keep_tokens" is not larger than the number of
+            # non-padding tokens in the input, this is because padded tokens have an attention score of 0, which is the minimum
+            assert (~padding_masked_unmasked_tokens).all(), "All non-masked MaskedKD tokens should be padding tokens."
+
+            # now compute modality encoder output for the teacher model, we mask the tokens before the
+            # context encoder of the modality encoder -> same approach as d2v masking
+            # we reuse the features before the context encoder, saved from the forward pass of the modality encoder at the beginning
+            x_unmasked_tokens_only = feature_extractor.context_encoder(
+                x_unmasked_tokens_only, # our "x" here
+                masked_padding_mask, # masked padding mask can be reused from previous modality encoder forward pass
+                masked_alibi_bias, # alibi can be reused from previous modality encoder forward pass
+                alibi_scale[: feature_extractor.modality_cfg.prenet_depth]
+                if alibi_scale is not None
+                else None,
+            )
 
         if self.norm is not None:
             x = self.norm(x)
 
-        # we do not use the decoder for features extraction, when we use vanilla KD
-        if features_only or not self.cfg.mask_student_input:
+        # we do not use the decoder for features extraction, when we use vanilla (non-masked) KD, or MaskedKD (no d2v masking)
+        if features_only or not self.cfg.mask_student_input or masked_kd:
             if remove_extra_tokens:
                 x = x[:, feature_extractor.modality_cfg.num_extra_tokens :]
                 if masked_padding_mask is not None:
                     masked_padding_mask = masked_padding_mask[
                         :, feature_extractor.modality_cfg.num_extra_tokens :
                     ]
+
+            if masked_kd:
+                layer_results = torch.stack(layer_results)
+                cls_save = layer_results[:, :, 0, :].unsqueeze(dim=2) # L x B x 1 x D
+                layer_results = layer_results[:, :, 1:, :]
+
+                # add dim for embedding dimension (-1) and for layer dimension (0)
+                index = keep_timesteps.unsqueeze(-1).unsqueeze(0).repeat(self.cfg.depth, 1, 1, self.cfg.embed_dim)
+                layer_results = torch.gather(layer_results, dim=2, index=index)
+                layer_results = torch.cat((cls_save , layer_results), dim=2)
+                # "layer_results" now only consists of same tokens as "x_unmasked_tokens_only"
+
+                # averaged and normed layer results only on unmasked tokens
+                # -> teacher only gets the unmasked tokens, and the teacher output is normed,
+                # so we need to norm only the unmasked tokens for the student output as well
+                layer_results = [layer_results[i] for i in range(len(layer_results))] # expand to list
+                layer_results = prepare_output(out=layer_results, modality=mode)
+                # B x self.cfg.num_keep_tokens+1 x D -> one (+1) stems from additional special token
 
             out = {
                 "x": x,
@@ -403,10 +465,9 @@ class KDMMData2Vec(nn.Module):
                 "mask": encoder_mask,
             }
             if return_encoder_output:
-                out["encoder_output"] = extractor_out_unmasked # for the teacher model, always unmasked
+                # teacher gets all tokens. Only if we do MaskedKD, then the teacher only gets the unmasked tokens
+                out["encoder_output"] = extractor_out_unmasked if not masked_kd else x_unmasked_tokens_only
             return out
-        
-        del layer_results # not needed
     
         assert hasattr(feature_extractor, 'decoder') and feature_extractor.decoder is not None, \
             "Decoder must be present in the feature extractor for masking the student input."
