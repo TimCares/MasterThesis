@@ -411,11 +411,11 @@ class KDMMData2Vec(nn.Module):
             # B x num_keep+1 x D -> one (+1) stems from additional special token
 
             ### end of adaptation ###
-            
-            padding_masked_unmasked_tokens = torch.gather(masked_padding_mask[:, 1:], dim=1, index=keep_timesteps)
-            # the following should never raise and exception, as long as "num_keep" is not larger than the number of
-            # non-padding tokens in the input, this is because padded tokens have an attention score of 0, which is the minimum
-            assert (~padding_masked_unmasked_tokens).all(), "All non-masked MaskedKD tokens should be padding tokens."
+            if masked_padding_mask is not None:
+                padding_masked_unmasked_tokens = torch.gather(masked_padding_mask[:, 1:], dim=1, index=keep_timesteps)
+                # the following should never raise and exception, as long as "num_keep" is not larger than the number of
+                # non-padding tokens in the input, this is because padded tokens have an attention score of 0, which is the minimum
+                assert (~padding_masked_unmasked_tokens).all(), "All non-masked MaskedKD tokens should be padding tokens."
 
             # now compute modality encoder output for the teacher model, we mask the tokens before the
             # context encoder of the modality encoder -> same approach as d2v masking
@@ -428,6 +428,7 @@ class KDMMData2Vec(nn.Module):
                 if alibi_scale is not None
                 else None,
             )
+            extractor_out_unmasked['x'] = x_unmasked_tokens_only
 
         if self.norm is not None:
             x = self.norm(x)
@@ -467,7 +468,7 @@ class KDMMData2Vec(nn.Module):
             }
             if return_encoder_output:
                 # teacher gets all tokens. Only if we do MaskedKD, then the teacher only gets the unmasked tokens
-                out["encoder_output"] = extractor_out_unmasked if not masked_kd else x_unmasked_tokens_only
+                out["encoder_output"] = extractor_out_unmasked
             return out
     
         assert hasattr(feature_extractor, 'decoder') and feature_extractor.decoder is not None, \
