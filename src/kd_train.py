@@ -19,6 +19,13 @@ logger = logging.getLogger(__name__)
 
 @hydra.main(version_base=None, config_path=os.path.join("..", "configs", "training"))
 def main(cfg: DictConfig) -> None:
+    # first things first: set up logging
+    # that way we log everything that happens during setup and do not miss anything
+    wandb_logger = WandbLogger(project='MMRL',
+                               name=cfg.run_name,
+                               save_dir=cfg.log_dir,
+                               log_model="all")
+    
     cfg.model = merge_with_parent(dc=KDMMData2VecConfig(), cfg=cfg.model, remove_missing=False)
     if 'seed' in cfg and cfg.seed is not None:
         seed_everything(seed=cfg.seed, workers=True)
@@ -56,11 +63,6 @@ def main(cfg: DictConfig) -> None:
         # checkpoint last, so that zero shot has been performed before saving 
         # (ModelCheckpoint usually executed last automatically, but just to be sure)
     ]
-
-    wandb_logger = WandbLogger(project='MMRL',
-                               name=cfg.run_name,
-                               save_dir=cfg.log_dir,
-                               log_model="all")
 
     torch.set_float32_matmul_precision("high") # or: "highest"
     trainer = Trainer(
