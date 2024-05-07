@@ -11,6 +11,7 @@ import pytorch_lightning as L
 from omegaconf import II
 from dataclasses import dataclass, field
 from data2vec_fairseq.data.modality import Modality
+from data2vec_fairseq.models.modalities.base import ModalitySpecificEncoder
 from data2vec_fairseq.models.data2vec2 import Data2VecMultiModel
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 import contextlib
@@ -68,13 +69,8 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
             batch.pop('target')
         output_dict = self(batch) # call "forward"
 
+        # in output_dict, because "return_encoder_output=True" in "forward"
         precomputed_encoder_output = output_dict['encoder_output']
-        if self.cfg.model.mask_student_input:
-            # we do knowledge distillation the same way d2v is trained => teacher gets unmasked input
-            precomputed_encoder_output['x'] = precomputed_encoder_output['x_unmasked']
-            precomputed_encoder_output['padding_mask'] = precomputed_encoder_output['original_padding_mask']
-            del precomputed_encoder_output['x_unmasked']
-            del precomputed_encoder_output['original_padding_mask']
 
         with torch.no_grad():
             target = self.teacher.extract_features(
@@ -332,18 +328,29 @@ class KDMMData2Vec(nn.Module):
         
         mask_condition = self.cfg.mask_student_input and not features_only
 
-        feature_extractor = self.modality_encoders[mode]
+        feature_extractor:ModalitySpecificEncoder = self.modality_encoders[mode]
         with torch.no_grad() if not self.fine_tuning else contextlib.ExitStack():
-            extractor_out = feature_extractor(
-                source,
-                padding_mask,
-                mask=mask_condition,
-                remove_masked=mask_condition,
-                clone_batch=self.cfg.clone_batch if mask_condition else 1,
-                mask_seeds=None,
-                precomputed_mask=precomputed_mask,
-                process_unmasked=mask_condition, # if True, then "x_unmasked" is in "extractor_out" dict
+            x_local = feature_extractor.local_features(source) # if we do masking, we reuse the local features
+            extractor_out_unmasked = feature_extractor.contextualized_features(
+                x=x_local,
+                padding_mask=padding_mask,
+                mask=False,
+                remove_masked=False,
             )
+            
+            if mask_condition:
+                extractor_out_masked = feature_extractor.contextualized_features(
+                    x=x_local,
+                    padding_mask=padding_mask,
+                    mask=True,
+                    remove_masked=True,
+                    clone_batch=self.cfg.clone_batch,
+                    mask_seeds=None,
+                    precomputed_mask=precomputed_mask,
+                )
+                extractor_out = extractor_out_masked # if d2v masking, then student transformer layer use masked input
+            else:
+                extractor_out = extractor_out_unmasked
 
         x = extractor_out["x"]
         encoder_mask = extractor_out["encoder_mask"]
@@ -396,7 +403,7 @@ class KDMMData2Vec(nn.Module):
                 "mask": encoder_mask,
             }
             if return_encoder_output:
-                out["encoder_output"] = extractor_out
+                out["encoder_output"] = extractor_out_unmasked # for the teacher model, always unmasked
             return out
         
         del layer_results # not needed
@@ -420,7 +427,7 @@ class KDMMData2Vec(nn.Module):
             "mask": encoder_mask,
         }
         if return_encoder_output:
-            out["encoder_output"] = extractor_out
+            out["encoder_output"] = extractor_out_unmasked # for the teacher model, always unmasked
 
         return out
 
@@ -581,6 +588,7 @@ class KDMMData2Vec(nn.Module):
     def prepare_fine_tuning(self, keep_modes:List[Modality]) -> None:
         self.cfg.clone_batch = 1
         self.fine_tuning = True
+        self.cfg.mask_student_input = False
         self._remove_modalities_except(keep_modes=keep_modes)
         self._unfreeze(self.modality_encoders)
 
