@@ -44,7 +44,7 @@ model:
   mask_student_input: False # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
   regress_masked_only: False # if set to True, only masked timesteps are used for the regression target, ignored if "mask_student_input" is False
   d2v_masking: False
-  num_keep_tokens: 10 # only used for MaskedKD, if "mask_student_input" is True and "d2v_masking" is False
+  frac_keep_tokens: 0.6 # only used for MaskedKD, if "mask_student_input" is True and "d2v_masking" is False
 
   embed_dim: 768
 

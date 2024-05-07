@@ -180,7 +180,7 @@ class KDMMData2VecConfig():
     mask_student_input: bool = False
     regress_masked_only: bool = False
     d2v_masking: bool = False
-    num_keep_tokens: int = 10 # only used for MaskedKD
+    frac_keep_tokens: float = 0.6 # only used for MaskedKD
 
     embed_dim: int = 768
 
@@ -397,7 +397,8 @@ class KDMMData2Vec(nn.Module):
             attn_score = attn_score.div_(len(attn_results))
 
             ### partly adapted from: https://arxiv.org/pdf/2302.10494 (MaskedKD) ###
-            keep_timesteps = torch.topk(attn_score.mean(dim=1)[:, 0, 1:], self.cfg.num_keep_tokens).indices
+            num_keep = int(self.cfg.frac_keep_tokens*attn_score.size(-1)) # or size(-2) because shape is (B, H, T, T)
+            keep_timesteps = torch.topk(attn_score.mean(dim=1)[:, 0, 1:], num_keep).indices # attn_score.mean(dim=1): B x H x T x T -> B x T x T
 
             x_unmasked = extractor_out['x_pre_context'] # will definitely be unmasked, as "d2v_masking" is False
             # pre context already contains special token at the beginning
@@ -407,12 +408,12 @@ class KDMMData2Vec(nn.Module):
             index = keep_timesteps.unsqueeze(-1).repeat(1, 1, self.cfg.embed_dim)
             x_unmasked_tokens_only = torch.gather(x_unmasked, dim=1, index=index)
             x_unmasked_tokens_only = torch.cat((cls_save , x_unmasked_tokens_only), dim=1)
-            # B x self.cfg.num_keep_tokens+1 x D -> one (+1) stems from additional special token
+            # B x num_keep+1 x D -> one (+1) stems from additional special token
 
             ### end of adaptation ###
             
             padding_masked_unmasked_tokens = torch.gather(masked_padding_mask[:, 1:], dim=1, index=keep_timesteps)
-            # the following should never raise and exception, as long as "self.cfg.num_keep_tokens" is not larger than the number of
+            # the following should never raise and exception, as long as "num_keep" is not larger than the number of
             # non-padding tokens in the input, this is because padded tokens have an attention score of 0, which is the minimum
             assert (~padding_masked_unmasked_tokens).all(), "All non-masked MaskedKD tokens should be padding tokens."
 
@@ -456,7 +457,7 @@ class KDMMData2Vec(nn.Module):
                 # so we need to norm only the unmasked tokens for the student output as well
                 layer_results = [layer_results[i] for i in range(len(layer_results))] # expand to list
                 layer_results = prepare_output(out=layer_results, modality=mode)
-                # B x self.cfg.num_keep_tokens+1 x D -> one (+1) stems from additional special token
+                # B x num_keep+1 x D -> one (+1) stems from additional special token
 
             out = {
                 "x": x,
