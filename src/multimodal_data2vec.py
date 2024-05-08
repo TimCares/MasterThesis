@@ -397,6 +397,12 @@ class KDMMData2Vec(nn.Module):
             
             extractor_out_unmasked['x'] = x_unmasked_tokens_only
 
+            layer_results = self.prepare_salient_patches(
+                    layer_results=layer_results,
+                    keep_timesteps=keep_timesteps,
+                    mode=modes[0],
+                    )
+
         if self.norm is not None:
             x = self.norm(x)
 
@@ -408,13 +414,6 @@ class KDMMData2Vec(nn.Module):
                     masked_padding_mask = masked_padding_mask[
                         :, feature_extractor.modality_cfg.num_extra_tokens :
                     ]
-
-            if masked_kd:
-                layer_results = self.prepare_salient_patches(
-                    layer_results=layer_results,
-                    keep_timesteps=keep_timesteps,
-                    mode=modes[0],
-                )                
 
             out = {
                 "x": x,
