@@ -112,7 +112,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
             precomputed_encoder_output["x"] = x_unmasked_tokens_only
 
             target = prepare_salient_patches( # "target" prepared now
-                layer_results=target,
+                layer_results=target['layer_results'],
                 keep_timesteps=keep_timesteps,
                 mode=batch['modes'][0],
                 norm_first=self.cfg.model.norm_first,
@@ -125,7 +125,6 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
                 precomputed_encoder_output=precomputed_encoder_output,)
             pred = pred['layer_results']
             pred = prepare_output(pred, Modality.IMAGE)
-            target = target['layer_results'] # "layer_results" already prepared
         else:
             pred = output_dict['layer_results']
             pred = prepare_output(pred, Modality.IMAGE)
