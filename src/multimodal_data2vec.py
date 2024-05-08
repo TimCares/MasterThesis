@@ -41,8 +41,8 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         super().__init__()
         self.cfg = cfg
 
-        self.d2v_masking = self.cfg.model.mask_student_input and self.cfg.model.d2v_masking
-        self.masked_kd = self.cfg.model.mask_student_input and not self.cfg.model.d2v_masking
+        self.d2v_masking = self.cfg.model.mask and self.cfg.model.d2v_masking
+        self.masked_kd = self.cfg.model.mask and not self.cfg.model.d2v_masking
 
         state_dict_name = self.cfg.model.pretrained['image']
         state_dict_path = os.path.join(self.cfg.model.pretrained_path, state_dict_name)
@@ -176,7 +176,7 @@ class KDMMData2VecConfig():
 
     block_init_cfg: BlockInitConfig = field(default_factory=BlockInitConfig)
 
-    mask_student_input: bool = False
+    mask: bool = False
     regress_masked_only: bool = False
     d2v_masking: bool = False
     frac_keep_tokens: float = 0.6 # only used for MaskedKD
@@ -267,7 +267,7 @@ class KDMMData2Vec(nn.Module):
             logger.info(f'Loading modality encoder for: {mode}')
             state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
             # if we are masking the input to the student model, then we need to keep the decoder
-            d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path, keep_decoder=self.cfg.mask_student_input)
+            d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path, keep_decoder=self.cfg.mask and self.cfg.d2v_masking)
             mode_feature_extractor = d2v_model.modality_encoders[mode.name]
             modality_encoders[mode.name.lower()] = mode_feature_extractor
             
@@ -316,7 +316,7 @@ class KDMMData2Vec(nn.Module):
         else:
             raise ValueError("Audio, image or text must be provided, found all to be None.")
         
-        mask_condition = self.cfg.mask_student_input and not features_only
+        mask_condition = self.cfg.mask and not features_only
         d2v_masking = mask_condition and self.cfg.d2v_masking
         masked_kd = mask_condition and not self.cfg.d2v_masking
 
@@ -407,7 +407,7 @@ class KDMMData2Vec(nn.Module):
             x = self.norm(x)
 
         # we do not use the decoder for features extraction, when we use vanilla (non-masked) KD, or MaskedKD (no d2v masking)
-        if features_only or not self.cfg.mask_student_input or masked_kd:
+        if features_only or not self.cfg.mask or masked_kd:
             if remove_extra_tokens:
                 x = x[:, feature_extractor.modality_cfg.num_extra_tokens :]
                 if masked_padding_mask is not None:
@@ -682,7 +682,7 @@ class KDMMData2Vec(nn.Module):
     def prepare_fine_tuning(self, keep_modes:List[Modality]) -> None:
         self.cfg.clone_batch = 1
         self.fine_tuning = True
-        self.cfg.mask_student_input = False
+        self.cfg.mask = False
         self._remove_modalities_except(keep_modes=keep_modes)
         self._unfreeze(self.modality_encoders)
 
