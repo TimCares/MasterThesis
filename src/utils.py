@@ -15,7 +15,7 @@ from data2vec_fairseq.models.modalities.base import ModalitySpecificEncoder
 from fairseq.data import Dictionary
 from fairseq.dataclass.utils import merge_with_parent
 
-from datasets_.base_datasets import Modality
+from data2vec_fairseq.data.modality import Modality
 import torch.nn.functional as F
 
 logger = logging.getLogger(__name__)

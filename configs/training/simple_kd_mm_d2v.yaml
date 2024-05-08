@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: masked_kd_0.6
+run_name: masked_kd_0.6_final_attn
 
 load_checkpoint:
 
@@ -42,14 +42,15 @@ model:
     freeze_blocks: # if None, then all init blocks (can also be just attention layers) are frozen, if empty list, then no blocks are frozen
 
   mask: True # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
-  regress_masked_only: False # if set to True, only masked timesteps are used for the regression target, ignored if "mask" is False
+
   d2v_masking: False
+  regress_masked_only: False # if set to True, only masked timesteps are used for the regression target, ignored if "mask" is False, only relevant for d2v_masking=True
 
   # MaskedKD, relevant if "mask" is True and "d2v_masking" is False
   inverse_masked_kd: False # if True, then the student gets the masked input, and the saliency score is computed from the teacher output
   frac_keep_tokens: 0.6
   norm_first: False # whether to normalize all timesteps (True), or only the ones that are kept (False)
-  final_attn_layer_saliency_score: False # whether to use the final attention layer saliency score for masking (True) or the average of all layers (False)
+  final_attn_layer_saliency_score: True # whether to use the final attention layer saliency score for masking (True) or the average of all layers (False)
 
   embed_dim: 768
 
