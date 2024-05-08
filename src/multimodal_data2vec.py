@@ -21,11 +21,12 @@ from data2vec_fairseq.models.modalities.modules import AltBlock
 
 logger = logging.getLogger(__name__)
 
-def prepare_output(out:List[torch.Tensor], modality:Modality) -> List[torch.Tensor]:
-    out = [
-        F.instance_norm(tl.transpose(1, 2).float()).transpose(1, 2)
-        for tl in out  # BTC -> BCT -> BTC
-    ]
+def prepare_output(out:List[torch.Tensor], modality:Modality, norm:bool=True) -> List[torch.Tensor]:
+    if norm:
+        out = [
+            F.instance_norm(tl.transpose(1, 2).float()).transpose(1, 2)
+            for tl in out  # BTC -> BCT -> BTC
+        ]
 
     y = out[0].float()
     for tl in out[1:]:
@@ -179,7 +180,16 @@ class KDMMData2VecConfig():
     mask: bool = False
     regress_masked_only: bool = False
     d2v_masking: bool = False
-    frac_keep_tokens: float = 0.6 # only used for MaskedKD
+
+    # MaskedKD, relevant if "mask" is True and "d2v_masking" is False
+
+    # if True, then the student gets the masked input, and the saliency score is computed from the teacher output
+    inverse_masked_kd: bool = False
+    frac_keep_tokens: float = 0.6
+    # whether to normalize all timesteps (True), or only the ones that are kept (False)
+    norm_first: bool = False
+    # whether to use the final attention layer saliency score for masking (True) or the average of all layers (False)
+    final_attn_layer_saliency_score: bool = False
 
     embed_dim: int = 768
 
@@ -380,7 +390,9 @@ class KDMMData2Vec(nn.Module):
                 )
                 if masked_kd:
                     x, lr, attn = block_out
-                    attn_results.append(attn)
+                    if not self.cfg.final_attn_layer_saliency_score or i == len(self.blocks) - 1:
+                        # if we only use the last attn layer scores, then we only append if we are at the last layer
+                        attn_results.append(attn)
                 else:
                     x, lr = block_out
                 
@@ -518,13 +530,19 @@ class KDMMData2Vec(nn.Module):
                                 keep_timesteps:torch.Tensor,
                                 mode:Modality,
                                 ) -> torch.Tensor:
+        # if final_attn_layer_saliency_score is True, then "layer_results" only contains one element, the last layer
+        # ... but it can be treated the same way as if it contains all layers
 
+        if self.cfg.norm_first: # norms over all time steps, including those that are not used for the teacher
+            layer_results = [F.instance_norm(tl.transpose(1, 2).float()).transpose(1, 2) for tl in layer_results]
+        
         layer_results = torch.stack(layer_results)
         cls_save = layer_results[:, :, 0, :].unsqueeze(dim=2) # L x B x 1 x D
         layer_results = layer_results[:, :, 1:, :]
 
         # add dim for embedding dimension (-1) and for layer dimension (0)
-        index = keep_timesteps.unsqueeze(-1).unsqueeze(0).repeat(self.cfg.depth, 1, 1, self.cfg.embed_dim)
+        n_layers = self.cfg.depth if not self.cfg.final_attn_layer_saliency_score else 1
+        index = keep_timesteps.unsqueeze(-1).unsqueeze(0).repeat(n_layers, 1, 1, self.cfg.embed_dim)
         layer_results = torch.gather(layer_results, dim=2, index=index)
         layer_results = torch.cat((cls_save , layer_results), dim=2)
         # "layer_results" now only consists of same tokens as "x_unmasked_tokens_only"
@@ -533,7 +551,7 @@ class KDMMData2Vec(nn.Module):
         # -> teacher only gets the unmasked tokens, and the teacher output is normed,
         # so we need to norm only the unmasked tokens for the student output as well
         layer_results = [layer_results[i] for i in range(len(layer_results))] # expand to list
-        layer_results = prepare_output(out=layer_results, modality=mode)
+        layer_results = prepare_output(out=layer_results, modality=mode, norm=not self.cfg.norm_first)
         # B x num_keep+1 x D -> one (+1) stems from additional special token
         return layer_results
     
