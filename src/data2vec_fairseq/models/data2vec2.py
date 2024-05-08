@@ -407,6 +407,8 @@ class Data2VecMultiModel(BaseFairseqModel):
         remove_extra_tokens=True,
         precomputed_mask=None,
         precomputed_encoder_output=None,
+        masked_kd=False,
+        return_final_attn_scores=False,
     ):
         if mode is None:
             assert self.cfg.supported_modality is not None
@@ -447,6 +449,9 @@ class Data2VecMultiModel(BaseFairseqModel):
         else:
             extra_tokens = self.modality_encoder_num_extra_tokens # self.modality_encoders have been removed in this case
 
+        if masked_kd:
+            attn_results = []
+        
         layer_results = []
         for i, blk in enumerate(self.blocks):
             if (
@@ -463,11 +468,19 @@ class Data2VecMultiModel(BaseFairseqModel):
                     )
                     ab = ab * scale.type_as(ab)
 
-                x, lr = blk(
+                block_out = blk(
                     x,
                     padding_mask=masked_padding_mask,
                     alibi_bias=ab,
+                    return_att_scores=masked_kd,
                 )
+                if masked_kd:
+                    x, lr, attn = block_out
+                    if not return_final_attn_scores or i == len(self.blocks) - 1:
+                        # if we only use the last attn layer scores, then we only append if we are at the last layer
+                        attn_results.append(attn)
+                else:
+                    x, lr = block_out
                 if features_only:
                     if precomputed_encoder_output is not None and remove_extra_tokens:
                         # from this case we can infer that we masked the student input (in KD, so this model is the teacher)
@@ -486,12 +499,15 @@ class Data2VecMultiModel(BaseFairseqModel):
                         :, extra_tokens :
                     ]
 
-            return {
+            out = {
                 "x": x,
                 "padding_mask": masked_padding_mask,
                 "layer_results": layer_results,
                 "mask": encoder_mask,
             }
+            if masked_kd:
+                out["attn_scores"] = attn_results
+            return out
 
         xs = []
 
@@ -796,7 +812,7 @@ class Data2VecMultiModel(BaseFairseqModel):
 
     def extract_features(
         self, source, mode=None, padding_mask=None, mask=False, remove_extra_tokens=True, 
-        precomputed_encoder_output=None,
+        precomputed_encoder_output=None, masked_kd=False, return_final_attn_scores=False
     ):
         res = self.forward(
             source,
@@ -806,6 +822,8 @@ class Data2VecMultiModel(BaseFairseqModel):
             features_only=True,
             remove_extra_tokens=remove_extra_tokens,
             precomputed_encoder_output=precomputed_encoder_output,
+            masked_kd=masked_kd,
+            return_final_attn_scores=return_final_attn_scores
         )
         return res
 

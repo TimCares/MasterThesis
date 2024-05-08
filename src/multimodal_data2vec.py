@@ -29,8 +29,8 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         self.cfg = cfg
 
         self.d2v_masking = self.cfg.model.mask and self.cfg.model.d2v_masking
-        self.masked_kd = self.cfg.model.mask and not self.cfg.model.d2v_masking
-        self.inverse_masked_kd = self.masked_kd and self.cfg.model.inverse_masked_kd
+        self.masked_kd = self.cfg.model.mask and not self.cfg.model.d2v_masking and not self.cfg.model.inverse_masked_kd
+        self.inverse_masked_kd = self.cfg.model.mask and not self.cfg.model.d2v_masking and self.cfg.model.inverse_masked_kd
 
         state_dict_name = self.cfg.model.pretrained['image']
         state_dict_path = os.path.join(self.cfg.model.pretrained_path, state_dict_name)
@@ -76,10 +76,15 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
                     # ... so we need to remove them from the teacher output as well if we mask the student input. If not, then we do not need to remove them
                     # because we also regress the extra tokens, if they are present.
                     precomputed_encoder_output=precomputed_encoder_output,
+                    # inverse masked kd means we do masking for the student base on attention scores from the teacher
+                    # ... so it is "masked_kd" from the teacher's perspective
+                    masked_kd=self.inverse_masked_kd,
+                    return_final_attn_scores=self.cfg.model.final_attn_layer_saliency_score, # ignored if inverse_masked_kd=False
                 )
         
-        target = target['layer_results']
-        target = prepare_output(target, Modality.IMAGE)
+        if not self.inverse_masked_kd:
+            target = target['layer_results']
+            target = prepare_output(target, Modality.IMAGE)
 
         if self.d2v_masking:
             pred = output_dict['x']
@@ -95,6 +100,32 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
                 target = target[masked_b]
         elif self.masked_kd:
             pred = output_dict['layer_results'] # already prepared
+
+        elif self.inverse_masked_kd:
+            x_unmasked_tokens_only, keep_timesteps = get_max_saliency_patches(
+                frac_keep_tokens=self.cfg.model.frac_keep_tokens,
+                attn_results=target['attn_scores'],
+                extractor_out=precomputed_encoder_output,
+                feature_extractor=self.model.modality_encoders[batch['modes'][0].name.lower()],
+            )
+            
+            precomputed_encoder_output["x"] = x_unmasked_tokens_only
+
+            target = prepare_salient_patches( # "target" prepared now
+                layer_results=target,
+                keep_timesteps=keep_timesteps,
+                mode=batch['modes'][0],
+                norm_first=self.cfg.model.norm_first,
+            )
+
+            pred = self.model(
+                modes=None, # ignored if "precomputed_encoder_output" provided, which is the case here
+                features_only=False,
+                return_encoder_output=False,
+                precomputed_encoder_output=precomputed_encoder_output,)
+            pred = pred['layer_results']
+            pred = prepare_output(pred, Modality.IMAGE)
+            target = target['layer_results'] # "layer_results" already prepared
         else:
             pred = output_dict['layer_results']
             pred = prepare_output(pred, Modality.IMAGE)
@@ -300,56 +331,61 @@ class KDMMData2Vec(nn.Module):
         return_encoder_output:bool=False,
         features_only:bool=False,
         unmasked_feature_extractor_only:bool=False,
+        precomputed_encoder_output:Optional[Dict[str, torch.Tensor]]=None,
     ):
-        assert len(modes)==1, f"This model accepts exactly modality indicator at a time, received: {modes}"
-        n_sources = sum(mode is not None for mode in [audio, image, text])
-        assert n_sources==1,\
-            f"This model accepts exactly one modality data source at a time, got {n_sources}."
-        
-        assert modes[0] in self.supported_modalities, f"Unsupported modality: {modes[0]}, supported modalities are: {self.supported_modalities}"
-        mode = modes[0].name.lower() # is now a string, ModuleDict does not support enums as keys
-        
-        if audio is not None:
-            source = audio
-        elif image is not None:
-            source = image
-        elif text is not None:
-            source = text
-        else:
-            raise ValueError("Audio, image or text must be provided, found all to be None.")
-        
         mask_condition = self.cfg.mask and not features_only
         d2v_masking = mask_condition and self.cfg.d2v_masking
-        masked_kd = mask_condition and not self.cfg.d2v_masking
+        masked_kd = mask_condition and not self.cfg.d2v_masking and not self.cfg.inverse_masked_kd
 
-        feature_extractor:ModalitySpecificEncoder = self.modality_encoders[mode]
-        with torch.no_grad() if not self.fine_tuning else contextlib.ExitStack():
-            x_local = feature_extractor.local_features(source) # if we do d2v masking, we reuse the local features
-            extractor_out_unmasked = feature_extractor.contextualized_features(
-                x=x_local,
-                padding_mask=padding_mask,
-                mask=False,
-                remove_masked=False,
-            )
-            if unmasked_feature_extractor_only:
-                # we return a dict here, as we do not need to change the "training_step" function of the PL module that extensive
-                return {
-                    "encoder_output": extractor_out_unmasked
-                }
+        if precomputed_encoder_output is None:
+            assert len(modes)==1, f"This model accepts exactly modality indicator at a time, received: {modes}"
+            n_sources = sum(mode is not None for mode in [audio, image, text])
+            assert n_sources==1,\
+                f"This model accepts exactly one modality data source at a time, got {n_sources}."
             
-            if d2v_masking:
-                extractor_out_masked = feature_extractor.contextualized_features(
+            assert modes[0] in self.supported_modalities, f"Unsupported modality: {modes[0]}, supported modalities are: {self.supported_modalities}"
+            mode = modes[0].name.lower() # is now a string, ModuleDict does not support enums as keys
+            
+            if audio is not None:
+                source = audio
+            elif image is not None:
+                source = image
+            elif text is not None:
+                source = text
+            else:
+                raise ValueError("Audio, image or text must be provided, found all to be None.")
+
+            feature_extractor:ModalitySpecificEncoder = self.modality_encoders[mode]
+            with torch.no_grad() if not self.fine_tuning else contextlib.ExitStack():
+                x_local = feature_extractor.local_features(source) # if we do d2v masking, we reuse the local features
+                extractor_out_unmasked = feature_extractor.contextualized_features(
                     x=x_local,
                     padding_mask=padding_mask,
-                    mask=True,
-                    remove_masked=True,
-                    clone_batch=self.cfg.clone_batch,
-                    mask_seeds=None,
-                    precomputed_mask=precomputed_mask,
+                    mask=False,
+                    remove_masked=False,
                 )
-                extractor_out = extractor_out_masked # if d2v masking, then student transformer layer use masked input
-            else:
-                extractor_out = extractor_out_unmasked
+                if unmasked_feature_extractor_only: # is only the case for inverse masked KD
+                    # we return a dict here, as we do not need to change the "training_step" function of the PL module that extensive
+                    return {
+                        "encoder_output": extractor_out_unmasked
+                    }
+                
+                if d2v_masking:
+                    extractor_out_masked = feature_extractor.contextualized_features(
+                        x=x_local,
+                        padding_mask=padding_mask,
+                        mask=True,
+                        remove_masked=True,
+                        clone_batch=self.cfg.clone_batch,
+                        mask_seeds=None,
+                        precomputed_mask=precomputed_mask,
+                    )
+                    extractor_out = extractor_out_masked # if d2v masking, then student transformer layer use masked input
+                else:
+                    extractor_out = extractor_out_unmasked
+        
+        else:
+            extractor_out = precomputed_encoder_output
 
         x = extractor_out["x"]
         encoder_mask = extractor_out["encoder_mask"]
@@ -417,8 +453,8 @@ class KDMMData2Vec(nn.Module):
         if self.norm is not None:
             x = self.norm(x)
 
-        # we do not use the decoder for features extraction, when we use vanilla (non-masked) KD, or MaskedKD (no d2v masking)
-        if features_only or not self.cfg.mask or masked_kd:
+        # we only use the decoder for d2v masking, else: we return here
+        if not d2v_masking:
             if remove_extra_tokens:
                 x = x[:, feature_extractor.modality_cfg.num_extra_tokens :]
                 if masked_padding_mask is not None:
