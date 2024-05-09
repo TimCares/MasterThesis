@@ -44,7 +44,6 @@ model:
   mask: True # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
 
   d2v_masking: False
-  regress_masked_only: False # if set to True, only masked timesteps are used for the regression target, ignored if "mask" is False, only relevant for d2v_masking=True
 
   # MaskedKD, relevant if "mask" is True and "d2v_masking" is False
   inverse_masked_kd: True # if True, then the student gets the masked input, and the saliency score is computed from the teacher output

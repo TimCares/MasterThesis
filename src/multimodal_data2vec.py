@@ -92,12 +92,11 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
             if self.cfg.model.clone_batch > 1:
                 target = target.repeat_interleave(self.cfg.model.clone_batch, 0)
 
-            if self.cfg.model.regress_masked_only:
-                masked_b = output_dict['mask'].mask.bool()
-                assert pred.size(1) == masked_b.size(1), f"Size mismatch: {pred.size(1)} != {masked_b.size(1)}"
-                assert target.size(1) == masked_b.size(1), f"Size mismatch: {target.size(1)} != {masked_b.size(1)}"
-                pred = pred[masked_b]
-                target = target[masked_b]
+            masked_b = output_dict['mask'].mask.bool()
+            assert pred.size(1) == masked_b.size(1), f"Size mismatch: {pred.size(1)} != {masked_b.size(1)}"
+            assert target.size(1) == masked_b.size(1), f"Size mismatch: {target.size(1)} != {masked_b.size(1)}"
+            pred = pred[masked_b]
+            target = target[masked_b]
         elif self.masked_kd:
             pred = output_dict['layer_results'] # already prepared
 
@@ -199,7 +198,6 @@ class KDMMData2VecConfig():
     block_init_cfg: BlockInitConfig = field(default_factory=BlockInitConfig)
 
     mask: bool = False
-    regress_masked_only: bool = False
     d2v_masking: bool = False
 
     # MaskedKD, relevant if "mask" is True and "d2v_masking" is False
