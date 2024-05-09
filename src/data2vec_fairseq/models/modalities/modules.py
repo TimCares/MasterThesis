@@ -392,8 +392,7 @@ class AltAttention(nn.Module):
             )
 
         attn = attn.softmax(dim=-1, dtype=torch.float32).to(dtype=dtype)
-        attn = self.attn_drop(attn)
-        x = (attn @ v).transpose(1, 2)  #
+        x = (self.attn_drop(attn) @ v).transpose(1, 2)  #
         x = x.reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
