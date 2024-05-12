@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: inverse_masked_kd_0.6
+run_name: masked_kd_0.6
 
 load_checkpoint:
 
@@ -48,7 +48,7 @@ model:
   # MaskedKD, relevant if "mask" is True and "d2v_masking" is False
   inverse_masked_kd: False # if True, then the student gets the masked input, and the saliency score is computed from the teacher output
   frac_keep_tokens: 0.6
-  norm_first: False # whether to normalize all timesteps (True), or only the ones that are kept (False)
+  norm_first: False # whether to normalize along all timesteps (True), or only the ones that are kept (False)
   final_attn_layer_saliency_score: False # whether to use the final attention layer saliency score for masking (True) or the average of all layers (False)
 
   embed_dim: 768
