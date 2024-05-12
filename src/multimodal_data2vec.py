@@ -183,8 +183,8 @@ class PretrainedStateDictsConfig():
 
 @dataclass
 class BlockInitConfig():
-    init_from: Optional[Modality] = Modality.IMAGE # if None, then no blocks are initialized
-    init_type: str = 'attention' # 'attention' or 'block'
+    init_from: Optional[Modality] = None # if None, then no blocks are initialized
+    init_type: Optional[str] = None # 'attention' or 'block', only relevant if "init_from" not None
     block_indices: Optional[List[int]] = None # if None, then all blocks are initialized
     freeze_blocks: Optional[List[int]] = None # if None, then all blocks are frozen, if empty list, then no blocks are frozen
 
