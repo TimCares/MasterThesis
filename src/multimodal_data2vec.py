@@ -661,8 +661,10 @@ class KDMMData2Vec(nn.Module):
         Useful when fine-tuning the model on downstream task
         involving only a subset of the supported modalities.
         """
+        # comparison done on name basis, as on "enum" basis yields problems after serialization
+        keep_modes = [mode.name.lower() for mode in keep_modes]
         for modality in self.supported_modalities:
-            if modality not in keep_modes:
+            if modality.name.lower() not in keep_modes:
                 del self.modality_encoders[modality.name.lower()] # includes removing the decoder
             else:
                 if hasattr(self.modality_encoders[modality.name.lower()], 'decoder'):
