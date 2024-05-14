@@ -80,16 +80,14 @@ def get_transforms(train,
         return transform
 
     # eval transform
-    t = []
-    t.append(
+    t = [
         transforms.ToImage(),
         transforms.ToDtype(torch.uint8, scale=True),
         transforms.Resize(
             244, interpolation=PIL.Image.BICUBIC
-        ),  # to maintain same ratio w.r.t. 224 images
-    )
-    t.append(transforms.CenterCrop(244))
-
-    t.append(transforms.ToDtype(torch.float32, scale=True),)
-    t.append(transforms.Normalize(mean, std))
+        ),
+        transforms.CenterCrop(244),
+        transforms.ToDtype(torch.float32, scale=True),
+        transforms.Normalize(mean, std)
+    ]
     return transforms.Compose(t)
