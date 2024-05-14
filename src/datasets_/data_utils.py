@@ -66,7 +66,7 @@ def get_transforms(train,
     if train:
         # this should always dispatch to transforms_imagenet_train
         transform = create_transform(
-            input_size=244,
+            input_size=224,
             is_training=True,
             color_jitter=color_jitter,
             auto_augment=aa,
@@ -84,9 +84,9 @@ def get_transforms(train,
         transforms.ToImage(),
         transforms.ToDtype(torch.uint8, scale=True),
         transforms.Resize(
-            244, interpolation=PIL.Image.BICUBIC
+            224, interpolation=PIL.Image.BICUBIC
         ),
-        transforms.CenterCrop(244),
+        transforms.CenterCrop(224),
         transforms.ToDtype(torch.float32, scale=True),
         transforms.Normalize(mean, std)
     ]
