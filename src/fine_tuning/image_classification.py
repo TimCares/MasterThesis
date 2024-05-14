@@ -84,7 +84,7 @@ class ImageClassificationLightningModule(L.LightningModule):
 
         self.mixup_fn = None
 
-        if cfg.mixup > 0 or cfg.cutmix > 0:
+        if cfg.mixup.mixup_alpha > 0 or cfg.mixup.cutmix_alpha > 0:
             self.mixup_fn = Mixup(**cfg.mixup)
 
         self.image_transforms = {
@@ -184,7 +184,8 @@ class ImageClassificationModel(nn.Module):
             if cfg.norm_eps is not None:
                 pretrained_args.model.norm_eps = cfg.norm_eps
 
-        cfg.pretrained_model_args = pretrained_args
+        with open_dict(cfg):
+            cfg.pretrained_model_args = pretrained_args
 
         model_blocks = pretrained_args.model["depth"]
         with open_dict(pretrained_args):

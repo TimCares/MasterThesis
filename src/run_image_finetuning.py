@@ -7,7 +7,7 @@ from pytorch_lightning import seed_everything, Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, ModelSummary
 from pytorch_lightning.loggers import WandbLogger
 
-from .image_classification import ImageClassificationConfig, ImageClassificationLightningModule
+from fine_tuning import ImageClassificationConfig, ImageClassificationLightningModule
 from datamodules import DATAMODULE_REGISTRY
 from callbacks import WallClockCallback
 

@@ -16,7 +16,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-name: 
+name: first
 run_name: imagenet_finetuning_${name}
 
 load_checkpoint:
@@ -32,7 +32,7 @@ mixup:
   num_classes: 1000
 
 model:
-  model_version: ???
+  model_version: 2024-05-09_15-33-39
   linear_classifier: False
   num_classes: 1000
 

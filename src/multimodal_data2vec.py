@@ -653,7 +653,7 @@ class KDMMData2Vec(nn.Module):
         self.fine_tuning = True
         self.cfg.mask = False
         self._remove_modalities_except(keep_modes=keep_modes)
-        self._unfreeze(self.modality_encoders)
+        self._unfreeze(self)
 
     def _remove_modalities_except(self, keep_modes:List[Modality]) -> None:
         """
