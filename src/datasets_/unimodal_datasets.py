@@ -12,6 +12,7 @@ from fairseq.data.audio.raw_audio_dataset import FileAudioDataset
 from .wav2vec_manifest import create_manifests
 from bpe_encoder import encode, get_bpe_encoder
 from utils import pad_text_sequence
+import torch.nn as nn
 
 from fairseq.data import Dictionary, ConcatDataset
 from fairseq_cli.preprocess import preprocess
@@ -357,6 +358,7 @@ class ImageNetDataset(ImageDataset):
             self,
             data_path:str,
             split,
+            raw_image,
             beit_transforms,
             no_transform,
             transform_jitter,
@@ -383,6 +385,9 @@ class ImageNetDataset(ImageDataset):
 
         if not os.path.exists(os.path.join(self.path_to_data, f'imagenet.{self.split}.jsonl')):
             self._make_imagenet_dataset_index()
+
+        if raw_image:
+            self.transform = nn.Identity()
 
     def load(self):
         items = []

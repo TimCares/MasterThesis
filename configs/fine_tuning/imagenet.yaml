@@ -63,8 +63,9 @@ transforms:
   recount: 1
 
 imagenet:
+  raw_image: True # transform is done in PL module
   beit_transforms: False
-  no_transform: True # transform is done in PL module
+  no_transform: True
   transform_jitter: False
   precompute_mask_config:
   crop_scale:
@@ -99,7 +100,7 @@ optimizer:
 
 optimizer_schedule: # relevant if "optimizer.warmup" is True
   warmup_steps: 3_000
-  max_steps: ${lightning_trainer.max_steps}
+  max_steps: 45_000
 
 lightning_trainer:
   default_root_dir: ${log_dir}

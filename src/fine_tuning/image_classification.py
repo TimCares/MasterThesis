@@ -61,13 +61,15 @@ def build_transform(is_train, input_size, color_jitter, aa, reprob, remode, reco
         crop_pct = 1.0
     size = int(input_size / crop_pct)
     t.append(
+        transforms.ToImage(),
+        transforms.ToDtype(torch.uint8, scale=True),
         transforms.Resize(
             size, interpolation=PIL.Image.BICUBIC
         ),  # to maintain same ratio w.r.t. 224 images
     )
     t.append(transforms.CenterCrop(input_size))
 
-    t.append(transforms.ToTensor())
+    t.append(transforms.ToDtype(torch.float32, scale=True),)
     t.append(transforms.Normalize(mean, std))
     return transforms.Compose(t)
 

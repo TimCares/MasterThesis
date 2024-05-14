@@ -189,6 +189,7 @@ class CIFARDataModule(BaseDataModule):
 class ImageNetDataModule(BaseDataModule):
     def __init__(self,
                  data_path:str,
+                 raw_image,
                  beit_transforms,
                  no_transform,
                  transform_jitter,
@@ -197,6 +198,7 @@ class ImageNetDataModule(BaseDataModule):
                  *args,
                  **kwargs):
         super().__init__(data_path, *args, **kwargs)
+        self.raw_image = raw_image
         self.beit_transforms = beit_transforms
         self.no_transform = no_transform
         self.transform_jitter = transform_jitter
@@ -218,6 +220,7 @@ class ImageNetDataModule(BaseDataModule):
     def set_train_dataset(self):
         self.train_dataset = ImageNetDataset(data_path=self.data_path, 
                                              split='train',
+                                             raw_image=self.raw_image,
                                              beit_transforms=self.beit_transforms,
                                              no_transform=self.no_transform,
                                              transform_jitter=self.transform_jitter,
@@ -228,6 +231,7 @@ class ImageNetDataModule(BaseDataModule):
     def set_val_dataset(self):
         self.val_dataset = ImageNetDataset(data_path=self.data_path,
                                            split='val',
+                                           raw_image=self.raw_image,
                                            beit_transforms=False,
                                            no_transform=True,
                                            transform_jitter=False,
