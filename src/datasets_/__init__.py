@@ -34,7 +34,6 @@ from .data_utils import (
     convert_mp3_to_flac,
     write_data_into_jsonl,
     download_and_unzip,
-    RandomResizedCropAndInterpolationWithTwoPic,
     get_transforms,
 )
 
