@@ -17,11 +17,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as L
-
-from timm.data import Mixup, create_transform
-from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
-from torchvision.transforms import v2 as transforms
-import PIL
+from timm.data import Mixup
 
 from data2vec_fairseq.data.modality import Modality
 from multimodal_data2vec import KDMMData2Vec, KDData2VecPreTrainingLightningModule
@@ -32,46 +28,6 @@ from fairseq.dataclass import FairseqDataclass
 
 logger = logging.getLogger(__name__)
 
-
-def build_transform(is_train, input_size, color_jitter, aa, reprob, remode, recount):
-    mean = IMAGENET_DEFAULT_MEAN
-    std = IMAGENET_DEFAULT_STD
-    # train transform
-    if is_train:
-        # this should always dispatch to transforms_imagenet_train
-        transform = create_transform(
-            input_size=input_size,
-            is_training=True,
-            color_jitter=color_jitter,
-            auto_augment=aa,
-            interpolation="bicubic",
-            re_prob=reprob,
-            re_mode=remode,
-            re_count=recount,
-            mean=mean,
-            std=std,
-        )
-        return transform
-
-    # eval transform
-    t = []
-    if input_size <= 224:
-        crop_pct = 224 / 256
-    else:
-        crop_pct = 1.0
-    size = int(input_size / crop_pct)
-    t.append(
-        transforms.ToImage(),
-        transforms.ToDtype(torch.uint8, scale=True),
-        transforms.Resize(
-            size, interpolation=PIL.Image.BICUBIC
-        ),  # to maintain same ratio w.r.t. 224 images
-    )
-    t.append(transforms.CenterCrop(input_size))
-
-    t.append(transforms.ToDtype(torch.float32, scale=True),)
-    t.append(transforms.Normalize(mean, std))
-    return transforms.Compose(t)
 
 class ImageClassificationLightningModule(L.LightningModule):
     def __init__(self, cfg):
@@ -88,11 +44,6 @@ class ImageClassificationLightningModule(L.LightningModule):
 
         if cfg.mixup.mixup_alpha > 0 or cfg.mixup.cutmix_alpha > 0:
             self.mixup_fn = Mixup(**cfg.mixup)
-
-        self.image_transforms = {
-            "train": build_transform(is_train=True, **cfg.transforms),
-            "val": build_transform(is_train=False, **cfg.transforms),
-        }
         
         self.save_hyperparameters()
 
@@ -108,8 +59,6 @@ class ImageClassificationLightningModule(L.LightningModule):
     def _step(self, batch:Dict[str, Any], batch_idx:int, stage:str='train'):
         target = batch['target']
         image = batch['image']
-
-        image = self.image_transforms[stage](image) # apply transforms batch-wise
 
         if self.mixup_fn is not None and stage == 'train':
             image, target = self.mixup_fn(image, target)

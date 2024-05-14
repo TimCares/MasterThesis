@@ -358,19 +358,20 @@ class ImageNetDataset(ImageDataset):
             self,
             data_path:str,
             split,
-            raw_image,
-            beit_transforms,
-            no_transform,
-            transform_jitter,
-            crop_scale,
-            precompute_mask_config,
+            color_jitter=None,
+            aa="rand-m9-mstd0.5-inc1",
+            reprob=0.25,
+            remode="pixel",
+            recount=1,
+            precompute_mask_config=None,
     ):
         super().__init__(data_path=data_path, 
-                         split=split, 
-                         beit_transforms=beit_transforms, 
-                         no_transform=no_transform,
-                         transform_jitter=transform_jitter,
-                         crop_scale=crop_scale,
+                         split=split,
+                         color_jitter=color_jitter,
+                         aa=aa,
+                         reprob=reprob,
+                         remode=remode,
+                         recount=recount,
                          precompute_mask_config=precompute_mask_config)
         self.path_to_data = os.path.join(self.data_path, 'imagenet')
         if not os.path.exists(self.path_to_data):
@@ -386,8 +387,6 @@ class ImageNetDataset(ImageDataset):
         if not os.path.exists(os.path.join(self.path_to_data, f'imagenet.{self.split}.jsonl')):
             self._make_imagenet_dataset_index()
 
-        if raw_image:
-            self.transform = nn.Identity()
 
     def load(self):
         items = []

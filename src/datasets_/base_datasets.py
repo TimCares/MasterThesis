@@ -275,31 +275,31 @@ class ImageDataset(BaseDataset):
             self,
             data_path:str,
             split,
-            beit_transforms,
-            no_transform,
-            transform_jitter,
-            crop_scale,
-            precompute_mask_config,):
+            color_jitter=None,
+            aa="rand-m9-mstd0.5-inc1",
+            reprob=0.25,
+            remode="pixel",
+            recount=1,
+            precompute_mask_config=None,):
         super().__init__(data_path=data_path,
                          split=split,
                          precompute_mask_config=precompute_mask_config)
-        self.beit_transforms = beit_transforms
-        self.no_transform = no_transform
-        self.transform_jitter = transform_jitter
-        self.crop_scale = crop_scale
+        self.color_jitter = color_jitter
+        self.aa = aa
+        self.reprob = reprob
+        self.remode = remode
+        self.recount = recount
 
         self.loader = default_loader
 
-        if self.split != 'train':
-            self.transform = get_transforms(no_transform=True,
-                                            beit_transforms=False, 
-                                            transform_jitter=False,
-                                            crop_scale=(1.0, 1.0))
-        else:
-            self.transform = get_transforms(no_transform=self.no_transform,
-                                            beit_transforms=self.beit_transforms, 
-                                            transform_jitter=self.transform_jitter,
-                                            crop_scale=self.crop_scale)
+        self.transform = get_transforms(
+            train=self.split=="train",
+            color_jitter=self.color_jitter,
+            aa=self.aa,
+            reprob=self.reprob,
+            remode=self.remode,
+            recount=self.recount,
+        )
 
     def _get_image(self, image_path: str):
         image = self.loader(image_path)

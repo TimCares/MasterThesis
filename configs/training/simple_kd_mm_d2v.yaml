@@ -90,11 +90,11 @@ data:
 
   datamodules:
     imagenet:
-      beit_transforms: False
-      no_transform: False
-      transform_jitter: False
-      precompute_mask_config:
-      crop_scale:
+      color_jitter: # None
+      aa: rand-m9-mstd0.5-inc1
+      reprob: 0.25
+      remode: pixel
+      recount: 1
 
 zero_shot_val:
   data_path: ${base_dir}
