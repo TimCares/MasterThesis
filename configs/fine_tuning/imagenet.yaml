@@ -98,7 +98,7 @@ optimizer:
   warmup: True
 
 optimizer_schedule: # relevant if "optimizer.warmup" is True
-  warmup_steps: 3_200
+  warmup_steps: 3_000
   max_steps: ${lightning_trainer.max_steps}
 
 lightning_trainer:
@@ -106,8 +106,7 @@ lightning_trainer:
   accelerator: gpu
   devices: -1
   #strategy: ddp # -> automatically used if multiple GPUs are available -> devices: -1
-  max_steps: 50_000
-  val_check_interval: 5_000
+  max_epochs: 15
   num_sanity_val_steps: 0
   precision: 16-mixed
   #gradient_clip_val: 2.0
