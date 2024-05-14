@@ -73,7 +73,7 @@ class ImageClassificationLightningModule(L.LightningModule):
 
         with torch.no_grad():
             pred = x.argmax(-1)
-            acc = (pred == target).sum()
+            acc = (pred == target).sum() / target.size(0)
         
         self.log(f"{stage}/loss", loss, prog_bar=True)
         self.log(f"{stage}/accuracy", acc, prog_bar=True)
