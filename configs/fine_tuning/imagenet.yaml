@@ -1,0 +1,113 @@
+# @package _global_
+
+hydra:
+  run:
+    dir: .
+
+defaults:
+  - _self_ # this first, so that the base config can be overridden by others
+  
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+
+base_dir: /workspace
+model_path: ${base_dir}/models
+data_path: ${base_dir}
+log_dir: ${base_dir}/logs
+seed: 42
+
+run_name: masked_kd_0.6_uninitialized
+
+load_checkpoint:
+
+mixup:
+  mixup_alpha: 0.7
+  cutmix_alpha: 1.0
+  cutmix_minmax: # None
+  prob: 0.9
+  switch_prob: 0.5
+  mode: batch
+  label_smoothing: 0.1
+  num_classes: 1000
+
+model:
+  model_path: ???
+  linear_classifier: False
+  num_classes: 1000
+
+  drop_path_rate: 0.0
+  layer_decay: 0.65
+
+  norm_eps: # None
+
+  # regularization overwrites
+  encoder_dropout: 0
+  post_mlp_drop: 0
+  attention_dropout: 0
+  activation_dropout: 0.0
+  dropout_input: 0.0
+  layerdrop: 0.0
+
+  use_fc_norm: True
+  prediction_mode: MEAN_POOLING
+
+  no_decay_blocks: True
+
+transforms:
+  input_size: 224
+  color_jitter: # None
+  aa: rand-m9-mstd0.5-inc1
+  reprob: 0.25
+  remode: pixel
+  recount: 1
+
+imagenet:
+  beit_transforms: False
+  no_transform: True # transform is done in PL module
+  transform_jitter: False
+  precompute_mask_config:
+  crop_scale:
+
+  data_path: ${data_path}
+  batch_size: 256
+  num_workers: 12
+  shuffle: True
+  drop_last: True
+
+
+checkpoint:
+  dirpath: "${model_path}/${now:%Y-%m-%d_%H-%M-%S}"
+  # monitor key is also computed in a callback, ModelCheckpoint callbacks are the last checkpoints executed,
+  # so the key will be computed right beforehand (therefore it is always up to date)
+  filename: mm-d2v-{step}-{${checkpoint.monitor}:.4f}
+  save_last: link # save last checkpoint -> easier access, as it has a fixed name (last.ckpt) -> not set to True here, as a link saves space
+  enable_version_counter: False # only ever one "last.ckpt" file
+  every_n_train_steps: ${lightning_trainer.val_check_interval}
+  save_on_train_epoch_end: False # False -> run at end of validation
+  verbose: True
+  monitor: val/accuracy
+  mode: max
+  auto_insert_metric_name: False
+
+optimizer:
+  lr: 0.001
+  betas: [0.9,0.95]
+  eps: 1e-06
+  weight_decay: 0.01
+  warmup: True
+
+optimizer_schedule: # relevant if "optimizer.warmup" is True
+  warmup_steps: 3_200
+  max_steps: ${lightning_trainer.max_steps}
+
+lightning_trainer:
+  default_root_dir: ${log_dir}
+  accelerator: gpu
+  devices: -1
+  #strategy: ddp # -> automatically used if multiple GPUs are available -> devices: -1
+  max_steps: 50_000
+  val_check_interval: 5_000
+  num_sanity_val_steps: 0
+  precision: 16-mixed
+  #gradient_clip_val: 2.0
+  log_every_n_steps: 50
