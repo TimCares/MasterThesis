@@ -16,7 +16,8 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: masked_kd_0.6_uninitialized
+name: 
+run_name: imagenet_finetuning_${name}
 
 load_checkpoint:
 
@@ -31,7 +32,7 @@ mixup:
   num_classes: 1000
 
 model:
-  model_path: ???
+  model_version: ???
   linear_classifier: False
   num_classes: 1000
 

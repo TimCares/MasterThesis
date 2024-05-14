@@ -10,7 +10,7 @@ import logging
 
 from dataclasses import dataclass
 from typing import Any, Optional, Dict
-
+import os
 from omegaconf import MISSING, open_dict
 import numpy as np
 import torch
@@ -75,8 +75,12 @@ class ImageClassificationLightningModule(L.LightningModule):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
+
+        with open_dict(self.cfg.model):
+            # "last.ckpt" is a symlink to the checkpoint with the best zero-shot performance during pre-training (created by PL)
+            self.cfg.model.model_path = os.path.join(self.cfg.model_path, self.cfg.model.model_version, "last.ckpt")
         
-        self.model = ImageClassificationModel(cfg=self.cfg)
+        self.model = ImageClassificationModel(cfg=self.cfg.model)
 
         self.mixup_fn = None
 
@@ -144,7 +148,7 @@ class ImageClassificationLightningModule(L.LightningModule):
 
 @dataclass
 class ImageClassificationConfig(FairseqDataclass):
-    model_path: str = MISSING
+    model_version: str = MISSING
     linear_classifier: bool = False
     num_classes: int = 1000
 
