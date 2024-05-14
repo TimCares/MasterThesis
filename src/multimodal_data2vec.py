@@ -664,8 +664,9 @@ class KDMMData2Vec(nn.Module):
         # comparison done on name basis, as on "enum" basis yields problems after serialization
         keep_modes = [mode.name.lower() for mode in keep_modes]
         for modality in self.supported_modalities:
-            if modality.name.lower() not in keep_modes:
-                del self.modality_encoders[modality.name.lower()] # includes removing the decoder
+            modality_str = modality.name.lower()
+            if modality_str not in keep_modes:
+                del self.modality_encoders[modality_str] # includes removing the decoder
             else:
-                if hasattr(self.modality_encoders[modality.name.lower()], 'decoder'):
-                    del self.modality_encoders[modality.name.lower()].decoder # not needed in any case
+                if hasattr(self.modality_encoders[modality_str], 'decoder'):
+                    del self.modality_encoders[modality_str].decoder # not needed in any case
