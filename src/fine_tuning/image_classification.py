@@ -65,18 +65,22 @@ class ImageClassificationLightningModule(L.LightningModule):
         
         x = self(image) # call "forward"
 
-        loss = F.cross_entropy(
-            x.float(),
-            target,
-            reduction="mean",
-        )
+        if stage == 'train' and self.mixup_fn is not None:
+            loss = -target * F.log_softmax(x.float(), dim=-1)
+        else:
+            loss = F.cross_entropy(
+                x.float(),
+                target,
+                reduction="mean",
+            )
 
-        with torch.no_grad():
-            pred = x.argmax(-1)
-            acc = (pred == target).sum() / target.size(0)
+        if stage != 'train':
+            with torch.no_grad():
+                pred = x.argmax(-1)
+                acc = (pred == target).sum() / target.size(0)
+                self.log(f"{stage}/accuracy", acc, prog_bar=True)
         
         self.log(f"{stage}/loss", loss, prog_bar=True)
-        self.log(f"{stage}/accuracy", acc, prog_bar=True)
 
         return loss
 
