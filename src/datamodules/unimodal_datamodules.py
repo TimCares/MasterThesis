@@ -63,7 +63,7 @@ class BaseDataModule(LightningDataModule):
                           batch_size=self.batch_size,
                           num_workers=self.num_workers,
                           sampler=None,
-                          shuffle=self.shuffle,
+                          shuffle=False,
                           drop_last=self.drop_last,)
 
     def test_dataloader(self):
@@ -74,7 +74,7 @@ class BaseDataModule(LightningDataModule):
                           batch_size=self.batch_size,
                           num_workers=self.num_workers,
                           sampler=None,
-                          shuffle=self.shuffle,
+                          shuffle=False,
                           drop_last=self.drop_last,)
     
     def teardown(self, stage: str) -> None:
