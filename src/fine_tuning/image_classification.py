@@ -71,8 +71,9 @@ class ImageClassificationLightningModule(L.LightningModule):
             loss = F.cross_entropy(
                 x.float(),
                 target,
-                reduction="mean",
+                reduction="none",
             )
+        loss = loss.mean()
 
         if stage != 'train':
             with torch.no_grad():
