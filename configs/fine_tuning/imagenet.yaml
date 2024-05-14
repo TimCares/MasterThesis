@@ -16,7 +16,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-name: first
+name: grad_clip_2.0
 run_name: imagenet_finetuning_${name}
 
 load_checkpoint:
@@ -109,5 +109,5 @@ lightning_trainer:
   max_epochs: 15
   num_sanity_val_steps: 0
   precision: 16-mixed
-  #gradient_clip_val: 2.0
+  gradient_clip_val: 2.0
   log_every_n_steps: 50
