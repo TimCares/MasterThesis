@@ -28,8 +28,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         self.cfg = cfg
 
         self.masking = self.cfg.model.mask and not self.cfg.model.inverse_masking
-        self.masked_kd = self.cfg.model.mask and not self.cfg.model.d2v_masking and not self.cfg.model.inverse_masked_kd
-        self.inverse_masked_kd = self.cfg.model.mask and not self.cfg.model.d2v_masking and self.cfg.model.inverse_masked_kd
+        self.inverse_masking = self.cfg.model.mask and self.cfg.model.inverse_masking
 
         state_dict_name = self.cfg.model.pretrained['image']
         state_dict_path = os.path.join(self.cfg.model.pretrained_path, state_dict_name)
@@ -54,8 +53,8 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         return self.model(**input_dict,
                           features_only=False,
                           return_encoder_output=True,
-                          unmasked_feature_extractor_only=self.inverse_masked_kd)
-        # "unmasked_feature_extractor_only" has higher precedence than "features_only" and "return_encoder_output"
+                          feature_extractor_only=self.inverse_masking)
+        # "feature_extractor_only" has higher precedence than "features_only" and "return_encoder_output"
 
     def training_step(self, batch:Dict[str, Any], batch_idx):
         if 'target' in batch:
@@ -71,35 +70,22 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
                     mode=None, # determined automatically in model
                     padding_mask=None, # the padding mask is provided in the precomputed_encoder_output and used by the teacher model
                     mask=False, # we are creating targets from a teacher model for the student model, so no mask
-                    remove_extra_tokens=self.d2v_masking, # "decoder_input" in d2v (decoder in student model) removes extra tokens
-                    # ... so we need to remove them from the teacher output as well if we mask the student input. If not, then we do not need to remove them
-                    # because we also regress the extra tokens, if they are present.
+                    remove_extra_tokens=False, # special tokens are also regressed
                     precomputed_encoder_output=precomputed_encoder_output,
                     # inverse masked kd means we do masking for the student base on attention scores from the teacher
                     # ... so it is "masked_kd" from the teacher's perspective
-                    masked_kd=self.inverse_masked_kd,
+                    masked_kd=self.inverse_masking,
                     return_final_attn_scores=self.cfg.model.final_attn_layer_saliency_score, # ignored if inverse_masked_kd=False
                 )
         
-        if not self.inverse_masked_kd:
+        if not self.inverse_masking:
             target = target['layer_results']
             target = prepare_output(target, Modality.IMAGE)
 
-        if self.d2v_masking:
-            pred = output_dict['x']
-
-            if self.cfg.model.clone_batch > 1:
-                target = target.repeat_interleave(self.cfg.model.clone_batch, 0)
-
-            masked_b = output_dict['mask'].mask.bool()
-            assert pred.size(1) == masked_b.size(1), f"Size mismatch: {pred.size(1)} != {masked_b.size(1)}"
-            assert target.size(1) == masked_b.size(1), f"Size mismatch: {target.size(1)} != {masked_b.size(1)}"
-            pred = pred[masked_b]
-            target = target[masked_b]
-        elif self.masked_kd:
+        if self.masking:
             pred = output_dict['layer_results'] # already prepared
 
-        elif self.inverse_masked_kd:
+        elif self.inverse_masking:
             x_unmasked_tokens_only, keep_timesteps = get_max_saliency_patches(
                 frac_keep_tokens=self.cfg.model.frac_keep_tokens,
                 attn_results=target['attn_scores'],
@@ -289,7 +275,7 @@ class KDMMData2Vec(nn.Module):
             logger.info(f'Loading modality encoder for: {mode}')
             state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
             # if we are masking the input to the student model, then we need to keep the decoder
-            d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path, keep_decoder=self.cfg.mask and self.cfg.d2v_masking)
+            d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
             mode_feature_extractor = d2v_model.modality_encoders[mode.name]
             modality_encoders[mode.name.lower()] = mode_feature_extractor
             
@@ -320,12 +306,10 @@ class KDMMData2Vec(nn.Module):
         precomputed_mask=None,
         return_encoder_output:bool=False,
         features_only:bool=False,
-        unmasked_feature_extractor_only:bool=False,
+        feature_extractor_only:bool=False,
         precomputed_encoder_output:Optional[Dict[str, torch.Tensor]]=None,
     ):
-        mask_condition = self.cfg.mask and not features_only
-        d2v_masking = mask_condition and self.cfg.d2v_masking
-        masked_kd = mask_condition and not self.cfg.d2v_masking and not self.cfg.inverse_masked_kd
+        masking = self.cfg.mask and not self.cfg.inverse_masking and not features_only
 
         if precomputed_encoder_output is None:
             assert len(modes)==1, f"This model accepts exactly modality indicator at a time, received: {modes}"
@@ -347,32 +331,17 @@ class KDMMData2Vec(nn.Module):
 
             feature_extractor:ModalitySpecificEncoder = self.modality_encoders[mode]
             with torch.no_grad() if not self.fine_tuning else contextlib.ExitStack():
-                x_local = feature_extractor.local_features(source) # if we do d2v masking, we reuse the local features
-                extractor_out_unmasked = feature_extractor.contextualized_features(
-                    x=x_local,
+                extractor_out = feature_extractor(
+                    features=source,
                     padding_mask=padding_mask,
                     mask=False,
                     remove_masked=False,
                 )
-                if unmasked_feature_extractor_only: # is only the case for inverse masked KD
+                if feature_extractor_only: # is only the case for inverse masked KD
                     # we return a dict here, as we do not need to change the "training_step" function of the PL module that extensive
                     return {
-                        "encoder_output": extractor_out_unmasked
+                        "encoder_output": extractor_out
                     }
-                
-                if d2v_masking:
-                    extractor_out_masked = feature_extractor.contextualized_features(
-                        x=x_local,
-                        padding_mask=padding_mask,
-                        mask=True,
-                        remove_masked=True,
-                        clone_batch=self.cfg.clone_batch,
-                        mask_seeds=None,
-                        precomputed_mask=precomputed_mask,
-                    )
-                    extractor_out = extractor_out_masked # if d2v masking, then student transformer layer use masked input
-                else:
-                    extractor_out = extractor_out_unmasked
         
         else:
             extractor_out = precomputed_encoder_output
@@ -386,7 +355,7 @@ class KDMMData2Vec(nn.Module):
         if self.dropout_input is not None:
             x = self.dropout_input(x)
 
-        if masked_kd:
+        if masking:
             attn_results = []
         
         layer_results = []
@@ -409,9 +378,9 @@ class KDMMData2Vec(nn.Module):
                     x,
                     padding_mask=masked_padding_mask,
                     alibi_bias=ab,
-                    return_att_scores=masked_kd,
+                    return_att_scores=masking,
                 )
-                if masked_kd:
+                if masking:
                     x, lr, attn = block_out
                     if not self.cfg.final_attn_layer_saliency_score or i == len(self.blocks) - 1:
                         # if we only use the last attn layer scores, then we only append if we are at the last layer
@@ -422,16 +391,15 @@ class KDMMData2Vec(nn.Module):
                 if not features_only:
                     layer_results.append(lr)
 
-        if masked_kd:
-            assert not d2v_masking, "MaskedKD and d2v masking are mutually exclusive."
+        if masking:
             x_unmasked_tokens_only, keep_timesteps = get_max_saliency_patches(
                 frac_keep_tokens=self.cfg.frac_keep_tokens,
                 attn_results=attn_results,
-                extractor_out=extractor_out, # in this case must be "extractor_out_unmasked" (d2v_masking=False)
+                extractor_out=extractor_out,
                 feature_extractor=feature_extractor,
             )
             
-            extractor_out_unmasked['x'] = x_unmasked_tokens_only
+            extractor_out['x'] = x_unmasked_tokens_only
 
             layer_results = prepare_salient_patches(
                 layer_results=layer_results,
@@ -443,61 +411,23 @@ class KDMMData2Vec(nn.Module):
         if self.norm is not None:
             x = self.norm(x)
 
-        # we only use the decoder for d2v masking, else: we return here
-        if not d2v_masking:
-            if remove_extra_tokens:
-                x = x[:, feature_extractor.modality_cfg.num_extra_tokens :]
-                if masked_padding_mask is not None:
-                    masked_padding_mask = masked_padding_mask[
-                        :, feature_extractor.modality_cfg.num_extra_tokens :
-                    ]
-
-            out = {
-                "x": x,
-                "padding_mask": masked_padding_mask,
-                "layer_results": layer_results,
-                "mask": encoder_mask,
-            }
-            if return_encoder_output:
-                # teacher gets all tokens. Only if we do MaskedKD, then the teacher only gets the unmasked tokens
-                out["encoder_output"] = extractor_out_unmasked
-            return out
-    
-        assert hasattr(feature_extractor, 'decoder') and feature_extractor.decoder is not None, \
-            "Decoder must be present in the feature extractor for masking the student input."
-        # expands input back to original size -> adds masked time steps back
-        # decoder weight are frozen as part of "self._freeze(self.modality_encoders)" in "_init_from_pretrained"
-        # no @torch_no_grad() here, because we need to compute the loss,
-        # ... and gradients need to flow through the decoder to the blocks!
-        x = self.forward_decoder(
-            x,
-            feature_extractor,
-            feature_extractor.decoder,
-            encoder_mask,
-        )
+        if remove_extra_tokens:
+            x = x[:, feature_extractor.modality_cfg.num_extra_tokens :]
+            if masked_padding_mask is not None:
+                masked_padding_mask = masked_padding_mask[
+                    :, feature_extractor.modality_cfg.num_extra_tokens :
+                ]
 
         out = {
             "x": x,
             "padding_mask": masked_padding_mask,
+            "layer_results": layer_results,
             "mask": encoder_mask,
         }
         if return_encoder_output:
-            out["encoder_output"] = extractor_out_unmasked # for the teacher model, always unmasked
-
+            # teacher gets all tokens. Only if we do MaskedKD, then the teacher only gets the unmasked tokens
+            out["encoder_output"] = extractor_out
         return out
-
-
-    def forward_decoder(
-        self,
-        x,
-        feature_extractor,
-        decoder,
-        mask_info,
-    ):
-        x = feature_extractor.decoder_input(x, mask_info)
-        x = decoder(*x)
-
-        return x
     
 
     def extract_features(
