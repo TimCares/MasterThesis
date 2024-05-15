@@ -23,7 +23,7 @@ def main(cfg: DictConfig) -> None:
     wandb_logger = WandbLogger(project='MMRL',
                                name=cfg.run_name,
                                save_dir=cfg.log_dir,
-                               log_model="all")
+                               log_model=False,)
     
     cfg.model = merge_with_parent(dc=ImageClassificationConfig(), cfg=cfg.model, remove_missing=False)
     if 'seed' in cfg and cfg.seed is not None:
