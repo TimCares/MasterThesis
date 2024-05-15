@@ -30,22 +30,26 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         self.masking = self.cfg.model.mask and not self.cfg.model.inverse_masking
         self.inverse_masking = self.cfg.model.mask and self.cfg.model.inverse_masking
 
-        state_dict_name = self.cfg.model.pretrained['image']
-        state_dict_path = os.path.join(self.cfg.model.pretrained_path, state_dict_name)
-        self.teacher = load_pretrained_d2v_model(state_dict_path=state_dict_path, keep_decoder=False)
-        for param in self.teacher.parameters():
-            param.requires_grad = False
-        self.teacher.eval()
-        
-        teacher_mode = self.teacher.cfg.supported_modality.name
-        teacher_extra_tokens = self.teacher.modality_encoders[teacher_mode].modality_cfg.num_extra_tokens
-        del self.teacher.modality_encoders # we share it between teacher and student
-        
         self.model = KDMMData2Vec(cfg=self.cfg.model)
+
+        teachers = dict()
+        for mode in self.cfg.model.supported_modalities:
+            modality_str = mode.name.lower()
+            state_dict_name = self.cfg.model.pretrained[modality_str]
+            state_dict_path = os.path.join(self.cfg.model.pretrained_path, state_dict_name)
+            teachers[modality_str] = load_pretrained_d2v_model(state_dict_path=state_dict_path)
+
+            teacher_mode = teachers[modality_str].cfg.supported_modality.name
+            teacher_extra_tokens = teachers[modality_str].modality_encoders[teacher_mode].modality_cfg.num_extra_tokens
+            del teachers[modality_str].modality_encoders # we share it between teacher and student
         
-        assert self.model.modality_encoders['image'].modality_cfg.num_extra_tokens == teacher_extra_tokens, \
-            f"Extra tokens mismatch: {self.model.modality_encoders['image'].modality_cfg.num_extra_tokens} != {teacher_extra_tokens} " \
-                "between student and teacher model for modality 'image'" # TODO: add support for other modalities
+            student_extra_tokens = self.model.modality_encoders[modality_str].modality_cfg.num_extra_tokens
+            assert student_extra_tokens == teacher_extra_tokens, \
+                f"Extra tokens mismatch: {student_extra_tokens} != {teacher_extra_tokens} " \
+                    f"between student and teacher model for modality '{modality_str}'"
+
+        self.teachers = nn.ModuleDict(teachers)
+        self.model._freeze(self.teachers)
         
         self.save_hyperparameters()
 
@@ -61,22 +65,25 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
             batch.pop('target') # unused, layer activations are the targets
         output_dict = self(batch) # call "forward"
 
+        modality:Modality = batch['modes'][0]
+        modality_str = modality.name.lower()
+
         # in output_dict, because "return_encoder_output=True" in "forward"
         precomputed_encoder_output = output_dict['encoder_output']
 
         with torch.no_grad():
-            target = self.teacher.extract_features(
-                    source=batch['image'],
-                    mode=None, # determined automatically in model
-                    padding_mask=None, # the padding mask is provided in the precomputed_encoder_output and used by the teacher model
-                    mask=False, # we are creating targets from a teacher model for the student model, so no mask
-                    remove_extra_tokens=False, # special tokens are also regressed
-                    precomputed_encoder_output=precomputed_encoder_output,
-                    # inverse masked kd means we do masking for the student base on attention scores from the teacher
-                    # ... so it is "masked_kd" from the teacher's perspective
-                    masked_kd=self.inverse_masking,
-                    return_final_attn_scores=self.cfg.model.final_attn_layer_saliency_score, # ignored if inverse_masked_kd=False
-                )
+            target = self.teachers[modality_str].extract_features(
+                source=batch['image'],
+                mode=None, # determined automatically in model
+                padding_mask=None, # the padding mask is provided in the precomputed_encoder_output and used by the teacher model
+                mask=False, # we are creating targets from a teacher model for the student model, so no mask
+                remove_extra_tokens=False, # special tokens are also regressed
+                precomputed_encoder_output=precomputed_encoder_output,
+                # inverse masked kd means we do masking for the student base on attention scores from the teacher
+                # ... so it is "masked_kd" from the teacher's perspective
+                masked_kd=self.inverse_masking,
+                return_final_attn_scores=self.cfg.model.final_attn_layer_saliency_score, # ignored if inverse_masked_kd=False
+            )
         
         if not self.inverse_masking:
             target = target['layer_results']
@@ -90,7 +97,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
                 frac_keep_tokens=self.cfg.model.frac_keep_tokens,
                 attn_results=target['attn_scores'],
                 extractor_out=precomputed_encoder_output,
-                feature_extractor=self.model.modality_encoders[batch['modes'][0].name.lower()],
+                feature_extractor=self.model.modality_encoders[modality_str],
             )
             
             precomputed_encoder_output["x"] = x_unmasked_tokens_only
@@ -98,7 +105,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
             target = prepare_salient_patches( # "target" prepared now
                 layer_results=target['layer_results'],
                 keep_timesteps=keep_timesteps,
-                mode=batch['modes'][0],
+                mode=modality,
                 norm_first=self.cfg.model.norm_first,
             )
 
@@ -288,7 +295,6 @@ class KDMMData2Vec(nn.Module):
 
         self.modality_encoders:nn.ModuleDict[str, nn.Module] = nn.ModuleDict(modality_encoders)
         self._freeze(self.modality_encoders)
-        self.modality_encoders.eval()
 
     def _init_except_pretrained(self, module:nn.Module):
         if all(param.requires_grad for param in module.parameters(recurse=False)):
