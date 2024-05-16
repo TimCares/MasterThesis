@@ -56,7 +56,7 @@ model:
 
 
 imagenet:
-  color_jitter: # None
+  pretraining: False
   aa: rand-m9-mstd0.5-inc1
   reprob: 0.25
   remode: pixel

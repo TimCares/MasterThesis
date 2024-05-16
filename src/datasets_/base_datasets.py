@@ -275,30 +275,40 @@ class ImageDataset(BaseDataset):
             self,
             data_path:str,
             split,
+            pretraining,
             color_jitter=None,
             aa="rand-m9-mstd0.5-inc1",
             reprob=0.25,
             remode="pixel",
             recount=1,
+            beit_transforms:bool=False,
+            crop_scale:Tuple[float, float]=(0.08, 1.0),
             precompute_mask_config=None,):
         super().__init__(data_path=data_path,
                          split=split,
                          precompute_mask_config=precompute_mask_config)
+        self.pretraining = pretraining
         self.color_jitter = color_jitter
         self.aa = aa
         self.reprob = reprob
         self.remode = remode
         self.recount = recount
 
+        self.beit_transforms = beit_transforms
+        self.crop_scale = crop_scale
+
         self.loader = default_loader
 
         self.transform = get_transforms(
+            pretraining=self.pretraining,
             train=self.split=="train",
             color_jitter=self.color_jitter,
             aa=self.aa,
             reprob=self.reprob,
             remode=self.remode,
             recount=self.recount,
+            beit_transforms=self.beit_transforms,
+            crop_scale=self.crop_scale,
         )
 
     def _get_image(self, image_path: str):

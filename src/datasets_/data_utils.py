@@ -5,12 +5,14 @@ import torch
 import logging
 import json
 import os
-from typing import List
+from typing import List, Tuple
 import PIL
 from torchvision.datasets.utils import download_url
 from pydub import AudioSegment
 import multiprocessing
 from rich.progress import track
+
+from data2vec_fairseq.data.mae_image_dataset import RandomResizedCropAndInterpolationWithTwoPic
 
 logger = logging.getLogger(__name__)
 
@@ -53,12 +55,103 @@ def download_and_unzip(urls:str, store_at:str="../data", archive_type:str="zip")
                 raise ValueError(f"Unsupported archive type: {archive_type}")
         os.remove(filepath)
 
-def get_transforms(train,
-                   color_jitter=None,
-                   aa="rand-m9-mstd0.5-inc1",
-                   reprob=0.25,
-                   remode="pixel",
-                   recount=1):
+def get_transforms(
+        pretraining,
+        train,
+        color_jitter=None,
+        aa="rand-m9-mstd0.5-inc1",
+        reprob=0.25,
+        remode="pixel",
+        recount=1,
+        beit_transforms:bool=False,
+        crop_scale:Tuple[float, float]=(0.08, 1.0)):
+    
+    if pretraining:
+        return get_transforms_pretraining(
+            train=train,
+            beit_transforms=beit_transforms,
+            color_jitter=color_jitter,
+            crop_scale=crop_scale
+        )
+    else:
+        return get_transforms_finetuning(
+            train=train,
+            color_jitter=color_jitter,
+            aa=aa,
+            reprob=reprob,
+            remode=remode,
+            recount=recount)
+
+
+def get_transforms_pretraining(
+    train:bool=True,
+    beit_transforms:bool=False,
+    color_jitter=None,
+    crop_scale:Tuple[float, float]=(0.08, 1.0)):
+
+    transform_prepare = transforms.Compose(
+            [
+                transforms.ToImage(),
+                transforms.ToDtype(torch.uint8, scale=True),
+            ]
+    )
+
+    if not train:
+        transform_train = transforms.Resize(224)
+    elif beit_transforms:
+        beit_transform_list = []
+        beit_transform_list.append(transforms.ColorJitter(0.4, 0.4, 0.4))
+        beit_transform_list.extend(
+            [
+                transforms.RandomHorizontalFlip(p=0.5),
+                RandomResizedCropAndInterpolationWithTwoPic(
+                    size=(224, 224),
+                    second_size=None,
+                    interpolation="bicubic",
+                    second_interpolation=None,
+                    scale=crop_scale
+                ),
+            ]
+        )
+        transform_train = transforms.Compose(beit_transform_list)
+    else:
+        transform_train = transforms.Compose(
+            [
+                transforms.RandomResizedCrop(
+                    size=(224, 224), scale=crop_scale, interpolation=3
+                ),  # 3 is bicubic
+                transforms.RandomHorizontalFlip(),
+            ]
+        )
+    final_transform = transforms.Compose(
+        [
+            transforms.ToDtype(torch.float32, scale=True),
+            transforms.Normalize(
+                mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD
+            ),
+        ]
+    )
+
+    if color_jitter is not None and train:
+        transform_jitter = transforms.ColorJitter(color_jitter, color_jitter, color_jitter)
+        return transforms.Compose(
+            [
+                transform_prepare,
+                transform_train,
+                transform_jitter,
+                final_transform,
+            ]
+        )
+    else:
+        return transforms.Compose([transform_prepare, transform_train, final_transform])
+
+def get_transforms_finetuning(
+        train,
+        color_jitter=None,
+        aa="rand-m9-mstd0.5-inc1",
+        reprob=0.25,
+        remode="pixel",
+        recount=1):
 
     mean = IMAGENET_DEFAULT_MEAN
     std = IMAGENET_DEFAULT_STD

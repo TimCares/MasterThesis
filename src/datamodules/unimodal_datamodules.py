@@ -187,22 +187,29 @@ class CIFARDataModule(BaseDataModule):
 
 
 class ImageNetDataModule(BaseDataModule):
-    def __init__(self,
-                 data_path:str,
-                 color_jitter=None,
-                 aa="rand-m9-mstd0.5-inc1",
-                 reprob=0.25,
-                 remode="pixel",
-                 recount=1,
-                 precompute_mask_config=None,
-                 *args,
-                 **kwargs):
+    def __init__(
+            self,
+            data_path:str,
+            pretraining,
+            color_jitter=None,
+            aa="rand-m9-mstd0.5-inc1",
+            reprob=0.25,
+            remode="pixel",
+            recount=1,
+            beit_transforms:bool=False,
+            crop_scale:Tuple[float, float]=(0.08, 1.0),
+            precompute_mask_config=None,
+            *args,
+            **kwargs):
         super().__init__(data_path, *args, **kwargs)
+        self.pretraining = pretraining
         self.color_jitter = color_jitter
         self.aa = aa
         self.reprob = reprob
         self.remode = remode
         self.recount = recount
+        self.beit_transforms = beit_transforms
+        self.crop_scale = crop_scale
         self.precompute_mask_config = precompute_mask_config
 
     def prepare_data(self):
@@ -220,18 +227,21 @@ class ImageNetDataModule(BaseDataModule):
     def set_train_dataset(self):
         self.train_dataset = ImageNetDataset(data_path=self.data_path, 
                                              split='train',
+                                             pretraining=self.pretraining,
                                              color_jitter=self.color_jitter,
                                              aa=self.aa,
                                              reprob=self.reprob,
                                              remode=self.remode,
                                              recount=self.recount,
+                                             beit_transforms=self.beit_transforms,
+                                             crop_scale=self.crop_scale,
                                              precompute_mask_config=self.precompute_mask_config,
                                              )
 
     def set_val_dataset(self):
         self.val_dataset = ImageNetDataset(data_path=self.data_path,
                                            split='val',
-                                           precompute_mask_config=self.precompute_mask_config,
+                                           pretraining=self.pretraining,
                                            )
         
 

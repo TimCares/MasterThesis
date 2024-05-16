@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: masked_kd_0.6_uninitialized
+run_name: base
 
 load_checkpoint:
 
@@ -49,7 +49,7 @@ model:
     # if empty list, then no blocks are frozen
     freeze_blocks:
 
-  mask: True # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
+  mask: False # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
 
   d2v_masking: False
 
@@ -90,11 +90,9 @@ data:
 
   datamodules:
     imagenet:
-      color_jitter: # None
-      aa: rand-m9-mstd0.5-inc1
-      reprob: 0.25
-      remode: pixel
-      recount: 1
+      pretraining: True
+      beit_transforms: False
+      crop_scale: [0.08, 1.0]
 
 zero_shot_val:
   data_path: ${base_dir}

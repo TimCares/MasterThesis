@@ -358,21 +358,28 @@ class ImageNetDataset(ImageDataset):
             self,
             data_path:str,
             split,
+            pretraining,
             color_jitter=None,
             aa="rand-m9-mstd0.5-inc1",
             reprob=0.25,
             remode="pixel",
             recount=1,
+            beit_transforms:bool=False,
+            crop_scale:Tuple[float, float]=(0.08, 1.0),
             precompute_mask_config=None,
     ):
-        super().__init__(data_path=data_path, 
-                         split=split,
-                         color_jitter=color_jitter,
-                         aa=aa,
-                         reprob=reprob,
-                         remode=remode,
-                         recount=recount,
-                         precompute_mask_config=precompute_mask_config)
+        super().__init__(
+            data_path=data_path, 
+            split=split,
+            pretraining=pretraining,
+            color_jitter=color_jitter,
+            aa=aa,
+            reprob=reprob,
+            remode=remode,
+            recount=recount,
+            beit_transforms=beit_transforms,
+            crop_scale=crop_scale,
+            precompute_mask_config=precompute_mask_config)
         self.path_to_data = os.path.join(self.data_path, 'imagenet')
         if not os.path.exists(self.path_to_data):
             raise FileNotFoundError(f"Directory {self.path_to_data} does not exists, "
