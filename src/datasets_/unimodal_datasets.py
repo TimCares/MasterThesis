@@ -449,7 +449,7 @@ class CIFARDataset(BaseDataset):
 
     def load(self):
         # only used for evaluation -> no augmentations
-        transform = get_transforms(no_transform=True, beit_transforms=False, transform_jitter=False)
+        transform = get_transforms(train=False)
 
         if self.type == "cifar10":
             self.items = CIFAR10(self.data_path, train=self.split == "train", transform=transform)
