@@ -54,13 +54,6 @@ model:
 
   no_decay_blocks: True
 
-transforms:
-  input_size: 224
-  color_jitter: # None
-  aa: rand-m9-mstd0.5-inc1
-  reprob: 0.25
-  remode: pixel
-  recount: 1
 
 imagenet:
   color_jitter: # None
