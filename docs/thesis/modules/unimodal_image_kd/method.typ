@@ -64,11 +64,13 @@ fact that the teacher d2v (image) model, and our trainable student model both ne
 #figure(
   image("../../figures/unimodal_distill_image.png"),
   caption: [Test],
-) <pr2392_results>
+) <unimodal_distill_image>
 
 === Distillation Targets
 
 === Training Setup
+
+Training and Validation
 
 - In experiments on unimodal models we follow the same training setup
 - We train the model for 30_000 steps (batches), with a batch size of 256
@@ -103,6 +105,58 @@ samples and matching them through the cosine similarity to samples in the memory
 - in this case we can use accuracy
   - we consider a prediction correct, if the highest cosine similarity for a query sample is with a sample in the memory bank that has the same class
   - else it is incorrect
-  - we can also use the top-k accuracy, in which we consider a prediction correct if the k highest cosine similarities for a query sample in the memory bank
-  belong to samples of the same class
-  - we use top-5 accuracy, also a popular choice for imagenet
+  - we can also use the top-k accuracy, in which we consider a prediction correct if one of the k highest cosine similarities for a query sample with respect to sampels in the memory bank belongs to a sample of the same class
+  - we use top-3 accuracy
+    - means we consider a prediction correct if among the 3 most similar samples in the memory bank one is of the same class as the query sample
+  - often top-5 accuracy used, as in imagenet benchmarks
+  - but would be too easy, especially for CIFAR-10, where we only have 10 classes -> random guessing would already give us 50% top-5 accuracy
+  - top-1 accuracy is basically normal accuracy
+- we do zero-shot validation for CIFAR-10 and CIFAR-100 seperatly
+- we use the images of the training subsets of CIFAR-10 (CIFAR-100) as memory bank, and the images of the test subsets of CIFAR-10 (CIFAR-100) as query samples
+  - mimics real world application, e.g. recommendation of similar images,
+  - we have an image that we have not seen before (test set), for which we want to find similar images from images we have seen before (training set)
+
+- we can also invert the process, and use the test set as memory bank and the training set as query samples
+- gives two measures of representation quality for each dataset
+
+#figure(
+  image("../../figures/image_retrieval.png", width:60%),
+  caption: [Test],
+) <image_retrieval>
+
+- As a dataset we use CIFAR-10 and CIFAR-100
+- Small enough so retrieval can be done fast, enough examples so that it can be challenging and not too easy
+- Especially the case for CIFAR-100, where we have 100 classes
+- If the model creates rich representations, it should be able to distinguish between the classes
+- The better we can distinguish between the classes, based on the
+produced representations, the better the model has learned
+
+$
+cos(||f(x)||_2)
+$
+
+#figure(
+  rect(
+    ```python
+    def zero_shot_retrieval(model, train_images, test_images,
+        train_labels, test_labels, top_k):
+        
+        memory_bank = model(train_images)
+        queries = model(test_images)
+
+        memory_bank = normalize(memory_bank, axis=-1)
+        queries = normalize(queries, axis=-1)
+
+        scores = queries @ memory_bank.T
+
+        indices = similarity_scores.topk(top_k, dim=-1).indices
+
+        matches = (train_labels[indices]==test_labels.unsqueeze(1)).any(dim=-1)
+
+        top_k_accuracy = matches.sum() / len(test_labels)
+
+        return top_k_accuracy
+    ```
+  ), 
+caption: [Test],
+) <zero_shot_retrieval>
