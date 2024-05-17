@@ -59,7 +59,34 @@ fact that the teacher d2v (image) model, and our trainable student model both ne
 - also, since we need for each step do a forward pass for teacher and student, we can simply use the result of the modality image encoder for both models -> we do not need to do it twice -> less compute needed
 
 -	So even though we are now constrained with embed dim and modality encoder size, reusing it and sharing it between teacher and student saves, time and memory, plus will probably yield a better student model, as it already receives rich features
--	This should amortize/compensate the increased model size 
+-	This should amortize/compensate the increased model size
+
+- for the transformer blocks, which are the parts of the model that we train, we use 5 transformer blocks
+- as with the D2V blocks we use ALiBi Attention
+  - will not make a difference, as the sequence length is always the
+  same, so we do not have to extrapolate to longer sequence lengths
+  during inference/evaluation
+  - but will be important for text, and especially audio, where we have to deal with highly variable sequence lengths
+  - we still use it for image for consistency, and because we later need to use it anyway, when we have a multimodal model that can process text, audio and also image
+- we use the same number of MHA heads, and ALiBi heads, as in D2V, so 12
+- embed dim is 768, as mentioned before
+- intermediate dim of MLP is 2304, so 3 times the embed dim
+- for D2V it is 3072, so 4 times the embed dim
+  - we save parameters
+- we do not want to scale down only the depth, so number of layers,
+as we then have overly "broad" layers, but only few of them
+
+- we use AdamW as the optimizer, with peak learning rate of 5e-4
+  - worked best in preliminary experiments
+  - is between the learning rates used for D2V models
+    - image: 1e-3, audio: 7.5e-4, text 2e-4
+- for betas we use 0.9 and 0.98, weight decay is 0.1, and we use
+grad norm clipping of 2.0
+- we use a cosine schedule with warmup
+- warmup is 10% of the total steps, so 3000 steps, learning rate
+will peak then at 5e-4, and then decrease
+- as will be the case for any experiment in this paper, we use 16-bit mixed precision training
+
 
 #figure(
   image("../../figures/unimodal_distill_image.png"),
@@ -160,3 +187,44 @@ $
   ), 
 caption: [Test],
 ) <zero_shot_retrieval>
+
+- we run zero-shot validation every 5k steps, so 6 times in total
+- not too much, so that training does not take too long, but enough to see how the model is improving
+
+
+#figure(
+  table(
+    table.vline(x:1, stroke: .3pt),
+    table.vline(x:2, stroke: .3pt),
+    columns: 3,
+    stroke: none,
+    table.hline(),
+    table.header(
+      [*Type*],
+      [*Hyperparameter*],
+      [*Distilled Unimodal Data2Vec2*],
+    ),
+    table.hline(stroke: .6pt),
+    table.cell(rowspan: 6, align:horizon, [*_Model_*]),
+    [Transformer Blocks], [5],
+    [Embed Dim], [768],
+    [MHA Heads], [12],
+    [MLP Ratio], [3.0 (2304)],
+    [LayerNorm ε], [1e-6],
+    [LayerNorm First], [False],
+    table.hline(stroke: .6pt),
+    table.cell(rowspan: 10, align:horizon, [_*Training*_]), 
+    [Steps], [30,000],
+    [Validation Frequency], [5,000],
+    [Batch size], [256],
+    [AdamW ε], [1e-6],
+    [AdamW β], [(0.9, 0.98)],
+    [Peak learning rate], [5e-4],
+    [Learning rate schedule], [Cosine],
+    [Warmup steps], [3k],
+    [Weight decay], [0.01],
+    [Gradient Clip Norm], [2.0],
+  ),
+  caption: [Hyperparameters used for the distillation of Unimodal Data2Vec2 on Imagenet-1k.
+  ],
+)<unimodal-data2vec-imagenet-pretrain-yperparameters>

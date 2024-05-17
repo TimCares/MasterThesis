@@ -59,7 +59,7 @@ Setup:
   table(
     table.vline(x:1, stroke: .3pt),
     table.vline(x:2, stroke: .3pt),
-    columns: 4,
+    columns: 3,
     stroke: none,
     table.hline(),
     table.header(
