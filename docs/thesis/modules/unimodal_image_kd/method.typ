@@ -158,9 +158,19 @@ samples and matching them through the cosine similarity to samples in the memory
 - The better we can distinguish between the classes, based on the
 produced representations, the better the model has learned
 
+Matematical:
+Let $X = {x_1, x_2, ..., x_n}$ denote the set of training images, forming
+the memory bank, and $Y = {y_1, y_2, ..., y_m}$ the set of test images, forming the query set. The retrieval is defind as follows:
 $
-cos(||f(x)||_2)
+tilde(X) = {f(x_i) | i=1,...,n} \
+tilde(Y) = {f(y_i) | i=1,...,m} \
+
+//S = {cos(tilde(x)_i, tilde(y)_j) | tilde(x)_i in tilde(X), tilde(y)_j in tilde(Y)} \
+
+#math s_i = op("argmax")({cos(tilde(x)_i, tilde(y)_j) | tilde(y)_j in tilde(Y)}) \
 $
+
+With $f$ being our student model, and $cos(dot, dot)$ being the cosine similarity function.
 
 #figure(
   rect(
