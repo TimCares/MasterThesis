@@ -145,7 +145,7 @@ class IMDBDataset(BaseDataset):
         item = self.items[index]
         return item
     
-class QQPDataset(BaseDataset):
+class QQPDataset(BaseDataset): # used for zer-shot validation, not as GLUE benchmark
     def __init__(
             self,
             data_path:str,

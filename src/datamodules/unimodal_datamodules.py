@@ -64,7 +64,7 @@ class BaseDataModule(LightningDataModule):
                           num_workers=self.num_workers,
                           sampler=None,
                           shuffle=False,
-                          drop_last=self.drop_last,)
+                          drop_last=False,)
 
     def test_dataloader(self):
         if not hasattr(self, 'test_dataset'):
@@ -75,7 +75,7 @@ class BaseDataModule(LightningDataModule):
                           num_workers=self.num_workers,
                           sampler=None,
                           shuffle=False,
-                          drop_last=self.drop_last,)
+                          drop_last=False,)
     
     def teardown(self, stage: str) -> None:
         if stage == 'fit' or stage is None:
