@@ -87,7 +87,7 @@ optimizer:
   lr: 0.001
   betas: [0.9,0.95]
   eps: 1e-06
-  weight_decay: 0.05
+  weight_decay: 0.01
   warmup: True
 
 optimizer_schedule: # relevant if "optimizer.warmup" is True
