@@ -39,6 +39,19 @@ def main(cfg: DictConfig) -> None:
 
     OmegaConf.resolve(cfg=cfg) # resolving done in-place
 
+    val_cfg = cfg.zero_shot_val
+    zero_shot_modules = dict()
+    val_dataloader_args = val_cfg.dataloader
+    for name in val_cfg.datamodules:
+        with open_dict(val_dataloader_args):
+            # override general dataloader args with dataloader specific args (if present)
+            args = OmegaConf.merge(val_dataloader_args, val_cfg.datamodules[name])
+
+        zero_shot_modules[name] = DATAMODULE_REGISTRY[name](**args)
+        logger.info(f"Zero-shot datamodule {name}: {args}")
+
+    dataloader_args = cfg.data.dataloader
+
     callbacks = [
         ModelSummary(),
         LearningRateMonitor(logging_interval="step"),
@@ -62,19 +75,6 @@ def main(cfg: DictConfig) -> None:
     )
     if trainer.global_rank == 0:
         wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
-
-    val_cfg = cfg.zero_shot_val
-    zero_shot_modules = dict()
-    val_dataloader_args = val_cfg.dataloader
-    for name in val_cfg.datamodules:
-        with open_dict(val_dataloader_args):
-            # override general dataloader args with dataloader specific args (if present)
-            args = OmegaConf.merge(val_dataloader_args, val_cfg.datamodules[name])
-
-        zero_shot_modules[name] = DATAMODULE_REGISTRY[name](**args)
-        logger.info(f"Zero-shot datamodule {name}: {args}")
-
-    dataloader_args = cfg.data.dataloader
 
     datamodules = []
     if cfg.dry_run is not None and cfg.dry_run:
