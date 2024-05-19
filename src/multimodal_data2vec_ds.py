@@ -73,7 +73,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
 
         with torch.no_grad():
             target = self.teachers[modality_str].extract_features(
-                source=batch['image'],
+                source=batch[modality_str],
                 mode=None, # determined automatically in model
                 padding_mask=None, # the padding mask is provided in the precomputed_encoder_output and used by the teacher model
                 mask=False, # we are creating targets from a teacher model for the student model, so no mask
@@ -87,7 +87,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         
         if not self.inverse_masking:
             target = target['layer_results']
-            target = prepare_output(target, Modality.IMAGE)
+            target = prepare_output(target, modality)
 
         if self.masking:
             pred = output_dict['layer_results'] # already prepared
@@ -115,10 +115,10 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
                 return_encoder_output=False,
                 precomputed_encoder_output=precomputed_encoder_output,)
             pred = pred['layer_results']
-            pred = prepare_output(pred, Modality.IMAGE)
+            pred = prepare_output(pred, modality)
         else:
             pred = output_dict['layer_results']
-            pred = prepare_output(pred, Modality.IMAGE)
+            pred = prepare_output(pred, modality)
         
 
         loss = self.kd_loss(input=pred, target=target)

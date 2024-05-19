@@ -53,7 +53,7 @@ model:
   # if True we do MaskedKD
 
   # relevant if "mask" is True:
-  inverse_masked_kd: False # if True, then the student gets the masked input, and the saliency score is computed from the teacher output
+  inverse_masking: False # if True, then the student gets the masked input, and the saliency score is computed from the teacher output
   frac_keep_tokens: 0.6
   norm_first: False # whether to normalize along all timesteps (True), or only the ones that are kept (False)
   final_attn_layer_saliency_score: False # whether to use the final attention layer saliency score for masking (True) or the average of all layers (False)
@@ -80,7 +80,7 @@ model:
 data:
   dataloader:
     data_path: ${data_path}
-    batch_size: 256
+    batch_size: 64
     num_workers: 12
     shuffle: True
     drop_last: True
