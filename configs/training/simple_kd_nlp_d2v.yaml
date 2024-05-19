@@ -98,7 +98,7 @@ zero_shot_val:
 
   dataloader:
     data_path: ${data_path}
-    batch_size: 256
+    batch_size: 64
     num_workers: 5
     shuffle: False
     drop_last: False
