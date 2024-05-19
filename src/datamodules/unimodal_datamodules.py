@@ -395,4 +395,5 @@ UNIMODAL_DATAMODULE_REGISTRY = {
     'librispeech': LibriSpeechDataModule,
     'speechcommands': SpeechCommandsDataModule,
     'qqp': QQPDataModule,
+    'mrpc': MRPCDataModule,
 }
