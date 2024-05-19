@@ -39,17 +39,6 @@ def main(cfg: DictConfig) -> None:
 
     OmegaConf.resolve(cfg=cfg) # resolving done in-place
 
-    val_cfg = cfg.zero_shot_val
-    zero_shot_modules = dict()
-    val_dataloader_args = val_cfg.dataloader
-    for name in val_cfg.datamodules:
-        with open_dict(val_dataloader_args):
-            # override general dataloader args with dataloader specific args (if present)
-            args = OmegaConf.merge(val_dataloader_args, val_cfg.datamodules[name])
-
-        zero_shot_modules[name] = DATAMODULE_REGISTRY[name](**args)
-        logger.info(f"Zero-shot datamodule {name}: {args}")
-
     callbacks = [
         ModelSummary(),
         LearningRateMonitor(logging_interval="step"),
@@ -74,11 +63,16 @@ def main(cfg: DictConfig) -> None:
     if trainer.global_rank == 0:
         wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
 
-    if cfg.model.mask and cfg.model.d2v_masking and cfg.model.clone_batch > 1:
-        prev_batch_size = cfg.data.dataloader.batch_size
-        with open_dict(cfg):
-            cfg.data.dataloader.batch_size = int(cfg.data.dataloader.batch_size / cfg.model.clone_batch)
-        logger.info(f"Actual batch size reduced to {cfg.data.dataloader.batch_size} (from {prev_batch_size}) due to clone_batch > 1.")
+    val_cfg = cfg.zero_shot_val
+    zero_shot_modules = dict()
+    val_dataloader_args = val_cfg.dataloader
+    for name in val_cfg.datamodules:
+        with open_dict(val_dataloader_args):
+            # override general dataloader args with dataloader specific args (if present)
+            args = OmegaConf.merge(val_dataloader_args, val_cfg.datamodules[name])
+
+        zero_shot_modules[name] = DATAMODULE_REGISTRY[name](**args)
+        logger.info(f"Zero-shot datamodule {name}: {args}")
 
     dataloader_args = cfg.data.dataloader
 

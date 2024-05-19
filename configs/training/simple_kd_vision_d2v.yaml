@@ -147,7 +147,7 @@ lightning_trainer:
   default_root_dir: ${log_dir}
   accelerator: gpu
   devices: -1
-  #strategy: ddp # -> automatically used if multiple GPUs are available -> devices: -1
+  strategy: auto # auto -> default
   max_steps: 30_000
   val_check_interval: # None -> no validation
   num_sanity_val_steps: 0 # mean test running "num_sanity_val_steps" batches of the validation dataloaders, but here we have no classical validation

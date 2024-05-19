@@ -98,7 +98,7 @@ lightning_trainer:
   default_root_dir: ${log_dir}
   accelerator: gpu
   devices: -1
-  #strategy: ddp # -> automatically used if multiple GPUs are available -> devices: -1
+  strategy: auto # auto -> default
   max_epochs: 15
   num_sanity_val_steps: 0
   precision: 16-mixed
