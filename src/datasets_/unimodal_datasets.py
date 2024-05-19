@@ -44,6 +44,7 @@ class OpenWebTextDataset(NLPDataset):
         self.data_path = dataset_path
 
         if self.index_exists(dataset_path=dataset_path):
+            self.log("Data already exists. Skip creating it.")
             return
 
         pattern = os.path.join(base_data_path, 'urlsf_*.tar')
