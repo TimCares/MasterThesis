@@ -12,7 +12,8 @@ from fairseq.data.audio.raw_audio_dataset import FileAudioDataset
 from .wav2vec_manifest import create_manifests
 from bpe_encoder import encode, get_bpe_encoder
 from utils import pad_text_sequence
-import torch.nn as nn
+from torchvision.datasets.utils import download_url
+import pandas as pd
 
 from fairseq.data import Dictionary, ConcatDataset
 from fairseq_cli.preprocess import preprocess
@@ -145,13 +146,14 @@ class IMDBDataset(BaseDataset):
         item = self.items[index]
         return item
     
-class QQPDataset(BaseDataset): # used for zer-shot validation, not as GLUE benchmark
+class QQPDataset(BaseDataset): # used for zero-shot validation, not as GLUE benchmark
     def __init__(
             self,
             data_path:str,
+            split:str,
             num_max_bpe_tokens:int,):
         super().__init__(data_path=data_path,
-                         split='train') # only one split available
+                         split=split)
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.path_to_data = os.path.join(self.data_path, 'qqp')
         self.out_jsonl_path = os.path.join(self.path_to_data, f'{self.split}.jsonl')
@@ -169,13 +171,82 @@ class QQPDataset(BaseDataset): # used for zer-shot validation, not as GLUE bench
             self.log(f'Data already exists. Skip creating it.')
             return
         
+        URL='https://dl.fbaipublicfiles.com/glue/data/QQP-clean.zip'
+        download_url(url=URL, root=self.path_to_data)
+        filepath = os.path.join(self.path_to_data, os.path.basename(URL))
+        os.system(f"unzip {filepath} -d {self.path_to_data}")
+        os.remove(filepath)
+
+        path = os.path.join(self.path_to_data, 'QQP', f'{self.split}.tsv')
+        df = pd.read_csv(path, delimiter='\t')[['question1', 'question2', 'is_duplicate']]
+
         items = []
-        data_loader = iter(torchtext.datasets.QQP(root=self.path_to_data))
         pairs_collected = 0
-        for target, text1, text2 in data_loader:
+        for _, example in df.iterrows():
             if pairs_collected == self.n_pairs:
                 break
-            if target == 0: # only collect duplicated questions
+            if example['is_duplicate'] == 0: # only collect duplicated questions
+                continue
+            pair = dict()
+            for i, text in enumerate([example['question1'], example['question2']]):
+                tokens = bpe_encoder.encode(text)
+                language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_max_bpe_tokens,
+                                                                  pad_idx=pad_token_id, bos_idx=bos_token_id)
+                pair[f'text{i}'] = language_tokens
+                pair[f'padding_mask{i}'] = padding_mask
+            
+            items.append(pair)
+            pairs_collected += 1
+
+        write_data_into_jsonl(items, self.out_jsonl_path)
+        shutil.rmtree(os.path.join(self.path_to_data, 'QQP'))
+
+    @property
+    def modes(self) -> List[Modality]:
+        return [Modality.TEXT]
+                
+    def load(self):
+        items = []
+        with open(self.out_jsonl_path, mode="r", encoding="utf-8") as reader:
+            for line in reader:
+                data = json.loads(line)
+                items.append(data)
+            self.log("Load %d text examples." % len(items))
+        self.items = items
+
+    def __getitem__(self, index):
+        item = self.items[index]
+        return item
+    
+
+class MRPCDataset(BaseDataset): # used for zero-shot validation, not as GLUE benchmark
+    def __init__(
+            self,
+            data_path:str,
+            split:str,
+            num_max_bpe_tokens:int,):
+        super().__init__(data_path=data_path,
+                         split=split)
+        self.num_max_bpe_tokens = num_max_bpe_tokens
+        self.path_to_data = os.path.join(self.data_path, 'mrpc')
+        self.out_jsonl_path = os.path.join(self.path_to_data, f'{self.split}.jsonl')
+
+        dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
+        bpe_encoder = get_bpe_encoder(self.data_path)
+
+        bos_token_id = dictionary.bos()
+        pad_token_id = dictionary.pad()
+                
+        os.makedirs(self.path_to_data, exist_ok=True)
+        
+        if os.path.exists(self.out_jsonl_path):
+            self.log(f'Data already exists. Skip creating it.')
+            return
+        
+        items = []
+        data_loader = iter(torchtext.datasets.MRPC(root=self.path_to_data, split=self.split))
+        for target, text1, text2 in data_loader:
+            if target == 0: # only collect semantically equal questions
                 continue
             pair = dict()
             for i, text in enumerate([text1, text2]):
@@ -186,7 +257,6 @@ class QQPDataset(BaseDataset): # used for zer-shot validation, not as GLUE bench
                 pair[f'padding_mask{i}'] = padding_mask
             
             items.append(pair)
-            pairs_collected += 1
 
         write_data_into_jsonl(items, self.out_jsonl_path)
         shutil.rmtree(f'{self.path_to_data}/datasets')
@@ -477,4 +547,5 @@ UNIMODAL_DATASET_REGISTRY = {
     "cifar10": partial(CIFARDataset, type='cifar10'),
     "cifar100": partial(CIFARDataset, type='cifar100'),
     "qqp": QQPDataset,
+    "mrpc": MRPCDataset,
 }

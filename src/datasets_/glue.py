@@ -210,7 +210,7 @@ class MRPC(RTE):
     
     @property
     def _dataset_name(self):
-        return 'mrpc'
+        return 'mrpc_glue'
 
 #https://dl.fbaipublicfiles.com/glue/data/QQP-clean.zip
 class QQP(GLUE):

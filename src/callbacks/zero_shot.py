@@ -193,26 +193,27 @@ def _get_zero_shot_pair_retrieval_embeddings(model:KDMMData2Vec, dataloader:Data
 
 @rank_zero_only
 def unimodal_zero_shot_pair_retrieval(model:KDMMData2Vec,
-                                      train_loader:DataLoader,
+                                      datamodule:LightningDataModule,
                                       device:str,
                                       name:str) -> Dict[str, float]:
     results = {}
     
-    memory_bank1, memory_bank2 = _get_zero_shot_pair_retrieval_embeddings(model=model, dataloader=train_loader, device=device)
+    for stage, dataloader in zip(['train', 'test'], [datamodule.train_dataloader(), datamodule.test_dataloader()]):
+        memory_bank1, memory_bank2 = _get_zero_shot_pair_retrieval_embeddings(model=model, dataloader=dataloader, device=device)
 
-    similarity_scores = memory_bank1 @ memory_bank2.t()
-    similarity_scores_t = similarity_scores.t()
+        similarity_scores = memory_bank1 @ memory_bank2.t()
+        similarity_scores_t = similarity_scores.t()
 
-    pair0_to_1_r5 = compute_recall(similarity_scores, k=5)
-    pair0_to_1_r10 = compute_recall(similarity_scores, k=10)
-    pair1_to_0_r5 = compute_recall(similarity_scores_t, k=5)
-    pair1_to_0_r10 = compute_recall(similarity_scores_t, k=10)
+        pair0_to_1_r1 = compute_recall(similarity_scores, k=1)
+        pair0_to_1_r5 = compute_recall(similarity_scores, k=5)
+        pair1_to_0_r1 = compute_recall(similarity_scores_t, k=1)
+        pair1_to_0_r5 = compute_recall(similarity_scores_t, k=5)
 
-    results[f"unimodal-{name}-pair1_2-retrieval--zeroshot-recall@5"] = pair0_to_1_r5
-    results[f"unimodal-{name}-pair1_2-retrieval--zeroshot-recall@10"] = pair0_to_1_r10
+        results[f"unimodal-{name}-{stage}-pair1_2-retrieval--zeroshot-recall@1"] = pair0_to_1_r1
+        results[f"unimodal-{name}-{stage}-pair1_2-retrieval--zeroshot-recall@5"] = pair0_to_1_r5
 
-    results[f"unimodal-{name}-pair2_1-retrieval--zeroshot-recall@5"] = pair1_to_0_r5
-    results[f"unimodal-{name}-pair2_1-retrieval--zeroshot-recall@10"] = pair1_to_0_r10
+        results[f"unimodal-{name}-{stage}-pair2_1-retrieval--zeroshot-recall@1"] = pair1_to_0_r1
+        results[f"unimodal-{name}-{stage}-pair2_1-retrieval--zeroshot-recall@5"] = pair1_to_0_r5
 
     return results
 
@@ -249,7 +250,7 @@ class ZeroShotRetrievalCallback(ZeroShotCallback):
         super().validate(trainer, pl_module)
         all_metrics = []
         for name_key in self.datamodules.keys():
-            if name_key != 'qqp':
+            if name_key not in ['qqp', 'mrpc']:
                 metrics = unimodal_zero_shot_retrieval(
                     model=pl_module.model,
                     train_loader=self.datamodules[name_key].train_dataloader(),
@@ -260,7 +261,7 @@ class ZeroShotRetrievalCallback(ZeroShotCallback):
             else:
                 metrics = unimodal_zero_shot_pair_retrieval(
                     model=pl_module.model,
-                    train_loader=self.datamodules[name_key].train_dataloader(),
+                    datamodule=self.datamodules[name_key],
                     device=pl_module.device,
                     name=name_key,
                 )
