@@ -16,7 +16,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-name: base_init
+name: base_init_lr_0.001
 run_name: imagenet_finetuning_${name}
 
 load_checkpoint:
@@ -84,7 +84,7 @@ checkpoint:
   auto_insert_metric_name: False
 
 optimizer:
-  lr: 0.0005
+  lr: 0.001
   betas: [0.9,0.95]
   eps: 1e-06
   weight_decay: 0.01
