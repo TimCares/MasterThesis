@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: base_init
+run_name: base_init_masked_kd
 
 load_checkpoint:
 
@@ -49,7 +49,7 @@ model:
     # if empty list, then no blocks are frozen
     freeze_blocks:
 
-  mask: False # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
+  mask: True # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
 
   d2v_masking: False
 

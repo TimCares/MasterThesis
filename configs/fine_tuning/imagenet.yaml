@@ -16,7 +16,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-name: lr_5e-4
+name: base_init
 run_name: imagenet_finetuning_${name}
 
 load_checkpoint:
@@ -32,7 +32,7 @@ mixup:
   num_classes: 1000
 
 model:
-  model_version: 2024-05-09_15-33-39
+  model_version: 2024-05-18_20-10-31
   linear_classifier: False
   num_classes: 1000
 
@@ -92,7 +92,7 @@ optimizer:
 
 optimizer_schedule: # relevant if "optimizer.warmup" is True
   warmup_steps: 3_000
-  max_steps: 45_000
+  max_steps: 60_045
 
 lightning_trainer:
   default_root_dir: ${log_dir}
