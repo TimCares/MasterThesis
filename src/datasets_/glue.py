@@ -21,7 +21,7 @@ class GLUE(BaseDataset):
         super().__init__(data_path=data_path,
                          split=split)
         self.num_max_bpe_tokens = num_max_bpe_tokens
-        self.path_to_data = os.path.join(self.data_path, self._dataset_name)
+        self.path_to_data = os.path.join(self.data_path, self._dataset_name + '_glue')
         self.out_jsonl_path = os.path.join(self.path_to_data, f'{self.split}.jsonl')
 
         if os.path.exists(self.out_jsonl_path):
@@ -210,7 +210,7 @@ class MRPC(RTE):
     
     @property
     def _dataset_name(self):
-        return 'mrpc_glue'
+        return 'mrpc'
 
 #https://dl.fbaipublicfiles.com/glue/data/QQP-clean.zip
 class QQP(GLUE):
@@ -251,7 +251,7 @@ class QQP(GLUE):
     
     @property
     def _dataset_name(self):
-        return 'qqp_glue'
+        return 'qqp'
     
     def _make_index(self, bpe_encoder: BPEEncoder) -> List[Dict[str, Any]]:
         path = os.path.join(self.path_to_data, 'QQP', f'{self.split}.tsv')
@@ -305,12 +305,12 @@ class MNLI(RTE):
     
 
 GLUE_DATASET_REGISTRY = {
-    'cola': CoLA,
-    'sst': SST,
-    'qnli': QNLI,
-    'rte': RTE,
-    'mrpc': MRPC,
-    'qqp': QQP,
-    'stsb': STSB,
-    'mnli': MNLI,
+    'cola_glue': CoLA,
+    'sst_glue': SST,
+    'qnli_glue': QNLI,
+    'rte_glue': RTE,
+    'mrpc_glue': MRPC,
+    'qqp_glue': QQP,
+    'stsb_glue': STSB,
+    'mnli_glue': MNLI,
 }
