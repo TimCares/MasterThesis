@@ -15,6 +15,7 @@ from data2vec_fairseq.models.modalities.base import ModalitySpecificEncoder
 from data2vec_fairseq.models.data2vec2 import Data2VecMultiModel
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 import contextlib
+from copy import deepcopy
 
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from data2vec_fairseq.models.modalities.modules import AltBlock
@@ -297,12 +298,13 @@ class KDMMData2Vec(nn.Module):
             state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
             # if we are masking the input to the student model, then we need to keep the decoder
             d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path, keep_decoder=self.cfg.mask and self.cfg.d2v_masking)
-            mode_feature_extractor = d2v_model.modality_encoders[mode.name]
-            modality_encoders[mode.name.lower()] = mode_feature_extractor
-            
-            for name, module in mode_feature_extractor.named_children():
-                total_params = sum(p.numel() for p in module.parameters())
-                logger.info(f"{name} has {total_params} parameters")
+            if mode != Modality.IMAGE:
+                mode_feature_extractor = d2v_model.modality_encoders[mode.name]
+                modality_encoders[mode.name.lower()] = mode_feature_extractor
+                
+                for name, module in mode_feature_extractor.named_children():
+                    total_params = sum(p.numel() for p in module.parameters())
+                    logger.info(f"{name} has {total_params} parameters")
 
             if self.cfg.block_init_cfg.init_from is not None and mode == self.cfg.block_init_cfg.init_from:
                 self._init_blocks(d2v_model=d2v_model)
@@ -595,7 +597,11 @@ class KDMMData2Vec(nn.Module):
 
         for idx in take_block_indices:
             if init_cfg.init_type == 'attention':
-                self.blocks[idx].attn = d2v_model.blocks[idx].attn
+                if init_cfg.freeze_blocks is not None and idx not in init_cfg.freeze_blocks:
+                    attn_block = deepcopy(d2v_model.blocks[idx].attn)
+                else:
+                    attn_block = d2v_model.blocks[idx].attn
+                self.blocks[idx].attn = attn_block
             else:
                 self.blocks.append(d2v_model.blocks[idx])
 
