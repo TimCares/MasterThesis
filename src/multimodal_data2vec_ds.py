@@ -287,7 +287,7 @@ class KDMMData2Vec(nn.Module):
             state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
             d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
 
-            if mode not in self.supported_modalities:
+            if mode in self.supported_modalities:
                 mode_feature_extractor = d2v_model.modality_encoders[mode.name]
                 modality_encoders[mode.name.lower()] = mode_feature_extractor
                 
