@@ -25,7 +25,7 @@ metrics:
   - mcc
 
 model:
-  model_version: 2024-05-19_21-57-10
+  model_version: 2024-05-19_21-57-49
   # other params are default -> also done in d2v
 
 data:
