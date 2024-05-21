@@ -587,7 +587,6 @@ class KDMMData2Vec(nn.Module):
 
 
     def prepare_fine_tuning(self, keep_modes:List[Modality]) -> None:
-        self.cfg.clone_batch = 1
         self.fine_tuning = True
         self.cfg.mask = False
         self._remove_modalities_except(keep_modes=keep_modes)
