@@ -114,8 +114,6 @@ class TextClassificationLightningModule(L.LightningModule):
                 optimizer,
                 num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,
                 num_training_steps=self.cfg.optimizer_schedule.max_steps,
-                lr_end=self.cfg.optimizer_schedule.lr_end,
-                power=self.cfg.optimizer_schedule.power,
             )
             return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": 'poly_decay_w_warmup'}]
         else:
