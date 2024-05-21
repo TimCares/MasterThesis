@@ -12,6 +12,7 @@ from typing import Any, Dict
 
 from sklearn.metrics import f1_score as _f1_score
 from scipy.stats import pearsonr, spearmanr
+import numpy as np
 
 from fairseq.models.roberta.model import RobertaClassificationHead
 from fairseq.criterions.sentence_prediction import (
@@ -27,7 +28,9 @@ from transformers.optimization import get_polynomial_decay_schedule_with_warmup
 logger = logging.getLogger(__name__)
 
 def accuracy(target, pred):
-    return {'accuracy': round(((pred == target).sum() / target.size(0))*100, 2)}
+    pred = np.array(pred)
+    target = np.array(target)
+    return {'accuracy': round(((pred == target).sum() / target.shape[0])*100, 2)}
 
 def matthews_corrcoef(pred, target):
     return {'matthews_corrcoef': round(__matthews_corrcoef(pred, target), 2)}
