@@ -24,6 +24,8 @@ load_checkpoint:
 metrics:
   - mcc
 
+regression: False
+
 model:
   model_version: 2024-05-19_21-57-49
   # other params are default -> also done in d2v
