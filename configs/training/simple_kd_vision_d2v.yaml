@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: base_init_masked_kd
+run_name: half_base_init
 
 load_checkpoint:
 
@@ -50,22 +50,19 @@ model:
     freeze_blocks:
 
   mask: True # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
+  # if True we do MaskedKD
 
-  d2v_masking: False
-
-  # MaskedKD, relevant if "mask" is True and "d2v_masking" is False
-  inverse_masked_kd: False # if True, then the student gets the masked input, and the saliency score is computed from the teacher output
-  frac_keep_tokens: 0.6
+  # relevant if "mask" is True:
+  inverse_masking: False # if True, then the student gets the masked input, and the saliency score is computed from the teacher output
+  frac_keep_tokens: 0.8
   norm_first: False # whether to normalize along all timesteps (True), or only the ones that are kept (False)
   final_attn_layer_saliency_score: False # whether to use the final attention layer saliency score for masking (True) or the average of all layers (False)
 
   embed_dim: 768
 
-  clone_batch: 8 # only relevant if "mask" is True and "d2v_masking" is True
-
-  depth: 5
+  depth: 6
   num_heads: 12 
-  mlp_ratio: 3.0 # 3.0 or 4.0
+  mlp_ratio: 4.0
   encoder_dropout: 0.0
   dropout_input: 0.0
   attention_dropout: 0.0
@@ -140,7 +137,7 @@ optimizer:
 
 optimizer_schedule: # relevant if "optimizer.warmup" is True
   type: cosine # constant or cosine
-  warmup_steps: 3_000
+  warmup_steps: 4_000
   max_steps: ${lightning_trainer.max_steps}
 
 lightning_trainer:
@@ -148,7 +145,7 @@ lightning_trainer:
   accelerator: gpu
   devices: -1
   strategy: auto # auto -> default
-  max_steps: 30_000
+  max_steps: 40_000
   val_check_interval: # None -> no validation
   num_sanity_val_steps: 0 # mean test running "num_sanity_val_steps" batches of the validation dataloaders, but here we have no classical validation
   limit_val_batches: 0 # no classical validation
