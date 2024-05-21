@@ -30,17 +30,17 @@ def accuracy(target, pred):
     return {'accuracy': round(((pred == target).sum() / target.size(0))*100, 2)}
 
 def matthews_corrcoef(pred, target):
-    return {'matthews_corrcoef': round(__matthews_corrcoef(pred.numpy(), target.numpy()), 2)}
+    return {'matthews_corrcoef': round(__matthews_corrcoef(pred, target), 2)}
 
 def acc_and_f1(pred, target):
-    result_dict = __acc_and_f1(pred.numpy(), target.numpy())
+    result_dict = __acc_and_f1(pred, target)
     return {k: round(v*100, 2) for k, v in result_dict.items()}
 
 def f1_score(pred, target):
-    return {'f1': round(_f1_score(target.numpy(), pred.numpy())*100, 2)}
+    return {'f1': round(_f1_score(target, pred)*100, 2)}
 
 def pearson_and_spearman(pred, target):
-    result_dict = __pearson_and_spearman(pred.numpy(), target.numpy())
+    result_dict = __pearson_and_spearman(pred, target)
     return {k: round(v*100, 2) for k, v in result_dict.items()}  
 
 _METRIC_REGISTRY = {
