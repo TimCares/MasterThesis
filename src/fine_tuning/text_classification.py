@@ -10,7 +10,6 @@ import torch.nn.functional as F
 import pytorch_lightning as L
 from typing import Any, Dict
 
-
 from sklearn.metrics import f1_score as _f1_score
 from scipy.stats import pearsonr, spearmanr
 
@@ -55,7 +54,7 @@ _METRIC_REGISTRY = {
     "pearson_and_spearman": pearson_and_spearman,
 }
 
-class ImageClassificationLightningModule(L.LightningModule):
+class TextClassificationLightningModule(L.LightningModule):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
@@ -124,15 +123,15 @@ class ImageClassificationLightningModule(L.LightningModule):
             return optimizer
 
 @dataclass
-class TextClassificationConfig(FairseqDataclass):
+class TextClassificationConfig:
+    model_version: str = MISSING
+
     num_classes: int = 2
     pooler_dropout: float = 0.0
     pooler_activation_fn: str = "tanh"
     quant_noise_pq: int = 0
     quant_noise_pq_block_size: int = 8
     spectral_norm_classification_head: bool = False
-
-    model_path: str = MISSING
 
 
 class TextClassificationModel(nn.Module):

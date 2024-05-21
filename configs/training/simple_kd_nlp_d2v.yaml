@@ -17,11 +17,11 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: base_nlp_init_img
+run_name: base_nlp_196_init_img_no_alibi
 
 load_checkpoint:
 
-nlp_context_length: 512
+nlp_context_length: 196
 
 model:
   pretrained_path: ${model_path}
@@ -80,7 +80,7 @@ model:
 data:
   dataloader:
     data_path: ${data_path}
-    batch_size: 64
+    batch_size: 128
     num_workers: 12
     shuffle: True
     drop_last: True
@@ -98,7 +98,7 @@ zero_shot_val:
 
   dataloader:
     data_path: ${data_path}
-    batch_size: 64
+    batch_size: 128
     num_workers: 5
     shuffle: False
     drop_last: False
