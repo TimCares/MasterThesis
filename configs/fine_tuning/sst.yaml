@@ -17,7 +17,7 @@ log_dir: ${base_dir}/logs
 seed: 42
 
 name: base
-run_name: glue_cola_finetuning_${name}
+run_name: glue_sst_finetuning_${name}
 
 load_checkpoint:
 
