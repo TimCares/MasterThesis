@@ -1,5 +1,5 @@
 import hydra
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import OmegaConf, DictConfig, open_dict
 import os
 import torch
 import logging
@@ -57,7 +57,8 @@ def main(cfg: DictConfig) -> None:
     if trainer.global_rank == 0:
         wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
 
-    dataset_key = cfg.data.pop('dataset')
+    with open_dict(cfg):
+        dataset_key = cfg.data.pop('dataset')
     dataset = DATAMODULE_REGISTRY[dataset_key](**cfg.data)
 
     if 'load_checkpoint' in cfg and cfg.load_checkpoint is not None:
