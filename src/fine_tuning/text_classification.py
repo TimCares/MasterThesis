@@ -78,7 +78,7 @@ class TextClassificationLightningModule(L.LightningModule):
         return self._step(batch, batch_idx, stage='val')
 
     def _step(self, batch:Dict[str, Any], batch_idx:int, stage:str='train'):
-        target = batch.pop('target').detach().cpu().tolist()
+        target = batch.pop('target')
         batch.pop('modes')
         
         logits = self(batch) # call "forward"
@@ -92,6 +92,8 @@ class TextClassificationLightningModule(L.LightningModule):
             target = target.float()
             loss = F.mse_loss(logits, target, reduction="mean")
             pred = logits.detach().cpu().tolist()
+
+        target = target.detach().cpu().tolist()
 
         for metric in self.metrics:
             result_dict = metric(pred, target)
