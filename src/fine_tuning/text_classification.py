@@ -13,7 +13,6 @@ from typing import Any, Dict
 from sklearn.metrics import f1_score as _f1_score
 from scipy.stats import pearsonr, spearmanr
 
-from fairseq.dataclass import FairseqDataclass
 from fairseq.models.roberta.model import RobertaClassificationHead
 from fairseq.criterions.sentence_prediction import (
     acc_and_f1 as __acc_and_f1, 
@@ -22,7 +21,7 @@ from fairseq.criterions.sentence_prediction import (
 )
 
 from data2vec_fairseq.data.modality import Modality
-from multimodal_data2vec import KDMMData2Vec, KDData2VecPreTrainingLightningModule
+from multimodal_data2vec_ds import KDMMData2Vec, KDData2VecPreTrainingLightningModule
 from transformers.optimization import get_polynomial_decay_schedule_with_warmup
 
 logger = logging.getLogger(__name__)
