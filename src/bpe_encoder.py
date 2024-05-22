@@ -15,6 +15,7 @@ import os
 from torchvision.datasets.utils import download_url
 
 from fairseq.data.encoders.gpt2_bpe_utils import get_encoder
+from fairseq.data.dictionary import Dictionary
 
 def load_tokenizer_data(store_at:str="../data"):
     for filename in ["dict.txt", "encoder.json", "vocab.bpe"]:
@@ -26,15 +27,18 @@ def get_bpe_encoder(data_path):
     load_tokenizer_data(data_path)
     encoder_json_path = os.path.join(data_path, "encoder.json")
     vocab_bpe_path = os.path.join(data_path, "vocab.bpe")
-    return BPEEncoder(encoder_json_path, vocab_bpe_path)
+    dict_path = os.path.join(data_path, "dict.txt")
+    return BPEEncoder(encoder_json_path, vocab_bpe_path, dict_path)
 
 class BPEEncoder(object):
-    def __init__(self, encoder_json_path, vocab_bpe_path):
+    def __init__(self, encoder_json_path, vocab_bpe_path, dict_path):
         self.bpe = get_encoder(encoder_json_path, vocab_bpe_path)
+        self.dict = Dictionary.load(dict_path)
 
     def encode(self, line):
         line = line.strip()
-        return self.bpe.encode(line)
+        bpe_tokens = ' '.join(map(str, self.bpe.encode(line)))
+        return self.dict.encode_line(bpe_tokens)
 
     def decode(self, tokens):
         return self.bpe.decode(tokens)

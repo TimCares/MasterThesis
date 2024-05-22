@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: base_nlp_196_init_img
+run_name: base_nlp_196_init_img_5k_unfreeze
 
 load_checkpoint:
 

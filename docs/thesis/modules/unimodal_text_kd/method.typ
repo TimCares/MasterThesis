@@ -35,7 +35,11 @@ we do zero-shot retrieval
 to create semantic rich embeddings, and make the validation process faster
   - this constraint only affects QQP, as its train dataset is a lot larger (363,846 question pairs), as is the dev set (40,430 question pairs)
   - therefore, each datasets has a maximum of 25,000 positive pairs
-  - we always take the first 25,000 positive pairs
+  - we always take the first 25,000 positive pairs, if that many are available
+    - QQP train: 25000
+    - QQP dev: 14885
+    - MRPC train: 2753
+    - MRPC dev: 1147
   - QQP and MRPC datasets, as well as their splits are taken from the glue benchmark website
 
 - we now have a binary classification task
