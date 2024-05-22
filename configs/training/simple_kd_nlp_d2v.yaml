@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: base_nlp_196_init_img_no_alibi
+run_name: base_nlp_196_init_img
 
 load_checkpoint:
 
@@ -60,9 +60,9 @@ model:
 
   embed_dim: 768
 
-  depth: 5
+  depth: 6
   num_heads: 12 
-  mlp_ratio: 3.0 # 3.0 or 4.0
+  mlp_ratio: 4.0
   encoder_dropout: 0.0
   dropout_input: 0.0
   attention_dropout: 0.0
