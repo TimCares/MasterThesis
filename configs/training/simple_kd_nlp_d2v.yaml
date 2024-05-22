@@ -138,7 +138,7 @@ optimizer:
 
 optimizer_schedule: # relevant if "optimizer.warmup" is True
   type: cosine # constant or cosine
-  warmup_steps: 4_000
+  warmup_steps: 32_000 # 4_000 * 8 = 32_000
   max_steps: ${lightning_trainer.max_steps}
 
 lightning_trainer:
@@ -146,7 +146,7 @@ lightning_trainer:
   accelerator: gpu
   devices: -1
   strategy: auto # auto -> default
-  max_steps: 40_000
+  max_steps: 320_000 # 40_000 * 8 = 320_000
   val_check_interval: # None -> no validation
   num_sanity_val_steps: 0 # mean test running "num_sanity_val_steps" batches of the validation dataloaders, but here we have no classical validation
   limit_val_batches: 0 # no classical validation
