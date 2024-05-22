@@ -7,6 +7,7 @@ from .unimodal_datamodules import (
     LibriSpeechDataModule,
     SpeechCommandsDataModule,
     QQPDataModule,
+    MRPCDataModule,
     UNIMODAL_DATAMODULE_REGISTRY
 )
 
