@@ -228,7 +228,7 @@ class ZeroShotCallback(Callback):
 
     def on_train_batch_end(self, trainer:Trainer, pl_module:LightningModule, outputs, batch, batch_idx):
         # Check if the current batch count is a multiple of the specified frequency
-        if trainer.global_step % self.val_every_n_batches == 0:
+        if trainer.global_step != 0 and trainer.global_step % self.val_every_n_batches == 0:
             pl_module.eval()
             self.validate(trainer, pl_module)
             pl_module.train()
