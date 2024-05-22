@@ -17,11 +17,11 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: base_nlp_196_init
+run_name: base_nlp_text_init
 
 load_checkpoint:
 
-nlp_context_length: 196
+nlp_context_length: 512
 
 model:
   pretrained_path: ${model_path}
@@ -36,7 +36,7 @@ model:
     - TEXT
 
   block_init_cfg:
-    init_from: IMAGE
+    init_from: TEXT
     # Only relevant if "init_from" not None: If "block_indices" is None,
     # 'attention' -> only attention layers are initialized from pretrained,
     # if 'block', then whole Transformer blocks are initialized
@@ -80,7 +80,7 @@ model:
 data:
   dataloader:
     data_path: ${data_path}
-    batch_size: 128
+    batch_size: 32
     num_workers: 12
     shuffle: True
     drop_last: True
@@ -98,7 +98,7 @@ zero_shot_val:
 
   dataloader:
     data_path: ${data_path}
-    batch_size: 128
+    batch_size: 32
     num_workers: 5
     shuffle: False
     drop_last: False
@@ -153,3 +153,4 @@ lightning_trainer:
   precision: 16-mixed
   gradient_clip_val: 2.0
   log_every_n_steps: 50
+  accumulate_grad_batches: 8 # 8*32 = 256

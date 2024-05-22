@@ -482,10 +482,7 @@ class KDMMData2Vec(nn.Module):
             remove_extra_tokens=False, # important!
         )['x']
 
-        if mode == Modality.AUDIO:
-            output = output.mean(dim=1)
-        else:
-            output = output[:, 0, :]
+        output = output.mean(dim=1)
 
         if normalize:
             output = F.normalize(output, dim=-1)
