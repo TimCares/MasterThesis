@@ -38,7 +38,7 @@ class BPEEncoder(object):
     def encode(self, line):
         line = line.strip()
         bpe_tokens = ' '.join(map(str, self.bpe.encode(line)))
-        return self.dict.encode_line(bpe_tokens)
+        return self.dict.encode_line(bpe_tokens).tolist()
 
     def decode(self, tokens):
         return self.bpe.decode(tokens)
