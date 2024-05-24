@@ -8,15 +8,15 @@ from torch.utils.data import DataLoader
 from pytorch_lightning import Callback, LightningDataModule, Trainer, LightningModule
 from pytorch_lightning.utilities import rank_zero_only
 from typing import Dict
-import sys
-sys.path.append('..')
+import os
 from data.imagenet_zeroshot_data import (
     imagenet_classnames,
     openai_imagenet_template,
 )
 from rich.progress import track
 from fairseq.data import Dictionary
-from utils import pad_text_sequence
+from utils import pad_text_sequence # src/utils.py
+from bpe_encoder import get_bpe_encoder
 from data2vec_fairseq.data.modality import Modality
 
 
@@ -25,11 +25,15 @@ logger = logging.getLogger(__name__)
 
 def _zero_shot_classifier(model, device, num_max_bpe_tokens, 
                           dictionary:Dictionary, *args, **kwargs):
+    data_path = '/workspace'
+    bpe_encoder:BPEEncoder = get_bpe_encoder(data_path)
+    dictionary = Dictionary.load(os.path.join(data_path, "dict.txt"))
+    
     zeroshot_weights = []
     for classname in track(imagenet_classnames, description="Building classifier"):
-        texts = tokenizer.encode_lines(
+        texts = bpe_encoder.encode_lines(
             [template(classname) for template in openai_imagenet_template],
-            tokens_per_sample=num_max_bpe_tokens-2,
+            tokens_per_sample=num_max_bpe_tokens,
             to_tensor=False,
         )
         padding_masks = []
@@ -47,8 +51,7 @@ def _zero_shot_classifier(model, device, num_max_bpe_tokens,
 
         texts = texts.to(device)
         padding_masks = padding_masks.to(device)
-        class_embeddings = model.encode_text(texts) # TODO padding_masks
-        class_embeddings /= class_embeddings.norm(dim=-1, keepdim=True)
+        class_embeddings = model.encode_text(text=texts, padding_mask=padding_mask, normalize=True)
         class_embedding = class_embeddings.mean(dim=0)
         class_embedding /= class_embedding.norm()
         zeroshot_weights.append(class_embedding)
@@ -85,8 +88,7 @@ def run_multimodal_zero_shot(model:Callable,
         images = images.to(device)
         target = target.to(device)
 
-        image_features = model.encode_image(images)
-        image_features /= image_features.norm(dim=-1, keepdim=True)
+        image_features = model.encode_image(image=images, normalize=True)
         logits = 100.0 * image_features @ classifier
 
         # measure accuracy
