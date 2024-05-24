@@ -17,12 +17,12 @@ log_dir: ${base_dir}/logs
 seed: 42
 
 name: base
-run_name: glue_cola_finetuning_${name}
+run_name: glue_rte_finetuning_${name}
 
 load_checkpoint:
 
 metrics:
-  - mcc
+  - accuracy
 
 regression: False
 
@@ -31,7 +31,7 @@ model:
   # other params are default -> also done in d2v
 
 data:
-  dataset: cola_glue
+  dataset: rte_glue
   num_max_bpe_tokens: 512
 
   data_path: ${data_path}
@@ -45,13 +45,13 @@ checkpoint:
   dirpath: "${model_path}/${now:%Y-%m-%d_%H-%M-%S}"
   # monitor key is also computed in a callback, ModelCheckpoint callbacks are the last checkpoints executed,
   # so the key will be computed right beforehand (therefore it is always up to date)
-  filename: mm-d2v-glue-cola-{step}-{${checkpoint.monitor}:.4f}
+  filename: mm-d2v-glue-rte-{step}-{${checkpoint.monitor}:.4f}
   save_last: link # save last checkpoint -> easier access, as it has a fixed name (last.ckpt) -> not set to True here, as a link saves space
   enable_version_counter: False # only ever one "last.ckpt" file
   every_n_epochs: 1
   save_on_train_epoch_end: False # False -> run at end of validation
   verbose: True
-  monitor: val/matthews_corrcoef
+  monitor: val/accuracy
   mode: max
   auto_insert_metric_name: False
 
@@ -63,7 +63,7 @@ optimizer:
   warmup: True
 
 optimizer_schedule:
-  warmup_steps: 320
+  warmup_steps: 122
   max_steps: ${lightning_trainer.max_steps}
 
 lightning_trainer:
@@ -72,7 +72,7 @@ lightning_trainer:
   devices: -1
   strategy: auto # auto -> default
   max_epochs: 10
-  max_steps: 5336
+  max_steps: 2036
   num_sanity_val_steps: 0
   precision: 16-mixed
   log_every_n_steps: 50
