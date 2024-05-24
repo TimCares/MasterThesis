@@ -19,7 +19,7 @@ from datasets_.data_utils import get_transforms
 
 from data2vec_fairseq.models.modalities.modules import AltBlock
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
-from mome_alt_attention import MOMEAltBlock
+from src.modules.mome_alt_attention import MOMEAltBlock
 from modules import LayerResultBlock
 
 logger = logging.getLogger(__name__)
