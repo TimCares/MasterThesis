@@ -1,4 +1,5 @@
 import hydra
+import wandb
 from omegaconf import OmegaConf, open_dict, DictConfig
 import os
 import torch
@@ -75,6 +76,7 @@ def main(cfg: DictConfig) -> None:
     )
     if trainer.global_rank == 0:
         wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
+    wandb.save('multimodal_data2vec_ds.py') # saves the model file to wandb
 
     datamodules = []
     if cfg.dry_run is not None and cfg.dry_run:
