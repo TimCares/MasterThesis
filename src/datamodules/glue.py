@@ -12,9 +12,13 @@ class GLUEDataModule(BaseDataModule):
         super().__init__(data_path, *args, **kwargs)
         self.dataset = dataset
         self.val_split_name = 'dev'
-        if dataset == 'mnli':
+        if self.dataset == 'mnli_m_glue':
             self.val_split_name = 'dev_matched'
-        elif dataset == 'mrpc':
+            self.dataset = 'mnli_glue'
+        elif self.dataset == 'mnli_mm_glue':
+            self.val_split_name = 'dev_mismatched'
+            self.dataset = 'mnli_glue'
+        elif self.dataset == 'mrpc_glue':
             self.val_split_name = 'test'
         self.num_max_bpe_tokens = num_max_bpe_tokens
     
