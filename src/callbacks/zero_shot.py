@@ -15,14 +15,15 @@ from data.imagenet_zeroshot_data import (
     openai_imagenet_template,
 )
 from rich.progress import track
-from bpe_encoder import get_bpe_encoder
 from fairseq.data import Dictionary
 from utils import pad_text_sequence
+from data2vec_fairseq.data.modality import Modality
+
 
 logger = logging.getLogger(__name__)
 
 
-def _zero_shot_classifier(model, device, tokenizer:BPEEncoder, num_max_bpe_tokens, 
+def _zero_shot_classifier(model, device, num_max_bpe_tokens, 
                           dictionary:Dictionary, *args, **kwargs):
     zeroshot_weights = []
     for classname in track(imagenet_classnames, description="Building classifier"):
@@ -70,25 +71,20 @@ def _accuracy(output, target, topk=(1,)):
 def run_multimodal_zero_shot(model:Callable,
                              dataloader:DataLoader,
                              device,
-                             text_transform, 
                              name,
                              *args,
                              **kwargs):
     logger.info(f"Starting multimodal {name} Zero-Shot Eval")
     logger.info("Building classifier")
-    classifier = _zero_shot_classifier(model, device, text_transform)
+    classifier = _zero_shot_classifier(model, device)
     logger.info("Classifier built")
     top1, top5, n = 0.0, 0.0, 0.0
     for sample in track(dataloader, description=f"Zero-shot eval: {name}"):
         images = sample["image"]
-        target = sample["label"]
+        target = sample["target"]
         images = images.to(device)
         target = target.to(device)
 
-        # predict
-        # if hasattr(model, "module"):
-        #     image_features = model.module.encode_image({"image": images})
-        # else:
         image_features = model.encode_image(images)
         image_features /= image_features.norm(dim=-1, keepdim=True)
         logits = 100.0 * image_features @ classifier
@@ -221,9 +217,14 @@ class ZeroShotCallback(Callback):
     """
     datamodules: Dict[str, LightningDataModule] -> Dict of LightningDataModule, keys are the names of the LightningDataModule.
     """
-    def __init__(self, datamodules: Dict[str, LightningDataModule], val_every_n_batches:int, ):
+    def __init__(
+            self,
+            datamodules: Dict[str, LightningDataModule],
+            modalities: Dict[str, Modality],
+            val_every_n_batches:int,):
         super().__init__()
         self.datamodules = datamodules
+        self.modalities = modalities
         self.val_every_n_batches = val_every_n_batches
 
     def on_train_batch_end(self, trainer:Trainer, pl_module:LightningModule, outputs, batch, batch_idx):
@@ -248,23 +249,26 @@ class ZeroShotCallback(Callback):
 class ZeroShotRetrievalCallback(ZeroShotCallback):
     def validate(self, trainer, pl_module) -> None:
         super().validate(trainer, pl_module)
-        all_metrics = []
+        all_metrics = {modality.name.lower(): [] for modality in set(self.modalities.values())}
         for name_key in self.datamodules.keys():
-            if name_key not in ['qqp', 'mrpc']:
-                metrics = unimodal_zero_shot_retrieval(
-                    model=pl_module.model,
-                    train_loader=self.datamodules[name_key].train_dataloader(),
-                    test_loader=self.datamodules[name_key].test_dataloader(),
-                    device=pl_module.device,
-                    name=name_key,
-                )
-            else:
-                metrics = unimodal_zero_shot_pair_retrieval(
-                    model=pl_module.model,
-                    datamodule=self.datamodules[name_key],
-                    device=pl_module.device,
-                    name=name_key,
-                )
+            modality = self.modalities[name_key]
+            if modality != Modality.VL:
+                if name_key not in ['qqp', 'mrpc']:
+                    metrics = unimodal_zero_shot_retrieval(
+                        model=pl_module.model,
+                        train_loader=self.datamodules[name_key].train_dataloader(),
+                        test_loader=self.datamodules[name_key].test_dataloader(),
+                        device=pl_module.device,
+                        name=name_key,
+                    )
+                else:
+                    metrics = unimodal_zero_shot_pair_retrieval(
+                        model=pl_module.model,
+                        datamodule=self.datamodules[name_key],
+                        device=pl_module.device,
+                        name=name_key,
+                    )
+
             for metric_key in metrics:
                 pl_module.log(
                     f"val/{metric_key}",
@@ -273,16 +277,35 @@ class ZeroShotRetrievalCallback(ZeroShotCallback):
                     rank_zero_only=True,
                     on_step=True,
                     )
-                all_metrics.append(metrics[metric_key])
+                all_metrics[modality.name.lower()].append(metrics[metric_key])
         
-        mean_score = np.mean(all_metrics)
-        pl_module.log(
-                "val/unimodal-mean-retrieval--zeroshot",
+        if len(all_metrics.keys()) > 1:
+            mean_scores = []
+        else:
+            mean_scores = None
+        
+        for modality in all_metrics.keys():
+            mean_score = np.mean(all_metrics[modality])
+            pl_module.log(
+                f"val/unimodal-{modality}-mean-retrieval--zeroshot",
                 mean_score,
                 prog_bar=True,
                 logger=True,
                 rank_zero_only=True,
                 on_step=True,
                 )
+            if mean_scores is not None:
+                mean_scores.append(mean_score)
+        
+        if mean_scores is not None:
+            mean_score = np.mean(mean_scores)
+            pl_module.log(
+                    "val/unimodal-mean-retrieval--zeroshot",
+                    mean_score,
+                    prog_bar=True,
+                    logger=True,
+                    rank_zero_only=True,
+                    on_step=True,
+                    )
         
         self.cleanup() # release memory
