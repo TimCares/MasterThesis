@@ -13,3 +13,5 @@ class Modality(Enum):
     IMAGE = auto()
     TEXT = auto()
     VL = auto()
+    VA = auto()
+    LA = auto()

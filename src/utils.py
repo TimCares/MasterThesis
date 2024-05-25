@@ -148,7 +148,7 @@ def get_max_saliency_patches(
 def prepare_salient_patches(
         layer_results:List[torch.Tensor],
         keep_timesteps:torch.Tensor,
-        mode:Modality,
+        modality:Modality,
         norm_first:bool,
         ) -> torch.Tensor:
     # if final_attn_layer_saliency_score is True, then "layer_results" only contains one element, the last layer
@@ -173,6 +173,6 @@ def prepare_salient_patches(
     # -> teacher only gets the unmasked tokens, and the teacher output is normed,
     # so we need to norm only the unmasked tokens for the student output as well
     layer_results = [layer_results[i] for i in range(len(layer_results))] # expand to list
-    layer_results = prepare_output(out=layer_results, modality=mode, norm=not norm_first)
+    layer_results = prepare_output(out=layer_results, modality=modality, norm=not norm_first)
     # B x num_keep+1 x D -> one (+1) stems from additional special token
     return layer_results

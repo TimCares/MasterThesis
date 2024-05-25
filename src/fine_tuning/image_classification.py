@@ -12,7 +12,7 @@ import pytorch_lightning as L
 from timm.data import Mixup
 
 from data2vec_fairseq.data.modality import Modality
-from multimodal_data2vec import KDMMData2Vec, KDData2VecPreTrainingLightningModule
+from src.kd_data2vec import KDData2Vec, KDData2VecPreTrainingLightningModule
 from data2vec_fairseq.models.mae_image_classification import PredictionMode
 from transformers.optimization import get_cosine_schedule_with_warmup
 
@@ -50,7 +50,7 @@ class ImageClassificationLightningModule(L.LightningModule):
 
     def _step(self, batch:Dict[str, Any], batch_idx:int, stage:str='train'):
         target = batch['target']
-        image = batch['image']
+        image = batch['x']
 
         if self.mixup_fn is not None and stage == 'train':
             image, target = self.mixup_fn(image, target)
@@ -149,9 +149,9 @@ class ImageClassificationModel(nn.Module):
             pretrained_args.model["dropout_input"] = cfg.dropout_input
             pretrained_args.model["layerdrop"] = cfg.layerdrop
 
-        self.model:KDMMData2Vec = KDData2VecPreTrainingLightningModule.load_from_checkpoint(self.cfg.model_path,
-                                                                                            cfg=pretrained_args).model
-        self.model.prepare_fine_tuning(keep_modes=[Modality.IMAGE])
+        self.model:KDData2Vec = KDData2VecPreTrainingLightningModule.load_from_checkpoint(self.cfg.model_path,
+                                                                                          cfg=pretrained_args).model
+        self.model.prepare_fine_tuning(keep_modality=Modality.IMAGE)
 
         self.linear_classifier = cfg.linear_classifier
 
@@ -254,8 +254,8 @@ class ImageClassificationModel(nn.Module):
 
     def model_forward(self, imgs):
         return self.model.extract_features(
-            image=imgs,
-            modes=[Modality.IMAGE],
+            x=imgs,
+            modality=Modality.IMAGE,
             remove_extra_tokens=(
                 self.cfg.prediction_mode != PredictionMode.CLS_TOKEN
             ),

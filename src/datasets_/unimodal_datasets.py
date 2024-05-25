@@ -21,7 +21,6 @@ from fairseq_cli.preprocess import preprocess
 from torchaudio.datasets import LIBRISPEECH, SPEECHCOMMANDS
 import torchtext
 from torchvision.datasets import CIFAR10, CIFAR100
-from torchvision.datasets.folder import default_loader
 
 from .base_datasets import AudioDataset, ImageDataset, NLPDataset
 from data2vec_fairseq.data.modality import Modality
@@ -125,14 +124,14 @@ class IMDBDataset(BaseDataset):
             language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_max_bpe_tokens,
                                                               pad_idx=pad_token_id, bos_idx=bos_token_id)
             label = label-1 # 1 -> 0, 2 -> 1
-            items.append({'text': language_tokens, 'padding_mask': padding_mask, 'target': label})
+            items.append({'x': language_tokens, 'padding_mask': padding_mask, 'target': label})
 
         write_data_into_jsonl(items, self.out_jsonl_path)
         shutil.rmtree(f'{self.path_to_data}/datasets')
 
     @property
-    def modes(self) -> List[Modality]:
-        return [Modality.TEXT]
+    def modality(self) -> Modality:
+        return Modality.TEXT
                 
     def load(self):
         items = []
@@ -193,7 +192,7 @@ class QQPDataset(BaseDataset): # used for zero-shot validation, not as GLUE benc
                 tokens = bpe_encoder.encode(text)
                 language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_max_bpe_tokens,
                                                                   pad_idx=pad_token_id, bos_idx=bos_token_id)
-                pair[f'text{i}'] = language_tokens
+                pair[f'x{i}'] = language_tokens
                 pair[f'padding_mask{i}'] = padding_mask
             
             items.append(pair)
@@ -203,8 +202,8 @@ class QQPDataset(BaseDataset): # used for zero-shot validation, not as GLUE benc
         shutil.rmtree(os.path.join(self.path_to_data, 'QQP'))
 
     @property
-    def modes(self) -> List[Modality]:
-        return [Modality.TEXT]
+    def modality(self) -> Modality:
+        return Modality.TEXT
                 
     def load(self):
         items = []
@@ -254,7 +253,7 @@ class MRPCDataset(BaseDataset): # used for zero-shot validation, not as GLUE ben
                 tokens = bpe_encoder.encode(text)
                 language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_max_bpe_tokens,
                                                                   pad_idx=pad_token_id, bos_idx=bos_token_id)
-                pair[f'text{i}'] = language_tokens
+                pair[f'x{i}'] = language_tokens
                 pair[f'padding_mask{i}'] = padding_mask
             
             items.append(pair)
@@ -263,8 +262,8 @@ class MRPCDataset(BaseDataset): # used for zero-shot validation, not as GLUE ben
         shutil.rmtree(f'{self.path_to_data}/datasets')
 
     @property
-    def modes(self) -> List[Modality]:
-        return [Modality.TEXT]
+    def modality(self) -> Modality:
+        return Modality.TEXT
                 
     def load(self):
         items = []
@@ -362,9 +361,9 @@ class LibriSpeechDataset(AudioDataset):
         collater_res = self.dataset.collater(samples)
         res = {
             'id': collater_res['id'],
-            'audio': collater_res['net_input']['source'],
+            'x': collater_res['net_input']['source'],
             'padding_mask': collater_res['net_input']['padding_mask'],
-            'modes': self.modes
+            'modality': self.modality
         }
         if 'precomputed_mask' in collater_res['net_input']:
             res['precomputed_mask'] = collater_res['net_input']['precomputed_mask'],
@@ -416,7 +415,7 @@ class SpeechCommandsDataset(AudioDataset):
 
     def __getitem__(self, index):
         item = self.items[index]
-        return {"audio": item[0][0], "target": item[2], "id": index}
+        return {"x": item[0][0], "target": item[2], "id": index}
     
     def collater(self, samples):
         input = super().collater(samples)
@@ -479,7 +478,7 @@ class ImageNetDataset(ImageDataset):
         item = self.items[index]
         image = self._get_image(image_path=item['image_path'])
         data = {
-            'image': image,
+            'x': image,
             'id': index,
             'target': item['target']
         }
@@ -522,8 +521,8 @@ class CIFARDataset(BaseDataset):
             raise ValueError(f'CIFARDataset: Unknown dataset type: {self.type}, available options: ["cifar10", "cifar100"].')
         
     @property
-    def modes(self) -> List[Modality]:
-        return [Modality.IMAGE]
+    def modality(self) -> Modality:
+        return Modality.IMAGE
 
     def load(self):
         # only used for evaluation -> no augmentations
@@ -536,7 +535,7 @@ class CIFARDataset(BaseDataset):
 
     def __getitem__(self, index):
         item = self.items[index]
-        return {"image": item[0], "target": item[1]}
+        return {"x": item[0], "target": item[1]}
 
 
 UNIMODAL_DATASET_REGISTRY = {

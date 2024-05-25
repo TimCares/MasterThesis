@@ -42,18 +42,8 @@ class BaseDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.items)
     
-    # TODO: Maybe do in collator of this class by detecting if precompute_mask_config is not None and
-    # which type of mask to compute
-    def precompute_mask(self):
-        if self.precompute_mask_config.mask_length == 1:
-            mask_func = compute_block_mask_1d
-        else:
-            mask_func = compute_block_mask_2d
-
-        return mask_func(**self.precompute_mask_config)
-    
     @property
-    def modes(self) -> List[Modality]:
+    def modality(self) -> Modality:
         raise NotImplementedError
 
     def collater(self, samples):
@@ -64,7 +54,7 @@ class BaseDataset(torch.utils.data.Dataset):
             else:
                 batch_tensors[tensor_key] = torch.tensor([d[tensor_key] for d in samples], dtype=torch.long)
 
-        batch_tensors['modes'] = self.modes
+        batch_tensors['modality'] = self.modality
         return batch_tensors
     
     def log(self, msg:str):
@@ -85,8 +75,8 @@ class NLPDataset(BaseDataset):
         self.sample_break_mode = sample_break_mode
 
     @property
-    def modes(self) -> List[Modality]:
-        return [Modality.TEXT]
+    def modality(self) -> Modality:
+        return Modality.TEXT
 
     def index_exists(self, dataset_path):
         if os.path.exists(os.path.join(dataset_path, 'train.bin')) and os.path.exists(os.path.join(dataset_path, 'train.idx')):
@@ -129,7 +119,7 @@ class NLPDataset(BaseDataset):
         #dataset = AppendTokenDataset(dataset, self.dictionary.eos()) # -> not done in data2vec
 
         input_dict = {
-            "text": RightPadDataset(
+            "x": RightPadDataset(
                 dataset,
                 pad_idx=self.dictionary.pad(),
             ),
@@ -147,7 +137,7 @@ class NLPDataset(BaseDataset):
     
     def collater(self, samples):
         batch = self.dataset.collater(samples)
-        batch["modes"] = self.modes
+        batch["modality"] = self.modality
         return batch
     
 
@@ -174,8 +164,8 @@ class AudioDataset(BaseDataset):
         self._features_size_map = {}
 
     @property
-    def modes(self) -> List[Modality]:
-        return [Modality.AUDIO]
+    def modality(self) -> Modality:
+        return Modality.AUDIO
 
     def collater(self, samples):
         if len(samples) == 0:
@@ -207,7 +197,7 @@ class AudioDataset(BaseDataset):
                 collated_audio[i] = self._crop_to_max_size(source, target_size)
 
         input = {
-            "audio": collated_audio,
+            "x": collated_audio,
             #"id": torch.LongTensor([s["id"] for s in samples]),
             }
         
@@ -225,7 +215,7 @@ class AudioDataset(BaseDataset):
             )
             input["precomputed_mask"] = collated_mask
 
-        input['modes'] = self.modes
+        input['modality'] = self.modality
 
         return input
 
@@ -316,8 +306,8 @@ class ImageDataset(BaseDataset):
         return self.transform(image)
 
     @property
-    def modes(self) -> List[Modality]:
-        return [Modality.IMAGE]
+    def modality(self) -> Modality:
+        return Modality.IMAGE
     
 
 class BaseImageText(BaseDataset):
@@ -352,8 +342,8 @@ class BaseImageText(BaseDataset):
                                         crop_scale=self.crop_scale)
         
     @property
-    def modes(self) -> List[Modality]:
-        return [Modality.IMAGE, Modality.TEXT]
+    def modality(self) -> Modality:
+        return Modality.VL
         
     def index_exists(self, dataset_path):
         for index_file in self.get_index_files():
@@ -471,8 +461,8 @@ class BaseImageAudio(AudioDataset):
                                         crop_scale=self.crop_scale)
         
     @property
-    def modes(self) -> List[Modality]:
-        return [Modality.IMAGE, Modality.AUDIO]
+    def modality(self) -> Modality:
+        return Modality.VA
         
     def index_exists(self, dataset_path):
         for index_file in self.get_index_files():
@@ -526,7 +516,7 @@ class BaseImageAudio(AudioDataset):
     def collater(self, samples):
         input = super().collater(samples)
         input["image"] = torch.stack([s["image"] for s in samples], dim=0)
-        input['modes'] = self.modes
+        input['modality'] = self.modality
         return input
 
 class BaseTextAudio(AudioDataset):
@@ -564,8 +554,8 @@ class BaseTextAudio(AudioDataset):
         self.pad_token_id = self.dictionary.pad()
 
     @property
-    def modes(self) -> List[Modality]:
-        return [Modality.TEXT, Modality.AUDIO]
+    def modality(self) -> Modality:
+        return Modality.LA
 
     def index_exists(self, dataset_path):
         for index_file in self.get_index_files():
@@ -642,6 +632,6 @@ class BaseTextAudio(AudioDataset):
         }
         input.pop('language_padding_mask')
 
-        input['modes'] = self.modes
+        input['modality'] = self.modality
 
         return input

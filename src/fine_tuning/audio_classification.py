@@ -32,7 +32,7 @@ from fairseq.models.wav2vec.wav2vec2 import MASKING_DISTRIBUTION_CHOICES, LAYER_
 from fairseq.modules import LayerNorm, PositionalEmbedding, TransformerDecoderLayer
 from fairseq.tasks import FairseqTask
 
-from multimodal_data2vec import KDMMData2Vec, KDData2VecPreTrainingLightningModule
+from kd_data2vec import KDData2Vec, KDData2VecPreTrainingLightningModule
 from data2vec_fairseq.data.modality import Modality
 
 logger = logging.getLogger(__name__)
@@ -360,9 +360,9 @@ class Wav2VecEncoder(FairseqEncoder):
 
         pretrained_args = torch.load(cfg.model_path)['hyper_parameters']['cfg']
 
-        self.model:KDMMData2Vec = KDData2VecPreTrainingLightningModule.load_from_checkpoint(self.cfg.model_path,
-                                                                                            cfg=pretrained_args).model
-        self.model.prepare_fine_tuning(keep_modes=[Modality.AUDIO])
+        self.model:KDData2Vec = KDData2VecPreTrainingLightningModule.load_from_checkpoint(self.cfg.model_path,
+                                                                                          cfg=pretrained_args).model
+        self.model.prepare_fine_tuning(keep_modality=Modality.AUDIO)
 
         d = w2v_args.model.embed_dim
 

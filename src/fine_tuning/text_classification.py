@@ -22,7 +22,7 @@ from fairseq.criterions.sentence_prediction import (
 )
 
 from data2vec_fairseq.data.modality import Modality
-from multimodal_data2vec_ds import KDMMData2Vec, KDData2VecPreTrainingLightningModule
+from kd_data2vec import KDData2Vec, KDData2VecPreTrainingLightningModule
 from transformers.optimization import get_polynomial_decay_schedule_with_warmup
 
 logger = logging.getLogger(__name__)
@@ -82,7 +82,7 @@ class TextClassificationLightningModule(L.LightningModule):
 
     def _step(self, batch:Dict[str, Any], batch_idx:int, stage:str='train'):
         target = batch.pop('target')
-        batch.pop('modes')
+        batch.pop('modality')
         
         logits = self(batch) # call "forward"
 
@@ -143,9 +143,9 @@ class TextClassificationModel(nn.Module):
 
         pretrained_args = torch.load(cfg.model_path)['hyper_parameters']['cfg']
 
-        self.model:KDMMData2Vec = KDData2VecPreTrainingLightningModule.load_from_checkpoint(self.cfg.model_path,
-                                                                                            cfg=pretrained_args).model
-        self.model.prepare_fine_tuning(keep_modes=[Modality.TEXT])
+        self.model:KDData2Vec = KDData2VecPreTrainingLightningModule.load_from_checkpoint(self.cfg.model_path,
+                                                                                          cfg=pretrained_args).model
+        self.model.prepare_fine_tuning(keep_modality=Modality.TEXT)
 
         embed_dim = pretrained_args.model.embed_dim
         self.classification_head = RobertaClassificationHead(
@@ -166,8 +166,8 @@ class TextClassificationModel(nn.Module):
     ):
         
         x = self.model.extract_features(
-            text=text,
-            modes=[Modality.TEXT],
+            x=text,
+            modality=Modality.TEXT,
             padding_mask=padding_mask,
             remove_extra_tokens=False, # we keep the bos token -> used by the classification head (but D2V removes it before, so check both)
         )["x"]

@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from functools import partial
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, List
 import numpy as np
 import os
 from utils import load_pretrained_d2v_model
@@ -31,17 +31,17 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         self.masking = self.cfg.model.mask and not self.cfg.model.inverse_masking
         self.inverse_masking = self.cfg.model.mask and self.cfg.model.inverse_masking
 
-        self.model = KDMMData2Vec(cfg=self.cfg.model)
+        self.model = KDData2Vec(cfg=self.cfg.model)
 
         teachers = dict()
-        for mode in self.cfg.model.supported_modalities:
-            modality_str = mode.name.lower()
+        for modality in self.cfg.model.supported_modalities:
+            modality_str = modality.name.lower()
             state_dict_name = self.cfg.model.pretrained[modality_str]
             state_dict_path = os.path.join(self.cfg.model.pretrained_path, state_dict_name)
             teachers[modality_str] = load_pretrained_d2v_model(state_dict_path=state_dict_path)
 
-            teacher_mode = teachers[modality_str].cfg.supported_modality.name
-            teacher_extra_tokens = teachers[modality_str].modality_encoders[teacher_mode].modality_cfg.num_extra_tokens
+            teacher_modality = teachers[modality_str].cfg.supported_modality.name
+            teacher_extra_tokens = teachers[modality_str].modality_encoders[teacher_modality].modality_cfg.num_extra_tokens
             del teachers[modality_str].modality_encoders # we share it between teacher and student
         
             student_extra_tokens = self.model.modality_encoders[modality_str].modality_cfg.num_extra_tokens
@@ -66,7 +66,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
             batch.pop('target') # unused, layer activations are the targets
         output_dict = self(batch) # call "forward"
 
-        modality:Modality = batch['modes'][0]
+        modality:Modality = batch['modality']
         modality_str = modality.name.lower()
 
         # in output_dict, because "return_encoder_output=True" in "forward"
@@ -74,7 +74,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
 
         with torch.no_grad():
             target = self.teachers[modality_str].extract_features(
-                source=batch[modality_str],
+                source=batch['x'],
                 mode=None, # determined automatically in model
                 padding_mask=None, # the padding mask is provided in the precomputed_encoder_output and used by the teacher model
                 mask=False, # we are creating targets from a teacher model for the student model, so no mask
@@ -106,12 +106,12 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
             target = prepare_salient_patches( # "target" prepared now
                 layer_results=target['layer_results'],
                 keep_timesteps=keep_timesteps,
-                mode=modality,
+                modality=modality,
                 norm_first=self.cfg.model.norm_first,
             )
 
             pred = self.model(
-                modes=None, # ignored if "precomputed_encoder_output" provided, which is the case here
+                modality=None, # ignored if "precomputed_encoder_output" provided, which is the case here
                 features_only=False,
                 return_encoder_output=False,
                 precomputed_encoder_output=precomputed_encoder_output,)
@@ -124,11 +124,11 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
 
         loss = self.kd_loss(input=pred, target=target)
         self.log("train/loss", loss, prog_bar=True)
-        if batch['modes'][0] == Modality.IMAGE:
+        if batch['modality'] == Modality.IMAGE:
             self.log("train/loss_img", loss, prog_bar=True)
-        elif batch['modes'][0] == Modality.AUDIO:
+        elif batch['modality'] == Modality.AUDIO:
             self.log("train/loss_audio", loss, prog_bar=True)
-        else:
+        elif batch['modality'] == Modality.TEXT:
             self.log("train/loss_text", loss, prog_bar=True)
         return loss
                 
@@ -182,7 +182,7 @@ class BlockInitConfig():
     freeze_blocks: Optional[List[int]] = None # if None, then all blocks are frozen, if empty list, then no blocks are frozen
 
 @dataclass
-class KDMMData2VecConfig():
+class KDData2VecConfig():
     pretrained_path:str = '../models'
     pretrained: PretrainedStateDictsConfig = field(default_factory=PretrainedStateDictsConfig)
 
@@ -218,11 +218,11 @@ class KDMMData2VecConfig():
 
     seed: int = 42
 
-class KDMMData2Vec(nn.Module):
+class KDData2Vec(nn.Module):
     def __init__(self,
-                 cfg: KDMMData2VecConfig,
+                 cfg: KDData2VecConfig,
                  ):
-        super(KDMMData2Vec, self).__init__()
+        super(KDData2Vec, self).__init__()
         self.cfg = cfg
         self.supported_modalities = cfg.supported_modalities
         self.fine_tuning = False
@@ -278,24 +278,24 @@ class KDMMData2Vec(nn.Module):
 
     def _init_from_pretrained(self) -> None:
         modality_encoders = {}
-        for mode in list(Modality): # mode is instance of Modality, "list(Modality)" is a list of all enum/modality values
-            if mode not in self.supported_modalities and mode != self.cfg.block_init_cfg.init_from:
+        for modality in list(Modality): # modality is instance of Modality, "list(Modality)" is a list of all enum/modality values
+            if modality not in self.supported_modalities and modality != self.cfg.block_init_cfg.init_from:
                 continue
 
-            state_dict_name = self.cfg.pretrained[mode.name.lower()]
-            logger.info(f'Loading modality encoder for: {mode}')
+            state_dict_name = self.cfg.pretrained[modality.name.lower()]
+            logger.info(f'Loading modality encoder for: {modality}')
             state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
             d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
 
-            if mode in self.supported_modalities:
-                mode_feature_extractor = d2v_model.modality_encoders[mode.name]
-                modality_encoders[mode.name.lower()] = mode_feature_extractor
+            if modality in self.supported_modalities:
+                modality_feature_extractor = d2v_model.modality_encoders[modality.name]
+                modality_encoders[modality.name.lower()] = modality_feature_extractor
                 
-                for name, module in mode_feature_extractor.named_children():
+                for name, module in modality_feature_extractor.named_children():
                     total_params = sum(p.numel() for p in module.parameters())
                     logger.info(f"{name} has {total_params} parameters")
 
-            if mode == self.cfg.block_init_cfg.init_from:
+            if modality == self.cfg.block_init_cfg.init_from:
                 self._init_blocks(d2v_model=d2v_model)
 
         self.modality_encoders:nn.ModuleDict[str, nn.Module] = nn.ModuleDict(modality_encoders)
@@ -307,14 +307,11 @@ class KDMMData2Vec(nn.Module):
 
     def forward(
         self,
-        modes:List[Modality],
-        audio:torch.Tensor=None,
-        image:torch.Tensor=None,
-        text:torch.Tensor=None,
+        x:torch.Tensor,
+        modality:Modality,
         id:torch.Tensor=None,
         padding_mask:torch.Tensor=None,
         remove_extra_tokens:bool=False,
-        precomputed_mask=None,
         return_encoder_output:bool=False,
         features_only:bool=False,
         feature_extractor_only:bool=False,
@@ -323,27 +320,11 @@ class KDMMData2Vec(nn.Module):
         masking = self.cfg.mask and not self.cfg.inverse_masking and not features_only
 
         if precomputed_encoder_output is None:
-            assert len(modes)==1, f"This model accepts exactly modality indicator at a time, received: {modes}"
-            n_sources = sum(mode is not None for mode in [audio, image, text])
-            assert n_sources==1,\
-                f"This model accepts exactly one modality data source at a time, got {n_sources}."
-            
-            assert modes[0] in self.supported_modalities, f"Unsupported modality: {modes[0]}, supported modalities are: {self.supported_modalities}"
-            mode = modes[0].name.lower() # is now a string, ModuleDict does not support enums as keys
-            
-            if audio is not None:
-                source = audio
-            elif image is not None:
-                source = image
-            elif text is not None:
-                source = text
-            else:
-                raise ValueError("Audio, image or text must be provided, found all to be None.")
 
-            feature_extractor:ModalitySpecificEncoder = self.modality_encoders[mode]
+            feature_extractor:ModalitySpecificEncoder = self.modality_encoders[modality.name.lower()]
             with torch.no_grad() if not self.fine_tuning else contextlib.ExitStack():
                 extractor_out = feature_extractor(
-                    features=source,
+                    features=x,
                     padding_mask=padding_mask,
                     mask=False,
                     remove_masked=False,
@@ -415,7 +396,7 @@ class KDMMData2Vec(nn.Module):
             layer_results = prepare_salient_patches(
                 layer_results=layer_results,
                 keep_timesteps=keep_timesteps,
-                mode=modes[0],
+                modality=modality,
                 norm_first=self.cfg.norm_first,
             )
 
@@ -442,13 +423,11 @@ class KDMMData2Vec(nn.Module):
     
 
     def extract_features(
-        self, audio=None, image=None, text=None, modes:List[Modality]=None, padding_mask=None, remove_extra_tokens=True
+        self, x:torch.Tensor, modality:Modality, padding_mask=None, remove_extra_tokens=True
     ):
         res = self.forward(
-            audio=audio,
-            image=image,
-            text=text,
-            modes=modes,
+            x=x,
+            modality=modality,
             padding_mask=padding_mask,
             remove_extra_tokens=remove_extra_tokens,
             features_only=True,
@@ -456,28 +435,10 @@ class KDMMData2Vec(nn.Module):
         return res
     
     @torch.no_grad()
-    def encode_modality(self, modes:Union[Modality, List[Modality]], source:torch.Tensor, padding_mask=None, normalize:bool=True):
-        if isinstance(modes, List):
-            assert len(modes)==1, 'Only one modality allowed when calling "encode_modality".'
-            mode = modes[0]
-        # at this point Modality has to be of type "Modality".
-        audio = None
-        image = None
-        text = None
-        if mode == Modality.AUDIO:
-            audio = source
-        elif mode == Modality.IMAGE:
-            image = source
-        elif mode == Modality.TEXT:
-            text = source
-        else:
-            raise ValueError(f"Did not find mode for modality \"{mode}\", allowed modes are: [{Modality.AUDIO}, {Modality.IMAGE}, {Modality.TEXT}]")
-
+    def encode_modality(self, x:torch.Tensor, modality:Modality, padding_mask=None, normalize:bool=True):
         output = self.extract_features(
-            audio=audio,
-            image=image,
-            text=text,
-            modes=[mode],
+            x=x,
+            modality=modality,
             padding_mask=padding_mask,
             remove_extra_tokens=False, # important!
         )['x']
@@ -490,19 +451,19 @@ class KDMMData2Vec(nn.Module):
         return output # shape: (batch_size, embed_dim)
 
     def encode_audio(self, audio, padding_mask, normalize:bool=True):
-        return self.encode_modality(source=audio,
-                                    modes=Modality.AUDIO,
+        return self.encode_modality(x=audio,
+                                    modality=Modality.AUDIO,
                                     padding_mask=padding_mask,
                                     normalize=normalize)
     
     def encode_image(self, image, normalize:bool=True):
-        return self.encode_modality(source=image,
-                                    modes=Modality.IMAGE,
+        return self.encode_modality(x=image,
+                                    modality=Modality.IMAGE,
                                     normalize=normalize)
 
     def encode_text(self, text, padding_mask, normalize:bool=True):
-        return self.encode_modality(source=text,
-                                    modes=Modality.TEXT,
+        return self.encode_modality(x=text,
+                                    modality=Modality.TEXT,
                                     padding_mask=padding_mask,
                                     normalize=normalize)
 
@@ -514,7 +475,7 @@ class KDMMData2Vec(nn.Module):
         else:
             take_block_indices = init_cfg.block_indices
 
-        logger.info(f"Initializing blocks from pretrained mode: {init_cfg.init_from}")
+        logger.info(f"Initializing blocks from pretrained modality: {init_cfg.init_from}")
         logger.info(f"Init type: {init_cfg.init_type}")
         logger.info(f'Taking pretrained block indices: {take_block_indices}')
 
@@ -583,24 +544,20 @@ class KDMMData2Vec(nn.Module):
         module.train()
 
 
-    def prepare_fine_tuning(self, keep_modes:List[Modality]) -> None:
+    def prepare_fine_tuning(self, keep_modality:Modality) -> None:
         self.fine_tuning = True
         self.cfg.mask = False
-        self._remove_modalities_except(keep_modes=keep_modes)
+        self._remove_modalities_except(keep_modality=keep_modality)
         self._unfreeze(self)
 
-    def _remove_modalities_except(self, keep_modes:List[Modality]) -> None:
+    def _remove_modalities_except(self, keep_modality:Modality) -> None:
         """
         Removes all modalities from the model except the ones specified.
         Useful when fine-tuning the model on downstream task
         involving only a subset of the supported modalities.
         """
         # comparison done on name basis, as on "enum" basis yields problems after serialization
-        keep_modes = [mode.name.lower() for mode in keep_modes]
         for modality in self.supported_modalities:
             modality_str = modality.name.lower()
-            if modality_str not in keep_modes:
+            if modality_str != keep_modality:
                 del self.modality_encoders[modality_str] # includes removing the decoder
-            else:
-                if hasattr(self.modality_encoders[modality_str], 'decoder'):
-                    del self.modality_encoders[modality_str].decoder # not needed in any case

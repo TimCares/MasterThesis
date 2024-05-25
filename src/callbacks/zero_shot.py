@@ -3,7 +3,7 @@ from typing import Tuple, Callable
 import logging
 import torch
 import numpy as np
-from multimodal_data2vec import KDMMData2Vec
+from src.kd_data2vec import KDData2Vec
 from torch.utils.data import DataLoader
 from pytorch_lightning import Callback, LightningDataModule, Trainer, LightningModule
 from pytorch_lightning.utilities import rank_zero_only
@@ -85,7 +85,7 @@ def run_multimodal_zero_shot(model:Callable,
     logger.info("Classifier built")
     top1, top5, n = 0.0, 0.0, 0.0
     for sample in track(dataloader, description=f"Zero-shot eval: {name}"):
-        images = sample["image"]
+        images = sample["x"]
         target = sample["target"]
         images = images.to(device)
         target = target.to(device)
@@ -108,14 +108,14 @@ def run_multimodal_zero_shot(model:Callable,
 
 
 @torch.no_grad()
-def _get_zero_shot_retrieval_embeddings(model:KDMMData2Vec, dataloader:DataLoader, device:str) -> Tuple[torch.Tensor, torch.Tensor]:
+def _get_zero_shot_retrieval_embeddings(model:KDData2Vec, dataloader:DataLoader, device:str) -> Tuple[torch.Tensor, torch.Tensor]:
     embedding_table = []
     ground_truth = []
     for batch in dataloader:
-        source = batch[batch['modes'][0].name.lower()].to(device)
+        x = batch['x'].to(device)
         padding_mask = batch['padding_mask'].to(device) if 'padding_mask' in batch else None
         # encoding also normalizes the output
-        emb = model.encode_modality(modes=batch['modes'], source=source, padding_mask=padding_mask, normalize=True)
+        emb = model.encode_modality(x=x, modality=batch['modality'], padding_mask=padding_mask, normalize=True)
         embedding_table.append(emb.detach().cpu())
         ground_truth.append(batch['target'])
 
@@ -140,7 +140,7 @@ def _get_any_match(similarity_scores:torch.Tensor,
     return (m_bank_targets[indices]==q_targets.unsqueeze(1)).any(dim=-1).sum().div(len(q_targets))
 
 @rank_zero_only
-def unimodal_zero_shot_retrieval(model:KDMMData2Vec,
+def unimodal_zero_shot_retrieval(model:KDData2Vec,
                                  train_loader:DataLoader,
                                  test_loader:DataLoader,
                                  device:str,
@@ -179,20 +179,20 @@ def compute_recall(similarity_scores: torch.Tensor, k: int = 5) -> float:
     return recall
 
 @torch.no_grad()
-def _get_zero_shot_pair_retrieval_embeddings(model:KDMMData2Vec, dataloader:DataLoader, device:str) -> Tuple[torch.Tensor, torch.Tensor]:
+def _get_zero_shot_pair_retrieval_embeddings(model:KDData2Vec, dataloader:DataLoader, device:str) -> Tuple[torch.Tensor, torch.Tensor]:
     embedding_tables = {i: [] for i in range(2)}
     for batch in dataloader:
         for i in range(2): # for each element in the pair
-            source = batch[f"{batch['modes'][0].name.lower()}{i}"].to(device) # "text0", "text1"
+            x = batch[f"x{i}"].to(device)
             padding_mask = batch[f'padding_mask{i}'].to(device) if f'padding_mask{i}' in batch else None # "padding_mask0", "padding_mask1"
             # encoding also normalizes the output
-            emb = model.encode_modality(modes=batch['modes'], source=source, padding_mask=padding_mask, normalize=True)
+            emb = model.encode_modality(x=x, modality=batch['modality'], padding_mask=padding_mask, normalize=True)
             embedding_tables[i].append(emb.detach().cpu())
 
     return torch.cat(embedding_tables[0], 0), torch.cat(embedding_tables[1], 0)
 
 @rank_zero_only
-def unimodal_zero_shot_pair_retrieval(model:KDMMData2Vec,
+def unimodal_zero_shot_pair_retrieval(model:KDData2Vec,
                                       datamodule:LightningDataModule,
                                       device:str,
                                       name:str) -> Dict[str, float]:

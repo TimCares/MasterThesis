@@ -8,8 +8,7 @@ from pytorch_lightning import seed_everything, Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, ModelSummary
 from pytorch_lightning.loggers import WandbLogger
 
-from multimodal_data2vec_ds import KDMMData2VecConfig, KDData2VecPreTrainingLightningModule
-from data2vec_fairseq.data.modality import Modality
+from kd_data2vec import KDData2VecConfig, KDData2VecPreTrainingLightningModule
 from datamodules import DATAMODULE_REGISTRY
 from multi_data_loader import MultiDataModule
 from callbacks import ZeroShotRetrievalCallback, WallClockCallback
@@ -28,7 +27,7 @@ def main(cfg: DictConfig) -> None:
                                save_dir=cfg.log_dir,
                                log_model=False,)
     
-    cfg.model = merge_with_parent(dc=KDMMData2VecConfig(), cfg=cfg.model, remove_missing=False)
+    cfg.model = merge_with_parent(dc=KDData2VecConfig(), cfg=cfg.model, remove_missing=False)
     if 'seed' in cfg and cfg.seed is not None:
         seed_everything(seed=cfg.seed, workers=True)
     else:
