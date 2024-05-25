@@ -105,10 +105,8 @@ zero_shot_val:
 
   datamodules: # dataloader args are taken from top-level key "data"
     qqp:
-      modality: TEXT
       num_max_bpe_tokens: ${nlp_context_length}
     mrpc:
-      modality: TEXT
       num_max_bpe_tokens: ${nlp_context_length}
     # cifar10: {}
     # cifar100: {}

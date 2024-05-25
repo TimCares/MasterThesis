@@ -43,12 +43,10 @@ def main(cfg: DictConfig) -> None:
 
     val_cfg = cfg.zero_shot_val
     zero_shot_modules = dict()
-    zero_shot_modules_modalities = dict()
     val_dataloader_args = val_cfg.dataloader
     for name in val_cfg.datamodules:
         with open_dict(val_dataloader_args):
             datamodule_cfg = val_cfg.datamodules[name]
-            zero_shot_modules_modalities[name] = Modality[val_dataloader_args.pop('modality')]
             # override general dataloader args with dataloader specific args (if present)
             args = OmegaConf.merge(val_dataloader_args, datamodule_cfg)
 
@@ -63,7 +61,6 @@ def main(cfg: DictConfig) -> None:
         WallClockCallback(), # before zero-shot, so that we measure only the training batch time
         ZeroShotRetrievalCallback(
             datamodules=zero_shot_modules,
-            modalities=zero_shot_modules_modalities,
             val_every_n_batches=val_cfg.val_every_n_batches,),
         ModelCheckpoint(
                 **OmegaConf.to_container(cfg.checkpoint, resolve=True)

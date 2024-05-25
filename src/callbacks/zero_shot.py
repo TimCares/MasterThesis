@@ -224,11 +224,9 @@ class ZeroShotCallback(Callback):
     def __init__(
             self,
             datamodules: Dict[str, LightningDataModule],
-            modalities: Dict[str, Modality],
             val_every_n_batches:int,):
         super().__init__()
         self.datamodules = datamodules
-        self.modalities = modalities
         self.val_every_n_batches = val_every_n_batches
 
     def on_train_batch_end(self, trainer:Trainer, pl_module:LightningModule, outputs, batch, batch_idx):
@@ -253,9 +251,12 @@ class ZeroShotCallback(Callback):
 class ZeroShotRetrievalCallback(ZeroShotCallback):
     def validate(self, trainer, pl_module) -> None:
         super().validate(trainer, pl_module)
-        all_metrics = {modality.name.lower(): [] for modality in set(self.modalities.values())}
+        all_metrics_for_modality = dict()
         for name_key in self.datamodules.keys():
-            modality = self.modalities[name_key]
+            modality:Modality = self.datamodules[name_key].modality
+            if modality.name.lower() not in all_metrics_for_modality.keys():
+                all_metrics_for_modality[modality.name.lower()] = []
+            
             if modality != Modality.VL:
                 if name_key not in ['qqp', 'mrpc']:
                     metrics = unimodal_zero_shot_retrieval(
@@ -281,15 +282,15 @@ class ZeroShotRetrievalCallback(ZeroShotCallback):
                     rank_zero_only=True,
                     on_step=True,
                     )
-                all_metrics[modality.name.lower()].append(metrics[metric_key])
+                all_metrics_for_modality[modality.name.lower()].append(metrics[metric_key])
         
-        if len(all_metrics.keys()) > 1:
+        if len(all_metrics_for_modality.keys()) > 1:
             mean_scores = []
         else:
             mean_scores = None
         
-        for modality in all_metrics.keys():
-            mean_score = np.mean(all_metrics[modality])
+        for modality in all_metrics_for_modality.keys():
+            mean_score = np.mean(all_metrics_for_modality[modality])
             pl_module.log(
                 f"val/unimodal-{modality}-mean-retrieval--zeroshot",
                 mean_score,

@@ -4,6 +4,7 @@ from typing import Tuple, Dict, Any, List
 from datasets_ import IMDBDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, OpenWebTextDataset, QQPDataset, MRPCDataset
 from datasets_ import DATASET_REGISTRY
 from functools import partial
+from data2vec_fairseq.data.modality import Modality
 
 class BaseDataModule(LightningDataModule):
     def __init__(self,
@@ -30,6 +31,10 @@ class BaseDataModule(LightningDataModule):
 
     def set_test_dataset(self):
         pass # optional: not all datasets have a test set
+
+    @property
+    def modality(self) -> Modality:
+        raise NotImplementedError
 
     def prepare_data(self):
         if not self.prepared:
@@ -122,6 +127,10 @@ class QQPDataModule(BaseDataModule):
         super().__init__(data_path, *args, **kwargs)
         self.num_max_bpe_tokens = num_max_bpe_tokens
 
+    @property
+    def modality(self) -> Modality:
+        raise Modality.TEXT
+
     def prepare_data(self):
         self.set_train_dataset()
         self.set_test_dataset()
@@ -151,6 +160,10 @@ class MRPCDataModule(BaseDataModule):
                  **kwargs):
         super().__init__(data_path, *args, **kwargs)
         self.num_max_bpe_tokens = num_max_bpe_tokens
+
+    @property
+    def modality(self) -> Modality:
+        raise Modality.TEXT
 
     def prepare_data(self):
         self.set_train_dataset()
@@ -208,6 +221,10 @@ class CIFARDataModule(BaseDataModule):
         super().__init__(data_path, *args, **kwargs)
         assert type in ['cifar10', 'cifar100'], "Cifar dataset type must be in ['cifar10', 'cifar100']."
         self.type = type
+
+    @property
+    def modality(self) -> Modality:
+        raise Modality.IMAGE
 
     def prepare_data(self): # only for validation datasets
         self.set_train_dataset()
