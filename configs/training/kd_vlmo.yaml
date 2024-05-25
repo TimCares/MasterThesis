@@ -11,22 +11,17 @@ defaults:
   - override hydra/hydra_logging: colorlog
 
 dry_run: False
-base_dir: "/workspace"
+base_dir: /workspace
 model_path: ${base_dir}/models
 data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: img_nrmd_cos_lr_1e4_no_reg_block_ffn_targets
+run_name: vl
 
 load_checkpoint:
 
-nlp_context_length: 512
-
-image_transforms:
-  beit_transforms: False
-  no_transform: False
-  transform_jitter: False
+nlp_context_length: 196
 
 model:
   pretrained_path: ${model_path}
@@ -35,58 +30,74 @@ model:
     image: base_imagenet.pt
     text: nlp_base.pt
 
+  max_text_tokens: ${nlp_context_length}
+
   supported_modalities:
-    # - AUDIO
-    - IMAGE
-    # - TEXT
+    - VL
 
-  prediction_mode: MEAN_POOLING
-  cls_loss_weight: 0.0 # 0.0 -> ignored/not used
-  loss_fn: cosine_similarity # cosine_similarity or mse
+  block_init_cfg:
+    init_from: IMAGE
+    # Only relevant if "init_from" not None: If "block_indices" is None,
+    # 'attention' -> only attention layers are initialized from pretrained,
+    # if 'block', then whole Transformer blocks are initialized
+    init_type: attention
+    # Only relevant if "init_from" not None: If "block_indices" is None,
+    # then all init blocks (can also be just attention layers) are initialized
+    block_indices:
+    # Only relevant if "init_from" not None: If "block_indices" is None,
+    # If None, then all init blocks (can also be just attention layers) are frozen,
+    # if empty list, then no blocks are frozen
+    freeze_blocks:
 
-  encoders_embed_dim: 768
+  mask: False # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
+  # if True we do MaskedKD
+
+  # relevant if "mask" is True:
+  inverse_masking: False # if True, then the student gets the masked input, and the saliency score is computed from the teacher output
+  frac_keep_tokens: 0.6
+  norm_first: False # whether to normalize along all timesteps (True), or only the ones that are kept (False)
+  final_attn_layer_saliency_score: False # whether to use the final attention layer saliency score for masking (True) or the average of all layers (False)
+
   embed_dim: 768
-  depth: 5
-  num_heads: 8 
-  mlp_ratio: 3 # 3.0 or 4.0
-  encoder_dropout: 0.0
+
+  depth: 6
+  num_heads: 12 
+  mlp_ratio: 4.0
+  encoder_dropout: 0.1
   dropout_input: 0.0
   attention_dropout: 0.0
-  activation_dropout: 0.0
-  post_mlp_drop: 0.0
+  activation_dropout: 0.1
+  post_mlp_drop: 0.1
   norm_eps: 1e-6
   norm_affine: True
   layer_norm_first: False
-  loss_scale: # Set to None -> Scaled by 1 / sqrt(embed_dim) (done for audio and image but not for text in the original implementation)
   start_drop_path_rate: 0
   end_drop_path_rate: 0
   layerdrop: 0.0
-
-  end_of_block_targets: False
-
-  modality_encoder_proj: False
 
   seed: ${seed}
 
 data:
   dataloader:
     data_path: ${data_path}
-    # batch_size: 256
-    num_workers: 12
+    batch_size: 256
+    num_workers: 6
     shuffle: True
     drop_last: True
 
   datamodules:
-    # kd_text_datamodule: openwebtext
-    kd_image_datamodule: imagenet
-    # kd_audio_datamodule: librispeech
+    openwebtext:
+      num_max_bpe_tokens: ${nlp_context_length}
+      sample_break_mode: none
+
+    imagenet:
+      pretraining: True
+      beit_transforms: False
+      crop_scale: [0.08, 1.0]
 
 zero_shot_val:
-  # n_neighbors: 20
   data_path: ${base_dir}
-  # num_max_bpe_tokens: ${nlp_context_length}
-  # is_multimodal_aligned: False
-  val_every_n_batches: 2_000
+  val_every_n_batches: 5_000
 
   dataloader:
     data_path: ${data_path}
@@ -95,9 +106,11 @@ zero_shot_val:
     shuffle: False
     drop_last: False
 
-  datamodules: # dataloder args are taken from top-level key "data"
-    # qqp:
-    #   num_max_bpe_tokens: ${nlp_context_length}
+  datamodules:
+    qqp:
+      num_max_bpe_tokens: ${nlp_context_length}
+    mrpc:
+      num_max_bpe_tokens: ${nlp_context_length}
     cifar10: {}
     cifar100: {}
     # speechcommands:
@@ -120,25 +133,27 @@ checkpoint:
   auto_insert_metric_name: False
 
 optimizer:
-  lr: 0.0001 # -> 1e-4
+  lr: 0.0005 # -> 5e-4
   betas: [ 0.9,0.98 ]
   eps: 1e-06
   weight_decay: 0.01
-  warmup: False
+  warmup: True
 
-optimizer_schedule:
-  warmup_steps: 2_500
+optimizer_schedule: # relevant if "optimizer.warmup" is True
+  type: cosine # constant or cosine
+  warmup_steps: 4_000
   max_steps: ${lightning_trainer.max_steps}
 
 lightning_trainer:
   default_root_dir: ${log_dir}
   accelerator: gpu
   devices: -1
-  #strategy: ddp # -> automatically used if multiple GPUs are available -> devices: -1
-  max_steps: 5_000
+  strategy: deepspeed_stage_2
+  max_steps: 40_000
   val_check_interval: # None -> no validation
   num_sanity_val_steps: 0 # mean test running "num_sanity_val_steps" batches of the validation dataloaders, but here we have no classical validation
   limit_val_batches: 0 # no classical validation
   precision: 16-mixed
-  # gradient_clip_val: 4.0 # can be a little higher, as some parts are pre-trained(?) DistillBERT has 5.0
+  gradient_clip_val: 2.0
   log_every_n_steps: 50
+  #accumulate_grad_batches: 2 # 128*2 = 256
