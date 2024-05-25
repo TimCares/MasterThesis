@@ -9,6 +9,8 @@ from pytorch_lightning import Callback, LightningDataModule, Trainer, LightningM
 from pytorch_lightning.utilities import rank_zero_only
 from typing import Dict
 import os
+import sys
+sys.path.append('..')
 from data.imagenet_zeroshot_data import (
     imagenet_classnames,
     openai_imagenet_template,
