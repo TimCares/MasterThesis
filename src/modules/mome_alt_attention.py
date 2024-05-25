@@ -1,8 +1,8 @@
-import torch
 import torch.nn as nn
 from data2vec_fairseq.models.modalities.modules import AltAttention, AltBlock
 import logging
 from timm.models.vision_transformer import DropPath, Mlp
+from data2vec_fairseq.data.modality import Modality
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +25,14 @@ class MOMEAltBlock(nn.Module):
         norm_layer=nn.LayerNorm,
         layer_norm_first=True,
         cosine_attention=False,
-        num_max_nlp_tokens=512,
-        with_vl=False,
+        with_fuzed=False,
     ):
         super().__init__()
 
         self.layer_norm_first = layer_norm_first
-        self.num_max_nlp_tokens = num_max_nlp_tokens
-        self.with_vl = with_vl
+        self.with_fuzed = with_fuzed
 
-        if self.with_vl:
+        if self.with_fuzed:
             self.experts = ['vl']
         else:
             self.experts = ['image', 'text']
@@ -67,38 +65,26 @@ class MOMEAltBlock(nn.Module):
 
         self.attention_pretrained = False
 
-    def forward(self, x, modality:str, padding_mask=None, alibi_bias=None):
-        x = x + self.drop_path(self.attn(x, padding_mask, alibi_bias))
-
-        if modality in ['image', 'text'] or self.with_vl:
-            r = x = self.norm1[modality](x)
-            x = self.mlp[modality](x)
-            t = x
-            x = self.norm2[modality](r + self.drop_path(self.post_mlp_dropout[modality](x)))
+    def forward(self, x, modality:Modality, padding_mask=None, alibi_bias=None):
+        if self.with_fuzed:
+            modality = Modality.VL.name.lower()
         else:
-            x_text = x[:, : self.num_max_nlp_tokens]
-            x_image = x[:, self.num_max_nlp_tokens :]
-            mlp_result = []
-            x = []
-            for x_modality in [x_text, x_image]:
-                r = x_modality = self.norm1[modality](x_modality)
-                x_modality = self.mlp[modality](x_modality)
-                t = x_modality
-                x_modality = self.norm2[modality](r + self.drop_path(self.post_mlp_dropout[modality](x_modality)))
-
-                mlp_result.append(t)
-                x.append(x_modality)
-            
-            t = torch.cat(mlp_result, dim=1)
-            x = torch.cat(x, dim=1)
+            modality = modality.name.lower()
+        
+        x = x + self.drop_path(self.attn(x, padding_mask, alibi_bias))
+        r = x = self.norm1[modality](x)
+        x = self.mlp[modality](x)
+        t = x
+        x = self.norm2[modality](r + self.drop_path(self.post_mlp_dropout[modality](x)))
 
         return x, t
     
-    def init_from_pretrained(self, pretained_block:AltBlock, mode:str, init_attention:bool) -> None:
-        self.norm1[mode] = pretained_block.norm1
-        self.norm2[mode] = pretained_block.norm2
-        self.mlp[mode] = pretained_block.mlp
-        self.post_mlp_dropout[mode] = pretained_block.post_mlp_dropout
+    def init_from_pretrained(self, pretained_block:AltBlock, modality:Modality, init_attention:bool) -> None:
+        modality = modality.name.lower()
+        self.norm1[modality] = pretained_block.norm1
+        self.norm2[modality] = pretained_block.norm2
+        self.mlp[modality] = pretained_block.mlp
+        self.post_mlp_dropout[modality] = pretained_block.post_mlp_dropout
 
         if init_attention and not self.attention_pretrained:
             self.attn = pretained_block.attn
