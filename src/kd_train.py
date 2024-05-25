@@ -9,6 +9,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, Mo
 from pytorch_lightning.loggers import WandbLogger
 
 from multimodal_data2vec_ds import KDMMData2VecConfig, KDData2VecPreTrainingLightningModule
+from data2vec_fairseq.data.modality import Modality
 from datamodules import DATAMODULE_REGISTRY
 from multi_data_loader import MultiDataModule
 from callbacks import ZeroShotRetrievalCallback, WallClockCallback
@@ -42,11 +43,14 @@ def main(cfg: DictConfig) -> None:
 
     val_cfg = cfg.zero_shot_val
     zero_shot_modules = dict()
+    zero_shot_modules_modalities = dict()
     val_dataloader_args = val_cfg.dataloader
     for name in val_cfg.datamodules:
         with open_dict(val_dataloader_args):
+            datamodule_cfg = val_cfg.datamodules[name]
+            zero_shot_modules_modalities[name] = Modality[val_dataloader_args.pop('modality')]
             # override general dataloader args with dataloader specific args (if present)
-            args = OmegaConf.merge(val_dataloader_args, val_cfg.datamodules[name])
+            args = OmegaConf.merge(val_dataloader_args, datamodule_cfg)
 
         zero_shot_modules[name] = DATAMODULE_REGISTRY[name](**args)
         logger.info(f"Zero-shot datamodule {name}: {args}")
@@ -59,6 +63,7 @@ def main(cfg: DictConfig) -> None:
         WallClockCallback(), # before zero-shot, so that we measure only the training batch time
         ZeroShotRetrievalCallback(
             datamodules=zero_shot_modules,
+            modalities=zero_shot_modules_modalities,
             val_every_n_batches=val_cfg.val_every_n_batches,),
         ModelCheckpoint(
                 **OmegaConf.to_container(cfg.checkpoint, resolve=True)
