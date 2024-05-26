@@ -80,7 +80,10 @@ class MOMEAltBlock(nn.Module):
         return x, t
     
     def init_from_pretrained(self, pretained_block:AltBlock, modality:Modality, init_attention:bool) -> None:
-        modality = modality.name.lower()
+        if self.with_fuzed:
+            modality = Modality.VL.name.lower()
+        else:
+            modality = modality.name.lower()
         self.norm1[modality] = pretained_block.norm1
         self.norm2[modality] = pretained_block.norm2
         self.mlp[modality] = pretained_block.mlp

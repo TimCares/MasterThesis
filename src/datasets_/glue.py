@@ -48,8 +48,8 @@ class GLUE(BaseDataset):
         shutil.rmtree(f'{self.path_to_data}/datasets')
             
     @property
-    def modes(self) -> List[Modality]:
-        return [Modality.TEXT]
+    def modality(self) -> Modality:
+        return Modality.TEXT
     
     def _make_index(self, bpe_encoder: BPEEncoder) -> List[Dict[str, Any]]:
         raise NotImplementedError()
@@ -95,7 +95,7 @@ class CoLA(GLUE):
             tokens = bpe_encoder.encode(text)
             language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_tokens_upper_bound,
                                                               pad_idx=self.pad_token_id, bos_idx=self.bos_token_id)
-            items.append({'text': language_tokens,
+            items.append({'x': language_tokens,
                           'padding_mask': padding_mask,
                           'target': target})
             
@@ -119,7 +119,7 @@ class SST(GLUE):
             tokens = bpe_encoder.encode(text)
             language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_tokens_upper_bound,
                                                                 pad_idx=self.pad_token_id, bos_idx=self.bos_token_id)
-            items.append({'text': language_tokens,
+            items.append({'x': language_tokens,
                           'padding_mask': padding_mask,
                           'target': target})
             
@@ -156,7 +156,7 @@ class QNLI(GLUE):
                                                               pad_idx=self.pad_token_id, bos_idx=self.bos_token_id)
             assert self.eos_token_id in language_tokens # both text and question should still be there after potential truncation
 
-            items.append({'text': language_tokens,
+            items.append({'x': language_tokens,
                           'padding_mask': padding_mask,
                           'target': target})
         
@@ -195,7 +195,7 @@ class RTE(GLUE):
                                                               pad_idx=self.pad_token_id, bos_idx=self.bos_token_id)
             assert self.eos_token_id in language_tokens # both text and question should still be there after potential truncation
 
-            items.append({'text': language_tokens,
+            items.append({'x': language_tokens,
                           'padding_mask': padding_mask,
                           'target': target})
         
@@ -275,7 +275,7 @@ class QQP(GLUE):
                                                               pad_idx=self.pad_token_id, bos_idx=self.bos_token_id)
             assert self.eos_token_id in language_tokens # both text and question should still be there after potential truncation
 
-            items.append({'text': language_tokens,
+            items.append({'x': language_tokens,
                           'padding_mask': padding_mask,
                           'target': example['is_duplicate']})
             
