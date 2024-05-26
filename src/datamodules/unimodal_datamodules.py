@@ -129,7 +129,7 @@ class QQPDataModule(BaseDataModule):
 
     @property
     def modality(self) -> Modality:
-        raise Modality.TEXT
+        return Modality.TEXT
 
     def prepare_data(self):
         self.set_train_dataset()
@@ -163,7 +163,7 @@ class MRPCDataModule(BaseDataModule):
 
     @property
     def modality(self) -> Modality:
-        raise Modality.TEXT
+        return Modality.TEXT
 
     def prepare_data(self):
         self.set_train_dataset()
@@ -224,7 +224,7 @@ class CIFARDataModule(BaseDataModule):
 
     @property
     def modality(self) -> Modality:
-        raise Modality.IMAGE
+        return Modality.IMAGE
 
     def prepare_data(self): # only for validation datasets
         self.set_train_dataset()
