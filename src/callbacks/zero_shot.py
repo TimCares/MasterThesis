@@ -3,7 +3,7 @@ from typing import Tuple, Callable
 import logging
 import torch
 import numpy as np
-from src.kd_data2vec import KDData2Vec
+from kd_data2vec import KDData2Vec
 from torch.utils.data import DataLoader
 from pytorch_lightning import Callback, LightningDataModule, Trainer, LightningModule
 from pytorch_lightning.utilities import rank_zero_only
