@@ -14,7 +14,6 @@ from data2vec_fairseq.models.modalities.base import ModalitySpecificEncoder
 from data2vec_fairseq.models.data2vec2 import Data2VecMultiModel
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 import contextlib
-from copy import deepcopy
 
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from data2vec_fairseq.models.modalities.modules import AltBlock
@@ -484,7 +483,7 @@ class KDData2Vec(nn.Module):
             if init_cfg.init_type == 'attention':
                 self.blocks[idx].attn = d2v_model.blocks[idx].attn
             else:
-                self.blocks.append(deepcopy(d2v_model.blocks[idx]))
+                self.blocks.append(d2v_model.blocks[idx])
 
         self.blocks = nn.ModuleList(self.blocks)
 
