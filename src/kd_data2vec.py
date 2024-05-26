@@ -124,12 +124,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
 
         loss = self.kd_loss(input=pred, target=target)
         self.log("train/loss", loss, prog_bar=True)
-        if batch['modality'] == Modality.IMAGE:
-            self.log("train/loss_img", loss, prog_bar=True)
-        elif batch['modality'] == Modality.AUDIO:
-            self.log("train/loss_audio", loss, prog_bar=True)
-        elif batch['modality'] == Modality.TEXT:
-            self.log("train/loss_text", loss, prog_bar=True)
+        self.log(f"train/loss_{modality_str}", loss, prog_bar=True)
         return loss
                 
     
