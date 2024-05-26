@@ -490,14 +490,6 @@ class KDData2Vec(nn.Module):
             else:
                 self.blocks.append(deepcopy(d2v_model.blocks[idx]))
 
-        n_blocks_missing = self.cfg.depth - len(take_block_indices)
-        if n_blocks_missing > 0:
-            assert init_cfg.init_type == 'block', "Only 'block' initialization supports adding new blocks"
-            logger.info(f"Adding {n_blocks_missing} new blocks")
-            dpr = np.linspace(self.cfg.start_drop_path_rate, self.cfg.end_drop_path_rate, n_blocks_missing)
-            for i in range(n_blocks_missing):
-                self.blocks.append(self.make_block(dpr[i]))
-
         self.blocks = nn.ModuleList(self.blocks)
 
         if init_cfg.freeze_blocks is None:
