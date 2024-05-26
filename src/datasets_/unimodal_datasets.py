@@ -14,6 +14,7 @@ from bpe_encoder import encode, get_bpe_encoder
 from utils import pad_text_sequence
 from torchvision.datasets.utils import download_url
 import pandas as pd
+import zipfile
 
 from fairseq.data import Dictionary, ConcatDataset
 from fairseq_cli.preprocess import preprocess
@@ -174,7 +175,8 @@ class QQPDataset(BaseDataset): # used for zero-shot validation, not as GLUE benc
         URL='https://dl.fbaipublicfiles.com/glue/data/QQP-clean.zip'
         download_url(url=URL, root=self.path_to_data)
         filepath = os.path.join(self.path_to_data, os.path.basename(URL))
-        os.system(f"unzip {filepath} -d {self.path_to_data}")
+        with zipfile.ZipFile(filepath, 'r') as zip:
+            zip.extractall(self.path_to_data)
         os.remove(filepath)
 
         path = os.path.join(self.path_to_data, 'QQP', f'{self.split}.tsv')
