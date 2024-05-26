@@ -94,7 +94,7 @@ zero_shot_val:
   data_path: ${base_dir}
   # num_max_bpe_tokens: ${nlp_context_length}
   # is_multimodal_aligned: False
-  val_every_n_batches: 2_000
+  val_every_n_batches: 5_000
 
   dataloader:
     data_path: ${data_path}
