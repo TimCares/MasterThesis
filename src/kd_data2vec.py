@@ -482,11 +482,7 @@ class KDData2Vec(nn.Module):
 
         for idx in take_block_indices:
             if init_cfg.init_type == 'attention':
-                if init_cfg.freeze_blocks is not None and idx not in init_cfg.freeze_blocks:
-                    attn_block = deepcopy(d2v_model.blocks[idx].attn)
-                else:
-                    attn_block = d2v_model.blocks[idx].attn
-                self.blocks[idx].attn = attn_block
+                self.blocks[idx].attn = d2v_model.blocks[idx].attn
             else:
                 self.blocks.append(deepcopy(d2v_model.blocks[idx]))
 
