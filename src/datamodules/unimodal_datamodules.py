@@ -200,16 +200,22 @@ class OpenWebTextDataModule(BaseDataModule):
     def prepare_data(self):
         if not self.prepared:
             self.set_train_dataset()
+            self.set_val_dataset()
 
             self.prepared = True
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
             self.train_dataset.load()
+            self.val_dataset.load()
 
     def set_train_dataset(self):
         self.train_dataset = OpenWebTextDataset(data_path=self.data_path, split='train', num_max_bpe_tokens=self.num_max_bpe_tokens,
                                                 sample_break_mode=self.sample_break_mode)
+        
+    def set_val_dataset(self):
+        self.val_dataset = OpenWebTextDataset(data_path=self.data_path, split='val', num_max_bpe_tokens=self.num_max_bpe_tokens,
+                                              sample_break_mode=self.sample_break_mode)
 
 
 class CIFARDataModule(BaseDataModule):

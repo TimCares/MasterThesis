@@ -79,7 +79,7 @@ class NLPDataset(BaseDataset):
         return Modality.TEXT
 
     def index_exists(self, dataset_path):
-        if os.path.exists(os.path.join(dataset_path, 'train.bin')) and os.path.exists(os.path.join(dataset_path, 'train.idx')):
+        if os.path.exists(os.path.join(dataset_path, f'{self.split}.bin')) and os.path.exists(os.path.join(dataset_path, f'{self.split}.idx')):
             self.log(f"Data already exists under: {dataset_path}")
             return True
         else:
