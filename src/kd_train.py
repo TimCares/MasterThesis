@@ -10,7 +10,6 @@ from pytorch_lightning.loggers import WandbLogger
 
 from kd_data2vec import KDData2VecConfig, KDData2VecPreTrainingLightningModule
 from datamodules import DATAMODULE_REGISTRY
-from multi_data_loader import MultiDataModule
 from callbacks import ZeroShotRetrievalCallback, WallClockCallback
 
 from fairseq.dataclass.utils import merge_with_parent
@@ -40,17 +39,18 @@ def main(cfg: DictConfig) -> None:
 
     OmegaConf.resolve(cfg=cfg) # resolving done in-place
 
-    val_cfg = cfg.zero_shot_val
-    zero_shot_modules = dict()
-    val_dataloader_args = val_cfg.dataloader
-    for name in val_cfg.datamodules:
-        with open_dict(val_dataloader_args):
-            datamodule_cfg = val_cfg.datamodules[name]
-            # override general dataloader args with dataloader specific args (if present)
-            args = OmegaConf.merge(val_dataloader_args, datamodule_cfg)
+    if 'zero_shot_val' in cfg:
+        val_cfg = cfg.zero_shot_val
+        zero_shot_modules = dict()
+        val_dataloader_args = val_cfg.dataloader
+        for name in val_cfg.datamodules:
+            with open_dict(val_dataloader_args):
+                datamodule_cfg = val_cfg.datamodules[name]
+                # override general dataloader args with dataloader specific args (if present)
+                args = OmegaConf.merge(val_dataloader_args, datamodule_cfg)
 
-        zero_shot_modules[name] = DATAMODULE_REGISTRY[name](**args)
-        logger.info(f"Zero-shot datamodule {name}: {args}")
+            zero_shot_modules[name] = DATAMODULE_REGISTRY[name](**args)
+            logger.info(f"Zero-shot datamodule {name}: {args}")
 
     dataloader_args = cfg.data.dataloader
 
@@ -58,15 +58,20 @@ def main(cfg: DictConfig) -> None:
         ModelSummary(),
         LearningRateMonitor(logging_interval="step"),
         WallClockCallback(), # before zero-shot, so that we measure only the training batch time
-        ZeroShotRetrievalCallback(
-            datamodules=zero_shot_modules,
-            val_every_n_batches=val_cfg.val_every_n_batches,),
+    ]
+    if 'zero_shot_val' in cfg:
+        callbacks.append(
+            ZeroShotRetrievalCallback(
+                datamodules=zero_shot_modules,
+                val_every_n_batches=val_cfg.val_every_n_batches,),
+        )
+    # checkpoint last, so that zero shot has been performed before saving 
+    # (ModelCheckpoint usually executed last automatically, but just to be sure)
+    callbacks.append(
         ModelCheckpoint(
                 **OmegaConf.to_container(cfg.checkpoint, resolve=True)
             )
-        # checkpoint last, so that zero shot has been performed before saving 
-        # (ModelCheckpoint usually executed last automatically, but just to be sure)
-    ]
+    )        
 
     torch.set_float32_matmul_precision("high") # or: "highest"
     trainer = Trainer(
@@ -80,21 +85,19 @@ def main(cfg: DictConfig) -> None:
     wandb.save('kd_data2vec.py') # saves the model file to wandb
 
     datamodules = []
-    if cfg.dry_run is not None and cfg.dry_run:
-        datamodules.append(DATAMODULE_REGISTRY['dummy']())
-    else:
-        for datamodule_key in cfg.data.datamodules.keys():
-            dataset_args = cfg.data.datamodules[datamodule_key]
-            with open_dict(dataset_args):
-                dataset_args.update(dataloader_args)
-            datamodules.append(DATAMODULE_REGISTRY[datamodule_key](**dataset_args))
-            logger.info(f"Train datamodule {datamodule_key}: {dataset_args}")
+    for datamodule_key in cfg.data.datamodules.keys():
+        dataset_args = cfg.data.datamodules[datamodule_key]
+        with open_dict(dataset_args):
+            dataset_args.update(dataloader_args)
+        datamodules.append(DATAMODULE_REGISTRY[datamodule_key](**dataset_args))
+        logger.info(f"Train datamodule {datamodule_key}: {dataset_args}")
     
-    multi_datamodule = MultiDataModule(datamodules=datamodules)
+    assert len(datamodules) == 1
+    datamodule = datamodules[0]
 
     logger.info("Setting up datamodules:")
-    multi_datamodule.prepare_data()
-    multi_datamodule.setup("fit")
+    datamodule.prepare_data()
+    datamodule.setup("fit")
     logger.info("Datamodule setup complete.")
 
     if 'load_checkpoint' in cfg and cfg.load_checkpoint is not None:
@@ -103,7 +106,9 @@ def main(cfg: DictConfig) -> None:
     else:
         ckpt_path = None
 
-    trainer.fit(module, train_dataloaders=multi_datamodule.train_dataloader(), ckpt_path=ckpt_path)
+    trainer.fit(module,
+                datamodule=datamodule,
+                ckpt_path=ckpt_path)
 
 
 if __name__ == "__main__":

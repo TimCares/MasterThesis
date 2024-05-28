@@ -122,8 +122,47 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         
 
         loss = self.kd_loss(input=pred, target=target)
-        self.log("train/loss", loss, prog_bar=True)
-        self.log(f"train/loss_{modality_str}", loss, prog_bar=True)
+        self.log("train/loss", loss, prog_bar=True, batch_size=batch['x'].size(0))
+        self.log(f"train/loss_{modality_str}", loss, prog_bar=True, batch_size=batch['x'].size(0))
+        return loss
+    
+    def validation_step(self, batch:Dict[str, Any], batch_idx:int):
+        if 'target' in batch:
+            batch.pop('target') # unused, layer activations are the targets
+        model_mask_state = self.model.cfg.mask
+        self.model.cfg.mask = False
+        output_dict = self.model(**batch,
+                                 features_only=False,
+                                 return_encoder_output=True,
+                                 feature_extractor_only=False)
+        self.model.cfg.mask = model_mask_state
+
+        modality:Modality = batch['modality']
+        modality_str = modality.name.lower()
+
+        # in output_dict, because "return_encoder_output=True"
+        precomputed_encoder_output = output_dict['encoder_output']
+
+        with torch.no_grad():
+            target = self.teachers[modality_str].extract_features(
+                source=batch['x'],
+                mode=None, # determined automatically in model
+                padding_mask=None, # the padding mask is provided in the precomputed_encoder_output and used by the teacher model
+                mask=False, # we are creating targets from a teacher model for the student model, so no mask
+                remove_extra_tokens=False, # special tokens are also regressed
+                precomputed_encoder_output=precomputed_encoder_output,
+                masked_kd=False,
+                return_final_attn_scores=False
+            )
+        
+        target = target['layer_results']
+        target = prepare_output(target, modality)
+
+        pred = output_dict['layer_results']
+        pred = prepare_output(pred, modality)
+        
+        loss = self.kd_loss(input=pred, target=target)
+        self.log("val/loss", loss, prog_bar=True, batch_size=batch['x'].size(0))
         return loss
                 
     
@@ -529,6 +568,7 @@ class KDData2Vec(nn.Module):
     def prepare_fine_tuning(self, keep_modality:Modality) -> None:
         self.fine_tuning = True
         self.cfg.mask = False
+        self.cfg.inverse_masking = False
         self._remove_modalities_except(keep_modality=keep_modality)
         self._unfreeze(self)
 
@@ -541,5 +581,5 @@ class KDData2Vec(nn.Module):
         # comparison done on name basis, as on "enum" basis yields problems after serialization
         for modality in self.supported_modalities:
             modality_str = modality.name.lower()
-            if modality_str != keep_modality:
+            if modality_str != keep_modality.name.lower():
                 del self.modality_encoders[modality_str] # includes removing the decoder
