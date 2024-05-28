@@ -25,17 +25,22 @@ class MOMEAltBlock(nn.Module):
         norm_layer=nn.LayerNorm,
         layer_norm_first=True,
         cosine_attention=False,
+        multimodal=False,
         with_fuzed=False,
     ):
         super().__init__()
 
         self.layer_norm_first = layer_norm_first
+        self.multimodal = multimodal
         self.with_fuzed = with_fuzed
 
-        if self.with_fuzed:
-            self.experts = ['vl']
+        if self.multimodal:
+            if self.with_fuzed:
+                self.experts = ['vl']
+            else:
+                self.experts = ['image', 'text']
         else:
-            self.experts = ['image', 'text']
+            self.experts = ['default'] # applies to whatever modality is used for this block
 
         self.attn = AltAttention(
             dim,
@@ -65,11 +70,19 @@ class MOMEAltBlock(nn.Module):
 
         self.attention_pretrained = False
 
-    def forward(self, x, modality:Modality, padding_mask=None, alibi_bias=None):
-        if self.with_fuzed:
-            modality = Modality.VL.name.lower()
+    def _check_modality(self, modality:Modality) -> str:
+        if self.multimodal:
+            if self.with_fuzed:
+                return Modality.VL.name.lower()
+            else:
+                modality_str = modality.name.lower()
+                assert modality_str in self.experts
+                return modality_str
         else:
-            modality = modality.name.lower()
+            return 'default'
+
+    def forward(self, x, modality:Modality, padding_mask=None, alibi_bias=None):
+        modality = self._check_modality(modality)
         
         x = x + self.drop_path(self.attn(x, padding_mask, alibi_bias))
         r = x = self.norm1[modality](x)
@@ -80,17 +93,22 @@ class MOMEAltBlock(nn.Module):
         return x, t
     
     def init_from_pretrained(self, pretained_block:AltBlock, modality:Modality, init_attention:bool) -> None:
-        if self.with_fuzed:
-            modality = Modality.VL.name.lower()
-        else:
-            modality = modality.name.lower()
-        self.norm1[modality] = pretained_block.norm1
-        self.norm2[modality] = pretained_block.norm2
-        self.mlp[modality] = pretained_block.mlp
-        self.post_mlp_dropout[modality] = pretained_block.post_mlp_dropout
+        modality_str = self._check_modality(modality)
 
-        if init_attention and not self.attention_pretrained:
-            self.attn = pretained_block.attn
-            self.attention_pretrained = True
-        elif init_attention and self.attention_pretrained:
+        self.norm1[modality_str] = pretained_block.norm1
+        self.norm2[modality_str] = pretained_block.norm2
+        self.mlp[modality_str] = pretained_block.mlp
+        self.post_mlp_dropout[modality_str] = pretained_block.post_mlp_dropout
+
+        if init_attention:
+            self.init_attention_from_pretrained(pretained_block, modality)
+
+    def init_attention_from_pretrained(self, pretained_block:AltBlock, modality:Modality) -> None:
+        if self.attention_pretrained:
             logger.warning("Attention already initialized from pretrained block, not reinitializing")
+            return
+        
+        modality = self._check_modality(modality)
+
+        self.attn = pretained_block.attn
+        self.attention_pretrained = True
