@@ -90,7 +90,7 @@ class NLPDataset(BaseDataset):
         """
         Load a given dataset split.
         """
-        split_path = os.path.join(self.data_path, self.split)
+        split_path = os.path.join(self.data_path, self.split, self.split)
 
         dataset = load_indexed_dataset(
             split_path,
