@@ -79,17 +79,16 @@ class NLPDataset(BaseDataset):
         return Modality.TEXT
 
     def index_exists(self, dataset_path):
-        if os.path.exists(os.path.join(dataset_path, f'{self.split}.bin')) and os.path.exists(os.path.join(dataset_path, f'{self.split}.idx')):
+        prefix = os.path.join(dataset_path, self.split)
+        if os.path.exists(os.path.join(prefix, f'{self.split}.bin')) and os.path.exists(os.path.join(prefix, f'{self.split}.idx')):
             self.log(f"Data already exists under: {dataset_path}")
             return True
         else:
             return False
           
     def load(self):
-        """Load a given dataset split.
-
-        Args:
-            split (str): name of the split (e.g., train, valid, test)
+        """
+        Load a given dataset split.
         """
         split_path = os.path.join(self.data_path, self.split)
 
