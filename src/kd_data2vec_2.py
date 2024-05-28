@@ -129,18 +129,18 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
     def validation_step(self, batch:Dict[str, Any], batch_idx:int):
         if 'target' in batch:
             batch.pop('target') # unused, layer activations are the targets
-        model_mask = self.model.cfg.mask
+        model_mask_state = self.model.cfg.mask
         self.model.cfg.mask = False
         output_dict = self.model(**batch,
                                  features_only=False,
                                  return_encoder_output=True,
                                  feature_extractor_only=False)
-        self.model.cfg.mask = model_mask
+        self.model.cfg.mask = model_mask_state
 
         modality:Modality = batch['modality']
         modality_str = modality.name.lower()
 
-        # in output_dict, because "return_encoder_output=True" in "forward"
+        # in output_dict, because "return_encoder_output=True"
         precomputed_encoder_output = output_dict['encoder_output']
 
         with torch.no_grad():
@@ -568,6 +568,7 @@ class KDData2Vec(nn.Module):
     def prepare_fine_tuning(self, keep_modality:Modality) -> None:
         self.fine_tuning = True
         self.cfg.mask = False
+        self.cfg.inverse_masking = False
         self._remove_modalities_except(keep_modality=keep_modality)
         self._unfreeze(self)
 
