@@ -22,7 +22,7 @@ from fairseq.criterions.sentence_prediction import (
 )
 
 from data2vec_fairseq.data.modality import Modality
-from kd_data2vec import KDData2Vec, KDData2VecPreTrainingLightningModule
+from kd_data2vec_2 import KDData2Vec, KDData2VecPreTrainingLightningModule
 from transformers.optimization import get_polynomial_decay_schedule_with_warmup
 
 logger = logging.getLogger(__name__)
@@ -161,12 +161,12 @@ class TextClassificationModel(nn.Module):
 
     def forward(
         self,
-        text,
+        x,
         padding_mask,
     ):
         
         x = self.model.extract_features(
-            x=text,
+            x=x,
             modality=Modality.TEXT,
             padding_mask=padding_mask,
             remove_extra_tokens=False, # we keep the bos token -> used by the classification head (but D2V removes it before, so check both)

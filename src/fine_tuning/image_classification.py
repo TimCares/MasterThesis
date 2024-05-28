@@ -12,7 +12,7 @@ import pytorch_lightning as L
 from timm.data import Mixup
 
 from data2vec_fairseq.data.modality import Modality
-from src.kd_data2vec import KDData2Vec, KDData2VecPreTrainingLightningModule
+from kd_data2vec import KDData2Vec, KDData2VecPreTrainingLightningModule
 from data2vec_fairseq.models.mae_image_classification import PredictionMode
 from transformers.optimization import get_cosine_schedule_with_warmup
 
@@ -252,9 +252,9 @@ class ImageClassificationModel(nn.Module):
         return self.head(x)
 
 
-    def model_forward(self, imgs):
+    def model_forward(self, x):
         return self.model.extract_features(
-            x=imgs,
+            x=x,
             modality=Modality.IMAGE,
             remove_extra_tokens=(
                 self.cfg.prediction_mode != PredictionMode.CLS_TOKEN

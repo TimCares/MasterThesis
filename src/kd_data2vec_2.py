@@ -122,17 +122,20 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         
 
         loss = self.kd_loss(input=pred, target=target)
-        self.log("train/loss", loss, prog_bar=True)
-        self.log(f"train/loss_{modality_str}", loss, prog_bar=True)
+        self.log("train/loss", loss, prog_bar=True, batch_size=batch['x'].size(0))
+        self.log(f"train/loss_{modality_str}", loss, prog_bar=True, batch_size=batch['x'].size(0))
         return loss
     
     def validation_step(self, batch:Dict[str, Any], batch_idx:int):
         if 'target' in batch:
             batch.pop('target') # unused, layer activations are the targets
+        model_mask = self.model.cfg.mask
+        self.model.cfg.mask = False
         output_dict = self.model(**batch,
-                                 features_only=True,
+                                 features_only=False,
                                  return_encoder_output=True,
                                  feature_extractor_only=False)
+        self.model.cfg.mask = model_mask
 
         modality:Modality = batch['modality']
         modality_str = modality.name.lower()
@@ -159,7 +162,7 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
         pred = prepare_output(pred, modality)
         
         loss = self.kd_loss(input=pred, target=target)
-        self.log("val/loss", loss, prog_bar=True)
+        self.log("val/loss", loss, prog_bar=True, batch_size=batch['x'].size(0))
         return loss
                 
     
@@ -577,5 +580,5 @@ class KDData2Vec(nn.Module):
         # comparison done on name basis, as on "enum" basis yields problems after serialization
         for modality in self.supported_modalities:
             modality_str = modality.name.lower()
-            if modality_str != keep_modality:
+            if modality_str != keep_modality.name.lower():
                 del self.modality_encoders[modality_str] # includes removing the decoder
