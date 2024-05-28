@@ -115,7 +115,6 @@ class NLPDataset(BaseDataset):
 
         # prepend beginning-of-sentence
         dataset = PrependTokenDataset(dataset, self.dictionary.bos())
-        #dataset = AppendTokenDataset(dataset, self.dictionary.eos()) # -> not done in data2vec
 
         input_dict = {
             "x": RightPadDataset(
@@ -132,7 +131,10 @@ class NLPDataset(BaseDataset):
         return self.dataset[index]
     
     def __len__(self):
-        return len(self.dataset)
+        if self.split=='val':
+            return int(len(self.dataset)*0.15) # shorten validation set for faster validation
+        else:
+            return len(self.dataset)
     
     def collater(self, samples):
         batch = self.dataset.collater(samples)
