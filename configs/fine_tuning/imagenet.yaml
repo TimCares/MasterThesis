@@ -32,7 +32,7 @@ mixup:
   num_classes: 1000
 
 model:
-  model_version: 2024-05-17_18-07-10
+  model_version: 2024-05-29_14-21-50
   linear_classifier: False
   num_classes: 1000
 
