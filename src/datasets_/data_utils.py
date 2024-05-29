@@ -115,14 +115,18 @@ def get_transforms_pretraining(
         )
         transform_train = transforms.Compose(beit_transform_list)
     else:
-        transform_train = transforms.Compose(
-            [
-                transforms.RandomResizedCrop(
-                    size=(224, 224), scale=crop_scale, interpolation=3
-                ),  # 3 is bicubic
-                transforms.RandomHorizontalFlip(),
-            ]
-        )
+        transform_train_list = [
+            transforms.RandomResizedCrop(
+                size=(224, 224), scale=crop_scale, interpolation=3
+            ),  # 3 is bicubic
+            transforms.RandomHorizontalFlip(),
+        ]
+        if color_jitter is not None:
+            transform_train_list.append(
+                transforms.ColorJitter(color_jitter, color_jitter, color_jitter)
+            )
+        transform_train = transforms.Compose(transform_train_list)
+    
     final_transform = transforms.Compose(
         [
             transforms.ToDtype(torch.float32, scale=True),
@@ -132,18 +136,7 @@ def get_transforms_pretraining(
         ]
     )
 
-    if color_jitter is not None and train:
-        transform_jitter = transforms.ColorJitter(color_jitter, color_jitter, color_jitter)
-        return transforms.Compose(
-            [
-                transform_prepare,
-                transform_train,
-                transform_jitter,
-                final_transform,
-            ]
-        )
-    else:
-        return transforms.Compose([transform_prepare, transform_train, final_transform])
+    return transforms.Compose([transform_prepare, transform_train, final_transform])
 
 def get_transforms_finetuning(
         train,

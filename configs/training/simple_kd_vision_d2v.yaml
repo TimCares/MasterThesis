@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: half_base_init
+run_name: vision_block_init_mask_w_val
 
 load_checkpoint:
 
@@ -49,12 +49,12 @@ model:
     # if empty list, then no blocks are frozen
     freeze_blocks: []
 
-  mask: False # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
+  mask: True # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
   # if True we do MaskedKD
 
   # relevant if "mask" is True:
   inverse_masking: False # if True, then the student gets the masked input, and the saliency score is computed from the teacher output
-  frac_keep_tokens: 0.8
+  frac_keep_tokens: 0.6
   norm_first: False # whether to normalize along all timesteps (True), or only the ones that are kept (False)
   final_attn_layer_saliency_score: False # whether to use the final attention layer saliency score for masking (True) or the average of all layers (False)
 
