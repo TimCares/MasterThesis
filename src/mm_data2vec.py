@@ -18,20 +18,22 @@ import contextlib
 from modules import MOMEAltBlock
 
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
-from utils import prepare_output, get_max_saliency_patches, prepare_salient_patches
 
 logger = logging.getLogger(__name__)
 
+def prepare_output(out:List[torch.Tensor]) -> torch.Tensor:
+    out = [
+        F.instance_norm(tl.transpose(1, 2).float()).transpose(1, 2)
+        for tl in out  # BTC -> BCT -> BTC
+    ]
+    return torch.stack(out, dim=1)
+    
 
 class AMMData2VecPreTrainingLightningModule(L.LightningModule):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
-        self.automatic_optimization = False
-        self.acc_grad_batches = self.cfg.acc_grad_batches
-
-        self.prev_text_features = []
-        self.prev_image_features = []
+        self.last_n_layer_targets = self.cfg.model.n_fuzed_layers
 
         self.model = AMMData2Vec(cfg=self.cfg.model)
 
@@ -62,37 +64,6 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
                           features_only=False,
                           return_encoder_output=True)
         # "feature_extractor_only" has higher precedence than "features_only" and "return_encoder_output"
-
-    def training_step(self, batch:Dict[str, Any], batch_idx):
-        opt = self.optimizers()
-
-        step_loss, text_features, image_features = self._training_step(
-            batch,
-            batch_idx,
-        )
-
-        loss = step_loss / self.acc_grad_batches
-        self.prev_text_features.append(text_features)
-        self.prev_image_features.append(image_features)
-
-        if (batch_idx + 1) % self.acc_grad_batches == 0:
-            concat_text_features = torch.cat(self.prev_text_features, dim=1)
-            concat_image_features = torch.cat(self.prev_text_features, dim=1)
-            itc_loss = self.itc_loss(text_features=concat_text_features, image_features=concat_image_features)
-            loss += itc_loss
-            self.manual_backward(loss) 
-
-            opt.step()
-            # clear
-            opt.zero_grad()
-            self.prev_text_features = []
-            self.prev_image_features = []
-
-            self.log("train/itc_loss", loss, prog_bar=True)
-            self.log("train/loss", loss, prog_bar=True)
-        else:
-            self.manual_backward(loss)
-        
 
     def training_step(self, batch:Dict[str, Any], batch_idx):
         return self._step(batch, batch_idx, stage='train')
@@ -127,12 +98,12 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
                 precomputed_encoder_output=precomputed_encoder_output,
             )
         
-        target = target['layer_results']
-        kd_target = prepare_output(target, modality)
+        target = target['layer_results'][-self.last_n_layer_targets:]
+        kd_target = prepare_output(target)
 
         kd_losses = []
         for output_dict in [output_dict_text, output_dict_image]:
-            kd_pred = prepare_output(output_dict['layer_results'], modality)
+            kd_pred = prepare_output(output_dict['layer_results'][-self.last_n_layer_targets:])
             _kd_loss = self.kd_loss(input=kd_pred, target=kd_target)
             kd_losses.append(_kd_loss)
         
@@ -316,25 +287,28 @@ class AMMData2Vec(nn.Module):
 
     def _init_from_pretrained(self) -> None:
         modality_encoders = {}
-        for modality in list(Modality): # modality is instance of Modality, "list(Modality)" is a list of all enum/modality values
-            if modality not in self.supported_modalities and modality != self.cfg.block_init_cfg.init_from:
-                continue
-
+        start_fuzed = self.cfg.depth-self.cfg.n_fuzed_layers
+        for modality in [Modality.IMAGE, Modality.TEXT]:
             state_dict_name = self.cfg.pretrained[modality.name.lower()]
-            logger.info(f'Loading modality encoder for: {modality}')
             state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
             d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
 
-            if modality in self.supported_modalities:
-                modality_feature_extractor = d2v_model.modality_encoders[modality.name]
-                modality_encoders[modality.name.lower()] = modality_feature_extractor
-                
-                for name, module in modality_feature_extractor.named_children():
-                    total_params = sum(p.numel() for p in module.parameters())
-                    logger.info(f"{name} has {total_params} parameters")
-
-            if modality == self.cfg.block_init_cfg.init_from:
-                self._init_blocks(d2v_model=d2v_model)
+            for i in range(start_fuzed):
+                self.blocks[i].init_from_pretrained(
+                    pretained_block=d2v_model.blocks[i],
+                    modality=modality,
+                    init_attention=modality == Modality.IMAGE,
+                )
+            if modality == Modality.IMAGE:
+                for i in range(start_fuzed, self.cfg.depth):
+                    assert self.blocks[i].with_fuzed
+                    self.blocks[i].init_attention_from_pretrained(
+                        pretained_block=d2v_model.blocks[i],
+                        modality=modality,
+                    )
+            
+            modality_feature_extractor = d2v_model.modality_encoders[modality.name]
+            modality_encoders[modality.name.lower()] = modality_feature_extractor
 
         self.modality_encoders:nn.ModuleDict[str, nn.Module] = nn.ModuleDict(modality_encoders)
         self._freeze(self.modality_encoders)
