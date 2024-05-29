@@ -42,7 +42,7 @@ def write_data_into_jsonl(items, jsonl_file):
             writer.write('\n')
     logger.info("Write %s with %d items !" % (jsonl_file, len(items)))
 
-def download_and_unzip(urls:str, store_at:str="../data", archive_type:str="zip"):
+def download_and_unzip(urls:List[str], store_at:str="../data", archive_type:str="zip"):
     for url in urls:
         filepath = os.path.join(store_at, os.path.basename(url))
         if not os.path.exists(filepath):

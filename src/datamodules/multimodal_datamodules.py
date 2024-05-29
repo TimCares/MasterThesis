@@ -53,6 +53,8 @@ class VisualGenomeDataModule(BaseDataModule):
                  beit_transforms=False,
                  no_transform=False,
                  crop_scale=(0.6, 1.0),
+                 n_caption_groups:int=1,
+                 concat_captions:bool=True,
                  *args,
                  **kwargs):
         super().__init__(data_path, *args, **kwargs)
@@ -61,6 +63,8 @@ class VisualGenomeDataModule(BaseDataModule):
         self.beit_transforms = beit_transforms
         self.no_transform = no_transform
         self.crop_scale = crop_scale
+        self.n_caption_groups = n_caption_groups
+        self.concat_captions = concat_captions
 
     def prepare_data(self):
         if not self.prepared:
@@ -80,7 +84,9 @@ class VisualGenomeDataModule(BaseDataModule):
                                           transform_jitter=self.transform_jitter,
                                           beit_transforms=self.beit_transforms,
                                           no_transform=self.no_transform,
-                                          crop_scale=self.crop_scale,)
+                                          crop_scale=self.crop_scale,
+                                          n_caption_groups=self.n_caption_groups,
+                                          concat_captions=self.concat_captions,)
         
 
 class VQAv2DataModule(BaseDataModule):

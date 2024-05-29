@@ -318,6 +318,7 @@ class VisualGenome(BaseImageText):
             no_transform=False,
             crop_scale=(0.6, 1.0),
             n_caption_groups:int=1,
+            concat_captions:bool=True,
             ):
         super().__init__(data_path=data_path, 
                          split=split, 
@@ -328,6 +329,7 @@ class VisualGenome(BaseImageText):
                          crop_scale=crop_scale)
         self.path_to_data = os.path.join(self.data_path, "vg")
         self.n_caption_groups = n_caption_groups
+        self.concat_captions = concat_captions
         os.makedirs(self.path_to_data, exist_ok=True)
         if self.index_exists(dataset_path=self.path_to_data):
             return
@@ -337,9 +339,7 @@ class VisualGenome(BaseImageText):
                 "https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/region_descriptions.json.zip"]
         download_and_unzip(urls=urls, store_at=self.path_to_data)
 
-        urls = ["http://images.cocodataset.org/zips/train2014.zip",
-                "http://images.cocodataset.org/zips/val2014.zip",
-                "https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"]
+        urls = ["https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"]
         download_and_unzip(urls=urls, store_at=self.path_to_data)
 
         self.bpe_encoder = self.get_bpe_encoder()
@@ -378,16 +378,20 @@ class VisualGenome(BaseImageText):
 
     def _make_index_with_caption_groups(self, region_descriptions):
 
-        def split_by_threshold(lst):
+        if self.concat_captions:
+            max_tokens = self.num_max_bpe_tokens - 2 # -2 for bos and eos
+        else:
+            max_tokens = 0 # means we only use one caption -> "current_sum + value" already true after first caption
+        def split_by_max_tokens(lst):
             groups = []
             current_group = []
             current_sum = 0
             
             for i in range(len(lst)):
                 value = lst[i][0]
-                if i != len(lst)-1: # if not last caption,...
-                    value += 1 # ... then substract one because "and" token is later added to combine multiple captions
-                if current_sum + value > self.num_max_bpe_tokens - 2: # -2 for bos and eos
+                if i != len(lst)-1 and self.concat_captions: # if not last caption and we concat captions,...
+                    value += 1 # ... then add one, because "and" token is later added to combine multiple captions
+                if current_sum + value > max_tokens and i > 0: # "i>0" to avoid empty groups
                     groups.append(current_group)
                     current_group = [lst[i][1]]
                     current_sum = value
@@ -410,7 +414,7 @@ class VisualGenome(BaseImageText):
                 n_tokens = len(self.bpe_encoder.bpe.encode(desc))
                 n_tokens_list.append((n_tokens, desc))
             
-            caption_groups:List[List[str]] = split_by_threshold(n_tokens_list)
+            caption_groups:List[List[str]] = split_by_max_tokens(n_tokens_list)
 
             s = self.n_caption_groups
             for caption_group_sample in [caption_groups[i:i + s] for i in range(0, len(caption_groups), s)]:

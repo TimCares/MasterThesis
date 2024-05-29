@@ -49,7 +49,7 @@ model:
     # if empty list, then no blocks are frozen
     freeze_blocks: []
 
-  mask: True # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
+  mask: False # if set to False we do normal KD of all the layer activation and timesteps (not just the masked ones)
   # if True we do MaskedKD
 
   # relevant if "mask" is True:
