@@ -97,7 +97,7 @@ def get_transforms_pretraining(
     )
 
     if not train:
-        transform_train = transforms.Resize(224)
+        transform_train = transforms.Resize((224, 224), interpolation=PIL.Image.BICUBIC)
     elif beit_transforms:
         beit_transform_list = []
         beit_transform_list.append(transforms.ColorJitter(0.4, 0.4, 0.4))
