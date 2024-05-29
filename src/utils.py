@@ -75,7 +75,7 @@ def pad_text_sequence(tokens:List[int],
     return language_tokens, padding_mask
 
 
-def prepare_output(out:List[torch.Tensor], modality:Modality, norm:bool=True) -> List[torch.Tensor]:
+def prepare_output(out:List[torch.Tensor], modality:Modality, norm:bool=True) -> torch.Tensor:
     if norm:
         out = [
             F.instance_norm(tl.transpose(1, 2).float()).transpose(1, 2)
