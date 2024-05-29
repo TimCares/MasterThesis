@@ -121,7 +121,7 @@ checkpoint:
   filename: vision-d2v-{step}-{${checkpoint.monitor}:.4f}
   save_last: link # save last checkpoint -> easier access, as it has a fixed name (last.ckpt) -> not set to True here, as a link saves space
   enable_version_counter: False # only ever one "last.ckpt" file
-  every_n_train_steps: ${lightning_trainer.val_check_interval}
+  every_n_epochs: 1
   save_on_train_epoch_end: False # False -> run at end of validation
   verbose: True
   monitor: val/loss
@@ -145,11 +145,7 @@ lightning_trainer:
   accelerator: gpu
   devices: -1
   strategy: auto # auto -> default
-  max_steps: 40_000
-  val_check_interval: 5_000
-  # val_check_interval: # None -> no validation
-  # num_sanity_val_steps: 0 # mean test running "num_sanity_val_steps" batches of the validation dataloaders, but here we have no classical validation
-  # limit_val_batches: 0 # no classical validation
+  max_epochs: 10
   precision: 16-mixed
   gradient_clip_val: 2.0
   log_every_n_steps: 50
