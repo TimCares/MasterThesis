@@ -21,7 +21,7 @@ run_name: half_base_init
 
 load_checkpoint:
 
-nlp_context_length: 512
+nlp_context_length: 196
 
 model:
   pretrained_path: ${model_path}
@@ -91,41 +91,41 @@ data:
       beit_transforms: False
       crop_scale: [0.08, 1.0]
 
-zero_shot_val:
-  data_path: ${base_dir}
-  # num_max_bpe_tokens: ${nlp_context_length}
-  # is_multimodal_aligned: False
-  val_every_n_batches: 5_000
+# zero_shot_val:
+#   data_path: ${base_dir}
+#   # num_max_bpe_tokens: ${nlp_context_length}
+#   # is_multimodal_aligned: False
+#   val_every_n_batches: 5_000
 
-  dataloader:
-    data_path: ${data_path}
-    batch_size: 256
-    num_workers: 5
-    shuffle: False
-    drop_last: False
+#   dataloader:
+#     data_path: ${data_path}
+#     batch_size: 256
+#     num_workers: 5
+#     shuffle: False
+#     drop_last: False
 
-  datamodules: # dataloder args are taken from top-level key "data"
-    # qqp:
-    #   num_max_bpe_tokens: ${nlp_context_length}
-    cifar10: {}
-    cifar100: {}
-    # speechcommands:
-    #   min_sample_size: 0 # take all samples
-    #   normalize: True
-    #   pad: True
+#   datamodules: # dataloder args are taken from top-level key "data"
+#     # qqp:
+#     #   num_max_bpe_tokens: ${nlp_context_length}
+#     cifar10: {}
+#     cifar100: {}
+#     # speechcommands:
+#     #   min_sample_size: 0 # take all samples
+#     #   normalize: True
+#     #   pad: True
 
 checkpoint:
   dirpath: "${model_path}/${now:%Y-%m-%d_%H-%M-%S}"
   # monitor key is also computed in a callback, ModelCheckpoint callbacks are the last checkpoints executed,
   # so the key will be computed right beforehand (therefore it is always up to date)
-  filename: mm-d2v-{step}-{${checkpoint.monitor}:.4f}
+  filename: vision-d2v-{step}-{${checkpoint.monitor}:.4f}
   save_last: link # save last checkpoint -> easier access, as it has a fixed name (last.ckpt) -> not set to True here, as a link saves space
   enable_version_counter: False # only ever one "last.ckpt" file
-  every_n_train_steps: ${zero_shot_val.val_every_n_batches}
+  every_n_train_steps: ${lightning_trainer.val_check_interval}
   save_on_train_epoch_end: False # False -> run at end of validation
   verbose: True
-  monitor: val/unimodal-mean-retrieval--zeroshot # logged in: ZeroShotRetrievalCallback
-  mode: max
+  monitor: val/loss
+  mode: min
   auto_insert_metric_name: False
 
 optimizer:
@@ -146,9 +146,10 @@ lightning_trainer:
   devices: -1
   strategy: auto # auto -> default
   max_steps: 40_000
-  val_check_interval: # None -> no validation
-  num_sanity_val_steps: 0 # mean test running "num_sanity_val_steps" batches of the validation dataloaders, but here we have no classical validation
-  limit_val_batches: 0 # no classical validation
+  val_check_interval: 5_000
+  # val_check_interval: # None -> no validation
+  # num_sanity_val_steps: 0 # mean test running "num_sanity_val_steps" batches of the validation dataloaders, but here we have no classical validation
+  # limit_val_batches: 0 # no classical validation
   precision: 16-mixed
   gradient_clip_val: 2.0
   log_every_n_steps: 50
