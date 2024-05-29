@@ -378,7 +378,7 @@ class BaseImageText(BaseDataset):
 
     def _get_text_segment(self, text_segment, max_len=None):
         assert isinstance(text_segment, list)
-        tokens = text_segment[:]
+        tokens = text_segment
         if len(tokens) == 0:
             raise RuntimeError("The text segment should contains at least one tokens!")
         if max_len is None:

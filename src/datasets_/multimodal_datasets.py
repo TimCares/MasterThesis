@@ -1,7 +1,7 @@
 import os
 import json
 import torch
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List, Tuple
 import pandas as pd
 from torchvision.datasets.folder import default_loader
 from datasets_.data_utils import get_transforms, write_data_into_jsonl, download_and_unzip, convert_mp3_to_flac
@@ -13,6 +13,7 @@ import random
 import glob
 from collections import defaultdict, Counter
 import soundfile as sf
+import random
 
 from .base_datasets import BaseImageText, BaseTextAudio, BaseImageAudio
     
@@ -316,6 +317,7 @@ class VisualGenome(BaseImageText):
             beit_transforms=False,
             no_transform=False,
             crop_scale=(0.6, 1.0),
+            n_caption_groups:int=1,
             ):
         super().__init__(data_path=data_path, 
                          split=split, 
@@ -325,6 +327,7 @@ class VisualGenome(BaseImageText):
                          no_transform=no_transform, 
                          crop_scale=crop_scale)
         self.path_to_data = os.path.join(self.data_path, "vg")
+        self.n_caption_groups = n_caption_groups
         os.makedirs(self.path_to_data, exist_ok=True)
         if self.index_exists(dataset_path=self.path_to_data):
             return
@@ -342,7 +345,8 @@ class VisualGenome(BaseImageText):
         self.make_visual_genome_dataset_index()
 
     def get_index_files(self):
-        return (f"visual_genome.jsonl", ) # only for pretraining, so no splits
+        postfix = f'group_{self.n_caption_groups}' if self.n_caption_groups > 1 else ''
+        return (f"visual_genome_{postfix}.jsonl", ) # only for pretraining, so no splits
 
     def make_visual_genome_dataset_index(self):
         with open(os.path.join(self.path_to_data, "region_descriptions.json"), "r") as fp:
@@ -350,23 +354,81 @@ class VisualGenome(BaseImageText):
 
         bpe_encoder = self.get_bpe_encoder()
 
-        items = []
+        if self.n_caption_groups > 1:
+            items = self._make_index_with_caption_groups(region_descriptions, bpe_encoder)
+        else:
+            items = self._make_index_with_single_caption(region_descriptions, bpe_encoder)
+        
+        write_data_into_jsonl(items, os.path.join(self.path_to_data, self.get_index_files()[0]))
 
+    def _make_index_with_single_caption(self, region_descriptions, bpe_encoder):
+        items = []
         for image_meta in tqdm(region_descriptions, total=len(region_descriptions)):
             image_path = os.path.join(self.path_to_data, "VG_100K", f"{image_meta['id']}.jpg")
-            caption = ' '.join([region["phrase"] for region in image_meta["regions"]])
+
+            captions = [region["phrase"].strip() for region in image_meta["regions"]]
             
-            token_ids = bpe_encoder.encode(caption.strip())
-            # truncation will also be done when reading the data, but there we also substract 2 for the special tokens
-            # so we already do it here to save time and memory
-            token_ids = token_ids[:self.num_max_bpe_tokens - 1]
             items.append({
                 "image_path": image_path, 
-                "text": token_ids,
+                "text": captions,
                 "id": image_meta["id"], 
             })
+            
+        return items
 
-        write_data_into_jsonl(items, os.path.join(self.path_to_data, "visual_genome.jsonl"))
+    def _make_index_with_caption_groups(self, region_descriptions, bpe_encoder):
+
+        def split_by_threshold(lst):
+            groups = []
+            current_group = []
+            current_sum = 0
+            
+            for i in range(len(lst)):
+                value = lst[i][0]
+                if i != len(lst)-1: # if not last caption,...
+                    value += 1 # ... then substract one because "and" token is later added to combine multiple captions
+                if current_sum + value > self.num_max_bpe_tokens - 2: # -2 for bos and eos
+                    groups.append(current_group)
+                    current_group = [lst[i][1]]
+                    current_sum = value
+                else:
+                    current_group.append(lst[i][1])
+                    current_sum += value
+            
+            if current_group:
+                groups.append(current_group)
+            
+            return groups
+        
+        items = []
+        for image_meta in tqdm(region_descriptions, total=len(region_descriptions)):
+            image_path = os.path.join(self.path_to_data, "VG_100K", f"{image_meta['id']}.jpg")
+
+            n_tokens_list:List[Tuple[int, str]] = []
+            for region in image_meta["regions"]:
+                desc = region['phrase'].strip().lower()
+                n_tokens = len(bpe_encoder.bpe.encode(desc))
+                n_tokens_list.append((n_tokens, desc))
+            
+            caption_groups:List[List[str]] = split_by_threshold(n_tokens_list)
+
+            s = self.n_caption_groups
+            for caption_group_sample in [caption_groups[i:i + s] for i in range(0, len(caption_groups), s)]:
+                if len(caption_group_sample) < s: # we drop the last group if it is not complete
+                    continue
+                item = {
+                    "image_path": image_path,
+                    "id": image_meta["id"],
+                }
+                # caption_group_sample is list of list of captions,
+                # latter list will be reduced to one string/caption, 
+                # first list will be used together with "repeat_interleave" for the image features
+                for i, caption_group in enumerate(caption_group_sample):
+                    item[f"text{i}"] = caption_group
+
+                items.append(item)
+        
+        return items
 
     def __getitem__(self, index: int):
         data = dict()
@@ -376,8 +438,21 @@ class VisualGenome(BaseImageText):
         data["image"] = img
         data["id"] = item["id"]
 
-        text_segment = item["text"]
-        if text_segment is not None:
+        if self.n_caption_groups > 1:
+            text_segment_keys = {k for k in item.keys() if k.startswith("text")}
+            for i, key in enumerate(text_segment_keys):
+                captions_to_use:List[str] = item[key].copy()
+                random.shuffle(captions_to_use)
+                full_caption = " and ".join(captions_to_use)
+                text_segment = self.bpe_encoder.encode(full_caption)
+                language_tokens, padding_mask, _ = self._get_text_segment(text_segment)
+                assert len(language_tokens) == self.num_max_bpe_tokens and len(padding_mask) == self.num_max_bpe_tokens
+                data[f"text_{i}"] = language_tokens
+                data[f"padding_mask_{i}"] = padding_mask
+            
+        else:
+            text_segment = random.choice(item["text"]) # "item['text']" is a list of captions, so we randomly select one
+            text_segment = self.bpe_encoder.encode(text_segment)
             language_tokens, padding_mask, _ = self._get_text_segment(text_segment)
             data["text"] = language_tokens
             data["padding_mask"] = padding_mask
