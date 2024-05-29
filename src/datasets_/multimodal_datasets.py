@@ -342,6 +342,8 @@ class VisualGenome(BaseImageText):
                 "https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"]
         download_and_unzip(urls=urls, store_at=self.path_to_data)
 
+        self.bpe_encoder = self.get_bpe_encoder()
+
         self.make_visual_genome_dataset_index()
 
     def get_index_files(self):
@@ -352,16 +354,14 @@ class VisualGenome(BaseImageText):
         with open(os.path.join(self.path_to_data, "region_descriptions.json"), "r") as fp:
             region_descriptions = json.load(fp)
 
-        bpe_encoder = self.get_bpe_encoder()
-
         if self.n_caption_groups > 1:
-            items = self._make_index_with_caption_groups(region_descriptions, bpe_encoder)
+            items = self._make_index_with_caption_groups(region_descriptions)
         else:
-            items = self._make_index_with_single_caption(region_descriptions, bpe_encoder)
+            items = self._make_index_with_single_caption(region_descriptions)
         
         write_data_into_jsonl(items, os.path.join(self.path_to_data, self.get_index_files()[0]))
 
-    def _make_index_with_single_caption(self, region_descriptions, bpe_encoder):
+    def _make_index_with_single_caption(self, region_descriptions):
         items = []
         for image_meta in tqdm(region_descriptions, total=len(region_descriptions)):
             image_path = os.path.join(self.path_to_data, "VG_100K", f"{image_meta['id']}.jpg")
@@ -376,7 +376,7 @@ class VisualGenome(BaseImageText):
             
         return items
 
-    def _make_index_with_caption_groups(self, region_descriptions, bpe_encoder):
+    def _make_index_with_caption_groups(self, region_descriptions):
 
         def split_by_threshold(lst):
             groups = []
@@ -407,7 +407,7 @@ class VisualGenome(BaseImageText):
             n_tokens_list:List[Tuple[int, str]] = []
             for region in image_meta["regions"]:
                 desc = region['phrase'].strip().lower()
-                n_tokens = len(bpe_encoder.bpe.encode(desc))
+                n_tokens = len(self.bpe_encoder.bpe.encode(desc))
                 n_tokens_list.append((n_tokens, desc))
             
             caption_groups:List[List[str]] = split_by_threshold(n_tokens_list)
