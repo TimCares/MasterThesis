@@ -57,12 +57,20 @@ class COCOCaptions(BaseImageText):
         if self.index_exists(dataset_path=self.path_to_data):
             return
 
-        urls = ["http://images.cocodataset.org/zips/train2014.zip",
-                "http://images.cocodataset.org/zips/val2014.zip",
-                "https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"]
-        download_and_unzip(urls=urls, store_at=self.path_to_data)
-        os.remove(os.path.join(self.path_to_data, 'dataset_flickr8k.json'))
-        os.remove(os.path.join(self.path_to_data, 'dataset_flickr30k.json'))
+        data_already_downloaded = os.path.exists(os.path.join(self.path_to_data, "train2014")) and \
+            os.path.exists(os.path.join(self.path_to_data, "val2014")) and \
+            os.path.exists(os.path.join(self.path_to_data, "dataset_coco.json"))
+        
+        if not data_already_downloaded:
+            self.log("Downloading COCO dataset...")
+            urls = ["http://images.cocodataset.org/zips/train2014.zip",
+                    "http://images.cocodataset.org/zips/val2014.zip",
+                    "https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"]
+            download_and_unzip(urls=urls, store_at=self.path_to_data)
+            os.remove(os.path.join(self.path_to_data, 'dataset_flickr8k.json'))
+            os.remove(os.path.join(self.path_to_data, 'dataset_flickr30k.json'))
+        else:
+            self.log("COCO dataset already downloaded!")
 
         self._make_coco_karpathy_dataset_index()
 
