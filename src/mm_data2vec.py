@@ -41,7 +41,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         embed_dim = self.cfg.model.embed_dim
         self.itc_head = nn.Linear(embed_dim, embed_dim, bias=False)
 
-        modality_str = self.cfg.teacher.name.lower()
+        modality_str = self.cfg.teacher_modality
         state_dict_name = self.cfg.model.pretrained[modality_str]
         state_dict_path = os.path.join(self.cfg.model.pretrained_path, state_dict_name)
         self.teacher = load_pretrained_d2v_model(state_dict_path=state_dict_path)
@@ -183,20 +183,9 @@ class PretrainedStateDictsConfig():
     text:str = 'nlp_base.pt'
 
 @dataclass
-class BlockInitConfig():
-    init_from: Optional[Modality] = None # if None, then no blocks are initialized
-    init_type: Optional[str] = None # 'attention' or 'block', only relevant if "init_from" not None
-    block_indices: Optional[List[int]] = None # if None, then all blocks are initialized
-    freeze_blocks: Optional[List[int]] = None # if None, then all blocks are frozen, if empty list, then no blocks are frozen
-
-@dataclass
 class AMMData2VecConfig():
     pretrained_path:str = '../models'
     pretrained: PretrainedStateDictsConfig = field(default_factory=PretrainedStateDictsConfig)
-
-    supported_modalities: List[Modality] = field(default_factory=lambda: [Modality.AUDIO, Modality.IMAGE, Modality.TEXT])
-
-    block_init_cfg: BlockInitConfig = field(default_factory=BlockInitConfig)
 
     n_fuzed_layers: int = 2
 
@@ -225,7 +214,7 @@ class AMMData2Vec(nn.Module):
                  ):
         super(AMMData2Vec, self).__init__()
         self.cfg = cfg
-        self.supported_modalities = cfg.supported_modalities
+        self.supported_modalities = [Modality.IMAGE, Modality.TEXT]
         self.fine_tuning = False
 
         make_layer_norm = partial(
@@ -237,14 +226,13 @@ class AMMData2Vec(nn.Module):
         dpr = np.linspace(self.cfg.start_drop_path_rate, self.cfg.end_drop_path_rate, self.cfg.depth)
 
         blocks = []
-        if self.cfg.block_init_cfg.init_from is None:
-            for i in range(self.cfg.depth):
-                if self.cfg.depth - i <= self.cfg.n_fuzed_layers:
-                    blocks.append(self.make_block(drop_path=dpr[i], multimodal=True, with_fuzed=True))
-                else:
-                    blocks.append(self.make_block(drop_path=dpr[i], multimodal=True))
+        for i in range(self.cfg.depth):
+            if self.cfg.depth - i <= self.cfg.n_fuzed_layers:
+                blocks.append(self.make_block(drop_path=dpr[i], multimodal=True, with_fuzed=True))
+            else:
+                blocks.append(self.make_block(drop_path=dpr[i], multimodal=True))
 
-            self.blocks = nn.ModuleList(blocks)
+        self.blocks = nn.ModuleList(blocks)
 
         self.norm = None
         if self.cfg.layer_norm_first:
@@ -288,7 +276,7 @@ class AMMData2Vec(nn.Module):
     def _init_from_pretrained(self) -> None:
         modality_encoders = {}
         start_fuzed = self.cfg.depth-self.cfg.n_fuzed_layers
-        for modality in [Modality.IMAGE, Modality.TEXT]:
+        for modality in self.supported_modalities:
             state_dict_name = self.cfg.pretrained[modality.name.lower()]
             state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
             d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
@@ -442,52 +430,6 @@ class AMMData2Vec(nn.Module):
                                     modality=Modality.TEXT,
                                     padding_mask=padding_mask,
                                     normalize=normalize)
-
-    def _init_blocks(self, d2v_model:Data2VecMultiModel) -> None:
-        init_cfg:BlockInitConfig = self.cfg.block_init_cfg
-        
-        if init_cfg.block_indices is None:
-            take_block_indices = [i for i in range(self.cfg.depth)]
-        else:
-            take_block_indices = init_cfg.block_indices
-
-        logger.info(f"Initializing blocks from pretrained modality: {init_cfg.init_from}")
-        logger.info(f"Init type: {init_cfg.init_type}")
-        logger.info(f'Taking pretrained block indices: {take_block_indices}')
-
-        if init_cfg.init_type == 'attention':
-            dpr = np.linspace(self.cfg.start_drop_path_rate, self.cfg.end_drop_path_rate, self.cfg.depth)
-            self.blocks = [self.make_block(dpr[i]) for i in range(self.cfg.depth)]
-        else:
-            self.blocks = []
-
-        for idx in take_block_indices:
-            if init_cfg.init_type == 'attention':
-                self.blocks[idx].attn = d2v_model.blocks[idx].attn
-            else:
-                self.blocks.append(d2v_model.blocks[idx])
-
-        self.blocks = nn.ModuleList(self.blocks)
-
-        if init_cfg.freeze_blocks is None:
-            if init_cfg.init_type == 'attention':
-                logger.info("Freezing all attention blocks")
-                self.freeze_attention_blocks()
-            else:
-                logger.info("Freezing all blocks")
-                self._freeze(self.blocks)
-        elif len(init_cfg.freeze_blocks) == 0:
-            pass # do not freeze any blocks
-        else:
-            if init_cfg.init_type == 'attention':
-                logger.info(f"Freezing attention block indices: {init_cfg.freeze_blocks}")
-                for idx in init_cfg.freeze_blocks:
-                    self._freeze(self.blocks[idx].attn)
-            else:
-                logger.info(f"Freezing block indices: {init_cfg.freeze_blocks}")
-                for idx in init_cfg.freeze_blocks:
-                    self._freeze(self.blocks[idx])
-        
     
     def freeze_attention_blocks(self):
         for block in self.blocks:
