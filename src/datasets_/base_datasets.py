@@ -344,7 +344,7 @@ class BaseImageText(ImageDataset):
         
     def index_exists(self, dataset_path):
         for index_file in self.get_index_files():
-            if not os.path.exists(dataset_path, index_file):
+            if not os.path.exists(os.path.join(dataset_path, index_file)):
                 return False
         self.log(f"Data already exists under: {dataset_path}")
         return True
