@@ -311,24 +311,25 @@ class ImageDataset(BaseDataset):
         return Modality.IMAGE
     
 
-class BaseImageText(BaseDataset):
+class BaseImageText(ImageDataset):
     def __init__(
         self,
         data_path,
         split,
         num_max_bpe_tokens,
-        transform_jitter=False,
+        color_jitter=None,
         beit_transforms=False,
-        no_transform=False,
         crop_scale=(0.6, 1.0),
     ):
-        super().__init__(data_path=data_path, 
-                         split=split)
+        super().__init__(
+            data_path=data_path, 
+            split=split,
+            pretraining=True,
+            color_jitter=color_jitter,
+            beit_transforms=beit_transforms,
+            crop_scale=crop_scale,)
+        
         self.num_max_bpe_tokens = num_max_bpe_tokens
-        self.transform_jitter = transform_jitter
-        self.beit_transforms = beit_transforms
-        self.no_transform = no_transform
-        self.crop_scale = crop_scale
         self.path_to_data = None
 
         self.dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
@@ -336,11 +337,6 @@ class BaseImageText(BaseDataset):
         self.bos_token_id = self.dictionary.bos()
         self.eos_token_id = self.dictionary.eos()
         self.pad_token_id = self.dictionary.pad()
-        self.loader = default_loader
-        self.transform = get_transforms(no_transform=self.no_transform, # TODO: Do as in ImageDataset -> Inherit from it?
-                                        beit_transforms=self.beit_transforms,
-                                        transform_jitter=self.transform_jitter,
-                                        crop_scale=self.crop_scale)
         
     @property
     def modality(self) -> Modality:
@@ -404,21 +400,6 @@ class BaseImageText(BaseDataset):
         data = dict()
         self._get_image_text_example(index, data)
         return data
-
-    def __repr__(self) -> str:
-        head = "Dataset " + self.__class__.__name__
-        body = '{' + "\n  Number of items: %s," % self.__len__()
-        body += "\n  data root = %s," % self.data_path
-        body += "\n  split = %s," % self.split
-        body += "\n  dataset index files = %s" % str(self.index_files)
-        body += "\n  num max bpe tokens = %s" % self.num_max_bpe_tokens
-        body += "\n  transforms = ["
-        for t in self.transform:
-            body += "\n    %s" % str(t)
-        body += "\n  ]"
-        body += "\n}"
-
-        return head + body
     
 
 class BaseImageAudio(AudioDataset):

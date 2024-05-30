@@ -14,6 +14,7 @@ from .unimodal_datamodules import (
 from .multimodal_datamodules import (
     COCOCaptionsDataModule,
     VisualGenomeDataModule,
+    ConceptualCaptionsDataModule,
     VQAv2DataModule,
     NLVR2DataModule,
     Flickr30DataModule,

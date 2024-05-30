@@ -25,6 +25,7 @@ from .multimodal_datasets import (
     Flickr30Dataset, 
     Flickr8KAudioDataset, 
     VisualGenome,
+    ConceptualCaptions,
     VQAv2,
     NLVR2,
     CommonVoice,

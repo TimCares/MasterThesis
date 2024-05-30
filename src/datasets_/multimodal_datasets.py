@@ -4,6 +4,8 @@ import torch
 from typing import Dict, Any, Optional, List, Tuple
 import pandas as pd
 from torchvision.datasets.folder import default_loader
+from torchvision.transforms import v2 as transforms
+import torchvision
 from datasets_.data_utils import get_transforms, write_data_into_jsonl, download_and_unzip, convert_mp3_to_flac
 from datasets_.glossary import normalize_word
 from tqdm import tqdm
@@ -14,35 +16,41 @@ import glob
 from collections import defaultdict, Counter
 import soundfile as sf
 import random
+import urllib
+import PIL
+import io
+from concurrent.futures import ThreadPoolExecutor
+import numpy as np
 
 from .base_datasets import BaseImageText, BaseTextAudio, BaseImageAudio
     
 
 class COCOCaptions(BaseImageText):        
     def __init__(
-            self,
-            data_path,
-            split,
-            num_max_bpe_tokens,
-            task="captioning",
-            transform_jitter=False,
-            beit_transforms=False,
-            no_transform=False,
-            crop_scale=(0.6, 1.0),
-            ):
+        self,
+        data_path,
+        split,
+        num_max_bpe_tokens,
+        task="captioning",
+        color_jitter=None,
+        beit_transforms=False,
+        crop_scale=(0.6, 1.0),
+    ):
         assert task in ["captioning", "retrieval"]
         self.task = task
         if self.task == "retrieval": # yields no augmentation, as retrieval is zero-shot (testing)
-            transform_jitter = False
+            color_jitter = None
             beit_transforms = False
-            no_transform = True
-        super().__init__(data_path=data_path, 
-                         split=split, 
-                         num_max_bpe_tokens=num_max_bpe_tokens, 
-                         transform_jitter=transform_jitter, 
-                         beit_transforms=beit_transforms, 
-                         no_transform=no_transform, 
-                         crop_scale=crop_scale)
+            crop_scale = (1.0, 1.0)
+        super().__init__(
+            data_path=data_path,
+            split=split,
+            num_max_bpe_tokens=num_max_bpe_tokens,
+            color_jitter=color_jitter,
+            beit_transforms=beit_transforms,
+            crop_scale=crop_scale
+        )
+
         self.path_to_data = os.path.join(self.data_path, "coco")        
 
         os.makedirs(self.path_to_data, exist_ok=True)
@@ -60,32 +68,6 @@ class COCOCaptions(BaseImageText):
 
     def get_index_files(self):
         return (f"coco_{self.task}.{self.split}.jsonl", )
-
-    def __getitem__(self, index: int):
-        if self.task == "captioning":
-            return self._get_item_captioning(index)
-        else:
-            return self._get_item_retrieval(index)
-    
-    def _get_item_captioning(self, index):
-        data = dict()
-        item = self.items[index]
-        img_path = item["image_path"]
-        img = self._get_image(img_path)
-        data["image"] = img
-        data["id"] = item["id"]
-
-        text_segment = item["text"]
-        if text_segment is not None:
-            language_tokens, padding_mask, _ = self._get_text_segment(text_segment)
-            data["text"] = language_tokens
-            data["padding_mask"] = padding_mask
-        return data
-    
-    def _get_item_retrieval(self, index):
-        data = super().__getitem__(index)
-        data["id"] = self.items[index]["id"]
-        return data
     
     def _make_coco_karpathy_dataset_index(self):
         if self.split == "train":
@@ -102,8 +84,8 @@ class COCOCaptions(BaseImageText):
         coco_karpathy_split_json_file = os.path.join(self.path_to_data, "dataset_coco.json")
         items = []
         image_counter = set()
-        self.log("read %s" % coco_karpathy_split_json_file)
-        self.log("task is: %s" % self.task)
+        self.log("Read %s" % coco_karpathy_split_json_file)
+        self.log("Task is: %s" % self.task)
         with open(coco_karpathy_split_json_file, mode="r", encoding="utf-8") as reader:
             data = json.loads(reader.read())
             for item in data["images"]:
@@ -124,7 +106,7 @@ class COCOCaptions(BaseImageText):
                         image_counter.add(image_path)
         self.log("Find %d images and %d image-text pairs for karpathy dataset %s split !" % \
             (len(image_counter), len(items), self.split))
-        index_file = os.path.join(self.path_to_data, f"coco_{self.task}.{self.split}.jsonl")
+        index_file = os.path.join(self.path_to_data, self.get_index_files()[0])
         write_data_into_jsonl(items, index_file)
 
     def _encode_all(self, item, image_path, image_counter, bpe_encoder):
@@ -135,11 +117,8 @@ class COCOCaptions(BaseImageText):
                 "id": len(image_counter) if self.task=="retrieval" else item["cocoid"],
             }
             for sent in item["sentences"]
-            ]
+        ]
 
-    # def make_nocaps_captioning_dataset_index(self):
-    #     _make_nocaps_dataset_index(split="val")
-    #     _make_nocaps_dataset_index(split="test")
 
 class Flickr30Dataset(BaseImageText):
     def __init__(self, 
@@ -147,13 +126,15 @@ class Flickr30Dataset(BaseImageText):
                  split,
                  num_max_bpe_tokens,
                  ):
-        # yields no augmentation, as Flickr is zero-shot retrieval (testing)
-        super().__init__(data_path=data_path, 
-                         split=split, 
-                         num_max_bpe_tokens=num_max_bpe_tokens, 
-                         transform_jitter=False, 
-                         beit_transforms=False, 
-                         no_transform=True)
+        super().__init__(
+            data_path=data_path,
+            split=split,
+            num_max_bpe_tokens=num_max_bpe_tokens,
+            color_jitter=None,
+            beit_transforms=False,
+            crop_scale=(1.0, 1.0),
+        )
+
         self.path_to_data = os.path.join(self.data_path, "flickr30k")
 
         os.makedirs(self.path_to_data, exist_ok=True)
@@ -309,24 +290,25 @@ class Flickr8KAudioDataset(BaseImageAudio):
 
 class VisualGenome(BaseImageText):
     def __init__(
-            self,
-            data_path,
-            split,
-            num_max_bpe_tokens,
-            transform_jitter=False,
-            beit_transforms=False,
-            no_transform=False,
-            crop_scale=(0.6, 1.0),
-            n_caption_groups:int=1,
-            concat_captions:bool=True,
-            ):
-        super().__init__(data_path=data_path, 
-                         split=split, 
-                         num_max_bpe_tokens=num_max_bpe_tokens, 
-                         transform_jitter=transform_jitter, 
-                         beit_transforms=beit_transforms, 
-                         no_transform=no_transform, 
-                         crop_scale=crop_scale)
+        self,
+        data_path,
+        split,
+        num_max_bpe_tokens=512,
+        color_jitter=None,
+        beit_transforms=False,
+        crop_scale=(0.6, 1.0),
+        n_caption_groups:int=1,
+        concat_captions:bool=True,
+    ):
+        super().__init__(
+            data_path=data_path,
+            split=split,
+            num_max_bpe_tokens=num_max_bpe_tokens,
+            color_jitter=color_jitter,
+            beit_transforms=beit_transforms,
+            crop_scale=crop_scale
+        )
+        
         self.path_to_data = os.path.join(self.data_path, "vg")
         self.n_caption_groups = n_caption_groups
         self.concat_captions = concat_captions
@@ -462,6 +444,86 @@ class VisualGenome(BaseImageText):
             data["padding_mask"] = padding_mask
         return data
     
+
+class ConceptualCaptions(BaseImageText):
+    def __init__(
+        self,
+        data_path,
+        split,
+        data_fraction=0.1,
+        num_max_bpe_tokens=512,
+        color_jitter=None,
+        beit_transforms=False,
+        crop_scale=(0.6, 1.0),
+    ):
+        super().__init__(
+            data_path=data_path,
+            split=split,
+            num_max_bpe_tokens=num_max_bpe_tokens,
+            color_jitter=color_jitter,
+            beit_transforms=beit_transforms,
+            crop_scale=crop_scale
+        )
+
+        self.data_fraction = data_fraction
+        self.path_to_data = os.path.join(self.data_path, "conceptial_captions")
+        self.img_path = os.path.join(self.path_to_data, "images")
+        os.makedirs(self.path_to_data, exist_ok=True)
+        os.makedirs(self.img_path, exist_ok=True)
+        if self.index_exists(dataset_path=self.path_to_data):
+            return
+        
+        self.make_conceptual_captions_dataset_index()
+
+    def get_index_files(self):
+        return (f"conceptual_captions.jsonl", ) # only for pretraining, so no splits
+    
+    def _make_pairs_from_batch(self, df:pd.DataFrame):
+        tt = transforms.functional.to_tensor
+        rs = transforms.Resize((224, 224))
+        encoder = self.get_bpe_encoder()
+        n_failed = 0
+        pairs = []
+        for _, row in df.iterrows():
+            name = os.path.basename(row[1]).split('?')[0] # remove query string
+            path = os.path.join(self.img_path, name)
+            try:
+                request = urllib.request.Request(row[1])
+                with urllib.request.urlopen(request) as req:
+                    image = PIL.Image.open(io.BytesIO(req.read()))
+                    image = rs(tt(image))
+                    torchvision.utils.save_image(image, path)
+
+                pairs.append({
+                    'image_path': path,
+                    'text': encoder.encode(row[0].strip()),
+                })
+            except:
+                n_failed += 1
+        
+        return pairs, n_failed
+
+    def make_conceptual_captions_dataset_index(self):
+        items = []
+        index_path = os.path.join(self.data_path, "Train-GCC-training.tsv")
+        if not os.path.exists(index_path):
+            raise FileNotFoundError(f"Conceptual Captions index file {index_path} not found, download it first: "
+                                    "https://ai.google.com/research/ConceptualCaptions/download")   
+        index = pd.read_csv(index_path, sep='\t', header=None)
+        n_to_load = int(len(index) * self.data_fraction)
+        n_failed = 0
+        self.log(f"Downloading {n_to_load} images and captions from Conceptual Captions dataset...")
+        with ThreadPoolExecutor(os.cpu_count()) as executor:
+            for result_chunk, n_failed_chunk in executor.map(self._make_pairs_from_batch, np.array_split(index, os.cpu_count())):
+                items.extend(result_chunk)
+                n_failed += n_failed_chunk
+                if len(items) >= n_to_load:
+                    break
+        
+        self.log(f"Failed to download {n_failed} images (pairs). Percentage: {n_failed/len(index)*100:.2f}%")
+        self.log(f"Collected {len(items)} image-text pairs!")
+        write_data_into_jsonl(items, os.path.join(self.path_to_data, self.get_index_files()[0]))
+
 
 class VQAv2(BaseImageText):
     def __init__(
@@ -879,6 +941,7 @@ MULTIMODAL_DATASET_REGISTRY = {
     "flickr30": Flickr30Dataset,
     "flickr8k_audio": Flickr8KAudioDataset,
     "visual_genome": VisualGenome,
+    "conceptual_captions": ConceptualCaptions,
     "vqa": VQAv2,
     "nlvr2": NLVR2,
     "common_voice": CommonVoice

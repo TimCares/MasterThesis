@@ -1,57 +1,74 @@
 from typing import Tuple, Dict, Any
 from .unimodal_datamodules import BaseDataModule
-from datasets_ import COCOCaptions, VisualGenome, VQAv2, NLVR2, Flickr30Dataset, CommonVoice, Flickr8KAudioDataset
+from data2vec_fairseq.data.modality import Modality
+from datasets_ import COCOCaptions, VisualGenome, VQAv2, NLVR2, Flickr30Dataset, CommonVoice, Flickr8KAudioDataset, ConceptualCaptions
 
-class COCOCaptionsDataModule(BaseDataModule):
+class BaseImageTextDataModule(BaseDataModule):
+    @property
+    def modality(self) -> Modality:
+        return Modality.VL
+    
+class BaseTextAudioDataModule(BaseDataModule):
+    @property
+    def modality(self) -> Modality:
+        return Modality.LA
+    
+class BaseImageAudioDataModule(BaseDataModule):
+    @property
+    def modality(self) -> Modality:
+        return Modality.VA
+
+class COCOCaptionsDataModule(BaseImageTextDataModule):
     def __init__(self,
-                 data_path,
-                 num_max_bpe_tokens,
-                 transform_jitter=False,
-                 beit_transforms=False,
-                 no_transform=False,
-                 crop_scale=(0.6, 1.0),
-                 *args,
-                 **kwargs):
+                data_path,
+                num_max_bpe_tokens,
+                task="captioning",
+                color_jitter=None,
+                beit_transforms=False,
+                crop_scale=(0.6, 1.0),
+                *args,
+                **kwargs):
         super().__init__(data_path, *args, **kwargs)
         self.num_max_bpe_tokens = num_max_bpe_tokens
-        self.transform_jitter = transform_jitter
+        self.task = task
+        self.color_jitter = color_jitter
         self.beit_transforms = beit_transforms
-        self.no_transform = no_transform
         self.crop_scale = crop_scale
 
     def set_train_dataset(self):
         self.train_dataset = COCOCaptions(data_path=self.data_path,
                                           split='train',
                                           num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                          transform_jitter=self.transform_jitter,
+                                          task=self.task,
+                                          color_jitter=self.color_jitter,
                                           beit_transforms=self.beit_transforms,
-                                          no_transform=self.no_transform,
                                           crop_scale=self.crop_scale,)
 
     def set_val_dataset(self):
         self.val_dataset = COCOCaptions(data_path=self.data_path,
                                         split='val',
                                         num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                        transform_jitter=False,
+                                        task=self.task,
+                                        color_jitter=False,
                                         beit_transforms=False,
-                                        no_transform=True,)
+                                        crop_scale=(1.0, 1.0),)
 
     def set_test_dataset(self):
         self.test_dataset = COCOCaptions(data_path=self.data_path,
                                          split='test',
                                          num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                         transform_jitter=False,
+                                         task=self.task,
+                                         color_jitter=False,
                                          beit_transforms=False,
-                                         no_transform=True,)
+                                         crop_scale=(1.0, 1.0),)
         
 
-class VisualGenomeDataModule(BaseDataModule):
+class VisualGenomeDataModule(BaseImageTextDataModule):
     def __init__(self,
                  data_path,
                  num_max_bpe_tokens,
-                 transform_jitter=False,
+                 color_jitter=None,
                  beit_transforms=False,
-                 no_transform=False,
                  crop_scale=(0.6, 1.0),
                  n_caption_groups:int=1,
                  concat_captions:bool=True,
@@ -59,9 +76,8 @@ class VisualGenomeDataModule(BaseDataModule):
                  **kwargs):
         super().__init__(data_path, *args, **kwargs)
         self.num_max_bpe_tokens = num_max_bpe_tokens
-        self.transform_jitter = transform_jitter
+        self.color_jitter = color_jitter
         self.beit_transforms = beit_transforms
-        self.no_transform = no_transform
         self.crop_scale = crop_scale
         self.n_caption_groups = n_caption_groups
         self.concat_captions = concat_captions
@@ -81,15 +97,51 @@ class VisualGenomeDataModule(BaseDataModule):
         self.train_dataset = VisualGenome(data_path=self.data_path,
                                           split='train',
                                           num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                          transform_jitter=self.transform_jitter,
+                                          color_jitter=self.color_jitter,
                                           beit_transforms=self.beit_transforms,
-                                          no_transform=self.no_transform,
                                           crop_scale=self.crop_scale,
                                           n_caption_groups=self.n_caption_groups,
                                           concat_captions=self.concat_captions,)
         
 
-class VQAv2DataModule(BaseDataModule):
+class ConceptualCaptionsDataModule(BaseImageTextDataModule):
+    def __init__(self,
+                data_path,
+                data_fraction,
+                num_max_bpe_tokens,
+                color_jitter=None,
+                beit_transforms=False,
+                crop_scale=(0.6, 1.0),
+                *args,
+                **kwargs):
+        super().__init__(data_path, *args, **kwargs)
+        self.data_fraction = data_fraction
+        self.num_max_bpe_tokens = num_max_bpe_tokens
+        self.color_jitter = color_jitter
+        self.beit_transforms = beit_transforms
+        self.crop_scale = crop_scale
+
+    def prepare_data(self):
+        if not self.prepared:
+            self.set_train_dataset()
+
+            self.prepared = True
+
+    def setup(self, stage=None):
+        if stage == 'fit' or stage is None:
+            self.train_dataset.load()
+
+    def set_train_dataset(self):
+        self.train_dataset = ConceptualCaptions(data_path=self.data_path,
+                                                split='train',
+                                                data_fraction=self.data_fraction,
+                                                num_max_bpe_tokens=self.num_max_bpe_tokens,
+                                                color_jitter=self.color_jitter,
+                                                beit_transforms=self.beit_transforms,
+                                                crop_scale=self.crop_scale,)
+        
+
+class VQAv2DataModule(BaseImageTextDataModule):
     def __init__(self,
                  data_path,
                  num_max_bpe_tokens,
@@ -133,7 +185,7 @@ class VQAv2DataModule(BaseDataModule):
                                   no_transform=True,)
         
 
-class NLVR2DataModule(BaseDataModule):
+class NLVR2DataModule(BaseImageTextDataModule):
     def __init__(self,
                  data_path,
                  num_max_bpe_tokens,
@@ -177,7 +229,7 @@ class NLVR2DataModule(BaseDataModule):
                                   no_transform=True,)
 
 
-class Flickr30DataModule(BaseDataModule):
+class Flickr30DataModule(BaseImageTextDataModule):
     def __init__(self,
                  data_path,
                  num_max_bpe_tokens,
@@ -203,7 +255,7 @@ class Flickr30DataModule(BaseDataModule):
                                             num_max_bpe_tokens=self.num_max_bpe_tokens,)
         
 
-class Flickr8AudioDataModule(BaseDataModule):
+class Flickr8AudioDataModule(BaseImageAudioDataModule):
     def __init__(self,
                  data_path:str,
                  transform_jitter:bool,
@@ -278,7 +330,7 @@ class Flickr8AudioDataModule(BaseDataModule):
                                                  precompute_mask_config=None)
             
 
-class CommonVoiceDataModule(BaseDataModule):
+class CommonVoiceDataModule(BaseTextAudioDataModule):
     def __init__(self,
                  data_path,
                  num_max_bpe_tokens,
@@ -341,6 +393,7 @@ class CommonVoiceDataModule(BaseDataModule):
 MULTIMODAL_DATAMODULE_REGISTRY = {
     "coco_captions": COCOCaptionsDataModule,
     "visual_genome": VisualGenomeDataModule,
+    "conceptual_captions": ConceptualCaptionsDataModule,
     "vqa_v2": VQAv2DataModule,
     "nlvr2": NLVR2DataModule,
     "flickr30": Flickr30DataModule,
