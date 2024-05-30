@@ -249,8 +249,8 @@ class AMMData2Vec(nn.Module):
                 p.optim_overrides = {"optimizer": {"weight_decay_scale": 0}}
 
         # init pretrained later, so that they are not part of the model's parameters when model is initialized
-        self._init_from_pretrained()
         assert hasattr(self, 'blocks'), "Blocks must be initialized before initializing the model."
+        self._init_from_pretrained()
         
     def make_block(self, drop_path, dim=None, heads=None, multimodal=False, with_fuzed=False):
         make_layer_norm = partial(
