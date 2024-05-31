@@ -70,8 +70,6 @@ class VisualGenomeDataModule(BaseImageTextDataModule):
                  color_jitter=None,
                  beit_transforms=False,
                  crop_scale=(0.6, 1.0),
-                 n_caption_groups:int=1,
-                 concat_captions:bool=True,
                  *args,
                  **kwargs):
         super().__init__(data_path, *args, **kwargs)
@@ -79,8 +77,6 @@ class VisualGenomeDataModule(BaseImageTextDataModule):
         self.color_jitter = color_jitter
         self.beit_transforms = beit_transforms
         self.crop_scale = crop_scale
-        self.n_caption_groups = n_caption_groups
-        self.concat_captions = concat_captions
 
     def prepare_data(self):
         if not self.prepared:
@@ -99,9 +95,7 @@ class VisualGenomeDataModule(BaseImageTextDataModule):
                                           num_max_bpe_tokens=self.num_max_bpe_tokens,
                                           color_jitter=self.color_jitter,
                                           beit_transforms=self.beit_transforms,
-                                          crop_scale=self.crop_scale,
-                                          n_caption_groups=self.n_caption_groups,
-                                          concat_captions=self.concat_captions,)
+                                          crop_scale=self.crop_scale,)
         
 
 class ConceptualCaptionsDataModule(BaseImageTextDataModule):
