@@ -314,20 +314,16 @@ class AMMData2Vec(nn.Module):
         remove_extra_tokens:bool=False,
         return_encoder_output:bool=False,
         features_only:bool=False,
-        precomputed_encoder_output:Optional[Dict[str, torch.Tensor]]=None,
     ):
 
-        if precomputed_encoder_output is None:
-            feature_extractor:ModalitySpecificEncoder = self.modality_encoders[modality.name.lower()]
-            with torch.no_grad() if not self.fine_tuning else contextlib.ExitStack():
-                extractor_out = feature_extractor(
-                    features=x,
-                    padding_mask=padding_mask,
-                    mask=False,
-                    remove_masked=False,
-                )
-        else:
-            extractor_out = precomputed_encoder_output
+        feature_extractor:ModalitySpecificEncoder = self.modality_encoders[modality.name.lower()]
+        with torch.no_grad() if not self.fine_tuning else contextlib.ExitStack():
+            extractor_out = feature_extractor(
+                features=x,
+                padding_mask=padding_mask,
+                mask=False,
+                remove_masked=False,
+            )
 
         x = extractor_out["x"]
         encoder_mask = extractor_out["encoder_mask"]
@@ -469,6 +465,6 @@ class AMMData2Vec(nn.Module):
             modality_str = modality.name.lower()
             if modality_str != keep_modality:
                 del self.modality_encoders[modality_str]
-                
+
                 for block in self.blocks:
                     block.remove_modality(modality)
