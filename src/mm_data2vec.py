@@ -57,11 +57,10 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         
         self.save_hyperparameters()
 
-    def forward(self, input_dict):
+    def forward(self, input_dict, return_encoder_output=False):
         return self.model(**input_dict,
                           features_only=False,
-                          return_encoder_output=True)
-        # "feature_extractor_only" has higher precedence than "features_only" and "return_encoder_output"
+                          return_encoder_output=return_encoder_output)
 
     def training_step(self, batch:Dict[str, Any], batch_idx):
         return self._step(batch, batch_idx, stage='train')
@@ -77,13 +76,22 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         padding_mask = batch['padding_mask']
         image = batch['image']
 
-        output_dict_text = self({'x': text, 'padding_mask': padding_mask}) # call "forward"
-        output_dict_image = self({'x': image}) # call "forward"
+        output_dict_text = self({
+            'x': text,
+            'modality': Modality.TEXT,
+            'padding_mask': padding_mask,
+        }) # call "forward"
+
+        output_dict_image = self({
+            'x': image,
+            'modality': Modality.IMAGE
+        },
+            return_encoder_output=True,
+        ) # call "forward"
 
         modality:Modality = batch['modality']
         assert modality == Modality.VL
 
-        # in output_dict, because "return_encoder_output=True" in "forward"
         precomputed_encoder_output = output_dict_image['encoder_output']
 
         with torch.no_grad():
@@ -105,7 +113,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
             _kd_loss = self.kd_loss(input=kd_pred, target=kd_target)
             kd_losses.append(_kd_loss)
         
-        kd_loss = sum(kd_losses) / 2
+        kd_loss = sum(kd_losses)
         
         text_features = output_dict_text['layer_results'][-1].mean(dim=1)
         image_features = output_dict_image['layer_results'][-1].mean(dim=1)
