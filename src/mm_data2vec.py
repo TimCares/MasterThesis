@@ -38,8 +38,6 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         self.model = AMMData2Vec(cfg=self.cfg.model)
 
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
-        embed_dim = self.cfg.model.embed_dim
-        self.itc_head = nn.Linear(embed_dim, embed_dim, bias=False)
 
         modality_str = self.cfg.teacher_modality
         state_dict_name = self.cfg.model.pretrained[modality_str]
@@ -122,8 +120,8 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         return loss, text_features, image_features
     
     def itc_loss(self, text_features:torch.Tensor, image_features:torch.Tensor) -> torch.Tensor:
-        text_features = self.itc_head(text_features)
-        image_features = self.itc_head(image_features)
+        text_features = self.model.itc_head(text_features)
+        image_features = self.model.itc_head(image_features)
 
         scale = self.logit_scale.exp()
         with torch.no_grad():
@@ -217,6 +215,8 @@ class AMMData2Vec(nn.Module):
         self.supported_modalities = [Modality.IMAGE, Modality.TEXT]
         self.fine_tuning = False
 
+        self.itc_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+
         make_layer_norm = partial(
             nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
         )
@@ -225,14 +225,14 @@ class AMMData2Vec(nn.Module):
 
         dpr = np.linspace(self.cfg.start_drop_path_rate, self.cfg.end_drop_path_rate, self.cfg.depth)
 
-        blocks = []
+        blocks:List[MOMEAltBlock] = []
         for i in range(self.cfg.depth):
             if self.cfg.depth - i <= self.cfg.n_fuzed_layers:
                 blocks.append(self.make_block(drop_path=dpr[i], multimodal=True, with_fuzed=True))
             else:
                 blocks.append(self.make_block(drop_path=dpr[i], multimodal=True))
 
-        self.blocks = nn.ModuleList(blocks)
+        self.blocks:nn.ModuleList[str, MOMEAltBlock] = nn.ModuleList(blocks)
 
         self.norm = None
         if self.cfg.layer_norm_first:
@@ -408,6 +408,7 @@ class AMMData2Vec(nn.Module):
         )['x']
 
         output = output.mean(dim=1)
+        self.itc_head(output)
 
         if normalize:
             output = F.normalize(output, dim=-1)
@@ -450,9 +451,10 @@ class AMMData2Vec(nn.Module):
         module.train()
 
 
-    def prepare_fine_tuning(self, keep_modality:Modality) -> None:
+    def prepare_fine_tuning(self, keep_modality:Modality, remove_itc_head:bool=True) -> None:
         self.fine_tuning = True
-        self.cfg.mask = False
+        if remove_itc_head:
+            del self.itc_head
         self._remove_modalities_except(keep_modality=keep_modality)
         self._unfreeze(self)
 
@@ -466,4 +468,7 @@ class AMMData2Vec(nn.Module):
         for modality in self.supported_modalities:
             modality_str = modality.name.lower()
             if modality_str != keep_modality:
-                del self.modality_encoders[modality_str] # includes removing the decoder
+                del self.modality_encoders[modality_str]
+                
+                for block in self.blocks:
+                    block.remove_modality(modality)

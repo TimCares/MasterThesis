@@ -112,3 +112,14 @@ class MOMEAltBlock(nn.Module):
 
         self.attn = pretained_block.attn
         self.attention_pretrained = True
+
+    def remove_modality(self, modality:Modality) -> None:
+        if not self.multimodal:
+            return # only one modality, removing it would remove the entire block
+        
+        modality_str = modality.name.lower()
+
+        self.norm1.pop(modality_str)
+        self.norm2.pop(modality_str)
+        self.mlp.pop(modality_str)
+        self.post_mlp_dropout.pop(modality_str)
