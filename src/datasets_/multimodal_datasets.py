@@ -11,6 +11,7 @@ from datasets_.glossary import normalize_word
 from tqdm import tqdm
 import os
 import json
+import shutil
 import random
 import glob
 from collections import defaultdict, Counter
@@ -321,7 +322,6 @@ class VisualGenome(BaseImageText):
             return
         
         data_already_downloaded = os.path.exists(os.path.join(self.path_to_data, "VG_100K")) and \
-            os.path.exists(os.path.join(self.path_to_data, "VG_100K_2")) and \
             os.path.exists(os.path.join(self.path_to_data, "region_descriptions.json"))
             
         if not data_already_downloaded:
@@ -329,11 +329,24 @@ class VisualGenome(BaseImageText):
                     "https://cs.stanford.edu/people/rak248/VG_100K_2/images2.zip",
                     "https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/region_descriptions.json.zip"]
             download_and_unzip(urls=urls, store_at=self.path_to_data)
+            self._move_images()
 
         self.make_visual_genome_dataset_index()
 
     def get_index_files(self):
         return (f"visual_genome.jsonl", ) # only for pretraining, so no splits
+    
+    def _move_images(self):
+        source_dir = os.path.join(self.path_to_data, 'VG_100k_2')
+        destination_dir = os.path.join(self.path_to_data, 'VG_100k')
+        for file_name in tqdm(os.listdir(source_dir), desc="Moving files"):
+            source_file = os.path.join(source_dir, file_name)
+            destination_file = os.path.join(destination_dir, file_name)
+            try:
+                shutil.move(source_file, destination_file)
+            except Exception as e:
+                print(f"Error moving {file_name}: {e}")
+        os.rmdir(source_dir)
 
     def make_visual_genome_dataset_index(self):
         with open(os.path.join(self.path_to_data, "region_descriptions.json"), "r") as fp:
