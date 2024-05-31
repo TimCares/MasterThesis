@@ -119,7 +119,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         
         return loss, text_features, image_features
     
-    def itc_loss(self, text_features:torch.Tensor, image_features:torch.Tensor) -> torch.Tensor:
+    def itc_loss(self, text_features:torch.Tensor, image_features:torch.Tensor, stage:str='train') -> torch.Tensor:
         text_features = self.model.itc_head(text_features)
         image_features = self.model.itc_head(image_features)
 
@@ -128,8 +128,14 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
             text_features = F.normalize(text_features, dim=-1)
             image_features = F.normalize(image_features, dim=-1)
         
-        logits_per_image = scale * image_features @ text_features.t()
-        logits_per_text = scale * text_features @ image_features.t()
+        logits_per_image = image_features @ text_features.t()
+        logits_per_text = text_features @ image_features.t()
+
+        mean_pos_sim = torch.diagonal(logits_per_image).mean() + torch.diagonal(logits_per_text).mean()
+        self.log(f"{stage}/mean_pair_similarity", mean_pos_sim / 2)
+
+        logits_per_image = scale * logits_per_image
+        logits_per_text = scale * logits_per_text
         target = torch.arange(len(logits_per_image)).long().to(logits_per_image.device)
 
         itc_loss = (
