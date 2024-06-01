@@ -20,7 +20,9 @@ import random
 import urllib
 import PIL
 import io
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
+from torchvision.datasets.utils import download_url
 import numpy as np
 
 from .base_datasets import BaseImageText, BaseTextAudio, BaseImageAudio
@@ -67,7 +69,13 @@ class COCOCaptions(BaseImageText):
             urls = ["http://images.cocodataset.org/zips/train2014.zip",
                     "http://images.cocodataset.org/zips/val2014.zip",
                     "https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"]
-            download_and_unzip(urls=urls, store_at=self.path_to_data)
+
+            for url in urls:
+                download_url(url=url, root=self.path_to_data)
+                filepath = os.path.join(self.path_to_data, os.path.basename(url))
+                with zipfile.ZipFile(filepath, 'r') as zip:
+                    zip.extractall(self.path_to_data)
+                os.remove(filepath)
             os.remove(os.path.join(self.path_to_data, 'dataset_flickr8k.json'))
             os.remove(os.path.join(self.path_to_data, 'dataset_flickr30k.json'))
         else:
@@ -328,7 +336,12 @@ class VisualGenome(BaseImageText):
             urls = ["https://cs.stanford.edu/people/rak248/VG_100K_2/images.zip",
                     "https://cs.stanford.edu/people/rak248/VG_100K_2/images2.zip",
                     "https://homes.cs.washington.edu/~ranjay/visualgenome/data/dataset/region_descriptions.json.zip"]
-            download_and_unzip(urls=urls, store_at=self.path_to_data)
+            for url in urls:
+                download_url(url=url, root=self.path_to_data)
+                filepath = os.path.join(self.path_to_data, os.path.basename(url))
+                with zipfile.ZipFile(filepath, 'r') as zip:
+                    zip.extractall(self.path_to_data)
+                os.remove(filepath)
             self._move_images()
 
         self.make_visual_genome_dataset_index()
