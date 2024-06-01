@@ -350,8 +350,8 @@ class VisualGenome(BaseImageText):
         return (f"visual_genome.jsonl", ) # only for pretraining, so no splits
     
     def _move_images(self):
-        source_dir = os.path.join(self.path_to_data, 'VG_100k_2')
-        destination_dir = os.path.join(self.path_to_data, 'VG_100k')
+        source_dir = os.path.join(self.path_to_data, 'VG_100K_2')
+        destination_dir = os.path.join(self.path_to_data, 'VG_100K')
         for file_name in tqdm(os.listdir(source_dir), desc="Moving files"):
             source_file = os.path.join(source_dir, file_name)
             destination_file = os.path.join(destination_dir, file_name)
