@@ -89,9 +89,6 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
             return_encoder_output=True,
         ) # call "forward"
 
-        modality:Modality = batch['modality']
-        assert modality == Modality.VL
-
         precomputed_encoder_output = output_dict_image['encoder_output']
 
         with torch.no_grad():
@@ -139,8 +136,11 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         logits_per_image = image_features @ text_features.t()
         logits_per_text = text_features @ image_features.t()
 
-        mean_pos_sim = torch.diagonal(logits_per_image).mean() + torch.diagonal(logits_per_text).mean()
-        self.log(f"{stage}/mean_pair_similarity", mean_pos_sim / 2)
+        diagonal_mask = torch.eye(logits_per_image.size(0)).bool()
+        mean_pos_sim = (logits_per_image[diagonal_mask].mean() + logits_per_text[diagonal_mask].mean()) / 2
+        mean_neg_sim = (logits_per_image[~diagonal_mask].mean() + logits_per_text[~diagonal_mask].mean()) / 2
+        self.log(f"{stage}/mean_pos_pair_similarity", mean_pos_sim)
+        self.log(f"{stage}/mean_neg_pair_similarity", mean_neg_sim)
 
         logits_per_image = scale * logits_per_image
         logits_per_text = scale * logits_per_text
