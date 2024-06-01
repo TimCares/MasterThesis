@@ -54,8 +54,6 @@ def main(cfg: DictConfig) -> None:
             zero_shot_modules[name] = DATAMODULE_REGISTRY[name](**args)
             logger.info(f"Zero-shot datamodule {name}: {args}")
 
-    dataloader_args = cfg.data.dataloader
-
     callbacks = [
         ModelSummary(),
         LearningRateMonitor(logging_interval="step"),
@@ -86,11 +84,15 @@ def main(cfg: DictConfig) -> None:
         wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
     wandb.save('mm_data2vec.py') # saves the model file to wandb
 
+    dataloader_args = cfg.data.dataloader
+    shared_args = cfg.data.shared
+
     datamodules:List[LightningDataModule] = []
     for datamodule_key in cfg.data.datamodules.keys():
         dataset_args = cfg.data.datamodules[datamodule_key]
         with open_dict(dataset_args):
             dataset_args.update(dataloader_args)
+            dataset_args.update(shared_args)
         datamodules.append(DATAMODULE_REGISTRY[datamodule_key](**dataset_args))
         logger.info(f"Train datamodule {datamodule_key}: {dataset_args}")
     

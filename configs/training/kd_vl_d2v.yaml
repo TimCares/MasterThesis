@@ -53,34 +53,26 @@ model:
 
 data:
   dataloader:
-    data_path: ${data_path}
     batch_size: 128
     num_workers: 6
     shuffle: True
     drop_last: True
 
+  shared: # keys used for all datasets
+    data_path: ${data_path}
+    num_max_bpe_tokens: ${nlp_context_length}
+    color_jitter: # None
+    beit_transforms: False
+    crop_scale: [0.6, 1.0]
+
   datamodules:
     coco_captions:
-      num_max_bpe_tokens: ${nlp_context_length}
       task: captioning
-      color_jitter: # None
-      beit_transforms: False
-      crop_scale: [0.6, 1.0]
 
-    visual_genome:
-      num_max_bpe_tokens: ${nlp_context_length}
-      color_jitter: # None
-      beit_transforms: False
-      crop_scale: [0.6, 1.0]
-      n_caption_groups: 1
-      concat_captions: False
+    visual_genome: # all keys are in the "all" key already, no specific keys for vg only
 
     # conceptual_captions:
     #   data_fraction: 0.1
-    #   num_max_bpe_tokens: ${nlp_context_length}
-    #   color_jitter: # None
-    #   beit_transforms: False
-    #   crop_scale: [0.6, 1.0]
 
 checkpoint:
   dirpath: "${model_path}/${now:%Y-%m-%d_%H-%M-%S}"
