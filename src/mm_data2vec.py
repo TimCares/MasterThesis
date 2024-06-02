@@ -44,14 +44,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         state_dict_path = os.path.join(self.cfg.model.pretrained_path, state_dict_name)
         self.teacher = load_pretrained_d2v_model(state_dict_path=state_dict_path)
 
-        teacher_modality = self.teacher.cfg.supported_modality.name
-        teacher_extra_tokens = self.teacher.modality_encoders[teacher_modality].modality_cfg.num_extra_tokens
         del self.teacher.modality_encoders # we share it between teacher and student
-    
-        student_extra_tokens = self.model.modality_encoders[modality_str].modality_cfg.num_extra_tokens
-        assert student_extra_tokens == teacher_extra_tokens, \
-            f"Extra tokens mismatch: {student_extra_tokens} != {teacher_extra_tokens} " \
-                f"between student and teacher model for modality '{modality_str}'"
 
         self.model._freeze(self.teacher)
         
@@ -110,7 +103,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
             _kd_loss = self.kd_loss(input=kd_pred, target=kd_target)
             kd_losses.append(_kd_loss)
         
-        kd_loss = sum(kd_losses)
+        kd_loss = sum(kd_losses) / 2
         
         text_features = output_dict_text['layer_results'][-1].mean(dim=1)
         image_features = output_dict_image['layer_results'][-1].mean(dim=1)
@@ -122,7 +115,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         self.log(f"{stage}/itc_loss", itc_loss, prog_bar=True)
         self.log(f"{stage}/loss", loss, prog_bar=True)
         
-        return loss, text_features, image_features
+        return loss # , text_features, image_features
     
     def itc_loss(self, text_features:torch.Tensor, image_features:torch.Tensor, stage:str='train') -> torch.Tensor:
         text_features = self.model.itc_head(text_features)
@@ -240,6 +233,8 @@ class AMMData2Vec(nn.Module):
         dpr = np.linspace(self.cfg.start_drop_path_rate, self.cfg.end_drop_path_rate, self.cfg.depth)
 
         blocks:List[MOMEAltBlock] = []
+        fuzed_block_indices = list(range(self.cfg.depth - self.cfg.n_fuzed_layers, self.cfg.depth))
+        logger.info(f"Fuzed block indices: {fuzed_block_indices}")
         for i in range(self.cfg.depth):
             if self.cfg.depth - i <= self.cfg.n_fuzed_layers:
                 blocks.append(self.make_block(drop_path=dpr[i], multimodal=True, with_fuzed=True))
