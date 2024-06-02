@@ -37,8 +37,6 @@ def main(cfg: DictConfig) -> None:
     logger.info('Starting training.')
     module = AMMData2VecPreTrainingLightningModule(cfg=cfg)
 
-    logger.info(f"Running with modalities: {cfg.model.supported_modalities}")
-
     OmegaConf.resolve(cfg=cfg) # resolving done in-place
 
     if 'zero_shot_val' in cfg:
