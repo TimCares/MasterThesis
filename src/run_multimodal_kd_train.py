@@ -9,7 +9,7 @@ from pytorch_lightning import seed_everything, Trainer, LightningDataModule
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, ModelSummary
 from pytorch_lightning.loggers import WandbLogger
 
-from kd_data2vec import KDData2VecConfig, KDData2VecPreTrainingLightningModule
+from mm_data2vec import AMMData2VecConfig, AMMData2VecPreTrainingLightningModule
 from datamodules import DATAMODULE_REGISTRY
 from callbacks import ZeroShotRetrievalCallback, WallClockCallback
 from multi_data_loader import MultiDataModule
@@ -28,14 +28,14 @@ def main(cfg: DictConfig) -> None:
                                save_dir=cfg.log_dir,
                                log_model=False,)
     
-    cfg.model = merge_with_parent(dc=KDData2VecConfig(), cfg=cfg.model, remove_missing=False)
+    cfg.model = merge_with_parent(dc=AMMData2VecConfig(), cfg=cfg.model, remove_missing=False)
     if 'seed' in cfg and cfg.seed is not None:
         seed_everything(seed=cfg.seed, workers=True)
     else:
         logger.info('No seed set.')
 
     logger.info('Starting training.')
-    module = KDData2VecPreTrainingLightningModule(cfg=cfg)
+    module = AMMData2VecPreTrainingLightningModule(cfg=cfg)
 
     logger.info(f"Running with modalities: {cfg.model.supported_modalities}")
 
