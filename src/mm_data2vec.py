@@ -96,8 +96,9 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         
         kd_loss = sum(kd_losses) / 2
         
-        text_features = output_dict_text['layer_results'][-1].mean(dim=1)
-        image_features = output_dict_image['layer_results'][-1].mean(dim=1)
+        # no layer norm here, as last operation of each block is layer norm (therefore also of last block)
+        text_features = output_dict_text['layer_results'][-1][:, 0]
+        image_features = output_dict_image['layer_results'][-1][:, 0]
 
         itc_loss = self.itc_loss(text_features=text_features, image_features=image_features)
         loss = kd_loss + itc_loss
@@ -109,13 +110,13 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         return loss # , text_features, image_features
     
     def itc_loss(self, text_features:torch.Tensor, image_features:torch.Tensor, stage:str='train') -> torch.Tensor:
-        text_features = self.model.itc_head(text_features)
-        image_features = self.model.itc_head(image_features)
+        text_features = self.model.itc_text_head(text_features)
+        image_features = self.model.itc_img_head(image_features)
 
         scale = self.logit_scale.exp().mean() # mean not needed here, but we keep it for consistency with VLMo
-        with torch.no_grad():
-            text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-            image_features = image_features / image_features.norm(dim=-1, keepdim=True)
+
+        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+        image_features = image_features / image_features.norm(dim=-1, keepdim=True)
         
         logits_per_image = scale * image_features @ text_features.t()
         logits_per_text = scale * text_features @ image_features.t()
@@ -209,11 +210,14 @@ class AMMData2Vec(nn.Module):
         self.supported_modalities = [Modality.IMAGE, Modality.TEXT]
         self.fine_tuning = False
 
-        self.itc_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+        self.itc_img_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+        self.itc_img_head.weight.data.normal_(mean=0.0, std=0.02)
+        self.itc_text_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+        self.itc_text_head.weight.data.normal_(mean=0.0, std=0.02)
 
-        make_layer_norm = partial(
-            nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
-        )
+        # make_layer_norm = partial(
+        #     nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
+        # )
 
         self.dropout_input = nn.Dropout(self.cfg.dropout_input)
 
@@ -229,10 +233,6 @@ class AMMData2Vec(nn.Module):
                 blocks.append(self.make_block(drop_path=dpr[i], multimodal=True))
 
         self.blocks:nn.ModuleList[str, MOMEAltBlock] = nn.ModuleList(blocks)
-
-        self.norm = None
-        if self.cfg.layer_norm_first:
-            self.norm = make_layer_norm(self.cfg.embed_dim)
 
         self.layerdrop = self.cfg.layerdrop
         self.mask_seed = self.cfg.seed
@@ -356,9 +356,6 @@ class AMMData2Vec(nn.Module):
                 if not features_only:
                     layer_results.append(lr)
 
-        if self.norm is not None:
-            x = self.norm(x)
-
         if remove_extra_tokens:
             x = x[:, feature_extractor.modality_cfg.num_extra_tokens :]
             if masked_padding_mask is not None:
@@ -399,11 +396,16 @@ class AMMData2Vec(nn.Module):
             remove_extra_tokens=False, # important!
         )['x']
 
-        output = output.mean(dim=1)
-        self.itc_head(output)
+        output = output[:, 0]
+        if modality == Modality.IMAGE:
+            output = self.itc_img_head(output)
+        elif modality == Modality.TEXT:
+            output = self.itc_text_head(output)
+        else:
+            raise ValueError(f"Modality {modality} not supported")
 
         if normalize:
-            output = F.normalize(output, dim=-1)
+            output = output / output.norm(dim=-1, keepdim=True)
         
         return output # shape: (batch_size, embed_dim)
 
