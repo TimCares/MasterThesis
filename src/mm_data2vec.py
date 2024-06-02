@@ -97,8 +97,9 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         kd_loss = sum(kd_losses) / 2
         
         # no layer norm here, as last operation of each block is layer norm (therefore also of last block)
-        text_features = output_dict_text['layer_results'][-1][:, 0]
-        image_features = output_dict_image['layer_results'][-1][:, 0]
+        # we do not do ...[layer_results][-1] as we do not want the raw ffn outputs, but the layer normed ones
+        text_features = output_dict_text['x'][:, 0]
+        image_features = output_dict_image['x'][:, 0]
 
         itc_loss = self.itc_loss(text_features=text_features, image_features=image_features)
         loss = kd_loss + itc_loss
