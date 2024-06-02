@@ -109,7 +109,7 @@ class COCOCaptions(BaseImageText):
                 if item["split"] in karpathy_split:
                     image_path = os.path.join(self.path_to_data, item["filepath"], item["filename"])
                     if self.task == "captioning":
-                        if item["split"] in ["train", "restval"]:
+                        if item["split"] in ["train", "restval", "val"]:
                             items += self._encode_all(item, image_path, image_counter, bpe_encoder)
                         else:
                             items.append({
