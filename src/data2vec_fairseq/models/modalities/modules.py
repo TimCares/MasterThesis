@@ -355,7 +355,7 @@ class AltAttention(nn.Module):
                 torch.log(10 * torch.ones((num_heads, 1, 1))), requires_grad=True
             )
 
-    def forward(self, x, padding_mask=None, alibi_bias=None):
+    def forward(self, x, padding_mask=None, alibi_bias=None, return_attn_scores:bool=True):
         B, N, C = x.shape
         qkv = (
             self.qkv(x)
@@ -396,7 +396,10 @@ class AltAttention(nn.Module):
         x = x.reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
-        return x, attn
+
+        if return_attn_scores:
+            return x, attn
+        return x # else
 
 
 class EncDecAttention(nn.Module):

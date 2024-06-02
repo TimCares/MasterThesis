@@ -84,7 +84,7 @@ class MOMEAltBlock(nn.Module):
     def forward(self, x, modality:Modality, padding_mask=None, alibi_bias=None):
         modality = self._check_modality(modality)
         
-        x = x + self.drop_path(self.attn(x, padding_mask, alibi_bias))
+        x = x + self.drop_path(self.attn(x, padding_mask, alibi_bias, return_attn_scores=False))
         r = x = self.norm1[modality](x)
         x = self.mlp[modality](x)
         t = x
