@@ -5,14 +5,12 @@ from functools import partial
 from typing import Dict, Any, Optional, List
 import numpy as np
 import os
-import itertools
-from utils import load_pretrained_d2v_model
+from utils import load_pretrained_d2v_model, prepare_output
 import logging
 import pytorch_lightning as L
 from dataclasses import dataclass, field
 from data2vec_fairseq.data.modality import Modality
 from data2vec_fairseq.models.modalities.base import ModalitySpecificEncoder
-from data2vec_fairseq.models.data2vec2 import Data2VecMultiModel
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 import contextlib
 from modules import MOMEAltBlock
@@ -20,13 +18,6 @@ from modules import MOMEAltBlock
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
 logger = logging.getLogger(__name__)
-
-def prepare_output(out:List[torch.Tensor]) -> torch.Tensor:
-    out = [
-        F.instance_norm(tl.transpose(1, 2).float()).transpose(1, 2)
-        for tl in out  # BTC -> BCT -> BTC
-    ]
-    return torch.stack(out, dim=1)
     
 
 class AMMData2VecPreTrainingLightningModule(L.LightningModule):
@@ -121,23 +112,19 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         text_features = self.model.itc_head(text_features)
         image_features = self.model.itc_head(image_features)
 
-        scale = self.logit_scale.exp()
+        scale = self.logit_scale.exp().mean() # mean not needed here, but we keep it for consistency with VLMo
         with torch.no_grad():
-            text_features = F.normalize(text_features, dim=-1)
-            image_features = F.normalize(image_features, dim=-1)
+            text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+            image_features = image_features / image_features.norm(dim=-1, keepdim=True)
         
-        logits_per_image = image_features @ text_features.t()
-        logits_per_text = text_features @ image_features.t()
+        logits_per_image = scale * image_features @ text_features.t()
+        logits_per_text = scale * text_features @ image_features.t()
 
-        diagonal_mask = torch.eye(logits_per_image.size(0)).bool()
-        mean_pos_sim = (logits_per_image[diagonal_mask].mean() + logits_per_text[diagonal_mask].mean()) / 2
-        mean_neg_sim = (logits_per_image[~diagonal_mask].mean() + logits_per_text[~diagonal_mask].mean()) / 2
-        self.log(f"{stage}/mean_pos_pair_similarity", mean_pos_sim)
-        self.log(f"{stage}/mean_neg_pair_similarity", mean_neg_sim)
-
-        logits_per_image = scale * logits_per_image
-        logits_per_text = scale * logits_per_text
         target = torch.arange(len(logits_per_image)).long().to(logits_per_image.device)
+
+        img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
+        text_itc_acc = (logits_per_text.argmax(dim=1) == target).float().mean()
+        self.log(f"{stage}/itc_acc", (img_itc_acc + text_itc_acc) / 2, prog_bar=True)
 
         itc_loss = (
             F.cross_entropy(logits_per_image.float(), target)
