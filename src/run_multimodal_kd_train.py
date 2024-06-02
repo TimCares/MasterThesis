@@ -109,9 +109,12 @@ def main(cfg: DictConfig) -> None:
     else:
         ckpt_path = None
 
+    val_dataloaders = [m.val_dataloader() for m in datamodules if hasattr(m, 'val_dataset')]
+    logger.info(f"Using {len(val_dataloaders)} validation dataloaders.")
+
     trainer.fit(module,
                 train_dataloaders=multi_datamodule.train_dataloader(),
-                val_dataloaders=[m.val_dataloader() for m in datamodules],
+                val_dataloaders=val_dataloaders,
                 ckpt_path=ckpt_path)
 
 
