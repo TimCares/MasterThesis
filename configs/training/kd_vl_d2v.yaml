@@ -21,7 +21,7 @@ run_name: vl
 
 load_checkpoint:
 
-nlp_context_length: 196
+nlp_context_length: 197 # 196 + 1 for the [CLS] token of the teacher model
 
 teacher_modality: image # which d2v model to use as teacher, can be IMAGE, AUDIO, or TEXT
 
