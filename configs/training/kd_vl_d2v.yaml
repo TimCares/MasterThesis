@@ -71,7 +71,8 @@ data:
     coco_captions:
       task: captioning
 
-    visual_genome: # all keys are in the "all" key already, no specific keys for vg only
+    # all keys are in the "all" key already, no specific keys for vg only
+    visual_genome: {} # we add an empty dict explicitly, else values for key would be "None"
 
     # conceptual_captions:
     #   data_fraction: 0.1
