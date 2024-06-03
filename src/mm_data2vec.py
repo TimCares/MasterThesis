@@ -211,10 +211,9 @@ class AMMData2Vec(nn.Module):
         self.supported_modalities = [Modality.IMAGE, Modality.TEXT]
         self.fine_tuning = False
 
+        # initialized through self.apply(init_bert_params)
         self.itc_img_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
-        self.itc_img_head.weight.data.normal_(mean=0.0, std=0.02)
         self.itc_text_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
-        self.itc_text_head.weight.data.normal_(mean=0.0, std=0.02)
 
         # make_layer_norm = partial(
         #     nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
