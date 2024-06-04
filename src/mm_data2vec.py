@@ -28,7 +28,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
 
         self.model = AMMData2Vec(cfg=self.cfg.model)
 
-        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        # self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
         modality_str = self.cfg.teacher_modality
         state_dict_name = self.cfg.model.pretrained[modality_str]
@@ -93,7 +93,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         kd_losses = []
         for output_dict in [output_dict_text, output_dict_image]:
             #_kd_loss = self.kd_loss(input=output_dict['x'], target=target['x'])
-            _kd_loss = F.mse_loss(output_dict['x'][0, :], target['x'][0, :], reduction="mean")
+            _kd_loss = F.mse_loss(output_dict['x'][:, 0], target['x'][:, 0], reduction="mean")
             kd_losses.append(_kd_loss)
         
         kd_loss = sum(kd_losses)
@@ -228,8 +228,8 @@ class AMMData2Vec(nn.Module):
         self.fine_tuning = False
 
         # initialized through self.apply(init_bert_params)
-        self.itc_img_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
-        self.itc_text_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+        # self.itc_img_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+        # self.itc_text_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
 
         # make_layer_norm = partial(
         #     nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
@@ -413,12 +413,12 @@ class AMMData2Vec(nn.Module):
         )['x']
 
         output = output[:, 0]
-        if modality == Modality.IMAGE:
-            output = self.itc_img_head(output)
-        elif modality == Modality.TEXT:
-            output = self.itc_text_head(output)
-        else:
-            raise ValueError(f"Modality {modality} not supported")
+        # if modality == Modality.IMAGE:
+        #     output = self.itc_img_head(output)
+        # elif modality == Modality.TEXT:
+        #     output = self.itc_text_head(output)
+        # else:
+        #     raise ValueError(f"Modality {modality} not supported")
 
         if normalize:
             output = output / output.norm(dim=-1, keepdim=True)
