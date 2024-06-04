@@ -30,7 +30,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         self.model = AMMData2Vec(cfg=self.cfg.model)
 
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
-        self.cls_proj = nn.Linear(self.cfg.model.embed_dim, 1000)
+        self.cls_proj = nn.Linear(self.cfg.model.embed_dim, 1000, bias=False)
         nn.init.normal_(self.cls_proj.weight, std=0.02)
 
         self.teacher = torchvision.models.vit_b_16(torchvision.models.ViT_B_16_Weights)
