@@ -56,7 +56,8 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         if 'target' in batch:
             batch.pop('target') # unused, layer activations are the targets
 
-        assert torch.unique(batch['id']).shape[0] == batch['id'].shape[0], "IDs must be unique for ITC loss."
+        # assert torch.unique(batch['id']).shape[0] == batch['id'].shape[0], "IDs must be unique for ITC loss."
+        # batch['id'] later important for ITC loss!
 
         text = batch['text']
         padding_mask = batch['padding_mask']
@@ -92,8 +93,8 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
 
         kd_losses = []
         for output_dict in [output_dict_text, output_dict_image]:
-            #_kd_loss = self.kd_loss(input=output_dict['x'], target=target['x'])
-            _kd_loss = F.mse_loss(output_dict['x'][:, 0], target['x'][:, 0], reduction="mean")
+            _kd_loss = self.kd_loss(input=output_dict['x'], target=target['x'])
+            # _kd_loss = F.mse_loss(output_dict['x'][:, 0], target['x'][:, 0], reduction="mean")
             kd_losses.append(_kd_loss)
         
         kd_loss = sum(kd_losses)

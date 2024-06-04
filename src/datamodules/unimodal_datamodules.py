@@ -276,11 +276,8 @@ class ImageNetDataModule(BaseDataModule):
         self.precompute_mask_config = precompute_mask_config
 
     def prepare_data(self):
-        if not self.prepared:
-            self.set_train_dataset()
-            self.set_val_dataset()
-
-            self.prepared = True
+        self.set_train_dataset()
+        self.set_val_dataset()
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
