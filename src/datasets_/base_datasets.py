@@ -390,6 +390,7 @@ class BaseImageText(ImageDataset):
         img_path = item["image_path"]
         img = self._get_image(img_path)
         data["image"] = img
+        data["id"] = item["id"]
 
         text_segment = item["text"]
         language_tokens, padding_mask, _ = self._get_text_segment(text_segment)
