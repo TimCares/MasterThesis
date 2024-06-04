@@ -81,7 +81,7 @@ checkpoint:
   dirpath: "${model_path}/${now:%Y-%m-%d_%H-%M-%S}"
   # monitor key is also computed in a callback, ModelCheckpoint callbacks are the last checkpoints executed,
   # so the key will be computed right beforehand (therefore it is always up to date)
-  filename: nlp-d2v-{step}-{${checkpoint.monitor}:.4f}
+  filename: vl-d2v-{step}-{${checkpoint.monitor}:.4f}
   save_last: link # save last checkpoint -> easier access, as it has a fixed name (last.ckpt) -> not set to True here, as a link saves space
   enable_version_counter: False # only ever one "last.ckpt" file
   every_n_train_steps: ${lightning_trainer.val_check_interval}
