@@ -85,13 +85,12 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
                 precomputed_encoder_output=precomputed_encoder_output,
             )
         
-        target = target['layer_results'][-self.last_n_layer_targets:]
-        kd_target = prepare_output(target)
+        #target = target['layer_results'][-self.last_n_layer_targets:]
+        #kd_target = prepare_output(target)
 
         kd_losses = []
         for output_dict in [output_dict_text, output_dict_image]:
-            kd_pred = prepare_output(output_dict['layer_results'][-self.last_n_layer_targets:])
-            _kd_loss = self.kd_loss(input=kd_pred, target=kd_target)
+            _kd_loss = self.kd_loss(input=output_dict['x'], target=target['x'])
             kd_losses.append(_kd_loss)
         
         kd_loss = sum(kd_losses) / 2
@@ -104,8 +103,10 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         itc_loss = self.itc_loss(text_features=text_features, image_features=image_features)
         loss = kd_loss + itc_loss
 
-        self.log(f"{stage}/kd_loss", kd_loss, prog_bar=True)
-        self.log(f"{stage}/itc_loss", itc_loss, prog_bar=True)
+        self.log(f"{stage}/kd_text_loss", kd_losses[0])
+        self.log(f"{stage}/kd_image_loss", kd_losses[1])
+        self.log(f"{stage}/kd_loss", kd_loss)
+        self.log(f"{stage}/itc_loss", itc_loss)
         self.log(f"{stage}/loss", loss, prog_bar=True)
         
         return loss # , text_features, image_features
@@ -126,6 +127,8 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
 
         img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
         text_itc_acc = (logits_per_text.argmax(dim=1) == target).float().mean()
+        self.log(f"{stage}/itc_text_acc", text_itc_acc)
+        self.log(f"{stage}/itc_image_acc", img_itc_acc)
         self.log(f"{stage}/itc_acc", (img_itc_acc + text_itc_acc) / 2, prog_bar=True)
 
         itc_loss = (
