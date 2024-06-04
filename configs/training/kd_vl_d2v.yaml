@@ -32,7 +32,7 @@ model:
     image: base_imagenet.pt
     text: nlp_base.pt
 
-  n_fuzed_layers: 2
+  n_fuzed_layers: 1
 
   embed_dim: 768
 
