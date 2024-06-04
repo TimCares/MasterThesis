@@ -53,7 +53,7 @@ def _zero_shot_classifier(model:AMMData2Vec, device, num_max_bpe_tokens):
 
         texts = texts.to(device)
         padding_masks = padding_masks.to(device)
-        class_embeddings = model.encode_text(text=texts, padding_mask=padding_mask, normalize=True)
+        class_embeddings = model.encode_text(text=texts, padding_mask=padding_masks, normalize=True)
         class_embedding = class_embeddings.mean(dim=0)
         class_embedding /= class_embedding.norm()
         zeroshot_weights.append(class_embedding)
