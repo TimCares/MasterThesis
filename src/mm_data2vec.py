@@ -56,6 +56,8 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         if 'target' in batch:
             batch.pop('target') # unused, layer activations are the targets
 
+        assert torch.unique(batch['id']).shape[0] == batch['id'].shape[0], "IDs must be unique for ITC loss."
+
         text = batch['text']
         padding_mask = batch['padding_mask']
         image = batch['image']
@@ -123,6 +125,8 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         logits_per_image = scale * image_features @ text_features.t()
         logits_per_text = scale * text_features @ image_features.t()
 
+        self._log_similarity(logits_per_image, logits_per_text, stage)
+
         target = torch.arange(len(logits_per_image)).long().to(logits_per_image.device)
 
         img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
@@ -147,6 +151,14 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         assert input.shape == target.shape # this must be the case
 
         return F.mse_loss(input, target, reduction="none").float().mean()
+    
+    def _log_similarity(self, logits_per_image: torch.Tensor, logits_per_text: torch.Tensor, stage:str='train') -> None:
+        diagonal_mask = torch.eye(logits_per_image.size(0)).bool()
+        for logits, name in [(logits_per_image, "i2t"), (logits_per_text, "t2i")]:
+            mean_pos_sim = logits[diagonal_mask].mean()
+            mean_neg_sim = logits[~diagonal_mask].mean()
+            self.log(f"{stage}/{name}_mean_pos_similarity", mean_pos_sim)
+            self.log(f"{stage}/{name}_mean_neg_similarity", mean_neg_sim)
 
 
     def configure_optimizers(self):
