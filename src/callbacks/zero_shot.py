@@ -321,9 +321,10 @@ class MultimodalZeroShotRetrievalCallback(ZeroShotCallback):
             datamodules: Dict[str, LightningDataModule],
             val_every_n_batches:int,
             num_max_bpe_tokens:int):
-        super().__init__()
-        self.datamodules = datamodules
-        self.val_every_n_batches = val_every_n_batches
+        super().__init__(
+            datamodules=datamodules,
+            val_every_n_batches=val_every_n_batches,
+        )
         self.num_max_bpe_tokens = num_max_bpe_tokens
 
     def cleanup(self) -> None:
