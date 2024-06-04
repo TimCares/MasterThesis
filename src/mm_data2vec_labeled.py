@@ -52,6 +52,8 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         if 'target' in batch:
             batch.pop('target') # unused, layer activations are the targets
 
+        assert torch.unique(batch['id']).shape[0] == batch['id'].shape[0], "IDs must be unique for ITC loss."
+
         text = batch['text']
         padding_mask = batch['padding_mask']
         image = batch['image']
