@@ -87,28 +87,29 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
                 precomputed_encoder_output=precomputed_encoder_output,
             )
         
-        #target = target['layer_results'][-self.last_n_layer_targets:]
-        #kd_target = prepare_output(target)
+        # target = target['layer_results'][-self.last_n_layer_targets:]
+        # kd_target = prepare_output(target)
 
         kd_losses = []
         for output_dict in [output_dict_text, output_dict_image]:
-            _kd_loss = self.kd_loss(input=output_dict['x'], target=target['x'])
+            #_kd_loss = self.kd_loss(input=output_dict['x'], target=target['x'])
+            _kd_loss = F.mse_loss(output_dict['x'][0, :], target['x'][0, :], reduction="mean")
             kd_losses.append(_kd_loss)
         
-        kd_loss = sum(kd_losses) / 2
+        kd_loss = sum(kd_losses)
         
         # no layer norm here, as last operation of each block is layer norm (therefore also of last block)
         # we do not do ...[layer_results][-1] as we do not want the raw ffn outputs, but the layer normed ones
-        text_features = output_dict_text['x'][:, 0]
-        image_features = output_dict_image['x'][:, 0]
+        #text_features = output_dict_text['x'][:, 0]
+        #image_features = output_dict_image['x'][:, 0]
 
-        itc_loss = self.itc_loss(text_features=text_features, image_features=image_features)
-        loss = kd_loss + itc_loss
+        #itc_loss = self.itc_loss(text_features=text_features, image_features=image_features)
+        loss = kd_loss# + itc_loss
 
         self.log(f"{stage}/kd_text_loss", kd_losses[0])
         self.log(f"{stage}/kd_image_loss", kd_losses[1])
         self.log(f"{stage}/kd_loss", kd_loss)
-        self.log(f"{stage}/itc_loss", itc_loss)
+        #self.log(f"{stage}/itc_loss", itc_loss)
         self.log(f"{stage}/loss", loss, prog_bar=True)
         
         return loss
@@ -292,19 +293,19 @@ class AMMData2Vec(nn.Module):
             state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
             d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
 
-            for i in range(start_fuzed):
-                self.blocks[i].init_from_pretrained(
-                    pretained_block=d2v_model.blocks[i],
-                    modality=modality,
-                    init_attention=modality == Modality.IMAGE,
-                )
-            if modality == Modality.IMAGE:
-                for i in range(start_fuzed, self.cfg.depth):
-                    assert self.blocks[i].with_fuzed
-                    self.blocks[i].init_attention_from_pretrained(
-                        pretained_block=d2v_model.blocks[i],
-                        modality=modality,
-                    )
+            # for i in range(start_fuzed):
+            #     self.blocks[i].init_from_pretrained(
+            #         pretained_block=d2v_model.blocks[i],
+            #         modality=modality,
+            #         init_attention=modality == Modality.IMAGE,
+            #     )
+            # if modality == Modality.IMAGE:
+            #     for i in range(start_fuzed, self.cfg.depth):
+            #         assert self.blocks[i].with_fuzed
+            #         self.blocks[i].init_attention_from_pretrained(
+            #             pretained_block=d2v_model.blocks[i],
+            #             modality=modality,
+            #         )
             
             modality_feature_extractor = d2v_model.modality_encoders[modality.name]
             modality_encoders[modality.name.lower()] = modality_feature_extractor

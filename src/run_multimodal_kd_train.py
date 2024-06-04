@@ -11,7 +11,7 @@ from pytorch_lightning.loggers import WandbLogger
 
 from mm_data2vec import AMMData2VecConfig, AMMData2VecPreTrainingLightningModule
 from datamodules import DATAMODULE_REGISTRY
-from callbacks import ZeroShotRetrievalCallback, WallClockCallback
+from callbacks import MultimodalZeroShotRetrievalCallback, WallClockCallback
 from multi_data_loader import MultiDataModule
 
 from fairseq.dataclass.utils import merge_with_parent
@@ -39,18 +39,15 @@ def main(cfg: DictConfig) -> None:
 
     OmegaConf.resolve(cfg=cfg) # resolving done in-place
 
-    if 'zero_shot_val' in cfg:
-        val_cfg = cfg.zero_shot_val
-        zero_shot_modules = dict()
-        val_dataloader_args = val_cfg.dataloader
-        for name in val_cfg.datamodules:
-            with open_dict(val_dataloader_args):
-                datamodule_cfg = val_cfg.datamodules[name]
-                # override general dataloader args with dataloader specific args (if present)
-                args = OmegaConf.merge(val_dataloader_args, datamodule_cfg)
-
-            zero_shot_modules[name] = DATAMODULE_REGISTRY[name](**args)
-            logger.info(f"Zero-shot datamodule {name}: {args}")
+    imagenet_args = {
+        'data_path': cfg.data_path,
+        'pretraining': True,
+        'batch_size':256,
+        'num_workers':5,
+        'shuffle':False,
+        'drop_last':False,
+    }
+    imagenet = DATAMODULE_REGISTRY['imagenet'](**imagenet_args)
 
     callbacks = [
         ModelSummary(),
@@ -59,9 +56,9 @@ def main(cfg: DictConfig) -> None:
     ]
     if 'zero_shot_val' in cfg:
         callbacks.append(
-            ZeroShotRetrievalCallback(
-                datamodules=zero_shot_modules,
-                val_every_n_batches=val_cfg.val_every_n_batches,),
+            MultimodalZeroShotRetrievalCallback(
+                datamodules={'imagenet': imagenet},
+                **cfg.zero_shot_val,),
         )
     # checkpoint last, so that zero shot has been performed before saving 
     # (ModelCheckpoint usually executed last automatically, but just to be sure)
@@ -108,12 +105,12 @@ def main(cfg: DictConfig) -> None:
     else:
         ckpt_path = None
 
-    val_dataloaders = [m.val_dataloader() for m in datamodules if hasattr(m, 'val_dataset')]
-    logger.info(f"Using {len(val_dataloaders)} validation dataloaders.")
+    # val_dataloaders = [m.val_dataloader() for m in datamodules if hasattr(m, 'val_dataset')]
+    # logger.info(f"Using {len(val_dataloaders)} validation dataloaders.")
 
     trainer.fit(module,
                 train_dataloaders=multi_datamodule.train_dataloader(),
-                val_dataloaders=val_dataloaders,
+                # val_dataloaders=val_dataloaders,
                 ckpt_path=ckpt_path)
 
 

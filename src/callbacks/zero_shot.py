@@ -1,9 +1,10 @@
 from bpe_encoder import BPEEncoder
-from typing import Tuple, Callable
+from typing import Tuple
 import logging
 import torch
 import numpy as np
 from kd_data2vec import KDData2Vec
+from mm_data2vec import AMMData2Vec
 from torch.utils.data import DataLoader
 from pytorch_lightning import Callback, LightningDataModule, Trainer, LightningModule
 from pytorch_lightning.utilities import rank_zero_only
@@ -25,8 +26,7 @@ from data2vec_fairseq.data.modality import Modality
 logger = logging.getLogger(__name__)
 
 
-def _zero_shot_classifier(model, device, num_max_bpe_tokens, 
-                          dictionary:Dictionary, *args, **kwargs):
+def _zero_shot_classifier(model:AMMData2Vec, device, num_max_bpe_tokens):
     data_path = '/workspace'
     bpe_encoder:BPEEncoder = get_bpe_encoder(data_path)
     dictionary = Dictionary.load(os.path.join(data_path, "dict.txt"))
@@ -62,26 +62,25 @@ def _zero_shot_classifier(model, device, num_max_bpe_tokens,
     return zeroshot_weights
 
 
-def _accuracy(output, target, topk=(1,)):
+def _n_correct(output, target, topk=(1,)):
     pred = output.topk(max(topk), 1, True, True)[1].t()
     correct = pred.eq(target.view(1, -1).expand_as(pred))
     return [
-        float(correct[:k].reshape(-1).float().sum(0, keepdim=True).cpu().numpy())
+        correct[:k].reshape(-1).float().sum().cpu().item()
         for k in topk
     ]
 
 
 @torch.no_grad()
 @rank_zero_only
-def run_multimodal_zero_shot(model:Callable,
+def run_multimodal_zero_shot(model:AMMData2Vec,
                              dataloader:DataLoader,
+                             num_max_bpe_tokens:int,
                              device,
-                             name,
-                             *args,
-                             **kwargs):
+                             name,):
     logger.info(f"Starting multimodal {name} Zero-Shot Eval")
     logger.info("Building classifier")
-    classifier = _zero_shot_classifier(model, device)
+    classifier = _zero_shot_classifier(model, device, num_max_bpe_tokens)
     logger.info("Classifier built")
     top1, top5, n = 0.0, 0.0, 0.0
     for sample in track(dataloader, description=f"Zero-shot eval: {name}"):
@@ -94,7 +93,7 @@ def run_multimodal_zero_shot(model:Callable,
         logits = 100.0 * image_features @ classifier
 
         # measure accuracy
-        acc1, acc5 = _accuracy(logits, target, topk=(1, 5))
+        acc1, acc5 = _n_correct(logits, target, topk=(1, 5))
         top1 += acc1
         top5 += acc5
         n += images.size(0)
@@ -312,5 +311,45 @@ class ZeroShotRetrievalCallback(ZeroShotCallback):
                     rank_zero_only=True,
                     on_step=True,
                     )
+        
+        self.cleanup() # release memory
+
+
+class MultimodalZeroShotRetrievalCallback(ZeroShotCallback):
+    def __init__(
+            self,
+            datamodules: Dict[str, LightningDataModule],
+            val_every_n_batches:int,
+            num_max_bpe_tokens:int):
+        super().__init__()
+        self.datamodules = datamodules
+        self.val_every_n_batches = val_every_n_batches
+        self.num_max_bpe_tokens = num_max_bpe_tokens
+
+    def cleanup(self) -> None:
+        for name_key in self.datamodules.keys():
+            self.datamodules[name_key].teardown(stage='fit')
+
+    def validate(self, trainer, pl_module) -> None:
+        for name_key in self.datamodules.keys():
+            self.datamodules[name_key].prepare_data()
+            self.datamodules[name_key].setup(stage='fit')
+            
+            metrics = run_multimodal_zero_shot(
+                model=pl_module.model,
+                dataloader=self.datamodules[name_key].val_dataloader(),
+                num_max_bpe_tokens=self.num_max_bpe_tokens,
+                device=pl_module.device,
+                name=name_key,
+            )
+
+            for metric_key in metrics:
+                pl_module.log(
+                    f"val/{metric_key}",
+                    metrics[metric_key],
+                    logger=True,
+                    rank_zero_only=True,
+                    on_step=True,
+                )
         
         self.cleanup() # release memory

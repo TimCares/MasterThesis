@@ -1,2 +1,2 @@
-from .zero_shot import ZeroShotRetrievalCallback
+from .zero_shot import ZeroShotRetrievalCallback, MultimodalZeroShotRetrievalCallback
 from .utils import WallClockCallback

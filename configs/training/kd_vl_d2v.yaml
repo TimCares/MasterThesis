@@ -72,7 +72,7 @@ data:
       task: captioning
 
     # all keys are in the "all" key already, no specific keys for vg only
-    visual_genome: {} # we add an empty dict explicitly, else values for key would be "None"
+    # visual_genome: {} # we add an empty dict explicitly, else values for key would be "None"
 
     # conceptual_captions:
     #   data_fraction: 0.1
@@ -87,9 +87,13 @@ checkpoint:
   every_n_train_steps: ${lightning_trainer.val_check_interval}
   save_on_train_epoch_end: False # False -> run at end of validation
   verbose: True
-  monitor: val/loss
+  monitor: val/multimodal-imagenet--zeroshot-val-top1
   mode: min
   auto_insert_metric_name: False
+
+zero_shot_val:
+  val_every_n_batches: 4_000
+  num_max_bpe_tokens: ${nlp_context_length}
 
 optimizer:
   lr: 0.0005
@@ -100,7 +104,7 @@ optimizer:
 
 optimizer_schedule: # relevant if "optimizer.warmup" is True
   type: cosine # constant or cosine
-  warmup_steps: 8_000
+  warmup_steps: 4_000
   max_steps: ${lightning_trainer.max_steps}
 
 lightning_trainer:
@@ -108,9 +112,8 @@ lightning_trainer:
   accelerator: gpu
   devices: -1
   strategy: auto # auto -> default
-  max_steps: 80_000
-  val_check_interval: 4_000
+  max_steps: 40_000
+  val_check_interval: ${zero_shot_val.val_every_n_batches}
   precision: 16-mixed
-  gradient_clip_val: 2.0
   log_every_n_steps: 50
-  accumulate_grad_batches: 2 # 128*2 = 256
+  # accumulate_grad_batches: 2 # 128*2 = 256
