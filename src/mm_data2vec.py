@@ -111,7 +111,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         self.log(f"{stage}/itc_loss", itc_loss)
         self.log(f"{stage}/loss", loss, prog_bar=True)
         
-        return loss # , text_features, image_features
+        return loss
     
     def itc_loss(self, text_features:torch.Tensor, image_features:torch.Tensor, stage:str='train') -> torch.Tensor:
         text_features = self.model.itc_text_head(text_features)
