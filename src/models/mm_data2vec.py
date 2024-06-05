@@ -119,13 +119,13 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         text_features = self.model.itc_text_head(text_features)
         image_features = self.model.itc_img_head(image_features)
 
-        scale = self.logit_scale.exp().mean() # mean not needed here, but we keep it for consistency with VLMo
+        scale = self.logit_scale.exp()
 
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
         
         logits_per_image = scale * image_features @ text_features.t()
-        logits_per_text = scale * text_features @ image_features.t()
+        logits_per_text = logits_per_image.t()
 
         self._log_similarity(logits_per_image, logits_per_text, stage)
 
