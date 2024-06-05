@@ -79,10 +79,8 @@ class VisualGenomeDataModule(BaseImageTextDataModule):
         self.crop_scale = crop_scale
 
     def prepare_data(self):
-        if not self.prepared:
+        if not hasattr(self, 'train_dataset'):
             self.set_train_dataset()
-
-            self.prepared = True
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
@@ -116,10 +114,8 @@ class ConceptualCaptionsDataModule(BaseImageTextDataModule):
         self.crop_scale = crop_scale
 
     def prepare_data(self):
-        if not self.prepared:
+        if not hasattr(self, 'train_dataset'):
             self.set_train_dataset()
-
-            self.prepared = True
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
@@ -283,10 +279,8 @@ class Flickr8AudioDataModule(BaseImageAudioDataModule):
         self.precompute_mask_config = precompute_mask_config
 
     def prepare_data(self):
-        if not self.prepared:
+        if not hasattr(self, 'test_dataset'):
             self.set_test_dataset()
-
-            self.prepared = True
 
     def setup(self, stage=None):
         if stage == 'test' or stage is None:
@@ -348,11 +342,10 @@ class CommonVoiceDataModule(BaseTextAudioDataModule):
         self.precompute_mask_config = precompute_mask_config
 
     def prepare_data(self):
-        if not self.prepared:
+        if not hasattr(self, 'train_dataset'):
             self.set_train_dataset()
+        if not hasattr(self, 'test_dataset'):
             self.set_test_dataset()
-
-            self.prepared = True
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:

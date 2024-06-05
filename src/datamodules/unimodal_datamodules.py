@@ -21,7 +21,6 @@ class BaseDataModule(LightningDataModule):
         self.num_workers = num_workers
         self.shuffle = shuffle
         self.drop_last = drop_last
-        self.prepared = False
     
     def set_train_dataset(self):
         raise NotImplementedError("set train dataset")
@@ -37,12 +36,12 @@ class BaseDataModule(LightningDataModule):
         raise NotImplementedError
 
     def prepare_data(self):
-        if not self.prepared:
+        if not hasattr(self, 'train_dataset'):
             self.set_train_dataset()
+        if not hasattr(self, 'val_dataset'):
             self.set_val_dataset()
+        if not hasattr(self, 'test_dataset'):
             self.set_test_dataset()
-
-            self.prepared = True
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
@@ -103,8 +102,10 @@ class IMDBDataModule(BaseDataModule):
         self.num_max_bpe_tokens = num_max_bpe_tokens
 
     def prepare_data(self): # only for validation datasets
-        self.set_train_dataset()
-        self.set_test_dataset()
+        if not hasattr(self, 'train_dataset'):
+            self.set_train_dataset()
+        if not hasattr(self, 'test_dataset'):
+            self.set_test_dataset()
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
@@ -132,8 +133,10 @@ class QQPDataModule(BaseDataModule):
         return Modality.TEXT
 
     def prepare_data(self):
-        self.set_train_dataset()
-        self.set_test_dataset()
+        if not hasattr(self, 'train_dataset'):
+            self.set_train_dataset()
+        if not hasattr(self, 'test_dataset'):
+            self.set_test_dataset()
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
@@ -166,8 +169,10 @@ class MRPCDataModule(BaseDataModule):
         return Modality.TEXT
 
     def prepare_data(self):
-        self.set_train_dataset()
-        self.set_test_dataset()
+        if not hasattr(self, 'train_dataset'):
+            self.set_train_dataset()
+        if not hasattr(self, 'test_dataset'):
+            self.set_test_dataset()
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
@@ -198,11 +203,10 @@ class OpenWebTextDataModule(BaseDataModule):
         self.sample_break_mode = sample_break_mode
 
     def prepare_data(self):
-        if not self.prepared:
+        if not hasattr(self, 'train_dataset'):
             self.set_train_dataset()
+        if not hasattr(self, 'val_dataset'):
             self.set_val_dataset()
-
-            self.prepared = True
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
@@ -233,8 +237,10 @@ class CIFARDataModule(BaseDataModule):
         return Modality.IMAGE
 
     def prepare_data(self): # only for validation datasets
-        self.set_train_dataset()
-        self.set_test_dataset()
+        if not hasattr(self, 'train_dataset'):
+            self.set_train_dataset()
+        if not hasattr(self, 'test_dataset'):
+            self.set_test_dataset()
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
@@ -276,8 +282,10 @@ class ImageNetDataModule(BaseDataModule):
         self.precompute_mask_config = precompute_mask_config
 
     def prepare_data(self):
-        self.set_train_dataset()
-        self.set_val_dataset()
+        if not hasattr(self, 'train_dataset'):
+            self.set_train_dataset()
+        if not hasattr(self, 'val_dataset'):
+            self.set_val_dataset()
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
@@ -331,12 +339,10 @@ class LibriSpeechDataModule(BaseDataModule):
         self.return_path = return_path
 
     def prepare_data(self):
-        if not self.prepared:
+        if not hasattr(self, 'train_dataset'):
             self.set_train_dataset()
-            if self.types_test is not None:
-                self.set_test_dataset()
-
-            self.prepared = True
+        if self.types_test is not None and not hasattr(self, 'test_dataset'):
+            self.set_test_dataset()
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
@@ -384,8 +390,10 @@ class SpeechCommandsDataModule(BaseDataModule):
         self.pad = pad
 
     def prepare_data(self): # only for validation datasets
-        self.set_train_dataset()
-        self.set_test_dataset()
+        if not hasattr(self, 'train_dataset'):
+            self.set_train_dataset()
+        if not hasattr(self, 'test_dataset'):
+            self.set_test_dataset()
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
