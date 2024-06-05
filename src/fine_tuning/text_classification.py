@@ -22,7 +22,7 @@ from fairseq.criterions.sentence_prediction import (
 )
 
 from data2vec_fairseq.data.modality import Modality
-from kd_data2vec import KDData2Vec, KDData2VecPreTrainingLightningModule
+from models.kd_data2vec import KDData2Vec, KDData2VecPreTrainingLightningModule
 from transformers.optimization import get_polynomial_decay_schedule_with_warmup
 
 logger = logging.getLogger(__name__)

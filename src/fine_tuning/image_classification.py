@@ -12,7 +12,7 @@ import pytorch_lightning as L
 from timm.data import Mixup
 
 from data2vec_fairseq.data.modality import Modality
-from kd_data2vec import KDData2Vec, KDData2VecPreTrainingLightningModule
+from models.kd_data2vec import KDData2Vec, KDData2VecPreTrainingLightningModule
 from data2vec_fairseq.models.mae_image_classification import PredictionMode
 from transformers.optimization import get_cosine_schedule_with_warmup
 

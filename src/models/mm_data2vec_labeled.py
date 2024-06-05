@@ -83,20 +83,20 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
             _kl_loss = torch.nn.functional.kl_div(input=input, target=target, reduction='batchmean', log_target=True)
             kl_losses.append(_kl_loss)
         
-        kl_loss = sum(kl_losses) / 2
+        kl_loss = sum(kl_losses)
         
         # no layer norm here, as last operation of each block is layer norm (therefore also of last block)
         # we do not do ...[layer_results][-1] as we do not want the raw ffn outputs, but the layer normed ones
-        text_features = output_dict_text['x'][:, 0]
-        image_features = output_dict_image['x'][:, 0]
+        #text_features = output_dict_text['x'][:, 0]
+        #image_features = output_dict_image['x'][:, 0]
 
-        itc_loss = self.itc_loss(text_features=text_features, image_features=image_features)
-        loss = kl_loss + itc_loss
+        #itc_loss = self.itc_loss(text_features=text_features, image_features=image_features)
+        loss = kl_loss# + itc_loss
 
         self.log(f"{stage}/kl_text_loss", kl_losses[0])
         self.log(f"{stage}/kl_image_loss", kl_losses[1])
         self.log(f"{stage}/kl_loss", kl_loss)
-        self.log(f"{stage}/itc_loss", itc_loss)
+        #self.log(f"{stage}/itc_loss", itc_loss)
         self.log(f"{stage}/loss", loss, prog_bar=True)
         
         return loss # , text_features, image_features

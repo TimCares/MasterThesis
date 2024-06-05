@@ -8,7 +8,7 @@ from pytorch_lightning import seed_everything, Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, ModelSummary
 from pytorch_lightning.loggers import WandbLogger
 
-from kd_data2vec import KDData2VecConfig, KDData2VecPreTrainingLightningModule
+from models.kd_data2vec import KDData2VecConfig, KDData2VecPreTrainingLightningModule
 from datamodules import DATAMODULE_REGISTRY
 from callbacks import ZeroShotRetrievalCallback, WallClockCallback
 
