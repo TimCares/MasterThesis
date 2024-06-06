@@ -3,8 +3,8 @@ from typing import Tuple
 import logging
 import torch
 import numpy as np
-from kd_data2vec import KDData2Vec
-from mm_data2vec import AMMData2Vec
+from models.kd_data2vec import KDData2Vec
+from models.mm_data2vec import AMMData2Vec
 from torch.utils.data import DataLoader
 from pytorch_lightning import Callback, LightningDataModule, Trainer, LightningModule
 from pytorch_lightning.utilities import rank_zero_only
