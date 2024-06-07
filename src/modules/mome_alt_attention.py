@@ -93,7 +93,7 @@ class MOMEAltBlock(nn.Module):
 
     def forward(self, x, modality:Modality, padding_mask=None, alibi_bias=None):
         modality = self._check_modality(modality)
-        attn_key = 'default' if self.shared_attn else modality
+        attn_key = 'default' if self.shared_attn else modality.name.lower()
         
         x = x + self.drop_path(self.attn[attn_key](x, padding_mask, alibi_bias, return_attn_scores=False))
         r = x = self.norm1[modality](x)
@@ -119,7 +119,7 @@ class MOMEAltBlock(nn.Module):
             logger.warning("Attention already initialized from pretrained block, not reinitializing")
             return
         
-        attn_key = 'default' if self.shared_attn else modality
+        attn_key = 'default' if self.shared_attn else modality.name.lower()
 
         self.attn[attn_key] = pretained_block.attn
         self.attention_pretrained = True
