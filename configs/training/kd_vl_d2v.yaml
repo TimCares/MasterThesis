@@ -87,7 +87,7 @@ checkpoint:
   every_n_train_steps: ${lightning_trainer.val_check_interval}
   save_on_train_epoch_end: False # False -> run at end of validation
   verbose: True
-  monitor: val/multimodal-imagenet--zeroshot-val-top1
+  monitor: val/loss
   mode: min
   auto_insert_metric_name: False
 
