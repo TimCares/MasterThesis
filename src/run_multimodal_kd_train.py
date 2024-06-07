@@ -8,8 +8,9 @@ import logging
 from pytorch_lightning import seed_everything, Trainer, LightningDataModule
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, ModelSummary
 from pytorch_lightning.loggers import WandbLogger
-
-from models.mm_data2vec import AMMData2VecConfig, AMMData2VecPreTrainingLightningModule
+import sys
+sys.path.append("beit2")
+from models.mm_data2vec_beit import AMMData2VecConfig, AMMData2VecPreTrainingLightningModule
 from datamodules import DATAMODULE_REGISTRY
 from callbacks import MultimodalZeroShotRetrievalCallback, WallClockCallback
 from multi_data_loader import MultiDataModule
