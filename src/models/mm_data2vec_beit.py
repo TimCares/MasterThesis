@@ -243,7 +243,7 @@ class AMMData2Vec(nn.Module):
             if self.cfg.depth - i <= self.cfg.n_fuzed_layers:
                 blocks.append(self.make_block(drop_path=dpr[i], multimodal=True, with_fuzed=True))
             else:
-                blocks.append(self.make_block(drop_path=dpr[i], multimodal=True))
+                blocks.append(self.make_block(drop_path=dpr[i], multimodal=True, shared_attn=False))
 
         self.blocks:nn.ModuleList[str, MOMEAltBlock] = nn.ModuleList(blocks)
 
@@ -261,7 +261,7 @@ class AMMData2Vec(nn.Module):
         assert hasattr(self, 'blocks'), "Blocks must be initialized before initializing the model."
         self._init_from_pretrained()
         
-    def make_block(self, drop_path, dim=None, heads=None, multimodal=False, with_fuzed=False):
+    def make_block(self, drop_path, dim=None, heads=None, multimodal=False, with_fuzed=False, shared_attn=True):
         make_layer_norm = partial(
             nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
         )
@@ -280,6 +280,7 @@ class AMMData2Vec(nn.Module):
             layer_norm_first=self.cfg.layer_norm_first,
             multimodal=multimodal,
             with_fuzed=with_fuzed,
+            shared_attn=shared_attn,
         )
 
     def _init_from_pretrained(self) -> None:
@@ -290,12 +291,12 @@ class AMMData2Vec(nn.Module):
             state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
             d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
 
-            # for i in range(start_fuzed):
-            #     self.blocks[i].init_from_pretrained(
-            #         pretained_block=d2v_model.blocks[i],
-            #         modality=modality,
-            #         init_attention=modality == Modality.IMAGE,
-            #     )
+            for i in range(start_fuzed):
+                self.blocks[i].init_from_pretrained(
+                    pretained_block=d2v_model.blocks[i],
+                    modality=modality,
+                    init_attention=True,
+                )
             # if modality == Modality.IMAGE:
             #     for i in range(start_fuzed, self.cfg.depth):
             #         assert self.blocks[i].with_fuzed
