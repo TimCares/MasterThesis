@@ -1,0 +1,125 @@
+# @package _global_
+
+hydra:
+  run:
+    dir: .
+
+defaults:
+  - _self_ # this first, so that the base config can be overridden by others
+  
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+
+dry_run: False
+base_dir: "/workspace"
+model_path: ${base_dir}/models
+data_path: ${base_dir}
+log_dir: ${base_dir}/logs
+seed: 42
+
+run_name: vl_base
+
+load_checkpoint:
+
+nlp_context_length: 197 # 196 + 1 for the [CLS] token of the teacher model
+
+beit2_args:
+  pretrained_path: ${model_path}/beitv2_base_patch16_224_pt1k.pth
+  drop_path_rate: 0.1
+  use_shared_rel_pos_bias: True
+  use_abs_pos_emb: False
+  vocab_size: 8192
+  init_values: 0.1
+
+model:
+  pretrained_path: ${model_path}
+  pretrained:
+    audio: base_libri.pt
+    image: base_imagenet.pt
+    text: nlp_base.pt
+
+  n_fuzed_layers: 1
+
+  embed_dim: 768
+
+  depth: 6
+  num_heads: 12 
+  mlp_ratio: 4.0
+  encoder_dropout: 0.0
+  dropout_input: 0.0
+  attention_dropout: 0.0
+  activation_dropout: 0.0
+  post_mlp_drop: 0.0
+  norm_eps: 1e-6
+  norm_affine: True
+  layer_norm_first: False
+  start_drop_path_rate: 0
+  end_drop_path_rate: 0
+  layerdrop: 0.0
+
+  seed: ${seed}
+
+data:
+  dataloader:
+    batch_size: 128
+    num_workers: 6
+    shuffle: True
+    drop_last: True
+
+  shared: # keys used for all datasets
+    data_path: ${data_path}
+    num_max_bpe_tokens: ${nlp_context_length}
+    color_jitter: # None
+    beit_transforms: False
+    crop_scale: [0.6, 1.0]
+
+  datamodules:
+    coco_captions:
+      task: captioning
+
+    # all keys are in the "all" key already, no specific keys for vg only
+    # visual_genome: {} # we add an empty dict explicitly, else values for key would be "None"
+
+    # conceptual_captions:
+    #   data_fraction: 0.1
+
+checkpoint:
+  dirpath: "${model_path}/${now:%Y-%m-%d_%H-%M-%S}"
+  # monitor key is also computed in a callback, ModelCheckpoint callbacks are the last checkpoints executed,
+  # so the key will be computed right beforehand (therefore it is always up to date)
+  filename: vl-d2v-{step}-{${checkpoint.monitor}:.4f}
+  save_last: link # save last checkpoint -> easier access, as it has a fixed name (last.ckpt) -> not set to True here, as a link saves space
+  enable_version_counter: False # only ever one "last.ckpt" file
+  every_n_train_steps: ${lightning_trainer.val_check_interval}
+  save_on_train_epoch_end: False # False -> run at end of validation
+  verbose: True
+  monitor: val/loss
+  mode: min
+  auto_insert_metric_name: False
+
+zero_shot_val:
+  val_every_n_batches: 4_000
+  num_max_bpe_tokens: ${nlp_context_length}
+
+optimizer:
+  lr: 0.0005
+  betas: [ 0.9,0.98 ]
+  eps: 1e-06
+  weight_decay: 0.01
+  warmup: True
+
+optimizer_schedule: # relevant if "optimizer.warmup" is True
+  type: cosine # constant or cosine
+  warmup_steps: 4_000
+  max_steps: ${lightning_trainer.max_steps}
+
+lightning_trainer:
+  default_root_dir: ${log_dir}
+  accelerator: gpu
+  devices: -1
+  strategy: auto # auto -> default
+  max_steps: 40_000
+  val_check_interval: ${zero_shot_val.val_every_n_batches}
+  precision: 16-mixed
+  log_every_n_steps: 50
+  # accumulate_grad_batches: 2 # 128*2 = 256

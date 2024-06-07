@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional, List
 import numpy as np
 import os
 from utils import load_pretrained_d2v_model, prepare_output
+from omegaconf import OmegaConf
 import logging
 import pytorch_lightning as L
 from dataclasses import dataclass, field
@@ -14,8 +15,8 @@ from data2vec_fairseq.models.modalities.base import ModalitySpecificEncoder
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 import contextlib
 from modules import MOMEAltBlock
-
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
+from beit2.modeling_pretrain import VisionTransformerForMaskedImageModeling
 
 logger = logging.getLogger(__name__)
     
@@ -30,12 +31,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
 
         # self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
-        modality_str = self.cfg.teacher_modality
-        state_dict_name = self.cfg.model.pretrained[modality_str]
-        state_dict_path = os.path.join(self.cfg.model.pretrained_path, state_dict_name)
-        self.teacher = load_pretrained_d2v_model(state_dict_path=state_dict_path)
-
-        del self.teacher.modality_encoders # we share it between teacher and student
+        self.teacher = self.load_beit2_teacher()
 
         self.model._freeze(self.teacher)
         
@@ -72,24 +68,16 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         output_dict_image = self({
             'x': image,
             'modality': Modality.IMAGE
-        },
-            return_encoder_output=True,
-        ) # call "forward"
+        }) # call "forward"
 
-        precomputed_encoder_output = output_dict_image['encoder_output']
+        # no mask
+        bool_masked_pos = torch.zeros((image.shape[0], self.teacher.patch_embed.num_patches), dtype=torch.bool).to(image.device)
 
         with torch.no_grad():
-            target = self.teacher.extract_features(
-                source=image,
-                mode=None, # determined automatically in model
-                padding_mask=None, # the padding mask is provided in the precomputed_encoder_output and used by the teacher model
-                mask=False, # we are creating targets from a teacher model for the student model, so no mask
-                remove_extra_tokens=False, # special tokens are also regressed
-                precomputed_encoder_output=precomputed_encoder_output,
+            target = self.teacher.forward_features(
+                x=image,
+                bool_masked_pos=bool_masked_pos,
             )
-        
-        # target = target['layer_results'][-self.last_n_layer_targets:]
-        # kd_target = prepare_output(target)
 
         kd_losses = []
         for output_dict in [output_dict_text, output_dict_image]:
@@ -143,15 +131,23 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         return itc_loss
     
     
-    def kd_loss(self, input:torch.Tensor, target:torch.Tensor) -> torch.Tensor:
-        input = input.contiguous()
-        input = input.view(-1, input.size(-1)).float() # (B, D, C) -> (B*D, C)
-        target = target.contiguous()
-        target = target.view(-1, target.size(-1)).float() # (B, D, C) -> (B*D, C)
+    def load_beit2_teacher(self):
+        sd = torch.load(self.cfg.beit2_args.pretrained_path)['model']
+        for key in list(sd.keys()):
+            if "cls_pt_layers" in key:
+                del sd[key]
+        kwargs = OmegaConf.to_container(self.cfg.beit2_args, resolve=True)
+        kwargs.pop("pretrained_path")
 
-        assert input.shape == target.shape # this must be the case
+        beit2 = VisionTransformerForMaskedImageModeling(
+            patch_size=16, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,
+            norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs
+        )
 
-        return F.mse_loss(input, target, reduction="none").float().mean()
+        result = beit2.load_state_dict(sd)
+        logger.info(f"Loaded BEiT2 teacher state dict with result: {result}")
+        del beit2.lm_head
+        return beit2
     
     def _log_similarity(self, logits_per_image: torch.Tensor, logits_per_text: torch.Tensor, stage:str='train') -> None:
         diagonal_mask = torch.eye(logits_per_image.size(0)).bool()
