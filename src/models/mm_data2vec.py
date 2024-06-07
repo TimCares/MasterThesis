@@ -93,8 +93,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
 
         kd_losses = []
         for output_dict in [output_dict_text, output_dict_image]:
-            _kd_loss = self.kd_loss(input=output_dict['x'], target=target['x'])
-            # _kd_loss = F.mse_loss(output_dict['x'][:, 0], target['x'][:, 0], reduction="mean")
+            _kd_loss = F.mse_loss(output_dict['x'][:, 0], target['x'][:, 0], reduction="mean")
             kd_losses.append(_kd_loss)
         
         kd_loss = sum(kd_losses)
@@ -143,17 +142,6 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         ) / 2
         return itc_loss
     
-    
-    def kd_loss(self, input:torch.Tensor, target:torch.Tensor) -> torch.Tensor:
-        input = input.contiguous()
-        input = input.view(-1, input.size(-1)).float() # (B, D, C) -> (B*D, C)
-        target = target.contiguous()
-        target = target.view(-1, target.size(-1)).float() # (B, D, C) -> (B*D, C)
-
-        assert input.shape == target.shape # this must be the case
-
-        return F.mse_loss(input, target, reduction="none").float().mean()
-    
     def _log_similarity(self, logits_per_image: torch.Tensor, logits_per_text: torch.Tensor, stage:str='train') -> None:
         diagonal_mask = torch.eye(logits_per_image.size(0)).bool()
         for logits, name in [(logits_per_image, "i2t"), (logits_per_text, "t2i")]:
@@ -161,7 +149,6 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
             mean_neg_sim = logits[~diagonal_mask].mean()
             self.log(f"{stage}/{name}_mean_pos_similarity", mean_pos_sim)
             self.log(f"{stage}/{name}_mean_neg_similarity", mean_neg_sim)
-
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(params=self.model.parameters(), 
