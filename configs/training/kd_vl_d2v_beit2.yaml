@@ -21,7 +21,7 @@ run_name: vl_base
 
 load_checkpoint:
 
-nlp_context_length: 197 # 196 + 1 for the [CLS] token of the teacher model
+nlp_context_length: 64 # inspired by BEiT3
 
 beit2_args:
   pretrained_path: ${model_path}/beitv2_base_patch16_224_pt1k.pth
