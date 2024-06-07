@@ -61,7 +61,7 @@ model:
 
 data:
   dataloader:
-    batch_size: 128
+    batch_size: 256
     num_workers: 6
     shuffle: True
     drop_last: True
@@ -122,4 +122,3 @@ lightning_trainer:
   val_check_interval: ${zero_shot_val.val_every_n_batches}
   precision: 16-mixed
   log_every_n_steps: 50
-  # accumulate_grad_batches: 2 # 128*2 = 256
