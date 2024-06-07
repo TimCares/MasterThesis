@@ -25,7 +25,8 @@ from data2vec_fairseq.data.modality import Modality
 
 logger = logging.getLogger(__name__)
 
-
+@torch.no_grad()
+@rank_zero_only
 def _zero_shot_classifier(model:AMMData2Vec, device, num_max_bpe_tokens):
     data_path = '/workspace'
     bpe_encoder:BPEEncoder = get_bpe_encoder(data_path)
