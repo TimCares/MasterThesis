@@ -27,30 +27,40 @@ class MOMEAltBlock(nn.Module):
         cosine_attention=False,
         multimodal=False,
         with_fuzed=False,
+        shared_attn=True,
     ):
         super().__init__()
 
         self.layer_norm_first = layer_norm_first
         self.multimodal = multimodal
         self.with_fuzed = with_fuzed
+        self.shared_attn = shared_attn
 
         if self.multimodal:
             if self.with_fuzed:
                 self.experts = ['vl']
+                self.shared_attn = True
             else:
                 self.experts = ['image', 'text']
         else:
             self.experts = ['default'] # applies to whatever modality is used for this block
+            self.shared_attn = True
 
-        self.attn = AltAttention(
-            dim,
-            num_heads=num_heads,
-            qkv_bias=qkv_bias,
-            qk_scale=qk_scale,
-            attn_drop=attn_drop,
-            proj_drop=drop,
-            cosine_attention=cosine_attention,
-        )
+        def make_attn():
+            return AltAttention(
+                dim,
+                num_heads=num_heads,
+                qkv_bias=qkv_bias,
+                qk_scale=qk_scale,
+                attn_drop=attn_drop,
+                proj_drop=drop,
+                cosine_attention=cosine_attention,
+            )
+
+        if self.shared_attn:
+            self.attn = nn.ModuleDict({'default': make_attn()})
+        else:
+            self.attn = nn.ModuleDict({modality: make_attn() for modality in self.experts})
 
         self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
         self.norm1 = nn.ModuleDict({modality: norm_layer(dim) for modality in self.experts})
@@ -83,8 +93,9 @@ class MOMEAltBlock(nn.Module):
 
     def forward(self, x, modality:Modality, padding_mask=None, alibi_bias=None):
         modality = self._check_modality(modality)
+        attn_key = 'default' if self.shared_attn else modality
         
-        x = x + self.drop_path(self.attn(x, padding_mask, alibi_bias, return_attn_scores=False))
+        x = x + self.drop_path(self.attn[attn_key](x, padding_mask, alibi_bias, return_attn_scores=False))
         r = x = self.norm1[modality](x)
         x = self.mlp[modality](x)
         t = x
@@ -104,13 +115,13 @@ class MOMEAltBlock(nn.Module):
             self.init_attention_from_pretrained(pretained_block, modality)
 
     def init_attention_from_pretrained(self, pretained_block:AltBlock, modality:Modality) -> None:
-        if self.attention_pretrained:
+        if self.shared_attn and self.attention_pretrained:
             logger.warning("Attention already initialized from pretrained block, not reinitializing")
             return
         
-        modality = self._check_modality(modality)
+        attn_key = 'default' if self.shared_attn else modality
 
-        self.attn = pretained_block.attn
+        self.attn[attn_key] = pretained_block.attn
         self.attention_pretrained = True
 
     def remove_modality(self, modality:Modality) -> None:
@@ -123,3 +134,6 @@ class MOMEAltBlock(nn.Module):
         self.norm2.pop(modality_str)
         self.mlp.pop(modality_str)
         self.post_mlp_dropout.pop(modality_str)
+
+        if not self.shared_attn:
+            self.attn.pop(modality_str)
