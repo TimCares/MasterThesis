@@ -17,9 +17,10 @@ import contextlib
 from modules import MOMEAltBlock
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from beit2.modeling_pretrain import VisionTransformerForMaskedImageModeling
+from beit2 import modeling_pretrain
 
 logger = logging.getLogger(__name__)
-    
+
 
 class AMMData2VecPreTrainingLightningModule(L.LightningModule):
     def __init__(self, cfg):
@@ -81,7 +82,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
 
         kd_losses = []
         for output_dict in [output_dict_text, output_dict_image]:
-            _kd_loss = F.mse_loss(output_dict['x'][:, 0], target['x'][:, 0], reduction="mean")
+            _kd_loss = F.mse_loss(output_dict['x'][:, 0], target[:, 0], reduction="mean")
             kd_losses.append(_kd_loss)
         
         kd_loss = sum(kd_losses)
