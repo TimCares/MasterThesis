@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 # adapted from: https://arxiv.org/pdf/2212.07525.pdf
 # source: https://github.com/facebookresearch/fairseq/blob/main/examples/data2vec/models/modalities/modules.py
-class MOMEAltBlock(nn.Module):
+class MOMEBlock(nn.Module):
     def __init__(
         self,
         dim,
@@ -91,17 +91,20 @@ class MOMEAltBlock(nn.Module):
         else:
             return 'default'
 
-    def forward(self, x, modality:Modality, padding_mask=None, alibi_bias=None):
+    def forward(self, x, modality:Modality, padding_mask=None, return_ffn:bool=True):
         modality = self._check_modality(modality)
         attn_key = 'default' if self.shared_attn else modality
         
         x = x + self.drop_path(self.attn[attn_key](x, padding_mask, alibi_bias, return_attn_scores=False))
         r = x = self.norm1[modality](x)
         x = self.mlp[modality](x)
-        t = x
+        if return_ffn:
+            t = x
         x = self.norm2[modality](r + self.drop_path(self.post_mlp_dropout[modality](x)))
 
-        return x, t
+        if return_ffn:
+            return x, t
+        return x
     
     def init_from_pretrained(self, pretained_block:AltBlock, modality:Modality, init_attention:bool) -> None:
         modality_str = self._check_modality(modality)
