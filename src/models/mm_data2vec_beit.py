@@ -244,7 +244,7 @@ class AMMData2Vec(nn.Module):
             if self.cfg.depth - i <= self.cfg.n_fuzed_layers:
                 blocks.append(self.make_block(drop_path=dpr[i], multimodal=True, with_fuzed=True))
             else:
-                blocks.append(self.make_block(drop_path=dpr[i], multimodal=True, shared_attn=False))
+                blocks.append(self.make_block(drop_path=dpr[i], multimodal=True))
 
         self.blocks:nn.ModuleList[str, MOMEAltBlock] = nn.ModuleList(blocks)
 
@@ -296,7 +296,7 @@ class AMMData2Vec(nn.Module):
                 self.blocks[i].init_from_pretrained(
                     pretained_block=d2v_model.blocks[i],
                     modality=modality,
-                    init_attention=True,
+                    init_attention=modality==Modality.IMAGE,
                 )
             # if modality == Modality.IMAGE:
             #     for i in range(start_fuzed, self.cfg.depth):
@@ -466,7 +466,7 @@ class AMMData2Vec(nn.Module):
     def prepare_fine_tuning(self, keep_modality:Modality, remove_itc_head:bool=True) -> None:
         self.fine_tuning = True
         if remove_itc_head:
-            del self.itc_head
+            del self.itc_head # TODO
         self._remove_modalities_except(keep_modality=keep_modality)
         self._unfreeze(self)
 
