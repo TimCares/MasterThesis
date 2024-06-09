@@ -43,9 +43,9 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
                           features_only=False,
                           return_encoder_output=return_encoder_output)
 
-    def training_step(self, batch:Dict[str, Any], batch_idx):
+    def training_step(self, batch:Dict[str, Any], batch_idx:int):
         return self._step(batch, batch_idx, stage='train')
-
+    
     def validation_step(self, batch:Dict[str, Any], batch_idx:int):
         return self._step(batch, batch_idx, stage='val')
 
@@ -224,14 +224,17 @@ class AMMData2Vec(nn.Module):
         self.supported_modalities = [Modality.IMAGE, Modality.TEXT]
         self.fine_tuning = False
 
+        make_layer_norm = partial(
+            nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
+        )
+
         # initialized through self.apply(init_bert_params)
         # self.itc_img_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
         # self.itc_text_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
-        # self.token_type_embedding = nn.Embedding(len(self.supported_modalities), self.cfg.embed_dim)
-
-        # make_layer_norm = partial(
-        #     nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
-        # )
+        self.token_type_embedding = nn.Embedding(len(self.supported_modalities), self.cfg.embed_dim)
+        self.post_tte_norm = make_layer_norm(self.cfg.embed_dim)
+        self.post_tte_norm.bias.data.zero_()
+        self.post_tte_norm.weight.data.fill_(1.0)
 
         self.dropout_input = nn.Dropout(self.cfg.dropout_input)
 
@@ -253,6 +256,9 @@ class AMMData2Vec(nn.Module):
 
         # self.apply(self._init_except_pretrained)
         self.apply(init_bert_params)
+
+        self.post_tte_norm.bias.data.zero_()
+        self.post_tte_norm.weight.data.fill_(1.0)
 
         for pn, p in self.named_parameters():
             if len(p.shape) == 1 or pn.endswith(".bias") or "alibi_scale" in pn:
@@ -310,7 +316,7 @@ class AMMData2Vec(nn.Module):
             modality_encoders[modality.name.lower()] = modality_feature_extractor
 
         self.modality_encoders:nn.ModuleDict[str, nn.Module] = nn.ModuleDict(modality_encoders)
-        self._freeze(self.modality_encoders)
+        # self._freeze(self.modality_encoders)
 
     def _init_except_pretrained(self, module:nn.Module):
         if all(param.requires_grad for param in module.parameters(recurse=False)):
@@ -342,8 +348,9 @@ class AMMData2Vec(nn.Module):
         masked_alibi_bias = extractor_out.get("alibi_bias", None)
         alibi_scale = extractor_out.get("alibi_scale", None)
 
-        # token_ids = torch.full(x.shape[:-1], modality.value-2).to(x.device)
-        # x = x + self.token_type_embedding(token_ids)
+        token_ids = torch.full(x.shape[:-1], modality.value-2).to(x.device)
+        x = x + self.token_type_embedding(token_ids)
+        x = self.post_tte_norm(x)
 
         if self.dropout_input is not None:
             x = self.dropout_input(x)
