@@ -5,19 +5,18 @@ from functools import partial
 from typing import Dict, Any, List
 import numpy as np
 import os
-from utils import load_pretrained_d2v_model
 from omegaconf import OmegaConf
 import logging
 import pytorch_lightning as L
 from dataclasses import dataclass, field
 from data2vec_fairseq.data.modality import Modality
-from data2vec_fairseq.models.modalities.base import ModalitySpecificEncoder
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 import contextlib
-from modules import MOMEAltBlock
+from modules import MOMEBlock
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from beit2.modeling_pretrain import VisionTransformerForMaskedImageModeling
 from beit2 import modeling_pretrain
+from timm.models.layers import PatchEmbed
 
 logger = logging.getLogger(__name__)
 
@@ -225,7 +224,20 @@ class AMMData2Vec(nn.Module):
         super(AMMData2Vec, self).__init__()
         self.cfg = cfg
         self.supported_modalities = [Modality.IMAGE, Modality.TEXT]
-        self.fine_tuning = False
+        self.img_size = 224
+        self.patch_size = 16
+
+        self.patch_embed = PatchEmbed(
+            img_size=self.img_size,
+            patch_size=self.patch_size,
+            in_chans=3,
+            embed_dim=self.cfg.embed_dim,
+        )
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, self.cfg.embed_dim))
+
+        self.text_embeddings = nn.Embedding(self.cfg.vocab_size, self.cfg.embed_dim)
+
+        self.token_type_embedding = nn.Embedding(len(self.supported_modalities), self.cfg.embed_dim)
 
         if self.cfg.itc:
             self.itc_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
@@ -238,25 +250,24 @@ class AMMData2Vec(nn.Module):
 
         dpr = np.linspace(self.cfg.start_drop_path_rate, self.cfg.end_drop_path_rate, self.cfg.depth)
 
-        blocks:List[MOMEAltBlock] = []
+        blocks:List[MOMEBlock] = []
         fuzed_block_indices = list(range(self.cfg.depth - self.cfg.n_fuzed_layers, self.cfg.depth))
         logger.info(f"Fuzed block indices: {fuzed_block_indices}")
         for i in range(self.cfg.depth):
             if self.cfg.depth - i <= self.cfg.n_fuzed_layers:
                 blocks.append(self.make_block(drop_path=dpr[i], multimodal=True, with_fuzed=True))
             else:
-                blocks.append(self.make_block(drop_path=dpr[i], multimodal=True, with_fuzed=False, shared_attn=self.cfg.shared_attn))
+                blocks.append(self.make_block(drop_path=dpr[i], multimodal=True, with_fuzed=False))
 
-        self.blocks:nn.ModuleList[str, MOMEAltBlock] = nn.ModuleList(blocks)
+        self.blocks:nn.ModuleList[str, MOMEBlock] = nn.ModuleList(blocks)
 
         self.layerdrop = self.cfg.layerdrop
         self.mask_seed = self.cfg.seed
 
-        # self.apply(self._init_except_pretrained)
         self.apply(init_bert_params)
 
         for pn, p in self.named_parameters():
-            if len(p.shape) == 1 or pn.endswith(".bias") or "alibi_scale" in pn:
+            if len(p.shape) == 1 or pn.endswith(".bias") or "cls_token" in pn:
                 p.optim_overrides = {"optimizer": {"weight_decay_scale": 0}}
 
         # init pretrained later, so that they are not part of the model's parameters when model is initialized
@@ -268,7 +279,7 @@ class AMMData2Vec(nn.Module):
             nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
         )
 
-        return MOMEAltBlock(
+        return MOMEBlock(
             self.cfg.embed_dim if dim is None else dim,
             self.cfg.num_heads if heads is None else heads,
             self.cfg.mlp_ratio,
@@ -276,47 +287,163 @@ class AMMData2Vec(nn.Module):
             drop=self.cfg.encoder_dropout,
             attn_drop=self.cfg.attention_dropout,
             mlp_drop=self.cfg.activation_dropout,
-            post_mlp_drop=self.cfg.post_mlp_drop,
             drop_path=drop_path,
             norm_layer=make_layer_norm,
-            layer_norm_first=self.cfg.layer_norm_first,
             multimodal=multimodal,
             with_fuzed=with_fuzed,
             shared_attn=shared_attn,
         )
 
     def _init_from_pretrained(self) -> None:
-        modality_encoders = {}
-        start_fuzed = self.cfg.depth-self.cfg.n_fuzed_layers
-        for modality in self.supported_modalities:
-            state_dict_name = self.cfg.pretrained[modality.name.lower()]
-            state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
-            d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
+        state_dict = self._get_beit2_components()
+        d2v_sd = self._get_d2v_text_components()
+        state_dict.update(d2v_sd)
+        missing_keys, unexpected_keys = self.load_state_dict(state_dict, strict=False)
+        if self.cfg.text_pretraining:
+            del self.patch_embed
+            del self.cls_token
+            for block in self.blocks:
+                block.remove_modality(Modality.IMAGE)
+                self._freeze(block.norm1)
+                self._freeze(block.attn)
 
-            for i in range(start_fuzed):
-                self.blocks[i].init_from_pretrained(
-                    pretained_block=d2v_model.blocks[i],
-                    modality=modality,
-                    init_attention=modality==Modality.IMAGE,
-                )
-            # if modality == Modality.IMAGE:
-            #     for i in range(start_fuzed, self.cfg.depth):
-            #         assert self.blocks[i].with_fuzed
-            #         self.blocks[i].init_attention_from_pretrained(
-            #             pretained_block=d2v_model.blocks[i],
-            #             modality=modality,
-            #         )
-            
-            modality_feature_extractor = d2v_model.modality_encoders[modality.name]
-            modality_encoders[modality.name.lower()] = modality_feature_extractor
+    def _get_beit2_components(self) -> Dict[str, torch.Tensor]:
+        state_dict = torch.load(os.path.join(self.cfg.pretrained_path, self.cfg.beit2_state_dict))['model']
+        to_pop = ['mask_token', 'norm.weight', 'norm.bias', 'lm_head.weight', 'lm_head.bias',]
+        for key in to_pop:
+            state_dict.pop(key)
 
-        self.modality_encoders:nn.ModuleDict[str, nn.Module] = nn.ModuleDict(modality_encoders)
-        if not self.cfg.use_tte:
-            self._freeze(self.modality_encoders)
+        rel_pos_embed_sd = {}
+
+        # remove layers too deep for this model
+        state_dict = self._pop_blocks_from_n(state_dict, self.cfg.depth - self.cfg.n_fuzed_layers)
+
+        for key in list(state_dict.keys()):
+            if "cls_pt_layers" in key: # remove beit2 patch aggregation layers
+                del state_dict[key]
+                continue
+
+            if 'attn' in key or 'norm1' in key:
+                continue
+
+            if 'mlp' in key:
+                block_elem = 'mlp'
+            elif 'norm2' in key:
+                block_elem = 'norm2'
+            else:
+                del state_dict[key]
+                continue
+
+            state_dict[key.replace(f'blocks.{block_elem}', f'blocks.image.{block_elem}')] = state_dict.pop(key)
+
+        return state_dict
+
+    def _get_d2v_text_components(self) -> Dict[str, torch.Tensor]:
+        d2v_sd = torch.load(os.path.join(self.cfg.pretrained_path, self.cfg.d2v_text_state_dict))['model']
+        d2v_sd.pop('_ema')
+        d2v_sd = self._pop_blocks_from_n(d2v_sd, self.cfg.depth-self.cfg.n_fuzed_layers)
+        text_embed_weight = d2v_sd.pop('modality_encoders.TEXT.local_encoder.embed_tokens.weight')
+
+        for key in list(d2v_sd.keys()):
+            if 'mlp' in key:
+                block_elem = 'mlp'
+            elif 'norm2' in key:
+                block_elem = 'norm2'
+            else:
+                del d2v_sd[key]
+                continue
+
+            d2v_sd[key.replace(f'blocks.{block_elem}', f'blocks.text.{block_elem}')] = d2v_sd.pop(key)
+        d2v_sd['text_embeddings.weight'] = text_embed_weight
+        return d2v_sd
+
+    def _pop_blocks_from_n(self, state_dict:Dict[str, torch.Tensor], n:int) -> Dict[str, torch.Tensor]:
+        for key in list(state_dict.keys()):
+            if 'block' in key and state_dict['key'].split('.')[1] >= n:
+                del state_dict[key]
+        return state_dict
 
     def _init_except_pretrained(self, module:nn.Module):
         if all(param.requires_grad for param in module.parameters(recurse=False)):
             init_bert_params(module)
+
+    # from VLMo: https://github.com/microsoft/unilm/blob/master/vlmo/vlmo/modules/vlmo_module.py
+    def build_relative_position_embed(self, rpb_table_state_dict:Dict[str, torch.Tensor]=None):
+        self.relative_position_embed = True
+        window_size = (14, 14)
+        num_heads = self.cfg.num_heads
+        max_text_len_of_initckpt = 197 # from text pretaining -> frozen vision self-attention used, used to 197 tokens (224x224 image with window size 14x14)
+        max_text_len = self.cfg.max_text_len
+        max_imag_len = window_size[0] * window_size[1] + 1 #197
+        self.window_size = window_size
+        self.num_relative_distance = (2 * window_size[0] - 1) * (2 * window_size[1] - 1) + 3
+        self.text_num_relative_distance = 2 * max_text_len_of_initckpt
+        self.all_num_relative_distance = self.num_relative_distance + self.text_num_relative_distance + 2
+
+        # contains both text and image relative positions
+        # relative_position_index (image) and text_relative_position_index (text) are used to get the relative position bias
+        # ... for the corresponding modality (so there is no actual shared relative position bias between image and text)
+        self.relative_position_bias_table = nn.Parameter(
+            torch.zeros(self.all_num_relative_distance, num_heads))
+        
+        # init relatie position bias table from beit2 for images
+        assert rpb_table_state_dict['relative_position_bias_table'].size(0) == max_imag_len
+        self.relative_position_bias_table.data[:max_imag_len, : ] = rpb_table_state_dict['relative_position_bias_table']
+        
+        # get pair-wise relative position index for each token inside the window
+        coords_h = torch.arange(window_size[0])
+        coords_w = torch.arange(window_size[1])
+        coords = torch.stack(torch.meshgrid([coords_h, coords_w]))  # 2, Wh, Ww
+        coords_flatten = torch.flatten(coords, 1)  # 2, Wh*Ww
+        relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
+        relative_coords = relative_coords.permute(1, 2, 0).contiguous()  # Wh*Ww, Wh*Ww, 2
+        relative_coords[:, :, 0] += window_size[0] - 1  # shift to start from 0
+        relative_coords[:, :, 1] += window_size[1] - 1
+        relative_coords[:, :, 0] *= 2 * window_size[1] - 1
+        relative_position_index = \
+            torch.zeros(size=(window_size[0] * window_size[1] + 1, ) * 2, dtype=relative_coords.dtype)
+        relative_position_index[1:, 1:] = relative_coords.sum(-1)  # Wh*Ww, Wh*Ww
+        relative_position_index[0, 0:] = self.num_relative_distance - 3
+        relative_position_index[0:, 0] = self.num_relative_distance - 2
+        relative_position_index[0, 0] = self.num_relative_distance - 1
+        self.image_relative_position_index = relative_position_index
+        
+        text_position_ids = torch.arange(max_text_len-1)
+        text_rel_pos_mat = text_position_ids.unsqueeze(-2) - text_position_ids.unsqueeze(-1)
+        min_distance = int(2-max_text_len_of_initckpt) #-194
+        # rank_zero_info("min_distance: {}".format(min_distance))
+        text_rel_pos_mat = text_rel_pos_mat - min_distance
+        text_rel_pos_mat += (self.num_relative_distance + 2)
+        text_relative_position_index = \
+            torch.zeros(size=(max_text_len, ) * 2, dtype=relative_coords.dtype)
+        text_relative_position_index[1:, 1:] = text_rel_pos_mat
+        text_relative_position_index[0, 0:] = self.all_num_relative_distance - 3
+        text_relative_position_index[0:, 0] = self.all_num_relative_distance - 2
+        text_relative_position_index[0, 0] = self.all_num_relative_distance - 1
+        self.text_relative_position_index = text_relative_position_index
+        
+        # text2imag_relative_position_index = torch.ones(max_text_len, max_imag_len) * (self.num_relative_distance)
+        # imag2text_relative_position_index = torch.ones(max_imag_len, max_text_len) * (self.num_relative_distance + 1)
+
+        # text_row_relative_position_index = torch.cat((text_relative_position_index, text2imag_relative_position_index), 1)
+        # imag_row_relative_position_index = torch.cat((imag2text_relative_position_index, relative_position_index), 1)
+        # text_imag_relative_position_index = torch.cat((text_row_relative_position_index, imag_row_relative_position_index), 0)
+        # self.text_imag_relative_position_index = text_imag_relative_position_index
+
+    def get_relative_position_bias(self, modality:Modality) -> torch.Tensor:
+        if modality == Modality.IMAGE:
+            relative_position_bias = \
+                self.relative_position_bias_table[self.image_relative_position_index.view(-1)].view(
+                    self.window_size[0] * self.window_size[1] + 1,
+                    self.window_size[0] * self.window_size[1] + 1, -1)  # Wh*Ww,Wh*Ww,nH
+            return relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
+        elif modality == Modality.TEXT:
+            relative_position_bias = \
+                self.relative_position_bias_table[self.text_relative_position_index.view(-1)].view(
+                    self.cfg.max_text_len, -1)  # nT,nH
+            return relative_position_bias.permute(1, 0).contiguous()  # nH, nT
+        else:
+            raise ValueError(f"Modality {modality} not supported")
 
     def forward(
         self,
@@ -327,17 +454,13 @@ class AMMData2Vec(nn.Module):
         features_only:bool=False,
     ):
 
-        feature_extractor:ModalitySpecificEncoder = self.modality_encoders[modality.name.lower()]
-        with torch.no_grad() if not self.fine_tuning else contextlib.ExitStack():
-            extractor_out = feature_extractor(
-                features=x,
-                padding_mask=padding_mask,
-                mask=False,
-                remove_masked=False,
-            )
-
-        x = extractor_out["x"]
-        padding_mask = extractor_out["padding_mask"]
+        if modality == Modality.IMAGE:
+            embed_func = self.visual_embed
+        elif modality == Modality.TEXT:
+            embed_func = self.text_embed
+        else:
+            raise ValueError(f"Modality {modality} not supported")
+        x = embed_func(x)
 
         if self.cfg.use_tte:
             token_ids = torch.full(x.shape[:-1], modality.value-2).to(x.device)
@@ -347,12 +470,14 @@ class AMMData2Vec(nn.Module):
         if self.dropout_input is not None:
             x = self.dropout_input(x)
         
+        relative_position_bias = self.get_relative_position_bias(modality)
         layer_results = []
         for blk in self.blocks:
             x, lr = blk(
                 x,
                 modality=modality,
                 padding_mask=padding_mask,
+                relative_position_bias=relative_position_bias,
             )
             
             if not features_only:
@@ -363,6 +488,21 @@ class AMMData2Vec(nn.Module):
             "layer_results": layer_results,
         }
         return out
+    
+    def visual_embed(self, x:torch.Tensor):
+        x = self.patch_embed(x)
+        cls_token = self.cls_token.expand(x.shape[0], -1, -1)
+        x = torch.cat((cls_token, x), dim=1)
+
+        token_ids = torch.ones(x.shape[:-1]).to(x.device)
+        x = x + self.token_type_embedding(token_ids)
+        return x
+    
+    def text_embed(self, x:torch.Tensor):
+        x = self.text_embeddings(x)
+        token_ids = torch.zeros(x.shape[:-1]).to(x.device)
+        x = x + self.token_type_embedding(token_ids)
+        return x
     
 
     def extract_features(
@@ -430,7 +570,6 @@ class AMMData2Vec(nn.Module):
 
 
     def prepare_fine_tuning(self, keep_modality:Modality) -> None:
-        self.fine_tuning = True
         self._remove_modalities_except(keep_modality=keep_modality)
         self._unfreeze(self)
 
@@ -444,7 +583,11 @@ class AMMData2Vec(nn.Module):
         for modality in self.supported_modalities:
             modality_str = modality.name.lower()
             if modality_str != keep_modality:
-                del self.modality_encoders[modality_str]
-
                 for block in self.blocks:
                     block.remove_modality(modality)
+
+        if keep_modality != Modality.IMAGE:
+            del self.patch_embed
+            del self.cls_token
+        else:
+            del self.text_embeddings
