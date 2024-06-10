@@ -24,10 +24,9 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         super().__init__()
         self.cfg = cfg
         self.last_n_layer_targets = self.cfg.model.n_fuzed_layers
+        self.itc = self.cfg.model.itc
 
         self.model = AMMData2Vec(cfg=self.cfg.model)
-
-        # self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
         modality_str = self.cfg.teacher_modality
         state_dict_name = self.cfg.model.pretrained[modality_str]
@@ -55,7 +54,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
             batch.pop('target') # unused, layer activations are the targets
 
         # assert torch.unique(batch['id']).shape[0] == batch['id'].shape[0], "IDs must be unique for ITC loss."
-        # batch['id'] later important for ITC loss!
+        # batch['id'] later important for ITC loss?
 
         text = batch['text']
         padding_mask = batch['padding_mask']
@@ -89,27 +88,30 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         
         kd_loss = sum(kd_losses)
         
-        # no layer norm here, as last operation of each block is layer norm (therefore also of last block)
-        # we do not do ...[layer_results][-1] as we do not want the raw ffn outputs, but the layer normed ones
-        #text_features = output_dict_text['x'][:, 0]
-        #image_features = output_dict_image['x'][:, 0]
+        if self.itc:
+            kd_loss = kd_loss / 2
 
-        #itc_loss = self.itc_loss(text_features=text_features, image_features=image_features)
-        loss = kd_loss# + itc_loss
+            text_features = output_dict_text['x'][:, 0]
+            image_features = output_dict_image['x'][:, 0]
+            itc_loss = self.itc_loss(text_features=text_features, image_features=image_features)
+            self.log(f"{stage}/itc_loss", itc_loss)
+        else:
+            itc_loss = torch.tensor(0.0).to(kd_loss.device)
+        
+        loss = kd_loss + itc_loss
 
         self.log(f"{stage}/kd_text_loss", kd_losses[0])
         self.log(f"{stage}/kd_image_loss", kd_losses[1])
         self.log(f"{stage}/kd_loss", kd_loss)
-        #self.log(f"{stage}/itc_loss", itc_loss)
         self.log(f"{stage}/loss", loss, prog_bar=True)
         
         return loss
     
     def itc_loss(self, text_features:torch.Tensor, image_features:torch.Tensor, stage:str='train') -> torch.Tensor:
-        text_features = self.model.itc_text_head(text_features)
-        image_features = self.model.itc_img_head(image_features)
+        text_features = self.model.itc_head(text_features)
+        image_features = self.model.itc_head(image_features)
 
-        scale = self.logit_scale.exp()
+        scale = self.model.logit_scale.exp()
 
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
@@ -180,6 +182,7 @@ class AMMData2VecConfig():
     n_fuzed_layers: int = 2
 
     use_tte: bool = True
+    itc: bool = True
 
     embed_dim: int = 768
 
@@ -209,9 +212,9 @@ class AMMData2Vec(nn.Module):
         self.supported_modalities = [Modality.IMAGE, Modality.TEXT]
         self.fine_tuning = False
 
-        # initialized through self.apply(init_bert_params)
-        # self.itc_img_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
-        # self.itc_text_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+        if self.cfg.itc:
+            self.itc_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+            self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         if self.cfg.use_tte:
             self.token_type_embedding = nn.Embedding(len(self.supported_modalities), self.cfg.embed_dim)
             self.post_tte_norm = nn.LayerNorm(self.cfg.embed_dim, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
@@ -373,12 +376,8 @@ class AMMData2Vec(nn.Module):
         )['x']
 
         output = output[:, 0]
-        # if modality == Modality.IMAGE:
-        #     output = self.itc_img_head(output)
-        # elif modality == Modality.TEXT:
-        #     output = self.itc_text_head(output)
-        # else:
-        #     raise ValueError(f"Modality {modality} not supported")
+        if self.cfg.itc:
+            output = self.itc_head(output)
 
         if normalize:
             output = output / output.norm(dim=-1, keepdim=True)
@@ -421,10 +420,8 @@ class AMMData2Vec(nn.Module):
         module.train()
 
 
-    def prepare_fine_tuning(self, keep_modality:Modality, remove_itc_head:bool=True) -> None:
+    def prepare_fine_tuning(self, keep_modality:Modality) -> None:
         self.fine_tuning = True
-        if remove_itc_head:
-            del self.itc_head # TODO
         self._remove_modalities_except(keep_modality=keep_modality)
         self._unfreeze(self)
 
