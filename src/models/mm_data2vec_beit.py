@@ -349,19 +349,14 @@ class AMMData2Vec(nn.Module):
         
         layer_results = []
         for blk in self.blocks:
-            if (
-                not self.training
-                or self.layerdrop == 0
-                or (np.random.random() > self.layerdrop)
-            ):
-                x, lr = blk(
-                    x,
-                    modality=modality,
-                    padding_mask=padding_mask,
-                )
-                
-                if not features_only:
-                    layer_results.append(lr)
+            x, lr = blk(
+                x,
+                modality=modality,
+                padding_mask=padding_mask,
+            )
+            
+            if not features_only:
+                layer_results.append(lr)
 
         out = {
             "x": x,
