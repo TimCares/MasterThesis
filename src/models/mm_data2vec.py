@@ -2,10 +2,10 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from functools import partial
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 import numpy as np
 import os
-from utils import load_pretrained_d2v_model, prepare_output
+from utils import load_pretrained_d2v_model
 import logging
 import pytorch_lightning as L
 from dataclasses import dataclass, field
@@ -14,11 +14,10 @@ from data2vec_fairseq.models.modalities.base import ModalitySpecificEncoder
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 import contextlib
 from modules import MOMEAltBlock
-
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 
 logger = logging.getLogger(__name__)
-    
+
 
 class AMMData2VecPreTrainingLightningModule(L.LightningModule):
     def __init__(self, cfg):
@@ -35,20 +34,19 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         state_dict_path = os.path.join(self.cfg.model.pretrained_path, state_dict_name)
         self.teacher = load_pretrained_d2v_model(state_dict_path=state_dict_path)
 
-        del self.teacher.modality_encoders # we share it between teacher and student
+        if not self.cfg.model.use_tte:
+            del self.teacher.modality_encoders # we share it between teacher and student
 
         self.model._freeze(self.teacher)
         
         self.save_hyperparameters()
 
-    def forward(self, input_dict, return_encoder_output=False):
-        return self.model(**input_dict,
-                          features_only=False,
-                          return_encoder_output=return_encoder_output)
+    def forward(self, input_dict):
+        return self.model(**input_dict, features_only=False,)
 
-    def training_step(self, batch:Dict[str, Any], batch_idx):
+    def training_step(self, batch:Dict[str, Any], batch_idx:int):
         return self._step(batch, batch_idx, stage='train')
-
+    
     def validation_step(self, batch:Dict[str, Any], batch_idx:int):
         return self._step(batch, batch_idx, stage='val')
 
@@ -72,11 +70,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         output_dict_image = self({
             'x': image,
             'modality': Modality.IMAGE
-        },
-            return_encoder_output=True,
-        ) # call "forward"
-
-        precomputed_encoder_output = output_dict_image['encoder_output']
+        }) # call "forward"
 
         with torch.no_grad():
             target = self.teacher.extract_features(
@@ -85,11 +79,8 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
                 padding_mask=None, # the padding mask is provided in the precomputed_encoder_output and used by the teacher model
                 mask=False, # we are creating targets from a teacher model for the student model, so no mask
                 remove_extra_tokens=False, # special tokens are also regressed
-                precomputed_encoder_output=precomputed_encoder_output,
+                precomputed_encoder_output=output_dict_image['encoder_output'] if not self.cfg.model.use_tte else None,
             )
-        
-        # target = target['layer_results'][-self.last_n_layer_targets:]
-        # kd_target = prepare_output(target)
 
         kd_losses = []
         for output_dict in [output_dict_text, output_dict_image]:
@@ -185,7 +176,10 @@ class AMMData2VecConfig():
     pretrained_path:str = '../models'
     pretrained: PretrainedStateDictsConfig = field(default_factory=PretrainedStateDictsConfig)
 
+    shared_attn: bool = True
     n_fuzed_layers: int = 2
+
+    use_tte: bool = True
 
     embed_dim: int = 768
 
@@ -218,10 +212,9 @@ class AMMData2Vec(nn.Module):
         # initialized through self.apply(init_bert_params)
         # self.itc_img_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
         # self.itc_text_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
-
-        # make_layer_norm = partial(
-        #     nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
-        # )
+        if self.cfg.use_tte:
+            self.token_type_embedding = nn.Embedding(len(self.supported_modalities), self.cfg.embed_dim)
+            self.post_tte_norm = nn.LayerNorm(self.cfg.embed_dim, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
 
         self.dropout_input = nn.Dropout(self.cfg.dropout_input)
 
@@ -234,7 +227,7 @@ class AMMData2Vec(nn.Module):
             if self.cfg.depth - i <= self.cfg.n_fuzed_layers:
                 blocks.append(self.make_block(drop_path=dpr[i], multimodal=True, with_fuzed=True))
             else:
-                blocks.append(self.make_block(drop_path=dpr[i], multimodal=True))
+                blocks.append(self.make_block(drop_path=dpr[i], multimodal=True, with_fuzed=False, shared_attn=self.cfg.shared_attn))
 
         self.blocks:nn.ModuleList[str, MOMEAltBlock] = nn.ModuleList(blocks)
 
@@ -252,7 +245,7 @@ class AMMData2Vec(nn.Module):
         assert hasattr(self, 'blocks'), "Blocks must be initialized before initializing the model."
         self._init_from_pretrained()
         
-    def make_block(self, drop_path, dim=None, heads=None, multimodal=False, with_fuzed=False):
+    def make_block(self, drop_path, dim=None, heads=None, multimodal=False, with_fuzed=False, shared_attn=True):
         make_layer_norm = partial(
             nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
         )
@@ -271,6 +264,7 @@ class AMMData2Vec(nn.Module):
             layer_norm_first=self.cfg.layer_norm_first,
             multimodal=multimodal,
             with_fuzed=with_fuzed,
+            shared_attn=shared_attn,
         )
 
     def _init_from_pretrained(self) -> None:
@@ -281,12 +275,12 @@ class AMMData2Vec(nn.Module):
             state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
             d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
 
-            # for i in range(start_fuzed):
-            #     self.blocks[i].init_from_pretrained(
-            #         pretained_block=d2v_model.blocks[i],
-            #         modality=modality,
-            #         init_attention=modality == Modality.IMAGE,
-            #     )
+            for i in range(start_fuzed):
+                self.blocks[i].init_from_pretrained(
+                    pretained_block=d2v_model.blocks[i],
+                    modality=modality,
+                    init_attention=modality==Modality.IMAGE,
+                )
             # if modality == Modality.IMAGE:
             #     for i in range(start_fuzed, self.cfg.depth):
             #         assert self.blocks[i].with_fuzed
@@ -299,7 +293,8 @@ class AMMData2Vec(nn.Module):
             modality_encoders[modality.name.lower()] = modality_feature_extractor
 
         self.modality_encoders:nn.ModuleDict[str, nn.Module] = nn.ModuleDict(modality_encoders)
-        self._freeze(self.modality_encoders)
+        if not self.cfg.use_tte:
+            self._freeze(self.modality_encoders)
 
     def _init_except_pretrained(self, module:nn.Module):
         if all(param.requires_grad for param in module.parameters(recurse=False)):
@@ -311,8 +306,6 @@ class AMMData2Vec(nn.Module):
         modality:Modality,
         id:torch.Tensor=None,
         padding_mask:torch.Tensor=None,
-        remove_extra_tokens:bool=False,
-        return_encoder_output:bool=False,
         features_only:bool=False,
     ):
 
@@ -326,67 +319,47 @@ class AMMData2Vec(nn.Module):
             )
 
         x = extractor_out["x"]
-        encoder_mask = extractor_out["encoder_mask"]
-        masked_padding_mask = extractor_out["padding_mask"]
-        masked_alibi_bias = extractor_out.get("alibi_bias", None)
-        alibi_scale = extractor_out.get("alibi_scale", None)
+        padding_mask = extractor_out["padding_mask"]
+
+        if self.cfg.use_tte:
+            token_ids = torch.full(x.shape[:-1], modality.value-2).to(x.device)
+            x = x + self.token_type_embedding(token_ids)
+            x = self.post_tte_norm(x)
 
         if self.dropout_input is not None:
             x = self.dropout_input(x)
         
         layer_results = []
-        for i, blk in enumerate(self.blocks):
+        for blk in self.blocks:
             if (
                 not self.training
                 or self.layerdrop == 0
                 or (np.random.random() > self.layerdrop)
             ):
-                ab = masked_alibi_bias
-                if ab is not None and alibi_scale is not None:
-                    scale = (
-                        alibi_scale[i]
-                        if alibi_scale.size(0) > 1
-                        else alibi_scale.squeeze(0)
-                    )
-                    ab = ab * scale.type_as(ab)
-
                 x, lr = blk(
                     x,
                     modality=modality,
-                    padding_mask=masked_padding_mask,
-                    alibi_bias=ab,
+                    padding_mask=padding_mask,
                 )
                 
                 if not features_only:
                     layer_results.append(lr)
 
-        if remove_extra_tokens:
-            x = x[:, feature_extractor.modality_cfg.num_extra_tokens :]
-            if masked_padding_mask is not None:
-                masked_padding_mask = masked_padding_mask[
-                    :, feature_extractor.modality_cfg.num_extra_tokens :
-                ]
-
         out = {
             "x": x,
-            "padding_mask": masked_padding_mask,
             "layer_results": layer_results,
-            "mask": encoder_mask,
+            'encoder_output': extractor_out if not self.cfg.use_tte and not features_only else None,
         }
-        if return_encoder_output:
-            # teacher gets all tokens. Only if we do MaskedKD, then the teacher only gets the unmasked tokens
-            out["encoder_output"] = extractor_out
         return out
     
 
     def extract_features(
-        self, x:torch.Tensor, modality:Modality, padding_mask=None, remove_extra_tokens=True
+        self, x:torch.Tensor, modality:Modality, padding_mask=None
     ):
         res = self.forward(
             x=x,
             modality=modality,
             padding_mask=padding_mask,
-            remove_extra_tokens=remove_extra_tokens,
             features_only=True,
         )
         return res
@@ -397,7 +370,6 @@ class AMMData2Vec(nn.Module):
             x=x,
             modality=modality,
             padding_mask=padding_mask,
-            remove_extra_tokens=False, # important!
         )['x']
 
         output = output[:, 0]
@@ -452,7 +424,7 @@ class AMMData2Vec(nn.Module):
     def prepare_fine_tuning(self, keep_modality:Modality, remove_itc_head:bool=True) -> None:
         self.fine_tuning = True
         if remove_itc_head:
-            del self.itc_head
+            del self.itc_head # TODO
         self._remove_modalities_except(keep_modality=keep_modality)
         self._unfreeze(self)
 
