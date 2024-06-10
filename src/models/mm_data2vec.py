@@ -79,11 +79,11 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
                 mask=False, # we are creating targets from a teacher model for the student model, so no mask
                 remove_extra_tokens=False, # special tokens are also regressed
                 precomputed_encoder_output=output_dict_image['encoder_output'] if not self.cfg.model.use_tte else None,
-            )
+            )['x']
 
         kd_losses = []
         for output_dict in [output_dict_text, output_dict_image]:
-            _kd_loss = F.mse_loss(output_dict['x'][:, 0], target['x'][:, 0], reduction="mean")
+            _kd_loss = F.mse_loss(output_dict['x'][:, 0], target[:, 0], reduction="mean")
             kd_losses.append(_kd_loss)
         
         kd_loss = sum(kd_losses)
