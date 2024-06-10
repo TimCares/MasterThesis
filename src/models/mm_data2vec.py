@@ -28,8 +28,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
 
         self.model = AMMData2Vec(cfg=self.cfg.model)
 
-        modality_str = self.cfg.teacher_modality
-        state_dict_name = self.cfg.model.pretrained[modality_str]
+        state_dict_name = self.cfg.model.pretrained['image']
         state_dict_path = os.path.join(self.cfg.model.pretrained_path, state_dict_name)
         self.teacher = load_pretrained_d2v_model(state_dict_path=state_dict_path)
 
@@ -282,7 +281,7 @@ class AMMData2Vec(nn.Module):
                 self.blocks[i].init_from_pretrained(
                     pretained_block=d2v_model.blocks[i],
                     modality=modality,
-                    init_attention=modality==Modality.IMAGE,
+                    init_attention=modality==Modality.IMAGE or not self.cfg.shared_attn,
                 )
             # if modality == Modality.IMAGE:
             #     for i in range(start_fuzed, self.cfg.depth):

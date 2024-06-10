@@ -297,7 +297,7 @@ class AMMData2Vec(nn.Module):
                 self.blocks[i].init_from_pretrained(
                     pretained_block=d2v_model.blocks[i],
                     modality=modality,
-                    init_attention=modality==Modality.IMAGE,
+                    init_attention=modality==Modality.IMAGE or not self.cfg.shared_attn,
                 )
             # if modality == Modality.IMAGE:
             #     for i in range(start_fuzed, self.cfg.depth):
