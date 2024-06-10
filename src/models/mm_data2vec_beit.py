@@ -2,10 +2,10 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from functools import partial
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 import numpy as np
 import os
-from utils import load_pretrained_d2v_model, prepare_output
+from utils import load_pretrained_d2v_model
 from omegaconf import OmegaConf
 import logging
 import pytorch_lightning as L
@@ -27,10 +27,9 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         super().__init__()
         self.cfg = cfg
         self.last_n_layer_targets = self.cfg.model.n_fuzed_layers
+        self.itc = self.cfg.model.itc
 
         self.model = AMMData2Vec(cfg=self.cfg.model)
-
-        # self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
         self.teacher = self.load_beit2_teacher()
 
@@ -38,10 +37,8 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         
         self.save_hyperparameters()
 
-    def forward(self, input_dict, return_encoder_output=False):
-        return self.model(**input_dict,
-                          features_only=False,
-                          return_encoder_output=return_encoder_output)
+    def forward(self, input_dict):
+        return self.model(**input_dict, features_only=False,)
 
     def training_step(self, batch:Dict[str, Any], batch_idx:int):
         return self._step(batch, batch_idx, stage='train')
@@ -54,7 +51,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
             batch.pop('target') # unused, layer activations are the targets
 
         # assert torch.unique(batch['id']).shape[0] == batch['id'].shape[0], "IDs must be unique for ITC loss."
-        # batch['id'] later important for ITC loss!
+        # batch['id'] later important for ITC loss?
 
         text = batch['text']
         padding_mask = batch['padding_mask']
@@ -87,27 +84,30 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         
         kd_loss = sum(kd_losses)
         
-        # no layer norm here, as last operation of each block is layer norm (therefore also of last block)
-        # we do not do ...[layer_results][-1] as we do not want the raw ffn outputs, but the layer normed ones
-        #text_features = output_dict_text['x'][:, 0]
-        #image_features = output_dict_image['x'][:, 0]
+        if self.itc:
+            kd_loss = kd_loss / 2
 
-        #itc_loss = self.itc_loss(text_features=text_features, image_features=image_features)
-        loss = kd_loss# + itc_loss
+            text_features = output_dict_text['x'][:, 0]
+            image_features = output_dict_image['x'][:, 0]
+            itc_loss = self.itc_loss(text_features=text_features, image_features=image_features)
+            self.log(f"{stage}/itc_loss", itc_loss)
+        else:
+            itc_loss = torch.tensor(0.0).to(kd_loss.device)
+        
+        loss = kd_loss + itc_loss
 
         self.log(f"{stage}/kd_text_loss", kd_losses[0])
         self.log(f"{stage}/kd_image_loss", kd_losses[1])
         self.log(f"{stage}/kd_loss", kd_loss)
-        #self.log(f"{stage}/itc_loss", itc_loss)
         self.log(f"{stage}/loss", loss, prog_bar=True)
         
         return loss
     
     def itc_loss(self, text_features:torch.Tensor, image_features:torch.Tensor, stage:str='train') -> torch.Tensor:
-        text_features = self.model.itc_text_head(text_features)
-        image_features = self.model.itc_img_head(image_features)
+        text_features = self.model.itc_head(text_features)
+        image_features = self.model.itc_head(image_features)
 
-        scale = self.logit_scale.exp()
+        scale = self.model.logit_scale.exp()
 
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
@@ -158,7 +158,6 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
             self.log(f"{stage}/{name}_mean_pos_similarity", mean_pos_sim)
             self.log(f"{stage}/{name}_mean_neg_similarity", mean_neg_sim)
 
-
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(params=self.model.parameters(), 
                                       lr=self.cfg.optimizer.lr,
@@ -194,7 +193,11 @@ class AMMData2VecConfig():
     pretrained_path:str = '../models'
     pretrained: PretrainedStateDictsConfig = field(default_factory=PretrainedStateDictsConfig)
 
+    shared_attn: bool = True
     n_fuzed_layers: int = 2
+
+    use_tte: bool = True
+    itc: bool = True
 
     embed_dim: int = 768
 
@@ -224,17 +227,12 @@ class AMMData2Vec(nn.Module):
         self.supported_modalities = [Modality.IMAGE, Modality.TEXT]
         self.fine_tuning = False
 
-        make_layer_norm = partial(
-            nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine
-        )
-
-        # initialized through self.apply(init_bert_params)
-        # self.itc_img_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
-        # self.itc_text_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
-        self.token_type_embedding = nn.Embedding(len(self.supported_modalities), self.cfg.embed_dim)
-        self.post_tte_norm = make_layer_norm(self.cfg.embed_dim)
-        self.post_tte_norm.bias.data.zero_()
-        self.post_tte_norm.weight.data.fill_(1.0)
+        if self.cfg.itc:
+            self.itc_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+            self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        if self.cfg.use_tte:
+            self.token_type_embedding = nn.Embedding(len(self.supported_modalities), self.cfg.embed_dim)
+            self.post_tte_norm = nn.LayerNorm(self.cfg.embed_dim, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
 
         self.dropout_input = nn.Dropout(self.cfg.dropout_input)
 
@@ -247,7 +245,7 @@ class AMMData2Vec(nn.Module):
             if self.cfg.depth - i <= self.cfg.n_fuzed_layers:
                 blocks.append(self.make_block(drop_path=dpr[i], multimodal=True, with_fuzed=True))
             else:
-                blocks.append(self.make_block(drop_path=dpr[i], multimodal=True))
+                blocks.append(self.make_block(drop_path=dpr[i], multimodal=True, with_fuzed=False, shared_attn=self.cfg.shared_attn))
 
         self.blocks:nn.ModuleList[str, MOMEAltBlock] = nn.ModuleList(blocks)
 
@@ -256,9 +254,6 @@ class AMMData2Vec(nn.Module):
 
         # self.apply(self._init_except_pretrained)
         self.apply(init_bert_params)
-
-        self.post_tte_norm.bias.data.zero_()
-        self.post_tte_norm.weight.data.fill_(1.0)
 
         for pn, p in self.named_parameters():
             if len(p.shape) == 1 or pn.endswith(".bias") or "alibi_scale" in pn:
@@ -316,7 +311,8 @@ class AMMData2Vec(nn.Module):
             modality_encoders[modality.name.lower()] = modality_feature_extractor
 
         self.modality_encoders:nn.ModuleDict[str, nn.Module] = nn.ModuleDict(modality_encoders)
-        # self._freeze(self.modality_encoders)
+        if not self.cfg.use_tte:
+            self._freeze(self.modality_encoders)
 
     def _init_except_pretrained(self, module:nn.Module):
         if all(param.requires_grad for param in module.parameters(recurse=False)):
@@ -328,8 +324,6 @@ class AMMData2Vec(nn.Module):
         modality:Modality,
         id:torch.Tensor=None,
         padding_mask:torch.Tensor=None,
-        remove_extra_tokens:bool=False,
-        return_encoder_output:bool=False,
         features_only:bool=False,
     ):
 
@@ -343,71 +337,46 @@ class AMMData2Vec(nn.Module):
             )
 
         x = extractor_out["x"]
-        encoder_mask = extractor_out["encoder_mask"]
-        masked_padding_mask = extractor_out["padding_mask"]
-        masked_alibi_bias = extractor_out.get("alibi_bias", None)
-        alibi_scale = extractor_out.get("alibi_scale", None)
+        padding_mask = extractor_out["padding_mask"]
 
-        token_ids = torch.full(x.shape[:-1], modality.value-2).to(x.device)
-        x = x + self.token_type_embedding(token_ids)
-        x = self.post_tte_norm(x)
+        if self.cfg.use_tte:
+            token_ids = torch.full(x.shape[:-1], modality.value-2).to(x.device)
+            x = x + self.token_type_embedding(token_ids)
+            x = self.post_tte_norm(x)
 
         if self.dropout_input is not None:
             x = self.dropout_input(x)
         
         layer_results = []
-        for i, blk in enumerate(self.blocks):
+        for blk in self.blocks:
             if (
                 not self.training
                 or self.layerdrop == 0
                 or (np.random.random() > self.layerdrop)
             ):
-                ab = masked_alibi_bias
-                if ab is not None and alibi_scale is not None:
-                    scale = (
-                        alibi_scale[i]
-                        if alibi_scale.size(0) > 1
-                        else alibi_scale.squeeze(0)
-                    )
-                    ab = ab * scale.type_as(ab)
-
                 x, lr = blk(
                     x,
                     modality=modality,
-                    padding_mask=masked_padding_mask,
-                    alibi_bias=ab,
+                    padding_mask=padding_mask,
                 )
                 
                 if not features_only:
                     layer_results.append(lr)
 
-        if remove_extra_tokens:
-            x = x[:, feature_extractor.modality_cfg.num_extra_tokens :]
-            if masked_padding_mask is not None:
-                masked_padding_mask = masked_padding_mask[
-                    :, feature_extractor.modality_cfg.num_extra_tokens :
-                ]
-
         out = {
             "x": x,
-            "padding_mask": masked_padding_mask,
             "layer_results": layer_results,
-            "mask": encoder_mask,
         }
-        if return_encoder_output:
-            # teacher gets all tokens. Only if we do MaskedKD, then the teacher only gets the unmasked tokens
-            out["encoder_output"] = extractor_out
         return out
     
 
     def extract_features(
-        self, x:torch.Tensor, modality:Modality, padding_mask=None, remove_extra_tokens=True
+        self, x:torch.Tensor, modality:Modality, padding_mask=None
     ):
         res = self.forward(
             x=x,
             modality=modality,
             padding_mask=padding_mask,
-            remove_extra_tokens=remove_extra_tokens,
             features_only=True,
         )
         return res
@@ -418,16 +387,11 @@ class AMMData2Vec(nn.Module):
             x=x,
             modality=modality,
             padding_mask=padding_mask,
-            remove_extra_tokens=False, # important!
         )['x']
 
         output = output[:, 0]
-        # if modality == Modality.IMAGE:
-        #     output = self.itc_img_head(output)
-        # elif modality == Modality.TEXT:
-        #     output = self.itc_text_head(output)
-        # else:
-        #     raise ValueError(f"Modality {modality} not supported")
+        if self.cfg.itc:
+            output = self.itc_head(output)
 
         if normalize:
             output = output / output.norm(dim=-1, keepdim=True)
@@ -470,10 +434,8 @@ class AMMData2Vec(nn.Module):
         module.train()
 
 
-    def prepare_fine_tuning(self, keep_modality:Modality, remove_itc_head:bool=True) -> None:
+    def prepare_fine_tuning(self, keep_modality:Modality) -> None:
         self.fine_tuning = True
-        if remove_itc_head:
-            del self.itc_head # TODO
         self._remove_modalities_except(keep_modality=keep_modality)
         self._unfreeze(self)
 
