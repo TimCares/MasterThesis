@@ -21,9 +21,7 @@ run_name: vl_base
 
 load_checkpoint:
 
-nlp_context_length: 197 # 196 + 1 for the [CLS] token of the teacher model
-
-teacher_modality: image # which d2v model to use as teacher, can be IMAGE, AUDIO, or TEXT
+nlp_context_length: 64 # inspired by BEiT3
 
 model:
   pretrained_path: ${model_path}
@@ -32,7 +30,11 @@ model:
     image: base_imagenet.pt
     text: nlp_base.pt
 
+  shared_attn: False
   n_fuzed_layers: 1
+
+  use_tte: False
+  itc: False
 
   embed_dim: 768
 
@@ -55,7 +57,7 @@ model:
 
 data:
   dataloader:
-    batch_size: 128
+    batch_size: 256
     num_workers: 6
     shuffle: True
     drop_last: True
@@ -116,4 +118,3 @@ lightning_trainer:
   val_check_interval: ${zero_shot_val.val_every_n_batches}
   precision: 16-mixed
   log_every_n_steps: 50
-  # accumulate_grad_batches: 2 # 128*2 = 256
