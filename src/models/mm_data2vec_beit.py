@@ -180,6 +180,9 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
             return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": name}]
         else:
             return optimizer
+        
+    def log(self, *args, **kwargs):
+        super().log(batch_size=self.cfg.data.dataloader.batch_size, *args, **kwargs)
 
 
 @dataclass
