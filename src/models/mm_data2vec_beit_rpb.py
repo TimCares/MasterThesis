@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from functools import partial
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 import numpy as np
 import os
 from omegaconf import OmegaConf
@@ -11,7 +11,6 @@ import pytorch_lightning as L
 from dataclasses import dataclass, field
 from data2vec_fairseq.data.modality import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
-import contextlib
 from modules import MOMEBlock
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from beit2.modeling_pretrain import VisionTransformerForMaskedImageModeling
@@ -298,10 +297,12 @@ class AMMData2Vec(nn.Module):
         )
 
     def _init_from_pretrained(self) -> None:
-        state_dict = self._get_beit2_components()
+        state_dict, pretrained_beit2_img_rpbt = self._get_beit2_components()
         d2v_sd = self._get_d2v_text_components()
         state_dict.update(d2v_sd)
         missing_keys, unexpected_keys = self.load_state_dict(state_dict, strict=False)
+        assert len(unexpected_keys) == 0, f"Unexpected keys in state dict: {unexpected_keys}"
+        logger.info(f"Missing keys in state dict: {missing_keys}")
         if self.cfg.text_pretraining:
             del self.patch_embed
             del self.cls_token
@@ -310,13 +311,15 @@ class AMMData2Vec(nn.Module):
                 self._freeze(block.norm1)
                 self._freeze(block.attn)
 
-    def _get_beit2_components(self) -> Dict[str, torch.Tensor]:
+        self.build_relative_position_embed(pretrained_beit2_img_rpbt)
+
+    def _get_beit2_components(self) -> Tuple[Dict[str, torch.Tensor], torch.Tensor]:
         state_dict = torch.load(os.path.join(self.cfg.pretrained_path, self.cfg.beit2_state_dict))['model']
         to_pop = ['mask_token', 'norm.weight', 'norm.bias', 'lm_head.weight', 'lm_head.bias',]
         for key in to_pop:
             state_dict.pop(key)
 
-        rel_pos_embed_sd = {}
+        pretrained_beit2_img_rpbt = state_dict.pop('rel_pos_bias.relative_position_bias_table')
 
         # remove layers too deep for this model
         state_dict = self._pop_blocks_from_n(state_dict, self.cfg.depth - self.cfg.n_fuzed_layers)
@@ -324,6 +327,9 @@ class AMMData2Vec(nn.Module):
         for key in list(state_dict.keys()):
             if "cls_pt_layers" in key: # remove beit2 patch aggregation layers
                 del state_dict[key]
+                continue
+
+            if 'cls_token' in key:
                 continue
 
             if 'attn' in key or 'norm1' in key:
@@ -339,11 +345,12 @@ class AMMData2Vec(nn.Module):
 
             state_dict[key.replace(f'blocks.{block_elem}', f'blocks.image.{block_elem}')] = state_dict.pop(key)
 
-        return state_dict
+        return state_dict, pretrained_beit2_img_rpbt
 
     def _get_d2v_text_components(self) -> Dict[str, torch.Tensor]:
         d2v_sd = torch.load(os.path.join(self.cfg.pretrained_path, self.cfg.d2v_text_state_dict))['model']
         d2v_sd.pop('_ema')
+        d2v_sd = {k:v for k,v in d2v_sd.items() if 'decoder' not in k}
         d2v_sd = self._pop_blocks_from_n(d2v_sd, self.cfg.depth-self.cfg.n_fuzed_layers)
         text_embed_weight = d2v_sd.pop('modality_encoders.TEXT.local_encoder.embed_tokens.weight')
 
@@ -362,17 +369,12 @@ class AMMData2Vec(nn.Module):
 
     def _pop_blocks_from_n(self, state_dict:Dict[str, torch.Tensor], n:int) -> Dict[str, torch.Tensor]:
         for key in list(state_dict.keys()):
-            if 'block' in key and state_dict['key'].split('.')[1] >= n:
+            if 'block' in key and int(key.split('.')[1]) >= n:
                 del state_dict[key]
         return state_dict
 
-    def _init_except_pretrained(self, module:nn.Module):
-        if all(param.requires_grad for param in module.parameters(recurse=False)):
-            init_bert_params(module)
-
     # from VLMo: https://github.com/microsoft/unilm/blob/master/vlmo/vlmo/modules/vlmo_module.py
-    def build_relative_position_embed(self, rpb_table_state_dict:Dict[str, torch.Tensor]=None):
-        self.relative_position_embed = True
+    def build_relative_position_embed(self, pretrained_beit2_img_rpbt:torch.Tensor):
         window_size = (14, 14)
         num_heads = self.cfg.num_heads
         max_text_len_of_initckpt = 197 # from text pretaining -> frozen vision self-attention used, used to 197 tokens (224x224 image with window size 14x14)
@@ -390,8 +392,8 @@ class AMMData2Vec(nn.Module):
             torch.zeros(self.all_num_relative_distance, num_heads))
         
         # init relatie position bias table from beit2 for images
-        assert rpb_table_state_dict['relative_position_bias_table'].size(0) == max_imag_len
-        self.relative_position_bias_table.data[:max_imag_len, : ] = rpb_table_state_dict['relative_position_bias_table']
+        assert pretrained_beit2_img_rpbt.size(0) == self.num_relative_distance
+        self.relative_position_bias_table.data[:self.num_relative_distance, :num_heads] = pretrained_beit2_img_rpbt[:, :num_heads]
         
         # get pair-wise relative position index for each token inside the window
         coords_h = torch.arange(window_size[0])
