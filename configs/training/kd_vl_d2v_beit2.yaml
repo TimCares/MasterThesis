@@ -124,5 +124,6 @@ lightning_trainer:
   strategy: auto # auto -> default
   max_steps: 40_000
   val_check_interval: ${zero_shot_val.val_every_n_batches}
+  num_sanity_val_steps: 0 # would run zero shot at the beginning if > 0
   precision: 16-mixed
   log_every_n_steps: 50
