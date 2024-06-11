@@ -273,7 +273,7 @@ class ZeroShotRetrievalCallback(ZeroShotCallback):
                     metrics[metric_key],
                     logger=True,
                     rank_zero_only=True,
-                    on_step=True,
+                    on_epoch=True,
                     )
                 all_metrics_for_modality[modality.name.lower()].append(metrics[metric_key])
         
@@ -290,7 +290,7 @@ class ZeroShotRetrievalCallback(ZeroShotCallback):
                 prog_bar=True,
                 logger=True,
                 rank_zero_only=True,
-                on_step=True,
+                on_epoch=True,
                 )
             if mean_scores is not None:
                 mean_scores.append(mean_score)
@@ -303,7 +303,7 @@ class ZeroShotRetrievalCallback(ZeroShotCallback):
                     prog_bar=True,
                     logger=True,
                     rank_zero_only=True,
-                    on_step=True,
+                    on_epoch=True,
                     )
 
 
@@ -338,5 +338,5 @@ class MultimodalZeroShotRetrievalCallback(ZeroShotCallback):
                     metrics[metric_key],
                     logger=True,
                     rank_zero_only=True,
-                    on_step=True,
+                    on_epoch=True,
                 )
