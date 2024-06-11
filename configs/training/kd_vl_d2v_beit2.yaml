@@ -38,7 +38,11 @@ model:
     image: base_imagenet.pt
     text: nlp_base.pt
 
+  shared_attn: False
   n_fuzed_layers: 1
+
+  use_tte: False
+  itc: False
 
   embed_dim: 768
 
