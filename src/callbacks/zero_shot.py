@@ -25,8 +25,6 @@ from data2vec_fairseq.data.modality import Modality
 
 logger = logging.getLogger(__name__)
 
-@torch.no_grad()
-@rank_zero_only
 def _zero_shot_classifier(model:AMMData2Vec, device, num_max_bpe_tokens):
     data_path = '/workspace'
     bpe_encoder:BPEEncoder = get_bpe_encoder(data_path)
@@ -72,7 +70,6 @@ def _n_correct(output, target, topk=(1,)):
     ]
 
 
-@torch.no_grad()
 @rank_zero_only
 def run_multimodal_zero_shot(model:AMMData2Vec,
                              dataloader:DataLoader,
@@ -107,7 +104,6 @@ def run_multimodal_zero_shot(model:AMMData2Vec,
     return results
 
 
-@torch.no_grad()
 def _get_zero_shot_retrieval_embeddings(model:KDData2Vec, dataloader:DataLoader, device:str) -> Tuple[torch.Tensor, torch.Tensor]:
     embedding_table = []
     ground_truth = []
@@ -178,7 +174,6 @@ def compute_recall(similarity_scores: torch.Tensor, k: int = 5) -> float:
     recall = recall / dataset_size
     return recall
 
-@torch.no_grad()
 def _get_zero_shot_pair_retrieval_embeddings(model:KDData2Vec, dataloader:DataLoader, device:str) -> Tuple[torch.Tensor, torch.Tensor]:
     embedding_tables = {i: [] for i in range(2)}
     for batch in dataloader:
@@ -229,28 +224,26 @@ class ZeroShotCallback(Callback):
         self.datamodules = datamodules
         self.val_every_n_batches = val_every_n_batches
 
-    def on_train_batch_end(self, trainer:Trainer, pl_module:LightningModule, outputs, batch, batch_idx):
-        # Check if the current batch count is a multiple of the specified frequency
-        if trainer.global_step != 0 and trainer.global_step % self.val_every_n_batches == 0:
-            pl_module.eval()
-            self.validate(trainer, pl_module)
-            pl_module.train()
-
     def validate(self, trainer, pl_module) -> None:
-        for name_key in self.datamodules.keys():
+        raise NotImplementedError
+
+    @torch.no_grad()
+    def on_validation_start(self, trainer, pl_module, **kwargs) -> None:
+        for name_key in self.datamodules.keys(): # setup datamodules
             self.datamodules[name_key].prepare_data()
             self.datamodules[name_key].setup(stage='fit')
             self.datamodules[name_key].setup(stage='test')
+        
+        self.validate(trainer, pl_module)
 
-    def cleanup(self) -> None:
-        for name_key in self.datamodules.keys():
+        for name_key in self.datamodules.keys(): # cleanup datamodules
             self.datamodules[name_key].teardown(stage='fit')
             self.datamodules[name_key].teardown(stage='test')
 
 
 class ZeroShotRetrievalCallback(ZeroShotCallback):
+    @torch.no_grad()
     def validate(self, trainer, pl_module) -> None:
-        super().validate(trainer, pl_module)
         all_metrics_for_modality = dict()
         for name_key in self.datamodules.keys():
             modality:Modality = self.datamodules[name_key].modality
@@ -312,8 +305,6 @@ class ZeroShotRetrievalCallback(ZeroShotCallback):
                     rank_zero_only=True,
                     on_step=True,
                     )
-        
-        self.cleanup() # release memory
 
 
 class MultimodalZeroShotRetrievalCallback(ZeroShotCallback):
@@ -328,14 +319,10 @@ class MultimodalZeroShotRetrievalCallback(ZeroShotCallback):
         )
         self.num_max_bpe_tokens = num_max_bpe_tokens
 
-    def cleanup(self) -> None:
-        for name_key in self.datamodules.keys():
-            self.datamodules[name_key].teardown(stage='fit')
 
+    @torch.no_grad()
     def validate(self, trainer, pl_module) -> None:
         for name_key in self.datamodules.keys():
-            self.datamodules[name_key].prepare_data()
-            self.datamodules[name_key].setup(stage='fit')
             
             metrics = run_multimodal_zero_shot(
                 model=pl_module.model,
@@ -353,5 +340,3 @@ class MultimodalZeroShotRetrievalCallback(ZeroShotCallback):
                     rank_zero_only=True,
                     on_step=True,
                 )
-        
-        self.cleanup() # release memory
