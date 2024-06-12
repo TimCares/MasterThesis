@@ -23,6 +23,8 @@ load_checkpoint:
 
 nlp_context_length: 64 # inspired by BEiT3
 
+target_agg: cls_token # one of: cls_token, mean
+
 model:
   pretrained_path: ${model_path}
   pretrained:
@@ -74,7 +76,7 @@ data:
       task: captioning
 
     # all keys are in the "all" key already, no specific keys for vg only
-    # visual_genome: {} # we add an empty dict explicitly, else values for key would be "None"
+    visual_genome: {} # we add an empty dict explicitly, else values for key would be "None"
 
     # conceptual_captions:
     #   data_fraction: 0.1

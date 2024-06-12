@@ -80,9 +80,16 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
                 precomputed_encoder_output=output_dict_image['encoder_output'] if not self.cfg.model.use_tte else None,
             )['x']
 
+        if self.cfg.target_agg == 'mean':
+            target = target.mean(dim=1)
+        elif self.cfg.target_agg == 'cls_token':
+            target = target[:, 0]
+        else:
+            raise ValueError(f"Invalid target aggregation: {self.cfg.target_agg}")
+
         kd_losses = []
         for output_dict in [output_dict_text, output_dict_image]:
-            _kd_loss = F.mse_loss(output_dict['x'][:, 0], target[:, 0], reduction="mean")
+            _kd_loss = F.mse_loss(input=output_dict['x'][:, 0], target=target, reduction="mean")
             kd_losses.append(_kd_loss)
         
         kd_loss = sum(kd_losses)
