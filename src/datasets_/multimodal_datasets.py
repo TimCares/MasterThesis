@@ -1,11 +1,10 @@
+import concurrent.futures
 import os
 import json
 import torch
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any
 import pandas as pd
 from torchvision.datasets.folder import default_loader
-from torchvision.transforms import v2 as transforms
-import torchvision
 from datasets_.data_utils import get_transforms, write_data_into_jsonl, download_and_unzip, convert_mp3_to_flac
 from datasets_.glossary import normalize_word
 from tqdm import tqdm
@@ -17,16 +16,17 @@ import glob
 from collections import defaultdict, Counter
 import soundfile as sf
 import random
-import urllib
+import requests
 import PIL
 import io
 import zipfile
-from concurrent.futures import ThreadPoolExecutor
+import concurrent
 from torchvision.datasets.utils import download_url
 import numpy as np
-
 from .base_datasets import BaseImageText, BaseTextAudio, BaseImageAudio
-    
+import logging
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("PIL").setLevel(logging.WARNING)
 
 class COCOCaptions(BaseImageText):        
     def __init__(
@@ -310,6 +310,7 @@ class VisualGenome(BaseImageText):
         self,
         data_path,
         split,
+        concat_captions=False,
         num_max_bpe_tokens=512,
         color_jitter=None,
         beit_transforms=False,
@@ -323,7 +324,7 @@ class VisualGenome(BaseImageText):
             beit_transforms=beit_transforms,
             crop_scale=crop_scale
         )
-        
+        self.concat_captions = concat_captions
         self.path_to_data = os.path.join(self.data_path, "vg")
         os.makedirs(self.path_to_data, exist_ok=True)
         if self.index_exists(dataset_path=self.path_to_data):
@@ -347,7 +348,8 @@ class VisualGenome(BaseImageText):
         self.make_visual_genome_dataset_index()
 
     def get_index_files(self):
-        return (f"visual_genome.jsonl", ) # only for pretraining, so no splits
+        postfix = "_concat" if self.concat_captions else ""
+        return (f"visual_genome{postfix}.jsonl", ) # only for pretraining, so no splits
     
     def _move_images(self):
         source_dir = os.path.join(self.path_to_data, 'VG_100K_2')
@@ -365,7 +367,10 @@ class VisualGenome(BaseImageText):
         with open(os.path.join(self.path_to_data, "region_descriptions.json"), "r") as fp:
             region_descriptions = json.load(fp)
 
-        items = self._make_index_with_single_caption(region_descriptions)
+        if self.concat_captions:
+            items = self._make_index_with_concat_caption(region_descriptions)
+        else:
+            items = self._make_index_with_single_caption(region_descriptions)
         
         write_data_into_jsonl(items, os.path.join(self.path_to_data, self.get_index_files()[0]))
 
@@ -385,6 +390,40 @@ class VisualGenome(BaseImageText):
             
         return items
     
+    def _make_index_with_concat_caption(self, region_descriptions):
+        items = []
+        encoder = self.get_bpe_encoder()
+        for image_meta in tqdm(region_descriptions, total=len(region_descriptions)):
+            image_path = os.path.join(self.path_to_data, "VG_100K", f"{image_meta['id']}.jpg")
+            
+            captions = [region['phrase'].strip().lower() for region in image_meta["regions"]]
+            curr_caption = []
+            curr_caption_len = 0
+            for caption in captions:
+                if curr_caption_len != 0:
+                    caption = "and " + caption
+
+                token_ids = encoder.encode(caption)
+                if len(token_ids) + curr_caption_len > self.num_max_bpe_tokens-2: # -2 for [CLS] and [SEP]/[EOS]
+                    items.append({
+                        "image_path": image_path, 
+                        "text": curr_caption, 
+                        "id": image_meta["id"], 
+                    })
+                    curr_caption = []
+                    curr_caption_len = 0
+                else:
+                    curr_caption += token_ids
+                    curr_caption_len += len(token_ids)
+            if len(curr_caption) > 0:
+                items.append({
+                    "image_path": image_path, 
+                    "text": curr_caption, 
+                    "id": image_meta["id"],
+                })
+
+        return items
+
 
 class ConceptualCaptions(BaseImageText):
     def __init__(
@@ -419,30 +458,15 @@ class ConceptualCaptions(BaseImageText):
     def get_index_files(self):
         return (f"conceptual_captions.jsonl", ) # only for pretraining, so no splits
     
-    def _make_pairs_from_batch(self, df:pd.DataFrame):
-        tt = transforms.functional.to_tensor
-        rs = transforms.Resize((224, 224))
-        encoder = self.get_bpe_encoder()
-        n_failed = 0
-        pairs = []
-        for _, row in df.iterrows():
-            name = os.path.basename(row[1]).split('?')[0] # remove query string
-            path = os.path.join(self.img_path, name)
-            try:
-                request = urllib.request.Request(row[1])
-                with urllib.request.urlopen(request) as req:
-                    image = PIL.Image.open(io.BytesIO(req.read()))
-                    image = rs(tt(image))
-                    torchvision.utils.save_image(image, path)
-
-                pairs.append({
-                    'image_path': path,
-                    'text': encoder.encode(row[0].strip()),
-                })
-            except:
-                n_failed += 1
-        
-        return pairs, n_failed
+    def _download_image(self, url:str, idx:int):
+        try:
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                image = PIL.Image.open(io.BytesIO(response.content))
+                path = os.path.join(self.img_path, f"{idx}.jpg")
+                image.save(path, format='JPEG')
+        except:
+            pass
 
     def make_conceptual_captions_dataset_index(self):
         items = []
@@ -450,17 +474,23 @@ class ConceptualCaptions(BaseImageText):
         if not os.path.exists(index_path):
             raise FileNotFoundError(f"Conceptual Captions index file {index_path} not found, download it first: "
                                     "https://ai.google.com/research/ConceptualCaptions/download")   
-        index = pd.read_csv(index_path, sep='\t', header=None)
+        index = pd.read_csv(index_path, sep='\t', header=None).reset_index(drop=True)
         n_to_load = int(len(index) * self.data_fraction)
-        n_failed = 0
-        self.log(f"Downloading {n_to_load} images and captions from Conceptual Captions dataset...")
-        with ThreadPoolExecutor(os.cpu_count()) as executor:
-            for result_chunk, n_failed_chunk in executor.map(self._make_pairs_from_batch, np.array_split(index, os.cpu_count())):
-                items.extend(result_chunk)
-                n_failed += n_failed_chunk
-                if len(items) >= n_to_load:
-                    break
+        index = index.iloc[:n_to_load]
+        n_workers = os.cpu_count()*4
+        with concurrent.futures.ThreadPoolExecutor(n_workers) as executor:
+            futures = [executor.submit(self._download_image, url, idx) for idx, url in enumerate(index[1])]
+            list(tqdm(concurrent.futures.as_completed(futures), total=n_to_load, desc="Downloading images"))
         
+        self.log(f"Image downloading complete.")
+        encoder = self.get_bpe_encoder()
+        for img in tqdm(os.listdir(self.img_path), desc="Making index"):
+            idx = int(os.path.splitext(os.path.basename(img))[0])
+            items.append({
+                'image_path': os.path.join(self.img_path, img),
+                'text': encoder.encode(index.at[idx, 0].strip()),
+            })
+        n_failed = len(index) - len(items)
         self.log(f"Failed to download {n_failed} images (pairs). Percentage: {n_failed/len(index)*100:.2f}%")
         self.log(f"Collected {len(items)} image-text pairs!")
         write_data_into_jsonl(items, os.path.join(self.path_to_data, self.get_index_files()[0]))

@@ -66,6 +66,7 @@ class COCOCaptionsDataModule(BaseImageTextDataModule):
 class VisualGenomeDataModule(BaseImageTextDataModule):
     def __init__(self,
                  data_path,
+                 concat_captions,
                  num_max_bpe_tokens,
                  color_jitter=None,
                  beit_transforms=False,
@@ -73,6 +74,7 @@ class VisualGenomeDataModule(BaseImageTextDataModule):
                  *args,
                  **kwargs):
         super().__init__(data_path, *args, **kwargs)
+        self.concat_captions = concat_captions
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.color_jitter = color_jitter
         self.beit_transforms = beit_transforms
@@ -90,6 +92,7 @@ class VisualGenomeDataModule(BaseImageTextDataModule):
     def set_train_dataset(self):
         self.train_dataset = VisualGenome(data_path=self.data_path,
                                           split='train',
+                                          concat_captions=self.concat_captions,
                                           num_max_bpe_tokens=self.num_max_bpe_tokens,
                                           color_jitter=self.color_jitter,
                                           beit_transforms=self.beit_transforms,
