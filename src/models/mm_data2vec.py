@@ -181,7 +181,7 @@ class AMMData2VecConfig():
     pretrained: PretrainedStateDictsConfig = field(default_factory=PretrainedStateDictsConfig)
 
     shared_attn: bool = True
-    n_fuzed_layers: int = 2
+    n_fuzed_layers: int = 1
 
     use_tte: bool = True
     itc: bool = True
@@ -243,7 +243,7 @@ class AMMData2Vec(nn.Module):
         self.apply(init_bert_params)
 
         for pn, p in self.named_parameters():
-            if len(p.shape) == 1 or pn.endswith(".bias") or "alibi_scale" in pn:
+            if len(p.shape) == 1 or pn.endswith(".bias"):
                 p.optim_overrides = {"optimizer": {"weight_decay_scale": 0}}
 
         # init pretrained later, so that they are not part of the model's parameters when model is initialized
