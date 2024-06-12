@@ -108,7 +108,7 @@ optimizer:
 
 optimizer_schedule: # relevant if "optimizer.warmup" is True
   type: cosine # constant or cosine
-  warmup_steps: 4_000
+  warmup_steps: 6_000
   max_steps: ${lightning_trainer.max_steps}
 
 lightning_trainer:
@@ -116,7 +116,7 @@ lightning_trainer:
   accelerator: gpu
   devices: -1
   strategy: auto # auto -> default
-  max_steps: 40_000
+  max_steps: 60_000
   val_check_interval: ${zero_shot_val.val_every_n_batches}
   num_sanity_val_steps: 0 # would run zero shot at the beginning if > 0
   precision: 16-mixed
