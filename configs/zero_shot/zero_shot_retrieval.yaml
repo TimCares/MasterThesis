@@ -1,0 +1,28 @@
+
+pretrained_path: /workspace/models/
+
+d2v_image_path: ${pretrained_path}base_imagenet.pt
+d2v_text_path: ${pretrained_path}workspace/models/nlp_base.pt
+
+model_version: # kd model
+
+eval_d2v: False
+
+data:
+  shared_args:
+    batch_size: 256
+    num_workers: 4
+    shuffle: False
+    drop_last: False
+
+    data_path: /workspace
+    num_max_bpe_tokens: 64
+
+  datamodules:
+    coco_captions:
+      task: captioning
+      color_jitter: # None
+      beit_transforms: False
+      crop_scale: [1.0, 1.0]
+
+    flickr30: {}

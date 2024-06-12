@@ -1,19 +1,13 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
 import logging
 from rich.progress import track
 from typing import *
 import torch
-from flava.data.transforms import (
-    default_image_pretraining_transforms,
-    default_text_transform,
-)
-from torch import nn
-from data2vec_fairseq.data.modality import Modality
+import os
+from models.mm_data2vec import AMMData2Vec, AMMData2VecPreTrainingLightningModule
+from datamodules import DATAMODULE_REGISTRY
+from utils import load_pretrained_d2v_model
+from omegaconf import DictConfig, open_dict
+import hydra
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -28,64 +22,121 @@ def compute_recall(similarity_scores: torch.Tensor, k: int = 5):
     return recall
 
 
-def transform(image, target):
-    _, image_transform = default_image_pretraining_transforms()
-    transformed_image = image_transform(image)
-    # Take the first caption for now
-    transformed_text = default_text_transform()(target[0])
-    return transformed_image, transformed_text
+@torch.no_grad()
+def zero_shot_retrieval(model:AMMData2Vec, dataloader, device, name):
+    img_embeds = []
+    text_embeds = []
+
+    for batch in track(dataloader):
+        image = batch['image'].to(device)
+        text = batch['text'].to(device)
+        padding_mask = batch['padding_mask'].to(device) if 'padding_mask' in batch else None
+        # encoding also normalizes the output
+        img_emb = model.encode_image(image=image)
+        text_emb = model.encode_text(text=text, padding_mask=padding_mask)
+        img_embeds.append(img_emb.detach().cpu())
+        text_embeds.append(text_emb.detach().cpu())
+
+    img_embeds = torch.cat(img_embeds, 0)
+    text_embeds = torch.cat(text_embeds, 0)
+
+    similarity_scores = img_embeds @ text_embeds.t()
+    similarity_scores_t = similarity_scores.t()
+
+    img_to_txt_r1 = compute_recall(similarity_scores, k=1)
+    img_to_txt_r5 = compute_recall(similarity_scores, k=5)
+    txt_to_img_r1 = compute_recall(similarity_scores_t, k=1)
+    txt_to_img_r5 = compute_recall(similarity_scores_t, k=5)
+
+    logger.info(f"{name}: Image to Text Recall@1 {img_to_txt_r1}")
+    logger.info(f"{name}: Image to Text Recall@5 {img_to_txt_r5}")
+    logger.info(f"{name}: Text to Image Recall@1 {txt_to_img_r1}")
+    logger.info(f"{name}: Text to Image Recall@5 {txt_to_img_r5}")
 
 
 @torch.no_grad()
-def zero_shot_retrieval(model, dataloader, device, name, modalities):
-    mode_a_embeds = []
-    mode_b_embeds = []
+def d2v_zero_shot_retrieval(dataloader, device, name):
+    d2v_image = load_pretrained_d2v_model('/workspace/models/base_imagenet.pt')
+    d2v_image = d2v_image.to(device)
+    d2v_image.eval()
+    d2v_text = load_pretrained_d2v_model('/workspace/models/nlp_base.pt')
+    d2v_text = d2v_text.to(device)
+    d2v_text.eval()
 
-    for _, batch in track(enumerate(dataloader), description=f"Encoding {name}..."):
-        a_mode_name = batch['modes'][0].name.lower()
-        b_mode_name = batch['modes'][1].name.lower()
+    img_embeds = []
+    text_embeds = []
 
-        a_source = batch[a_mode_name].to(device)
-        b_source = batch[b_mode_name].to(device)
+    for batch in track(dataloader):
+        image = batch['image'].to(device)
+        text = batch['text'].to(device)
+        padding_mask = batch['padding_mask'].to(device) if 'padding_mask' in batch else None
+        
+        img_emb = d2v_image.extract_features(
+            source=image,
+            mode=None, # determined automatically in model
+            padding_mask=None,
+            mask=False,
+            remove_extra_tokens=False,
+        )['x'][:, 0]
 
-        if Modality.TEXT in batch['modes'] and Modality.AUDIO in batch['modes']:
-            a_padding_mask = batch['padding_mask'][a_mode_name].to(model.device)
-            b_padding_mask = batch['padding_mask'][b_mode_name].to(model.device)
-        else:
-            a_padding_mask = batch['padding_mask'].to(model.device) if 'padding_mask' in batch else None
-            b_padding_mask = batch['padding_mask'].to(model.device) if 'padding_mask' in batch else None
+        text_emb = d2v_text.extract_features(
+            source=text,
+            mode=None, # determined automatically in model
+            padding_mask=padding_mask,
+            mask=False,
+            remove_extra_tokens=False,
+        )['x'][:, 0]
+        
+        img_embeds.append(img_emb.detach().cpu())
+        text_embeds.append(text_emb.detach().cpu())
 
-        a_emb = model.encode_modality(mode=batch['modes'][0], source=a_source, padding_mask=a_padding_mask, normalize=True)
-        b_emb = model.encode_modality(mode=batch['modes'][1], source=b_source, padding_mask=b_padding_mask, normalize=True)
-        mode_a_embeds.append(a_emb.detach().cpu())
-        mode_b_embeds.append(b_emb.detach().cpu())
+    img_embeds = torch.cat(img_embeds, 0)
+    text_embeds = torch.cat(text_embeds, 0)
 
-    mode_a_embeds = torch.cat(mode_a_embeds, 0)
-    mode_b_embeds = torch.cat(mode_b_embeds, 0)
-
-    similarity_scores = mode_a_embeds @ mode_b_embeds.t()
+    similarity_scores = img_embeds @ text_embeds.t()
     similarity_scores_t = similarity_scores.t()
 
-    a_to_b_r1 = compute_recall(similarity_scores, k=1)
-    a_to_b_r5 = compute_recall(similarity_scores, k=5)
-    b_to_a_r1 = compute_recall(similarity_scores_t, k=1)
-    b_to_a_r5 = compute_recall(similarity_scores_t, k=5)
+    img_to_txt_r1 = compute_recall(similarity_scores, k=1)
+    img_to_txt_r5 = compute_recall(similarity_scores, k=5)
+    txt_to_img_r1 = compute_recall(similarity_scores_t, k=1)
+    txt_to_img_r5 = compute_recall(similarity_scores_t, k=5)
 
-    logger.info(f"{name}: {modalities[0]}_to_{modalities[1]}_recall@1 {a_to_b_r1}")
-    logger.info(f"{name}: {modalities[0]}_to_{modalities[1]}_recall@5 {a_to_b_r5}")
-    logger.info(f"{name}: {modalities[1]}_to_{modalities[0]}_recall@1 {b_to_a_r1}")
-    logger.info(f"{name}: {modalities[1]}_to_{modalities[0]}_recall@5 {b_to_a_r5}")
+    logger.info(f"{name}: Image to Text Recall@1 {img_to_txt_r1}")
+    logger.info(f"{name}: Image to Text Recall@5 {img_to_txt_r5}")
+    logger.info(f"{name}: Text to Image Recall@1 {txt_to_img_r1}")
+    logger.info(f"{name}: Text to Image Recall@5 {txt_to_img_r5}")
 
 
-def make_zero_shot_retrieval(model:Callable, dataloaders:Dict[str, torch.utils.data.DataLoader], modalities:List[Tuple[str, str]]) -> None:
+@hydra.main(version_base=None, config_path=os.path.join("..", "configs", "zero_shot"))
+def main(cfg: DictConfig) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
-    model = model.to(device)
-    model.eval()
+
+    datamodules = []
+
+    shared_args = cfg.data.shared_args
+
+    for datamodule_key in cfg.data.datamodules.keys(): # coco and flickr30
+        dataset_args = cfg.data.datamodules[datamodule_key]
+        with open_dict(dataset_args):
+            dataset_args.update(shared_args)
+        dm = DATAMODULE_REGISTRY[datamodule_key](**dataset_args)
+        datamodules.append((datamodule_key, dm))
     
-    # names = ["coco", "flickr"]
-    # dataloaders = [dataloader, dataloader]
-    # modalities = [("image", 'text'), ("image", 'text')]
-    for name, dataloader, modalities in zip(dataloaders.keys(), dataloaders.values(), modalities):
-        logger.info(f"Zero-shot retrieval on: {name}")
-        zero_shot_retrieval(model, dataloader, device, name, modalities)
+    if cfg.eval_d2v:
+        logger.info("Evaluating Data2Vec model")
+        for name, dm in datamodules:
+            d2v_zero_shot_retrieval(dm.test_dataloader(), device, name)
+    else:
+        logger.info("Evaluating KD model")
+        path = os.path.join(cfg.pretrained_path, cfg.model_version, 'last.ckpt')
+        model = AMMData2VecPreTrainingLightningModule.load_from_checkpoint(path).model
+        model = model.to(device)
+        model.eval()
+
+        for name, dm in datamodules:
+            logger.info(f"Zero-shot retrieval on: {name}")
+            zero_shot_retrieval(model, dm, device, name)
+
+if __name__ == "__main__":
+    main()
