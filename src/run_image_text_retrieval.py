@@ -45,13 +45,17 @@ def zero_shot_retrieval(model:AMMData2Vec, dataloader, device, name):
 
     img_to_txt_r1 = compute_recall(similarity_scores, k=1)
     img_to_txt_r5 = compute_recall(similarity_scores, k=5)
+    img_to_txt_r10 = compute_recall(similarity_scores, k=10)
     txt_to_img_r1 = compute_recall(similarity_scores_t, k=1)
     txt_to_img_r5 = compute_recall(similarity_scores_t, k=5)
+    txt_to_img_r10 = compute_recall(similarity_scores_t, k=10)
 
     logger.info(f"{name}: Image to Text Recall@1 {img_to_txt_r1}")
     logger.info(f"{name}: Image to Text Recall@5 {img_to_txt_r5}")
+    logger.info(f"{name}: Image to Text Recall@10 {img_to_txt_r10}")
     logger.info(f"{name}: Text to Image Recall@1 {txt_to_img_r1}")
     logger.info(f"{name}: Text to Image Recall@5 {txt_to_img_r5}")
+    logger.info(f"{name}: Text to Image Recall@10 {txt_to_img_r10}")
 
 
 @torch.no_grad()
@@ -98,16 +102,20 @@ def d2v_zero_shot_retrieval(dataloader, device, name):
 
     img_to_txt_r1 = compute_recall(similarity_scores, k=1)
     img_to_txt_r5 = compute_recall(similarity_scores, k=5)
+    img_to_txt_r10 = compute_recall(similarity_scores, k=10)
     txt_to_img_r1 = compute_recall(similarity_scores_t, k=1)
     txt_to_img_r5 = compute_recall(similarity_scores_t, k=5)
+    txt_to_img_r10 = compute_recall(similarity_scores_t, k=10)
 
     logger.info(f"{name}: Image to Text Recall@1 {img_to_txt_r1}")
     logger.info(f"{name}: Image to Text Recall@5 {img_to_txt_r5}")
+    logger.info(f"{name}: Image to Text Recall@10 {img_to_txt_r10}")
     logger.info(f"{name}: Text to Image Recall@1 {txt_to_img_r1}")
     logger.info(f"{name}: Text to Image Recall@5 {txt_to_img_r5}")
+    logger.info(f"{name}: Text to Image Recall@10 {txt_to_img_r10}")
 
 
-@hydra.main(version_base=None, config_path=os.path.join("..", "configs", "zero_shot"), config_name='zero_shot_retrieval')
+@hydra.main(version_base=None, config_path=os.path.join("..", "configs", "retrieval"), config_name='coco_flickr30')
 def main(cfg: DictConfig) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
