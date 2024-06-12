@@ -192,6 +192,7 @@ class Flickr30Dataset(BaseImageText):
 
         for each_item in captions:
             image_path = os.path.join(self.path_to_data, "flickr30k-images", each_item["filename"])
+            assert os.path.exists(image_path), f"Image {image_path} not found!"
 
             if each_item["split"] != self.split:
                 continue
