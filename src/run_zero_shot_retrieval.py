@@ -107,7 +107,7 @@ def d2v_zero_shot_retrieval(dataloader, device, name):
     logger.info(f"{name}: Text to Image Recall@5 {txt_to_img_r5}")
 
 
-@hydra.main(version_base=None, config_path=os.path.join("..", "configs", "zero_shot"))
+@hydra.main(version_base=None, config_path=os.path.join("..", "configs", "zero_shot"), config_name='zero_shot_retrieval')
 def main(cfg: DictConfig) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
