@@ -16,17 +16,18 @@ import glob
 from collections import defaultdict, Counter
 import soundfile as sf
 import random
-import requests
+import urllib
 import PIL
 import io
 import zipfile
 import concurrent
 from torchvision.datasets.utils import download_url
-import numpy as np
 from .base_datasets import BaseImageText, BaseTextAudio, BaseImageAudio
 import logging
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("PIL").setLevel(logging.WARNING)
+
+USER_AGENT = None
 
 class COCOCaptions(BaseImageText):        
     def __init__(
@@ -148,7 +149,12 @@ class Flickr30Dataset(BaseImageText):
         if self.index_exists(dataset_path=self.path_to_data):
             return
         
-        download_and_unzip(urls=["https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"], store_at=self.path_to_data)
+        url="https://cs.stanford.edu/people/karpathy/deepimagesent/caption_datasets.zip"
+        download_url(url=url, root=self.path_to_data)
+        filepath = os.path.join(self.path_to_data, os.path.basename(url))
+        with zipfile.ZipFile(filepath, 'r') as zip:
+            zip.extractall(self.path_to_data)
+
         os.remove(os.path.join(self.path_to_data, 'dataset_flickr8k.json'))
         os.remove(os.path.join(self.path_to_data, 'dataset_coco.json'))
         
@@ -449,17 +455,27 @@ class ConceptualCaptions(BaseImageText):
     def get_index_files(self):
         return (f"conceptual_captions.jsonl", ) # only for pretraining, so no splits
     
-    def _download_image(self, url:str, idx:int):
-        try:
-            response = requests.get(url, timeout=5)
-            if response.status_code == 200:
-                image = PIL.Image.open(io.BytesIO(response.content))
-                path = os.path.join(self.img_path, f"{idx}.jpg")
-                image.save(path, format='JPEG')
-        except:
-            pass
+    def _fetch_single_image(self, image_url, idx):
+        for _ in range(3):
+            try:
+                request = urllib.request.Request(
+                    image_url,
+                    data=None,
+                    headers={"user-agent": USER_AGENT},
+                )
+                with urllib.request.urlopen(request, timeout=5) as req:
+                    image = PIL.Image.open(io.BytesIO(req.read()))
+                    path = os.path.join(self.img_path, f"{idx}.jpg")
+                    image.save(path, format='JPEG')
+                break
+            except Exception:
+                pass
 
     def make_conceptual_captions_dataset_index(self):
+        from datasets.utils.file_utils import get_datasets_user_agent
+        global USER_AGENT
+        USER_AGENT = get_datasets_user_agent()
+
         items = []
         index_path = os.path.join(self.data_path, "Train-GCC-training.tsv")
         if not os.path.exists(index_path):
@@ -470,13 +486,13 @@ class ConceptualCaptions(BaseImageText):
         index = index.iloc[:n_to_load]
         n_workers = os.cpu_count()*4
         with concurrent.futures.ThreadPoolExecutor(n_workers) as executor:
-            futures = [executor.submit(self._download_image, url, idx) for idx, url in enumerate(index[1])]
+            futures = [executor.submit(self._fetch_single_image, url, idx) for idx, url in index[1].items()]
             list(tqdm(concurrent.futures.as_completed(futures), total=n_to_load, desc="Downloading images"))
         
         self.log(f"Image downloading complete.")
         encoder = self.get_bpe_encoder()
         for img in tqdm(os.listdir(self.img_path), desc="Making index"):
-            idx = int(os.path.splitext(os.path.basename(img))[0])
+            idx = int(os.path.splitext(img)[0])
             items.append({
                 'image_path': os.path.join(self.img_path, img),
                 'text': encoder.encode(index.at[idx, 0].strip()),
