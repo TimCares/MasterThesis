@@ -8,24 +8,75 @@ from datamodules import DATAMODULE_REGISTRY
 from utils import load_pretrained_d2v_model
 from omegaconf import DictConfig, open_dict
 import hydra
+import json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
 
-def compute_recall(similarity_scores: torch.Tensor, k: int = 5):
-    dataset_size = similarity_scores.size(0)
-    targets = torch.arange(dataset_size).view(dataset_size, -1)
-    _, topk_idx = torch.topk(similarity_scores, k)
-    recall = targets.eq(topk_idx).sum()
-    recall = recall / dataset_size
-    return recall
+# following stems from the BEiT3 repo: https://github.com/microsoft/unilm/blob/master/beit3/engine_for_finetuning.py
+def compute_scores(img_embeds, text_embeds, img_ids):
+    image_feats = {} # collect all unique image features, and create mapping based on id
+    for feats, ids in zip(img_embeds, img_ids):
+        for i, _idx in enumerate(ids):
+            idx = _idx.item()
+            if idx not in image_feats:
+                image_feats[idx] = feats[i]
+
+    tiids = torch.cat(img_ids, dim=0)
+    iids = []
+    sorted_tensors = []
+    for key in sorted(image_feats.keys()):
+        sorted_tensors.append(image_feats[key].view(1, -1))
+        iids.append(key)
+
+    img_embeds = torch.cat(sorted_tensors, dim=0)
+    text_embeds = torch.cat(text_embeds, dim=0)
+
+    scores = img_embeds @ text_embeds.t()
+    iids = torch.LongTensor(iids).to(scores.device)
+
+    topk10 = scores.topk(10, dim=1)
+    topk5 = scores.topk(5, dim=1)
+    topk1 = scores.topk(1, dim=1)
+    
+    topk10_iids = tiids[topk10.indices]
+    topk5_iids = tiids[topk5.indices]
+    topk1_iids = tiids[topk1.indices]
+
+    tr_r10 = (iids.unsqueeze(1) == topk10_iids).float().max(dim=1)[0].mean()
+    tr_r5 = (iids.unsqueeze(1) == topk5_iids).float().max(dim=1)[0].mean()
+    tr_r1 = (iids.unsqueeze(1) == topk1_iids).float().max(dim=1)[0].mean()
+
+    topk10 = scores.topk(10, dim=0)
+    topk5 = scores.topk(5, dim=0)
+    topk1 = scores.topk(1, dim=0)
+    topk10_iids = iids[topk10.indices]
+    topk5_iids = iids[topk5.indices]
+    topk1_iids = iids[topk1.indices]
+
+    ir_r10 = (tiids.unsqueeze(0) == topk10_iids).float().max(dim=0)[0].mean()
+    ir_r5 = (tiids.unsqueeze(0) == topk5_iids).float().max(dim=0)[0].mean()
+    ir_r1 = (tiids.unsqueeze(0) == topk1_iids).float().max(dim=0)[0].mean()
+
+    eval_result = {
+        "tr_r10": tr_r10.item() * 100.0, 
+        "tr_r5": tr_r5.item() * 100.0, 
+        "tr_r1": tr_r1.item() * 100.0, 
+        "ir_r10": ir_r10.item() * 100.0, 
+        "ir_r5": ir_r5.item() * 100.0, 
+        "ir_r1": ir_r1.item() * 100.0, 
+        "average_score": 100.0 * (tr_r1 + tr_r5 + tr_r10 + ir_r1 + ir_r5 + ir_r10).item() / 6.0, 
+    }
+
+    logger.info(f'* Eval result = {json.dumps(eval_result)}')
 
 
 @torch.no_grad()
 def zero_shot_retrieval(model:AMMData2Vec, dataloader, device, name):
     img_embeds = []
     text_embeds = []
+    img_ids = []
 
     for batch in track(dataloader):
         image = batch['image'].to(device)
@@ -34,28 +85,11 @@ def zero_shot_retrieval(model:AMMData2Vec, dataloader, device, name):
         # encoding also normalizes the output
         img_emb = model.encode_image(image=image)
         text_emb = model.encode_text(text=text, padding_mask=padding_mask)
-        img_embeds.append(img_emb.detach().cpu())
-        text_embeds.append(text_emb.detach().cpu())
+        img_embeds.append(img_emb)
+        text_embeds.append(text_emb)
+        img_ids.append(batch['id'])
 
-    img_embeds = torch.cat(img_embeds, 0)
-    text_embeds = torch.cat(text_embeds, 0)
-
-    similarity_scores = img_embeds @ text_embeds.t()
-    similarity_scores_t = similarity_scores.t()
-
-    img_to_txt_r1 = compute_recall(similarity_scores, k=1)
-    img_to_txt_r5 = compute_recall(similarity_scores, k=5)
-    img_to_txt_r10 = compute_recall(similarity_scores, k=10)
-    txt_to_img_r1 = compute_recall(similarity_scores_t, k=1)
-    txt_to_img_r5 = compute_recall(similarity_scores_t, k=5)
-    txt_to_img_r10 = compute_recall(similarity_scores_t, k=10)
-
-    logger.info(f"{name}: Image to Text Recall@1 {img_to_txt_r1}")
-    logger.info(f"{name}: Image to Text Recall@5 {img_to_txt_r5}")
-    logger.info(f"{name}: Image to Text Recall@10 {img_to_txt_r10}")
-    logger.info(f"{name}: Text to Image Recall@1 {txt_to_img_r1}")
-    logger.info(f"{name}: Text to Image Recall@5 {txt_to_img_r5}")
-    logger.info(f"{name}: Text to Image Recall@10 {txt_to_img_r10}")
+    compute_scores(img_embeds=img_embeds, text_embeds=text_embeds, img_ids=img_ids)
 
 
 @torch.no_grad()
@@ -69,6 +103,7 @@ def d2v_zero_shot_retrieval(dataloader, device, name):
 
     img_embeds = []
     text_embeds = []
+    img_ids = []
 
     for batch in track(dataloader):
         image = batch['image'].to(device)
@@ -91,28 +126,11 @@ def d2v_zero_shot_retrieval(dataloader, device, name):
             remove_extra_tokens=False,
         )['x'][:, 0]
         
-        img_embeds.append(img_emb.detach().cpu())
-        text_embeds.append(text_emb.detach().cpu())
+        img_embeds.append(img_emb)
+        text_embeds.append(text_emb)
+        img_ids.append(batch['id'])
 
-    img_embeds = torch.cat(img_embeds, 0)
-    text_embeds = torch.cat(text_embeds, 0)
-
-    similarity_scores = img_embeds @ text_embeds.t()
-    similarity_scores_t = similarity_scores.t()
-
-    img_to_txt_r1 = compute_recall(similarity_scores, k=1)
-    img_to_txt_r5 = compute_recall(similarity_scores, k=5)
-    img_to_txt_r10 = compute_recall(similarity_scores, k=10)
-    txt_to_img_r1 = compute_recall(similarity_scores_t, k=1)
-    txt_to_img_r5 = compute_recall(similarity_scores_t, k=5)
-    txt_to_img_r10 = compute_recall(similarity_scores_t, k=10)
-
-    logger.info(f"{name}: Image to Text Recall@1 {img_to_txt_r1}")
-    logger.info(f"{name}: Image to Text Recall@5 {img_to_txt_r5}")
-    logger.info(f"{name}: Image to Text Recall@10 {img_to_txt_r10}")
-    logger.info(f"{name}: Text to Image Recall@1 {txt_to_img_r1}")
-    logger.info(f"{name}: Text to Image Recall@5 {txt_to_img_r5}")
-    logger.info(f"{name}: Text to Image Recall@10 {txt_to_img_r10}")
+    compute_scores(img_embeds=img_embeds, text_embeds=text_embeds, img_ids=img_ids)
 
 
 @hydra.main(version_base=None, config_path=os.path.join("..", "configs", "retrieval"), config_name='coco_flickr30')
