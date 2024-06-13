@@ -87,7 +87,7 @@ def zero_shot_retrieval(model:AMMData2Vec, dataloader, device, name):
         text_emb = model.encode_text(text=text, padding_mask=padding_mask)
         img_embeds.append(img_emb)
         text_embeds.append(text_emb)
-        img_ids.append(batch['id'])
+        img_ids.append(batch['id'].to(device))
 
     compute_scores(img_embeds=img_embeds, text_embeds=text_embeds, img_ids=img_ids)
 
@@ -125,15 +125,18 @@ def d2v_zero_shot_retrieval(dataloader, device, name):
             mask=False,
             remove_extra_tokens=False,
         )['x'][:, 0]
+
+        img_emb = img_emb / img_emb.norm(dim=-1, keepdim=True)
+        text_emb = text_emb / text_emb.norm(dim=-1, keepdim=True)
         
         img_embeds.append(img_emb)
         text_embeds.append(text_emb)
-        img_ids.append(batch['id'])
+        img_ids.append(batch['id'].to(device))
 
     compute_scores(img_embeds=img_embeds, text_embeds=text_embeds, img_ids=img_ids)
 
 
-@hydra.main(version_base=None, config_path=os.path.join("..", "configs", "retrieval"), config_name='coco_flickr30')
+@hydra.main(version_base=None, config_path=os.path.join("..", "configs", "retrieval"), config_name='coco_flickr')
 def main(cfg: DictConfig) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
@@ -152,6 +155,8 @@ def main(cfg: DictConfig) -> None:
     if cfg.eval_d2v:
         logger.info("Evaluating Data2Vec model")
         for name, dm in datamodules:
+            dm.prepare_data()
+            dm.setup('test')
             d2v_zero_shot_retrieval(dm.test_dataloader(), device, name)
     else:
         logger.info("Evaluating KD model")
@@ -161,8 +166,10 @@ def main(cfg: DictConfig) -> None:
         model.eval()
 
         for name, dm in datamodules:
+            dm.prepare_data()
+            dm.setup('test')
             logger.info(f"Zero-shot retrieval on: {name}")
-            zero_shot_retrieval(model, dm, device, name)
+            zero_shot_retrieval(model, dm.test_dataloader(), device, name)
 
 if __name__ == "__main__":
     main()
