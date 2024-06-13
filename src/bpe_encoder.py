@@ -41,6 +41,8 @@ class BPEEncoder(object):
         return self.dict.encode_line(bpe_tokens).tolist()
 
     def decode(self, tokens):
+        tokens = self.dict.string(tokens, extra_symbols_to_ignore=[1]) # 1 is padding token
+        tokens = [int(tok) for tok in tokens.split()]
         return self.bpe.decode(tokens)
 
     def encode_lines(self, lines, tokens_per_sample=None, to_tensor=True):
