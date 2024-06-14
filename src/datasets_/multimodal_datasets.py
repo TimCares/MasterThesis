@@ -398,7 +398,7 @@ class VisualGenome(BaseImageText):
             curr_caption_len = 0
             for caption in captions:
                 if curr_caption_len != 0:
-                    caption = "and " + caption
+                    caption = " and " + caption.strip()
 
                 token_ids = encoder.encode(caption)
                 if len(token_ids) + curr_caption_len > self.num_max_bpe_tokens-2: # -2 for [CLS] and [SEP]/[EOS]
