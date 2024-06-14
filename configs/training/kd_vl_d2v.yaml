@@ -96,7 +96,7 @@ checkpoint:
   auto_insert_metric_name: False
 
 zero_shot_val:
-  val_every_n_batches: 4_000
+  val_every_n_batches: 6_000
   num_max_bpe_tokens: ${nlp_context_length}
 
 optimizer:
