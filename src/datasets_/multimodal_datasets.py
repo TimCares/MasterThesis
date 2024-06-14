@@ -496,6 +496,7 @@ class ConceptualCaptions(BaseImageText):
             items.append({
                 'image_path': os.path.join(self.img_path, img),
                 'text': encoder.encode(index.at[idx, 0].strip()),
+                'id': idx,
             })
         n_failed = len(index) - len(items)
         self.log(f"Failed to download {n_failed} images (pairs). Percentage: {n_failed/len(index)*100:.2f}%")
