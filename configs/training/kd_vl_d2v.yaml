@@ -79,7 +79,7 @@ data:
       concat_captions: True
 
     conceptual_captions:
-      data_fraction: 0.2 # just for download purposes, we use the first 500k in the train index file
+      data_fraction: 0.2 # just for download purposes, we use the first (available) 500k in the train index file
 
 checkpoint:
   dirpath: "${model_path}/${now:%Y-%m-%d_%H-%M-%S}"
