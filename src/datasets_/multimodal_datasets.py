@@ -443,7 +443,7 @@ class ConceptualCaptions(BaseImageText):
         )
 
         self.data_fraction = data_fraction
-        self.path_to_data = os.path.join(self.data_path, "conceptial_captions")
+        self.path_to_data = os.path.join(self.data_path, "conceptual_captions")
         self.img_path = os.path.join(self.path_to_data, "images")
         os.makedirs(self.path_to_data, exist_ok=True)
         os.makedirs(self.img_path, exist_ok=True)
