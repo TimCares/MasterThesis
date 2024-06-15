@@ -8,7 +8,7 @@ pip install hydra_colorlog --upgrade
 
 pip install lightning soundfile pydub rich bitarray sacrebleu timm torchtext==0.17.0
 
-pip install tensorboardX pandas transformers datasets hapless pyarrow datasets wandb
+pip install tensorboardX pandas transformers datasets hapless pyarrow datasets wandb deepspeed
 
 pip install -U scikit-learn
 
