@@ -182,7 +182,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
             return optimizer
         
     def log(self, *args, **kwargs):
-        super().log(batch_size=self.cfg.data.dataloader.batch_size, *args, **kwargs)
+        super().log(batch_size=self.cfg.data.dataloader.batch_size, sync_dist=True, *args, **kwargs)
 
 
 @dataclass

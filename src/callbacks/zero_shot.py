@@ -245,6 +245,7 @@ class ZeroShotCallback(Callback):
 
 class ZeroShotRetrievalCallback(ZeroShotCallback):
     @torch.no_grad()
+    @rank_zero_only
     def validate(self, trainer, pl_module) -> None:
         all_metrics_for_modality = dict()
         for name_key in self.datamodules.keys():
@@ -323,6 +324,7 @@ class MultimodalZeroShotRetrievalCallback(ZeroShotCallback):
 
 
     @torch.no_grad()
+    @rank_zero_only
     def validate(self, trainer, pl_module) -> None:
         for name_key in self.datamodules.keys():
             
