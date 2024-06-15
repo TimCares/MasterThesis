@@ -52,9 +52,7 @@ def _zero_shot_classifier(pl_module:AMMData2VecPreTrainingLightningModule, devic
 
         texts = texts.to(device)
         padding_masks = padding_masks.to(device)
-        if pl_module.dtype == torch.float16: # when using deep speed
-            texts = texts.half()
-            padding_masks = padding_masks.half()
+        # check for fp16 not needed here -> texts is long tensor and will be converted by embedding table to correct dtype
         class_embeddings = pl_module.model.encode_text(text=texts, padding_mask=padding_masks, normalize=True)
         class_embedding = class_embeddings.mean(dim=0)
         class_embedding /= class_embedding.norm()
