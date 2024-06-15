@@ -80,35 +80,36 @@ Data Selection and Collection:
   - the reason why that is is because captions are extracted from region descriptions of images
   - describe, not as in coco, the focus of the image, or rather a short description/summary of the image, but individual, sometimes
   small, regions of the image -> VG also used for object detection
-- three problems can come with that:
-  1. the captions can be very similar, and we sometimes observe repreated captions
-  2. captions might focus on small parts of the image, failing the describe the actual focus/context of the image
-    - not a problem for object detection, but for our purpose it is not ideal
-    - aligning representations of image with very short and specific caption about a small portion of the image might
-      confuse the model -> focuses less on the general context/content
-  3. the ratio of unique text and images heavily skewed towards text, image part of our multimodal models might lack behind
-    their text counterparts, leading to worse performance when aligning the modalities
-- solution:
-  - discard repeated captions
-  - concatenate captions of the same image until we reach the maxiumum sequence length of the model we are training
-  - if a caption does not fit anymore, we start a new caption
-  - will reduce the number of captions we have per image, but captions will be longer
-    - model has more information available -> description is more detailed
-    - might "caption" the content of the image better
-    - we reduce the dominance of unique text over unique images
-    - since single region descriptions are often very short, we would pad a lot of timesteps to reach the maximum sequence length
-      - padding is a source of inefficiency, as it is not learnable information, but just a placeholder
-    - through concatenating them we make optimal use of the maximum sequence length
-  - how do we concatenate them? -> we simply concatenate them and separate them by the "and" token to create
-    coherent sentences, even though they might not be gramarically correct
+// - three problems can come with that:
+//   1. the captions can be very similar, and we sometimes observe repreated captions
+//   2. captions might focus on small parts of the image, failing the describe the actual focus/context of the image
+//     - not a problem for object detection, but for our purpose it is not ideal
+//     - aligning representations of image with very short and specific caption about a small portion of the image might
+//       confuse the model -> focuses less on the general context/content
+//   3. the ratio of unique text and images heavily skewed towards text, image part of our multimodal models might lack behind
+//     their text counterparts, leading to worse performance when aligning the modalities
+// - solution:
+//   - discard repeated captions
+//   - concatenate captions of the same image until we reach the maxiumum sequence length of the model we are training
+//   - if a caption does not fit anymore, we start a new caption
+//   - will reduce the number of captions we have per image, but captions will be longer
+//     - model has more information available -> description is more detailed
+//     - might "caption" the content of the image better
+//     - we reduce the dominance of unique text over unique images
+//     - since single region descriptions are often very short, we would pad a lot of timesteps to reach the maximum sequence length
+//       - padding is a source of inefficiency, as it is not learnable information, but just a placeholder
+//     - through concatenating them we make optimal use of the maximum sequence length
+//   - how do we concatenate them? -> we simply concatenate them and separate them by the "and" token to create
+//     coherent sentences, even though they might not be gramarically correct
 
-- disadvantage: reduces the number of unique examples the model sees during training
-- that is why we do not do the same for COCO, as the ratio is more balanced
+// - disadvantage: reduces the number of unique examples the model sees during training
+// - that is why we do not do the same for COCO, as the ratio is more balanced
 - we also additionally use a subset of Google's Conceptual Captions, which originally contains over 3.3M unique image-text pairs
-- here each image is only associated with one caption, reducing the relative overrepresentation of text
+- we use this, because with COCO and VG we have a overrepresentation of text -> for each image multiple captions -> higher variety of text than images
+- in CC3m each image is only associated with one caption, reducing the relative overrepresentation of text
 - Google only provides an index file with captions to image urls
   - urls are sourced from the web, so there is no guarantee that all images are still available
-- we use a subset of 400,000 randomly selected and, as of June 2024, available images (with their captions)
+- we use the first 500,000 available, as of June 2024, images (with their captions) as a subset from the training set index published by Google #footnote[https://ai.google.com/research/ConceptualCaptions/download].
 - storing the whole dataset is not feasible for us and the combination with COCO and VG should already provide enough data for training
 - ids and urls of image-text pairs used are available on GitHub
 
@@ -127,8 +128,10 @@ Data Selection and Collection:
     table.hline(stroke: .4pt),
     [COCO], [82,783], [5.0], [11.0], [566,747],
     [VG], [108,249], [50.0], [4.7], [5,408,689],
-    [VG Concat], [108,249], [6.0], [52.7], [653,792],
-    [CC3M Subset], [400,000], [1.0], [50.0], [400,000],
+    //[VG Concat], [108,249], [6.0], [52.7], [653,792],
+    [CC3M Subset], [500,000], [1.0], [50.0], [500,000],
+    table.hline(stroke: .4pt),
+    [Total], [691,032], [-], [-], [6,475,436],
     table.hline(),
   ),
   caption: [Multimodal Dataset used for aligning Image and Text. The maximum text sequence length is, inspired by
@@ -149,3 +152,53 @@ Data Selection and Collection:
     captions consists of region descriptions, then we might have captions that do not match the image anymore
   - that is why papers that use random crop use higher values -> BEiT3 uses 0.5, FLAVA 0.9, VLMo uses RandAugment
   - we consider 0.9 too high and 0.5 too low, so we opt for 0.6
+
+- examples of image-text pairs and the effect of the crop size can be seen in the appendix
+
+- in order to evaluate the models performance on text-only tasks, we use the GLUE benchmark
+- GLUE consists of 4 different tasks: sentiment analysis (SST-2), grammar error detection (CoLA), sentence similarity (STS-B, MRPC, QQP), and natural language understanding (QNLI, MNLI, RTE)
+
+SST-2:
+- sentence classification of rotten tomatoes movie reviews into "negative" (1), "somewhat negative" (2), "somewhat positive" (3), and "positive" (4) @sst2
+
+CoLA:
+- grammatical error detection / linguistic accepability, binary classification, whether a sentence is grammatically correct (acceptable -> 2) or not (0 -> unacceptable) @cola
+
+STS-B:
+- similarity of two sentences, regression task, similarity score between 0 and 5 @stsb
+
+MRPC:
+- paraphrase detection, whether two sentences describe the same content/concept, binary classification @mrpc
+
+QQP:
+- do two questions ask the same thing, binary classification #footnote[https://quoradata.quora.com/First-Quora-Dataset-Release-Question-Pairs]
+
+QNLI:
+- does a text contain the answer to a question? @squad @glue
+
+RTE:
+- pair of text and hypothesis, whether the hypothesis can be inferred from the text, binary classification @rte1 @rte2 @rte3 @rte5 @glue
+
+MNLI:
+- pair of premise and hypothesis, whether the hypothesis can be inferred from the premise (entailment), contradicts the premise (contradiction), or is neutral (neutral) @mnli
+
+- single questions encoded using same GPT-2 byte-pair encoder as before, and prepended with start-of-sequence token and appended with end-of-sequence token
+- sentences are tokenized (samte tokenizer), concatenated and separated by the end-of-sentence token, concatenated sentence pair prepended with start-of-sequence token
+
+#figure(
+  table(
+    columns: 3,
+    stroke: none,
+    table.hline(),
+    table.header(
+      [*Dataset*],
+      [*Example*],
+      [*Label*],
+    ),
+    table.hline(stroke: .4pt),
+    [CoLA], [Our friends won't buy this analysis, let alone the next one we propose.], [1],
+    [MNLI], [Conceptually cream skimming has two basic dimensions - product and geography. [SEP] Product and geography are what make cream skimming work.], [1],
+    [CC3M Subset], [500,000],
+  ),
+  caption: [Glue Example],
+)<glue_example>

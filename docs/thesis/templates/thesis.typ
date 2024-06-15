@@ -141,6 +141,7 @@
         {[List of Tables]},
     target: figure.where(kind: table),
   )
+  include("../methodology/data_and_preparation.typ")
 
   // Appendix.
   set heading(numbering: "A")
