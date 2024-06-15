@@ -29,3 +29,7 @@ mv "$ffmpeg_dir/ffmpeg" "$ffmpeg_dir/ffprobe" /usr/local/bin/
 rm -r ffmpeg-git-amd64-static.tar.xz
 
 rm -r $ffmpeg_dir
+
+# for deep speed
+apt-get update
+apt-get install libaio-dev
