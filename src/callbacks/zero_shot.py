@@ -4,9 +4,9 @@ import logging
 import torch
 import numpy as np
 from models.kd_data2vec import KDData2Vec
-from models.mm_data2vec import AMMData2Vec
+from models.mm_data2vec_beit import AMMData2Vec, AMMData2VecPreTrainingLightningModule
 from torch.utils.data import DataLoader
-from pytorch_lightning import Callback, LightningDataModule, Trainer, LightningModule
+from pytorch_lightning import Callback, LightningDataModule
 from pytorch_lightning.utilities import rank_zero_only
 from typing import Dict
 import os
@@ -25,7 +25,7 @@ from data2vec_fairseq.data.modality import Modality
 
 logger = logging.getLogger(__name__)
 
-def _zero_shot_classifier(model:AMMData2Vec, device, num_max_bpe_tokens):
+def _zero_shot_classifier(pl_module:AMMData2VecPreTrainingLightningModule, device, num_max_bpe_tokens):
     data_path = '/workspace'
     bpe_encoder:BPEEncoder = get_bpe_encoder(data_path)
     dictionary = Dictionary.load(os.path.join(data_path, "dict.txt"))
@@ -52,7 +52,10 @@ def _zero_shot_classifier(model:AMMData2Vec, device, num_max_bpe_tokens):
 
         texts = texts.to(device)
         padding_masks = padding_masks.to(device)
-        class_embeddings = model.encode_text(text=texts, padding_mask=padding_masks, normalize=True)
+        if pl_module.dtype == torch.float16: # when using deep speed
+            texts = texts.half()
+            padding_masks = padding_masks.half()
+        class_embeddings = pl_module.model.encode_text(text=texts, padding_mask=padding_masks, normalize=True)
         class_embedding = class_embeddings.mean(dim=0)
         class_embedding /= class_embedding.norm()
         zeroshot_weights.append(class_embedding)
@@ -71,14 +74,14 @@ def _n_correct(output, target, topk=(1,)):
 
 
 @rank_zero_only
-def run_multimodal_zero_shot(model:AMMData2Vec,
+def run_multimodal_zero_shot(pl_module:AMMData2VecPreTrainingLightningModule,
                              dataloader:DataLoader,
                              num_max_bpe_tokens:int,
                              device,
                              name,):
     logger.info(f"Starting multimodal {name} Zero-Shot Eval")
     logger.info("Building classifier")
-    classifier = _zero_shot_classifier(model, device, num_max_bpe_tokens)
+    classifier = _zero_shot_classifier(pl_module, device, num_max_bpe_tokens)
     logger.info("Classifier built")
     top1, top5, n = 0.0, 0.0, 0.0
     for sample in track(dataloader, description=f"Zero-shot eval: {name}"):
@@ -86,8 +89,9 @@ def run_multimodal_zero_shot(model:AMMData2Vec,
         target = sample["target"]
         images = images.to(device)
         target = target.to(device)
-
-        image_features = model.encode_image(image=images, normalize=True)
+        if pl_module.dtype == torch.float16: # when using deep speed
+            images = images.half()
+        image_features = pl_module.model.encode_image(image=images, normalize=True)
         logits = 100.0 * image_features @ classifier
 
         # measure accuracy
@@ -325,7 +329,7 @@ class MultimodalZeroShotRetrievalCallback(ZeroShotCallback):
         for name_key in self.datamodules.keys():
             
             metrics = run_multimodal_zero_shot(
-                model=pl_module.model,
+                pl_module=pl_module,
                 dataloader=self.datamodules[name_key].val_dataloader(),
                 num_max_bpe_tokens=self.num_max_bpe_tokens,
                 device=pl_module.device,
