@@ -157,11 +157,19 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
             self.log(f"{stage}/{name}_mean_neg_similarity", mean_neg_sim)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(params=self.model.parameters(), 
-                                      lr=self.cfg.optimizer.lr,
-                                      betas=tuple(self.cfg.optimizer.betas),
-                                      eps=self.cfg.optimizer.eps,
-                                      weight_decay=self.cfg.optimizer.weight_decay)
+        wd_params, non_wd_params = self._get_param_groups()
+        assert len(wd_params) + len(non_wd_params) == len(list(self.model.parameters()))
+        optimizer = torch.optim.AdamW(
+            params=[
+                {"params": wd_params, "weight_decay": self.cfg.optimizer.weight_decay},
+                {"params": non_wd_params, "weight_decay": 0}
+            ],
+            lr=self.cfg.optimizer.lr,
+            betas=tuple(self.cfg.optimizer.betas),
+            eps=self.cfg.optimizer.eps,
+            # weight_decay=self.cfg.optimizer.weight_decay -> not needed becuase of param groups
+        )
+        
         if self.cfg.optimizer.warmup:
             name = self.cfg.optimizer_schedule.type
             if name == 'cosine':
@@ -178,6 +186,15 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
             return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": name}]
         else:
             return optimizer
+        
+    def _get_param_groups(self):
+        wd_params, non_wd_params = [], []
+        for name, param in self.model.named_parameters():
+            if len(param.shape) == 1 or name.endswith(".bias") or "extra_tokens" in name:
+                non_wd_params.append(param)
+            else:
+                wd_params.append(param)
+        return wd_params, non_wd_params
         
     def log(self, *args, **kwargs):
         super().log(batch_size=self.cfg.data.dataloader.batch_size, *args, **kwargs)
@@ -267,10 +284,6 @@ class AMMData2Vec(nn.Module):
         self.mask_seed = self.cfg.seed
 
         self.apply(init_bert_params)
-
-        for pn, p in self.named_parameters():
-            if len(p.shape) == 1 or pn.endswith(".bias") or "cls_token" in pn:
-                p.optim_overrides = {"optimizer": {"weight_decay_scale": 0}}
 
         # init pretrained later, so that they are not part of the model's parameters when model is initialized
         assert hasattr(self, 'blocks'), "Blocks must be initialized before initializing the model."
