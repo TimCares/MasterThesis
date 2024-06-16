@@ -169,7 +169,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
             lr=self.cfg.optimizer.lr,
             betas=tuple(self.cfg.optimizer.betas),
             eps=self.cfg.optimizer.eps,
-            weight_decay=self.cfg.optimizer.weight_decay
+            # weight_decay=self.cfg.optimizer.weight_decay -> not needed becuase of param groups
         )
         
         if self.cfg.optimizer.warmup:
