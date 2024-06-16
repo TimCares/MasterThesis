@@ -114,6 +114,11 @@ def main(cfg: DictConfig) -> None:
                 val_dataloaders=val_dataloaders,
                 ckpt_path=ckpt_path)
 
+    model_path = os.path.join(cfg.checkpoint.dirpath, 'last.ckpt')
+    if 'deepspeed' in cfg.lightning_trainer.strategy and os.path.isdir(model_path):
+        from lightning.pytorch.utilities.deepspeed import convert_zero_checkpoint_to_fp32_state_dict
+        output_path = os.path.join(cfg.checkpoint.dirpath, 'fp32_last.ckpt')
+        convert_zero_checkpoint_to_fp32_state_dict(model_path, output_path)
 
 if __name__ == "__main__":
     main()
