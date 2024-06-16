@@ -160,6 +160,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
 
     def configure_optimizers(self):
         wd_params, non_wd_params = self._get_param_groups()
+        assert len(wd_params) + len(non_wd_params) == len(list(self.model.parameters()))
         optimizer = torch.optim.AdamW(
             params=[
                 {"params": wd_params, "weight_decay": self.cfg.optimizer.weight_decay},
