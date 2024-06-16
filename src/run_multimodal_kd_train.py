@@ -8,6 +8,7 @@ import logging
 from pytorch_lightning import seed_everything, Trainer, LightningDataModule
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, ModelSummary
 from pytorch_lightning.loggers import WandbLogger
+from lightning.pytorch.strategies import DeepSpeedStrategy
 import sys
 sys.path.append("beit2")
 from models.mm_data2vec_beit import AMMData2VecConfig, AMMData2VecPreTrainingLightningModule
@@ -70,8 +71,15 @@ def main(cfg: DictConfig) -> None:
     )        
 
     torch.set_float32_matmul_precision("high") # or: "highest"
+    trainer_args = OmegaConf.to_container(cfg.lightning_trainer, resolve=True)
+    if 'deepspeed' in trainer_args['strategy']:
+        trainer_args['strategy'] = DeepSpeedStrategy(
+            offload_optimizer='offload' in trainer_args['strategy'],
+            allgather_bucket_size=5e8, # size as recommended by pytorch lightning deepspeed docs
+            reduce_bucket_size=5e8, # size as recommended by pytorch lightning deepspeed docs
+        )
     trainer = Trainer(
-        **OmegaConf.to_container(cfg.lightning_trainer, resolve=True),
+        **trainer_args,
         enable_checkpointing=True,
         callbacks=callbacks,
         logger=wandb_logger,
