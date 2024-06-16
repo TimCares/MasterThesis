@@ -29,6 +29,7 @@
     [*MM-D2V2 (Ours)*], [4.24], [12.12], [17.96], [1.77], [6.54], [10.91], [1.2], [4.88], [8.18], [0.54], [2.52], [4.58],
     [*MM-D2V2 (Ours)†*], [31.72], [56.78], [67.9], [12.42], [31.05], [42.5], [7.7], [26.18], [37.6], [4.08], [17.01], [24.26],
     [*MM-D2V2 7_2(Ours)†*], [32.78], [58.34], [69.3], [12.83], [31.85], [43.4], [8.08], [27.92], [38.6], [4.14], [17.5], [24.82],
+    [*MM-D2V2 7(Ours)†*], [30.24], [56.48], [67.46], [11.96], [30.48], [41.88], [7.36], [26.42], [36.6], [3.7], [16.58], [23.84],
     table.hline(),
   ),
   caption: [Comparison of Zero-shot Image-Text and Text-Image Retrieval of first results with FLAVA and Data2Vec2 papers. Because Data2Vec2 is a unimodal model, we embed each image with the D2V2-Image model and each text with the D2V2-Text model. This yields unusable results, as there has been no incentive for the models to learn a shared representation, as both are unimodal. This is why we had to use both the image and the text model to embed the data. \ *†*: This version has been trained with BEiT-2 as the teacher model, not the D2V2 Image model.],
