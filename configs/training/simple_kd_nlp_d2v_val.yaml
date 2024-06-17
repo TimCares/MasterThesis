@@ -80,8 +80,8 @@ model:
 data:
   dataloader:
     data_path: ${data_path}
-    batch_size: 128
-    num_workers: 12
+    batch_size: 256
+    num_workers: 5
     shuffle: True
     drop_last: True
 
@@ -113,17 +113,15 @@ optimizer:
 
 optimizer_schedule: # relevant if "optimizer.warmup" is True
   type: cosine # constant or cosine
-  warmup_steps: 4_000
+  warmup_steps: 5_000
   max_steps: ${lightning_trainer.max_steps}
 
 lightning_trainer:
   default_root_dir: ${log_dir}
   accelerator: gpu
   devices: -1
-  strategy: auto # auto -> default
-  max_steps: 40_000
+  strategy: deepspeed_stage_2
+  max_steps: 50_000
   val_check_interval: 5_000
   precision: 16-mixed
-  gradient_clip_val: 2.0
   log_every_n_steps: 50
-  accumulate_grad_batches: 2 # 128*2 = 256

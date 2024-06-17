@@ -178,11 +178,19 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
 
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(params=self.model.parameters(), 
-                                      lr=self.cfg.optimizer.lr,
-                                      betas=tuple(self.cfg.optimizer.betas),
-                                      eps=self.cfg.optimizer.eps,
-                                      weight_decay=self.cfg.optimizer.weight_decay)
+        wd_params, non_wd_params = self._get_param_groups()
+        assert len(wd_params) + len(non_wd_params) == len(list(self.model.parameters()))
+        optimizer = torch.optim.AdamW(
+            params=[
+                {"params": wd_params, "weight_decay": self.cfg.optimizer.weight_decay},
+                {"params": non_wd_params, "weight_decay": 0}
+            ],
+            lr=self.cfg.optimizer.lr,
+            betas=tuple(self.cfg.optimizer.betas),
+            eps=self.cfg.optimizer.eps,
+            # weight_decay=self.cfg.optimizer.weight_decay -> not needed becuase of param groups
+        )
+        
         if self.cfg.optimizer.warmup:
             name = self.cfg.optimizer_schedule.type
             if name == 'cosine':
@@ -199,6 +207,15 @@ class KDData2VecPreTrainingLightningModule(L.LightningModule):
             return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": name}]
         else:
             return optimizer
+        
+    def _get_param_groups(self):
+        wd_params, non_wd_params = [], []
+        for name, param in self.model.named_parameters():
+            if len(param.shape) == 1 or name.endswith(".bias") or "extra_tokens" in name:
+                non_wd_params.append(param)
+            else:
+                wd_params.append(param)
+        return wd_params, non_wd_params
 
 
 @dataclass

@@ -5,6 +5,7 @@ import os
 import torch
 import logging
 from pytorch_lightning import seed_everything, Trainer
+from pytorch_lightning.strategies import DeepSpeedStrategy
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, ModelSummary
 from pytorch_lightning.loggers import WandbLogger
 
@@ -74,15 +75,23 @@ def main(cfg: DictConfig) -> None:
     )        
 
     torch.set_float32_matmul_precision("high") # or: "highest"
+    trainer_args = OmegaConf.to_container(cfg.lightning_trainer, resolve=True)
+    if 'deepspeed' in trainer_args['strategy']:
+        trainer_args['strategy'] = DeepSpeedStrategy(
+            offload_optimizer='offload' in trainer_args['strategy'],
+            allgather_bucket_size=5e8, # size as recommended by pytorch lightning deepspeed docs
+            reduce_bucket_size=5e8, # size as recommended by pytorch lightning deepspeed docs
+        )
     trainer = Trainer(
-        **OmegaConf.to_container(cfg.lightning_trainer, resolve=True),
+        **trainer_args,
         enable_checkpointing=True,
         callbacks=callbacks,
         logger=wandb_logger,
     )
     if trainer.global_rank == 0:
         wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
-    wandb.save('kd_data2vec.py') # saves the model file to wandb
+    wandb.save('models/kd_data2vec.py') # saves the model file to wandb
+    wandb.save('run_unimodal_kd_train.py') # saves the model file to wandb
 
     datamodules = []
     for datamodule_key in cfg.data.datamodules.keys():
@@ -109,6 +118,13 @@ def main(cfg: DictConfig) -> None:
     trainer.fit(module,
                 datamodule=datamodule,
                 ckpt_path=ckpt_path)
+    
+    model_path = os.path.join(cfg.checkpoint.dirpath, 'last.ckpt')
+    if 'deepspeed' in cfg.lightning_trainer.strategy and os.path.isdir(model_path):
+        from lightning.pytorch.utilities.deepspeed import convert_zero_checkpoint_to_fp32_state_dict
+        output_path = os.path.join(cfg.checkpoint.dirpath, 'fp32_last.ckpt')
+        convert_zero_checkpoint_to_fp32_state_dict(model_path, output_path)
+        os.remove(model_path)
 
 
 if __name__ == "__main__":
