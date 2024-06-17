@@ -5,6 +5,7 @@ import os
 import torch
 from typing import List
 import logging
+import re
 from pytorch_lightning import seed_everything, Trainer, LightningDataModule
 from pytorch_lightning.strategies import DeepSpeedStrategy
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, ModelSummary
@@ -74,6 +75,7 @@ def main(cfg: DictConfig) -> None:
     trainer_args = OmegaConf.to_container(cfg.lightning_trainer, resolve=True)
     if 'deepspeed' in trainer_args['strategy']:
         trainer_args['strategy'] = DeepSpeedStrategy(
+            stage=int(re.search(r'\d', trainer_args['strategy']).group()),
             offload_optimizer='offload' in trainer_args['strategy'],
             allgather_bucket_size=5e8, # size as recommended by pytorch lightning deepspeed docs
             reduce_bucket_size=5e8, # size as recommended by pytorch lightning deepspeed docs
