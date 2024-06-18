@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: beit2_vl_base_from_init_seperate_attn
+run_name: beit2_vl_base_from_init_seperate_attn_mm_ffn
 
 load_checkpoint:
 
@@ -39,7 +39,7 @@ model:
     text: nlp_base.pt
 
   shared_attn: False
-  n_fuzed_layers: 1
+  n_fuzed_layers: 0
 
   use_tte: False
   itc: False
@@ -94,7 +94,7 @@ checkpoint:
   filename: vl-d2v-{step}-{${checkpoint.monitor}:.4f}
   save_last: link # save last checkpoint -> easier access, as it has a fixed name (last.ckpt) -> not set to True here, as a link saves space
   enable_version_counter: False # only ever one "last.ckpt" file
-  every_n_train_steps: ${lightning_trainer.val_check_interval}
+  every_n_train_steps: 6_001 # save after every validation run (else checkpointing is run first, ... bug?)
   save_on_train_epoch_end: False # False -> run at end of validation
   verbose: True
   monitor: val/loss
