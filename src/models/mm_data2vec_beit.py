@@ -272,7 +272,6 @@ class AMMData2Vec(nn.Module):
         self.blocks:nn.ModuleList[str, MOMEAltBlock] = nn.ModuleList(blocks)
 
         self.layerdrop = self.cfg.layerdrop
-        self.mask_seed = self.cfg.seed
 
         self.apply(init_bert_params)
 

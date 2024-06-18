@@ -254,7 +254,6 @@ class AMMData2Vec(nn.Module):
         self.blocks:nn.ModuleList[str, MOMEAltBlock] = nn.ModuleList(blocks)
 
         self.layerdrop = self.cfg.layerdrop
-        self.mask_seed = self.cfg.seed
 
         self.apply(init_bert_params)
 
@@ -375,7 +374,7 @@ class AMMData2Vec(nn.Module):
             features_only=True,
         )
         return res
-    
+
     def encode_modality(self, x:torch.Tensor, modality:Modality, padding_mask=None, normalize:bool=True):
         output = self.extract_features(
             x=x,
