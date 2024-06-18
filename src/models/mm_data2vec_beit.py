@@ -247,12 +247,13 @@ class AMMData2Vec(nn.Module):
         self.supported_modalities = [Modality.IMAGE, Modality.TEXT]
         self.fine_tuning = False
         self.shared_layer_start = self.cfg.depth - self.cfg.n_fuzed_layers
+        make_proj = partial(nn.Linear, self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
 
-        self.text_to_mm_proj = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
-        self.image_to_mm_proj = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+        self.text_to_mm_proj = make_proj()
+        self.image_to_mm_proj = make_proj()
 
         if self.cfg.itc:
-            self.itc_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+            self.itc_head = make_proj()
             self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         if self.cfg.use_tte:
             self.token_type_embedding = nn.Embedding(len(self.supported_modalities), self.cfg.embed_dim)
@@ -368,7 +369,7 @@ class AMMData2Vec(nn.Module):
                 layer_results.append(lr)
         
         encoder_out = x
-        
+
         if modality == Modality.TEXT:
             x = self.text_to_mm_proj(x)
         elif modality == Modality.IMAGE:
