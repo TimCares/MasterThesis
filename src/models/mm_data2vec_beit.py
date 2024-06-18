@@ -87,8 +87,8 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         if self.itc:
             kd_loss = kd_loss / 2
 
-            text_features = output_dict_text['encoder_out'][:, 0]
-            image_features = output_dict_image['encoder_out'][:, 0]
+            text_features = output_dict_text['x'][:, 0]
+            image_features = output_dict_image['x'][:, 0]
             itc_loss = self.itc_loss(text_features=text_features, image_features=image_features)
             self.log(f"{stage}/itc_loss", itc_loss)
         else:
