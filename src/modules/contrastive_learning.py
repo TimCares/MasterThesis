@@ -10,7 +10,8 @@ class ContrastiveLearningMemoryBankModule:
             batch_size:int=256,
             size:int=16384, # 2^14
             start_decay_rate:float=0.99, # decay rate of 1 means no decay -> all samples are weighted equally
-            end_decay_rate:Union[float, None]=None,): 
+            end_decay_rate:Union[float, None]=None, # 0.98-0.99999
+            max_steps:Union[int, None]=None,): 
         super().__init__()
         self.batch_size = batch_size
         self.size = size - batch_size # one batch is always new samples
@@ -18,6 +19,9 @@ class ContrastiveLearningMemoryBankModule:
         if self.start_decay_rate == 1:
             end_decay_rate = None
         self.end_decay_rate = end_decay_rate
+        if self.end_decay_rate is not None:
+            assert max_steps is not None
+        self.max_steps = max_steps
         assert size % batch_size == 0, "Size of memory bank must be multiple of batch size"
         self.image_memory_bank = torch.zeros((self.size, embed_size), dtype=torch.float32)
         self.text_memory_bank = torch.zeros((self.size, embed_size), dtype=torch.float32)
@@ -35,23 +39,24 @@ class ContrastiveLearningMemoryBankModule:
         else:
             self.index_pointer = end_idx
 
-    def _get_decay(self, step:int, max_steps:int) -> float:
+    def _get_decay(self, step:int) -> float:
         if self.end_decay_rate is None:
             return self.start_decay_rate
-        return self.start_decay_rate + (self.end_decay_rate - self.start_decay_rate) * (step / max_steps)
+        if step >= self.max_steps:
+            return self.end_decay_rate
+        return self.start_decay_rate + (self.end_decay_rate - self.start_decay_rate) * (step / self.max_steps)
 
     def compute_loss(
             self,
             logit_scale:torch.Tensor,
             img_emb:torch.Tensor,
             text_emb:torch.Tensor,
-            step:int,
-            max_steps:int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+            step:int,) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         assert img_emb.size(0) == text_emb.size(0) == self.batch_size
 
         # current samples always have an age of 0
         weights = torch.concat([torch.zeros(self.batch_size, device=self.age.device), self.age], dim=0)
-        decay_rate = self._get_decay(step, max_steps)
+        decay_rate = self._get_decay(step)
         weights = torch.pow(decay_rate, weights.float())
         weights = weights / weights.sum()
         
