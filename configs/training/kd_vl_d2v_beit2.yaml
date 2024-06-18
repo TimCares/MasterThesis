@@ -39,14 +39,14 @@ model:
     text: nlp_base.pt
 
   shared_attn: False
-  n_fuzed_layers: 0
+  n_fuzed_layers: 2
 
   use_tte: False
   itc: False
 
   embed_dim: 768
 
-  depth: 6
+  depth: 7
   num_heads: 12 
   mlp_ratio: 4.0
   encoder_dropout: 0.0

@@ -23,8 +23,6 @@ load_checkpoint:
 
 nlp_context_length: 64 # inspired by BEiT3
 
-target_agg: mean # one of: cls_token, mean
-
 model:
   pretrained_path: ${model_path}
   pretrained:
