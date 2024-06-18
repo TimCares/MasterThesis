@@ -197,7 +197,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         return wd_params, non_wd_params
         
     def log(self, *args, **kwargs):
-        super().log(batch_size=self.cfg.data.dataloader.batch_size, *args, **kwargs)
+        super().log(batch_size=self.cfg.data.dataloader.batch_size, sync_dist=True, *args, **kwargs)
 
 
 @dataclass
