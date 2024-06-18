@@ -104,8 +104,8 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         return loss
     
     def itc_loss(self, text_features:torch.Tensor, image_features:torch.Tensor, stage:str='train') -> torch.Tensor:
-        text_features = self.model.text_itc_head(text_features)
-        image_features = self.model.image_itc_head(image_features)
+        text_features = self.model.itc_head(text_features)
+        image_features = self.model.itc_head(image_features)
 
         scale = self.model.logit_scale.exp()
 
@@ -248,9 +248,11 @@ class AMMData2Vec(nn.Module):
         self.fine_tuning = False
         self.shared_layer_start = self.cfg.depth - self.cfg.n_fuzed_layers
 
+        self.text_to_mm_proj = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+        self.image_to_mm_proj = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+
         if self.cfg.itc:
-            self.text_itc_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
-            self.image_itc_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+            self.itc_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
             self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         if self.cfg.use_tte:
             self.token_type_embedding = nn.Embedding(len(self.supported_modalities), self.cfg.embed_dim)
@@ -314,13 +316,6 @@ class AMMData2Vec(nn.Module):
                     modality=modality,
                     init_attention=modality==Modality.IMAGE or not self.cfg.shared_attn,
                 )
-            # if modality == Modality.IMAGE:
-            #     for i in range(start_fuzed, self.cfg.depth):
-            #         assert self.blocks[i].with_fuzed
-            #         self.blocks[i].init_attention_from_pretrained(
-            #             pretained_block=d2v_model.blocks[i],
-            #             modality=modality,
-            #         )
             
             modality_feature_extractor = d2v_model.modality_encoders[modality.name]
             modality_encoders[modality.name.lower()] = modality_feature_extractor
@@ -363,15 +358,30 @@ class AMMData2Vec(nn.Module):
             x = self.dropout_input(x)
         
         layer_results = []
-        for i, blk in enumerate(self.blocks):
+        for blk in range(self.shared_layer_start):
             x, lr = blk(
                 x,
                 modality=modality,
                 padding_mask=padding_mask,
             )
-            if i+1 == self.shared_layer_start:
-                encoder_out = x
-            
+            if not features_only:
+                layer_results.append(lr)
+        
+        encoder_out = x
+        
+        if modality == Modality.TEXT:
+            x = self.text_to_mm_proj(x)
+        elif modality == Modality.IMAGE:
+            x = self.image_to_mm_proj(x)
+        else:
+            raise ValueError(f"Modality {modality} not supported.")
+
+        for blk in range(self.shared_layer_start, self.cfg.depth):
+            x, lr = self.blocks[blk](
+                x,
+                modality=modality,
+                padding_mask=padding_mask,
+            )
             if not features_only:
                 layer_results.append(lr)
 
@@ -399,14 +409,11 @@ class AMMData2Vec(nn.Module):
             x=x,
             modality=modality,
             padding_mask=padding_mask,
-        )['encoder_out']
+        )['x']
 
         output = output[:, 0]
         if self.cfg.itc:
-            if modality == Modality.IMAGE:
-                output = self.image_itc_head(output)
-            elif modality == Modality.TEXT:
-                output = self.text_itc_head(output)
+            output = self.itc_head(output)
 
         output = output / output.norm(dim=-1, keepdim=True)
         
