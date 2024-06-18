@@ -87,8 +87,8 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         if self.itc:
             kd_loss = kd_loss / 2
 
-            text_features = output_dict_text['x'][:, 0]
-            image_features = output_dict_image['x'][:, 0]
+            text_features = output_dict_text['encoder_out'][:, 0]
+            image_features = output_dict_image['encoder_out'][:, 0]
             itc_loss = self.itc_loss(text_features=text_features, image_features=image_features)
             self.log(f"{stage}/itc_loss", itc_loss)
         else:
@@ -104,8 +104,8 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         return loss
     
     def itc_loss(self, text_features:torch.Tensor, image_features:torch.Tensor, stage:str='train') -> torch.Tensor:
-        text_features = self.model.itc_head(text_features)
-        image_features = self.model.itc_head(image_features)
+        text_features = self.model.text_itc_head(text_features)
+        image_features = self.model.image_itc_head(image_features)
 
         scale = self.model.logit_scale.exp()
 
@@ -192,7 +192,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
     def _get_param_groups(self):
         wd_params, non_wd_params = [], []
         for name, param in self.model.named_parameters():
-            if len(param.shape) == 1 or name.endswith(".bias") or "extra_tokens" in name:
+            if len(param.shape) == 1 or name.endswith(".bias") or "extra_tokens" in name or 'embed_tokens' in name:
                 non_wd_params.append(param)
             else:
                 wd_params.append(param)
@@ -246,9 +246,11 @@ class AMMData2Vec(nn.Module):
         self.cfg = cfg
         self.supported_modalities = [Modality.IMAGE, Modality.TEXT]
         self.fine_tuning = False
+        self.shared_layer_start = self.cfg.depth - self.cfg.n_fuzed_layers
 
         if self.cfg.itc:
-            self.itc_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+            self.text_itc_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+            self.image_itc_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
             self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         if self.cfg.use_tte:
             self.token_type_embedding = nn.Embedding(len(self.supported_modalities), self.cfg.embed_dim)
@@ -259,10 +261,10 @@ class AMMData2Vec(nn.Module):
         dpr = np.linspace(self.cfg.start_drop_path_rate, self.cfg.end_drop_path_rate, self.cfg.depth)
 
         blocks:List[MOMEAltBlock] = []
-        fuzed_block_indices = list(range(self.cfg.depth - self.cfg.n_fuzed_layers, self.cfg.depth))
+        fuzed_block_indices = list(range(self.shared_layer_start, self.cfg.depth))
         logger.info(f"Fuzed block indices: {fuzed_block_indices}")
         for i in range(self.cfg.depth):
-            if self.cfg.depth - i <= self.cfg.n_fuzed_layers:
+            if i >= self.shared_layer_start:
                 blocks.append(self.make_block(drop_path=dpr[i], multimodal=True, with_fuzed=True))
             else:
                 blocks.append(self.make_block(drop_path=dpr[i], multimodal=True, with_fuzed=False, shared_attn=self.cfg.shared_attn))
@@ -302,13 +304,12 @@ class AMMData2Vec(nn.Module):
 
     def _init_from_pretrained(self) -> None:
         modality_encoders = {}
-        start_fuzed = self.cfg.depth-self.cfg.n_fuzed_layers
         for modality in self.supported_modalities:
             state_dict_name = self.cfg.pretrained[modality.name.lower()]
             state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
             d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
 
-            for i in range(start_fuzed):
+            for i in range(self.shared_layer_start):
                 self.blocks[i].init_from_pretrained(
                     pretained_block=d2v_model.blocks[i],
                     modality=modality,
@@ -363,18 +364,21 @@ class AMMData2Vec(nn.Module):
             x = self.dropout_input(x)
         
         layer_results = []
-        for blk in self.blocks:
+        for i, blk in enumerate(self.blocks):
             x, lr = blk(
                 x,
                 modality=modality,
                 padding_mask=padding_mask,
             )
+            if i+1 == self.shared_layer_start:
+                encoder_out = x
             
             if not features_only:
                 layer_results.append(lr)
 
         out = {
             "x": x,
+            "encoder_out": encoder_out,
             "layer_results": layer_results,
         }
         return out
@@ -391,39 +395,37 @@ class AMMData2Vec(nn.Module):
         )
         return res
     
-    @torch.no_grad()
-    def encode_modality(self, x:torch.Tensor, modality:Modality, padding_mask=None, normalize:bool=True):
+    def encode_modality(self, x:torch.Tensor, modality:Modality, padding_mask=None):
         output = self.extract_features(
             x=x,
             modality=modality,
             padding_mask=padding_mask,
-        )['x']
+        )['encoder_out']
 
         output = output[:, 0]
         if self.cfg.itc:
-            output = self.itc_head(output)
+            if modality == Modality.IMAGE:
+                output = self.image_itc_head(output)
+            elif modality == Modality.TEXT:
+                output = self.text_itc_head(output)
 
-        if normalize:
-            output = output / output.norm(dim=-1, keepdim=True)
+        output = output / output.norm(dim=-1, keepdim=True)
         
         return output # shape: (batch_size, embed_dim)
 
-    def encode_audio(self, audio, padding_mask, normalize:bool=True):
+    def encode_audio(self, audio, padding_mask):
         return self.encode_modality(x=audio,
                                     modality=Modality.AUDIO,
-                                    padding_mask=padding_mask,
-                                    normalize=normalize)
+                                    padding_mask=padding_mask,)
     
-    def encode_image(self, image, normalize:bool=True):
+    def encode_image(self, image):
         return self.encode_modality(x=image,
-                                    modality=Modality.IMAGE,
-                                    normalize=normalize)
+                                    modality=Modality.IMAGE,)
 
-    def encode_text(self, text, padding_mask, normalize:bool=True):
+    def encode_text(self, text, padding_mask):
         return self.encode_modality(x=text,
                                     modality=Modality.TEXT,
-                                    padding_mask=padding_mask,
-                                    normalize=normalize)
+                                    padding_mask=padding_mask,)
     
     def freeze_attention_blocks(self):
         for block in self.blocks:

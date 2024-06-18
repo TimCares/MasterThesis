@@ -176,7 +176,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
     def _get_param_groups(self):
         wd_params, non_wd_params = [], []
         for name, param in self.model.named_parameters():
-            if len(param.shape) == 1 or name.endswith(".bias") or "extra_tokens" in name:
+            if len(param.shape) == 1 or name.endswith(".bias") or "extra_tokens" in name or 'embed_tokens' in name:
                 non_wd_params.append(param)
             else:
                 wd_params.append(param)
@@ -376,7 +376,6 @@ class AMMData2Vec(nn.Module):
         )
         return res
     
-    @torch.no_grad()
     def encode_modality(self, x:torch.Tensor, modality:Modality, padding_mask=None, normalize:bool=True):
         output = self.extract_features(
             x=x,

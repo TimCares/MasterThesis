@@ -534,7 +534,6 @@ class AMMData2Vec(nn.Module):
         )
         return res
     
-    @torch.no_grad()
     def encode_modality(self, x:torch.Tensor, modality:Modality, padding_mask=None, normalize:bool=True):
         output = self.extract_features(
             x=x,
