@@ -95,7 +95,6 @@ checkpoint:
   save_last: link # save last checkpoint -> easier access, as it has a fixed name (last.ckpt) -> not set to True here, as a link saves space
   enable_version_counter: False # only ever one "last.ckpt" file
   every_n_train_steps: 6_001 # save after every validation run (else checkpointing is run first, ... bug?)
-  save_on_train_epoch_end: False # False -> run at end of validation
   verbose: True
   monitor: val/loss
   mode: min
