@@ -288,12 +288,12 @@ class AMMData2Vec(nn.Module):
         out = {
             "encoder_out": encoder_out,
         }
+        x = x[:, 0]
         if self.cfg.itc:
-            x = self.image_proj(x[:, 0])
-            x = x / x.norm(dim=-1, keepdim=True)
-            out["x"] = x
-        else:
-            out["x"] = x[:, 0]
+            x = self.image_proj(x)
+        x = x / x.norm(dim=-1, keepdim=True)
+        out["x"] = x
+
         return out
 
     def encode_text(self, text, padding_mask):
@@ -320,12 +320,11 @@ class AMMData2Vec(nn.Module):
         out = {
             "encoder_out": encoder_out,
         }
+        x = x[:, 0]
         if self.cfg.itc:
-            x = self.text_proj(x[:, 0])
-            x = x / x.norm(dim=-1, keepdim=True)
-            out["x"] = x
-        else:
-            out["x"] = x[:, 0]
+            x = self.text_proj(x)
+        x = x / x.norm(dim=-1, keepdim=True)
+        out["x"] = x
 
         return out
     
