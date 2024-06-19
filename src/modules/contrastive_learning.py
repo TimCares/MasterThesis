@@ -1,9 +1,10 @@
 import torch
 import torch.nn.functional as F
 from typing import Tuple, Union
+from pytorch_lightning import LightningModule
 
 
-class ContrastiveLearningMemoryBankModule:
+class ContrastiveLearningMemoryBankModule(LightningModule):
     def __init__(
             self,
             embed_size:int=768,
@@ -11,7 +12,9 @@ class ContrastiveLearningMemoryBankModule:
             size:int=16384, # 2^14
             start_decay_rate:float=0.99, # decay rate of 1 means no decay -> all samples are weighted equally
             end_decay_rate:Union[float, None]=None, # 0.98-0.99999
-            max_steps:Union[int, None]=None,): 
+            max_steps:Union[int, None]=None,
+            device:str='cuda',
+            precision:int=32): 
         super().__init__()
         self.batch_size = batch_size
         self.size = size - batch_size # one batch is always new samples
@@ -23,15 +26,18 @@ class ContrastiveLearningMemoryBankModule:
             assert max_steps is not None
         self.max_steps = max_steps
         assert size % batch_size == 0, "Size of memory bank must be multiple of batch size"
-        self.image_memory_bank = torch.zeros((self.size, embed_size), dtype=torch.float32)
-        self.text_memory_bank = torch.zeros((self.size, embed_size), dtype=torch.float32)
+        self.image_memory_bank = torch.zeros((self.size, embed_size), dtype=torch.float32, device=device)
+        self.text_memory_bank = torch.zeros((self.size, embed_size), dtype=torch.float32, device=device)
+        if precision == 16:
+            self.image_memory_bank = self.image_memory_bank.half()
+            self.text_memory_bank = self.text_memory_bank.half()
         self.index_pointer = 0
-        self.age = torch.zeros(self.size, dtype=torch.long)
+        self.age = torch.zeros(self.size, dtype=torch.long, device=device)
 
     def _update(self, img_emb:torch.Tensor, text_emb:torch.Tensor) -> None:
         end_idx = self.index_pointer + self.batch_size
-        self.image_memory_bank[self.index_pointer:end_idx] = img_emb
-        self.text_memory_bank[self.index_pointer:end_idx] = text_emb
+        self.image_memory_bank[self.index_pointer:end_idx] = img_emb.detach()
+        self.text_memory_bank[self.index_pointer:end_idx] = text_emb.detach()
         self.age[self.index_pointer:end_idx] = 0
         self.age += 1 # new samples always have an age of 1
         if end_idx == self.size:
@@ -45,6 +51,14 @@ class ContrastiveLearningMemoryBankModule:
         if step >= self.max_steps:
             return self.end_decay_rate
         return self.start_decay_rate + (self.end_decay_rate - self.start_decay_rate) * (step / self.max_steps)
+    
+    def forward(
+            self,
+            logit_scale:torch.Tensor,
+            img_emb:torch.Tensor,
+            text_emb:torch.Tensor,
+            step:int,) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        return self.compute_loss(logit_scale, img_emb, text_emb, step)
 
     def compute_loss(
             self,
