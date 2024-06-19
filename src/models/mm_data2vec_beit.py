@@ -359,8 +359,8 @@ class AMMData2Vec(nn.Module):
             x = self.dropout_input(x)
         
         layer_results = []
-        for blk in range(self.shared_layer_start):
-            x, lr = blk(
+        for i in range(self.shared_layer_start):
+            x, lr = self.blocks[i](
                 x,
                 modality=modality,
                 padding_mask=padding_mask,
@@ -377,8 +377,8 @@ class AMMData2Vec(nn.Module):
         else:
             raise ValueError(f"Modality {modality} not supported.")
 
-        for blk in range(self.shared_layer_start, self.cfg.depth):
-            x, lr = self.blocks[blk](
+        for i in range(self.shared_layer_start, self.cfg.depth):
+            x, lr = self.blocks[i](
                 x,
                 modality=modality,
                 padding_mask=padding_mask,
