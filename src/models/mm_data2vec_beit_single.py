@@ -137,7 +137,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
 
 @dataclass
 class BEiTArgs():
-    pretrained_path: str
+    pretrained_path: str = "/workspace/models/beitv2_base_patch16_224_pt1k.pth"
     drop_path_rate:float = 0.1
     use_shared_rel_pos_bias:bool =  True
     use_abs_pos_emb:bool = False
@@ -234,7 +234,7 @@ class AMMData2Vec(nn.Module):
                 init_attention=True,
             )
         
-        self.text_feature_extractor = d2v_model.modality_encoders['text']
+        self.text_feature_extractor = d2v_model.modality_encoders['TEXT']
         self._freeze(self.text_feature_extractor)
 
     def load_beit2_teacher(self):
@@ -261,12 +261,18 @@ class AMMData2Vec(nn.Module):
         text:torch.Tensor,
         id:torch.Tensor=None,
         padding_mask:torch.Tensor=None,
+        modality:Modality=None,
     ):
-        img_out = self.encode_image(image)
-        text_out = self.encode_text(text, padding_mask)
         out = dict()
-        out.update({k+'_image': v for k, v in img_out.items()})
-        out.update({k+'_text': v for k, v in text_out.items()})
+        if modality is None:
+            modality = Modality.VL
+        
+        if modality==Modality.IMAGE or modality==Modality.VL:
+            img_out = self.encode_image(image)
+            out.update({k+'_image': v for k, v in img_out.items()})
+        if modality==Modality.TEXT or modality==Modality.VL:
+            text_out = self.encode_text(text, padding_mask)
+            out.update({k+'_text': v for k, v in text_out.items()})
         return out
     
     def encode_image(self, image):
