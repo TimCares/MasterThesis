@@ -53,7 +53,7 @@ def _zero_shot_classifier(pl_module:AMMData2VecPreTrainingLightningModule, devic
         texts = texts.to(device)
         padding_masks = padding_masks.to(device)
         # check for fp16 not needed here -> texts is long tensor and will be converted by embedding table to correct dtype
-        class_embeddings = pl_module.model.encode_text(text=texts, padding_mask=padding_masks, normalize=True)
+        class_embeddings = pl_module.model.encode_text(text=texts, padding_mask=padding_masks)
         class_embedding = class_embeddings.mean(dim=0)
         class_embedding /= class_embedding.norm()
         zeroshot_weights.append(class_embedding)
@@ -89,7 +89,7 @@ def run_multimodal_zero_shot(pl_module:AMMData2VecPreTrainingLightningModule,
         target = target.to(device)
         if pl_module.dtype == torch.float16: # when using deep speed
             images = images.half()
-        image_features = pl_module.model.encode_image(image=images, normalize=True)
+        image_features = pl_module.model.encode_image(image=images)
         logits = 100.0 * image_features @ classifier
 
         # measure accuracy
@@ -113,7 +113,7 @@ def _get_zero_shot_retrieval_embeddings(model:KDData2Vec, dataloader:DataLoader,
         x = batch['x'].to(device)
         padding_mask = batch['padding_mask'].to(device) if 'padding_mask' in batch else None
         # encoding also normalizes the output
-        emb = model.encode_modality(x=x, modality=batch['modality'], padding_mask=padding_mask, normalize=True)
+        emb = model.encode_modality(x=x, modality=batch['modality'], padding_mask=padding_mask)
         embedding_table.append(emb.detach().cpu())
         ground_truth.append(batch['target'])
 
@@ -183,7 +183,7 @@ def _get_zero_shot_pair_retrieval_embeddings(model:KDData2Vec, dataloader:DataLo
             x = batch[f"x{i}"].to(device)
             padding_mask = batch[f'padding_mask{i}'].to(device) if f'padding_mask{i}' in batch else None # "padding_mask0", "padding_mask1"
             # encoding also normalizes the output
-            emb = model.encode_modality(x=x, modality=batch['modality'], padding_mask=padding_mask, normalize=True)
+            emb = model.encode_modality(x=x, modality=batch['modality'], padding_mask=padding_mask)
             embedding_tables[i].append(emb.detach().cpu())
 
     return torch.cat(embedding_tables[0], 0), torch.cat(embedding_tables[1], 0)
