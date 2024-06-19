@@ -488,21 +488,16 @@ class AMMData2Vec(nn.Module):
             x = self.dropout_input(x)
         
         relative_position_bias = self.get_relative_position_bias(modality)
-        layer_results = []
         for blk in self.blocks:
-            x, lr = blk(
+            x, _ = blk(
                 x,
                 modality=modality,
                 padding_mask=padding_mask,
                 relative_position_bias=relative_position_bias,
             )
-            
-            if not features_only:
-                layer_results.append(lr)
 
         out = {
             "x": x,
-            "layer_results": layer_results,
         }
         return out
     

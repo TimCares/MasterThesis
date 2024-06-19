@@ -38,7 +38,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, input_dict):
-        return self.model(**input_dict, features_only=False,)
+        return self.model(**input_dict)
 
     def training_step(self, batch:Dict[str, Any], batch_idx:int):
         return self._step(batch, batch_idx, stage='train')
@@ -335,7 +335,6 @@ class AMMData2Vec(nn.Module):
         modality:Modality,
         id:torch.Tensor=None,
         padding_mask:torch.Tensor=None,
-        features_only:bool=False,
     ):
 
         feature_extractor:ModalitySpecificEncoder = self.modality_encoders[modality.name.lower()]
@@ -365,8 +364,6 @@ class AMMData2Vec(nn.Module):
                 modality=modality,
                 padding_mask=padding_mask,
             )
-            if not features_only:
-                layer_results.append(lr)
         
         encoder_out = x
 
@@ -378,13 +375,11 @@ class AMMData2Vec(nn.Module):
             raise ValueError(f"Modality {modality} not supported.")
 
         for i in range(self.shared_layer_start, self.cfg.depth):
-            x, lr = self.blocks[i](
+            x, _ = self.blocks[i](
                 x,
                 modality=modality,
                 padding_mask=padding_mask,
             )
-            if not features_only:
-                layer_results.append(lr)
 
         out = {
             "x": x,
@@ -401,7 +396,6 @@ class AMMData2Vec(nn.Module):
             x=x,
             modality=modality,
             padding_mask=padding_mask,
-            features_only=True,
         )
         return res
     
