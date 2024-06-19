@@ -142,6 +142,7 @@
     target: figure.where(kind: table),
   )
   include("../methodology/data_and_preparation.typ")
+  include("../experiments/multimodal_knowledge_distillation.typ")
 
   // Appendix.
   set heading(numbering: "A")
