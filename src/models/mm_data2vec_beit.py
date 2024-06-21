@@ -356,9 +356,8 @@ class AMMData2Vec(nn.Module):
         if self.dropout_input is not None:
             x = self.dropout_input(x)
         
-        layer_results = []
         for i in range(self.shared_layer_start):
-            x, lr = self.blocks[i](
+            x, _ = self.blocks[i](
                 x,
                 modality=modality,
                 padding_mask=padding_mask,
@@ -383,7 +382,6 @@ class AMMData2Vec(nn.Module):
         out = {
             "x": x,
             "encoder_out": encoder_out,
-            "layer_results": layer_results,
         }
         return out
     
