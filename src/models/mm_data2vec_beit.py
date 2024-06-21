@@ -150,10 +150,10 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         del beit2.lm_head
         return beit2
     
-    def _log_similarity(self, logits_per_image: torch.Tensor, stage:str='train') -> None:
-        diagonal_mask = torch.eye(logits_per_image.size(0)).bool()
-        mean_pos_sim = logits_per_image[diagonal_mask].mean()
-        mean_neg_sim = logits_per_image[~diagonal_mask].mean()
+    def _log_similarity(self, logits: torch.Tensor, stage:str='train') -> None:
+        diagonal_mask = torch.eye(logits.size(0)).bool()
+        mean_pos_sim = logits[diagonal_mask].mean()
+        mean_neg_sim = logits[~diagonal_mask].mean()
         self.log(f"{stage}/itc_mean_pos_similarity", mean_pos_sim)
         self.log(f"{stage}/itc_mean_neg_similarity", mean_neg_sim)
 
