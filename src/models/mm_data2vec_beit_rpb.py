@@ -113,7 +113,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         logits_per_image = scale * image_features @ text_features.t()
         logits_per_text = logits_per_image.t()
 
-        self._log_similarity(logits_per_image, logits_per_text, stage)
+        self._log_similarity(logits_per_image, stage)
 
         target = torch.arange(len(logits_per_image)).long().to(logits_per_image.device)
 
@@ -148,13 +148,12 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         del beit2.lm_head
         return beit2
     
-    def _log_similarity(self, logits_per_image: torch.Tensor, logits_per_text: torch.Tensor, stage:str='train') -> None:
+    def _log_similarity(self, logits_per_image: torch.Tensor, stage:str='train') -> None:
         diagonal_mask = torch.eye(logits_per_image.size(0)).bool()
-        for logits, name in [(logits_per_image, "i2t"), (logits_per_text, "t2i")]:
-            mean_pos_sim = logits[diagonal_mask].mean()
-            mean_neg_sim = logits[~diagonal_mask].mean()
-            self.log(f"{stage}/{name}_mean_pos_similarity", mean_pos_sim)
-            self.log(f"{stage}/{name}_mean_neg_similarity", mean_neg_sim)
+        mean_pos_sim = logits_per_image[diagonal_mask].mean()
+        mean_neg_sim = logits_per_image[~diagonal_mask].mean()
+        self.log(f"{stage}/itc_mean_pos_similarity", mean_pos_sim)
+        self.log(f"{stage}/itc_mean_neg_similarity", mean_neg_sim)
 
     def configure_optimizers(self):
         wd_params, non_wd_params = self._get_param_groups()
