@@ -49,7 +49,6 @@ class SHRePreTrainingLightningModule(L.LightningModule):
 
         target = self.teacher(batch['image'])
         output_dict = self(batch) # call "forward"
-        assert len(output_dict['encoder_out_image'].shape) == 2
         target = torch.nn.functional.log_softmax(target, dim=1)
         input_text = torch.nn.functional.log_softmax(output_dict['encoder_out_text'], dim=1)
         input_image = torch.nn.functional.log_softmax(output_dict['encoder_out_image'], dim=1)
