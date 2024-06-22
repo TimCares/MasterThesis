@@ -46,7 +46,7 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         assert len(output_dict['encoder_out_image'].shape) == 2
         target = torch.nn.functional.log_softmax(output_dict['encoder_out_image'], dim=1)
         input = torch.nn.functional.log_softmax(output_dict['encoder_out_text'], dim=1)
-        kl_loss = F.kl_div(input=input, target=target, reduction="mean")
+        kl_loss = F.kl_div(input=input, target=target, reduction="mean", log_target=True)
         
         if self.itc:
             itc_loss = self.itc_loss(text_features=output_dict['x_text'][:10], image_features=output_dict['x_image'][:10])
@@ -176,13 +176,11 @@ class AMMData2Vec(nn.Module):
         super(AMMData2Vec, self).__init__()
         self.cfg = cfg
         self.teacher = timm.create_model('resnet50.a1_in1k', pretrained=True)
-        data_config = timm.data.resolve_model_data_config(self.teacher)
-        self.teacher_transforms = timm.data.create_transform(**data_config, is_training=False)
         self._freeze(self.teacher)
         self.proj = nn.Linear(self.cfg.embed_dim, 1000)
 
         if self.cfg.itc:
-            self.img_proj = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim)
+            self.img_proj = nn.Linear(1000, self.cfg.embed_dim)
             self.text_proj = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim)
             self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
@@ -261,7 +259,7 @@ class AMMData2Vec(nn.Module):
     def encode_image(self, image):
 
         with torch.no_grad():
-            x = self.teacher(self.teacher_transforms(image))
+            x = self.teacher(image)
         
         encoder_out = x
         out = {
@@ -300,6 +298,8 @@ class AMMData2Vec(nn.Module):
         }
         if self.cfg.itc:
             x = self.text_proj(x[:, 0])
+        else:
+            x = encoder_out
         x = x / x.norm(dim=-1, keepdim=True)
         out["x"] = x
 
