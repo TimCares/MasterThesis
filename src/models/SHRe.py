@@ -77,8 +77,6 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         logits_per_image = logits_per_image*scale
         logits_per_text = logits_per_image.t()
 
-        self._log_similarity(logits_per_image, stage)
-
         target = torch.arange(len(logits_per_image)).long().to(logits_per_image.device)
 
         img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
