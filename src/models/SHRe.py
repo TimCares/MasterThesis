@@ -5,7 +5,7 @@ from functools import partial
 from typing import Dict, Any, List
 import numpy as np
 import os
-from utils import load_pretrained_d2v_model
+from utils import load_pretrained_d2v_model, get_d2v_image_embed, get_d2v_text_embed
 from omegaconf import OmegaConf
 import logging
 import pytorch_lightning as L
@@ -15,18 +15,23 @@ from transformers.optimization import get_cosine_schedule_with_warmup, get_const
 from modules import MOMEAltBlock
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 import timm
+from timm.layers import PatchEmbed, Mlp
+from fairseq.data.dictionary import Dictionary
 
 logger = logging.getLogger(__name__)
 
 
-class AMMData2VecPreTrainingLightningModule(L.LightningModule):
+class SHRePreTrainingLightningModule(L.LightningModule):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
         self.itc = self.cfg.model.itc
 
-        self.model = AMMData2Vec(cfg=self.cfg.model)
-        
+        self.model = SHRe(cfg=self.cfg.model)
+
+        self.teacher = timm.create_model('resnet50.a1_in1k', pretrained=True)
+        self.model._freeze(self.teacher)
+
         self.save_hyperparameters()
 
     def forward(self, input_dict):
@@ -42,17 +47,21 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         if 'target' in batch:
             batch.pop('target') # unused, layer activations are the targets
 
+        target = self.teacher(batch['image'])
         output_dict = self(batch) # call "forward"
         assert len(output_dict['encoder_out_image'].shape) == 2
-        target = torch.nn.functional.log_softmax(output_dict['encoder_out_image'], dim=1)
-        input = torch.nn.functional.log_softmax(output_dict['encoder_out_text'], dim=1)
-        kl_loss = F.kl_div(input=input, target=target, reduction="mean", log_target=True)
+        target = torch.nn.functional.log_softmax(target, dim=1)
+        input_text = torch.nn.functional.log_softmax(output_dict['encoder_out_text'], dim=1)
+        input_image = torch.nn.functional.log_softmax(output_dict['encoder_out_image'], dim=1)
+
+        kl_loss = []
+        for input in [input_text, input_image]:
+            kl_loss_ = F.kl_div(input=input, target=target, log_target=True)
+            kl_loss.append(kl_loss_)
+        kl_loss = sum(kl_loss) / 2
         
-        if self.itc:
-            itc_loss = self.itc_loss(text_features=output_dict['x_text'][:10], image_features=output_dict['x_image'][:10])
-            self.log(f"{stage}/itc_loss", itc_loss)
-        else:
-            itc_loss = torch.tensor(0.0).to(kl_loss.device)
+        itc_loss = self.itc_loss(text_features=output_dict['x_text'], image_features=output_dict['x_image'])
+        self.log(f"{stage}/itc_loss", itc_loss)
         
         loss = kl_loss + itc_loss
 
@@ -133,19 +142,8 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
     def log(self, *args, **kwargs):
         super().log(batch_size=self.cfg.data.dataloader.batch_size, sync_dist=True, *args, **kwargs)
 
-
 @dataclass
-class BEiTArgs():
-    pretrained_path: str = "/workspace/models/beitv2_base_patch16_224_pt1k.pth"
-    drop_path_rate:float = 0.1
-    use_shared_rel_pos_bias:bool =  True
-    use_abs_pos_emb:bool = False
-    vocab_size:int = 8192
-    init_values:float = 0.1
-
-@dataclass
-class AMMData2VecConfig():
-    beit2_args:BEiTArgs = field(default_factory=BEiTArgs)
+class SHReConfig():
     pretrained_path:str = '../models'
 
     itc: bool = True
@@ -169,20 +167,36 @@ class AMMData2VecConfig():
 
     seed: int = 42
 
-class AMMData2Vec(nn.Module):
+class SHRe(nn.Module):
     def __init__(self,
-                 cfg: AMMData2VecConfig,
+                 cfg: SHReConfig,
                  ):
-        super(AMMData2Vec, self).__init__()
+        super(SHRe, self).__init__()
         self.cfg = cfg
-        self.teacher = timm.create_model('resnet50.a1_in1k', pretrained=True)
-        self._freeze(self.teacher)
-        self.proj = nn.Linear(self.cfg.embed_dim, 1000)
+        self.supported_modalities = [Modality.IMAGE, Modality.TEXT]
 
-        if self.cfg.itc:
-            self.img_proj = nn.Linear(1000, self.cfg.embed_dim)
-            self.text_proj = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim)
-            self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        self.patch_embed = PatchEmbed(
+            img_size=224,
+            patch_size=16,
+            in_chans=3,
+            embed_dim=self.cfg.embed_dim,
+        )
+        self.img_pos_embed = nn.Parameter(torch.zeros(1, 1 + self.patch_embed.num_patches, self.cfg.embed_dim), requires_grad=False)
+        self.img_norm = nn.LayerNorm(self.cfg.embed_dim, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
+
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, self.cfg.embed_dim))
+
+        d = Dictionary.load(os.path.join(self.cfg.pretrained_path, 'dict.txt'))
+        self.token_embed = nn.Embedding(len(d), self.cfg.embed_dim, d.pad())
+        self.text_pos_embed = nn.Embedding(512, self.cfg.embed_dim, d.pad())
+        self.text_norm = nn.LayerNorm(self.cfg.embed_dim, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
+
+        self.shared = Mlp(
+            in_features=self.cfg.embed_dim,
+            hidden_features=self.cfg.embed_dim*self.cfg.mlp_ratio,
+            out_features=1000,
+            norm_layer=partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine),
+        )
 
         self.dropout_input = nn.Dropout(self.cfg.dropout_input)
 
@@ -223,18 +237,26 @@ class AMMData2Vec(nn.Module):
         )
 
     def _init_from_pretrained(self) -> None:
-        state_dict_path = os.path.join(self.cfg.pretrained_path, 'nlp_base.pt')
-        d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
+        for modality in self.supported_modalities:
+            state_dict_name = self.cfg.pretrained[modality.name.lower()]
+            state_dict_path = os.path.join(self.cfg.pretrained_path, state_dict_name)
+            d2v_model = load_pretrained_d2v_model(state_dict_path=state_dict_path)
 
-        for i in range(self.cfg.depth):
-            self.blocks[i].init_from_pretrained(
-                pretained_block=d2v_model.blocks[i],
-                modality=Modality.TEXT,
-                init_attention=True,
-            )
-        
-        self.text_feature_extractor = d2v_model.modality_encoders['TEXT']
-        self._freeze(self.text_feature_extractor)
+            for i in range(self.cfg.depth):
+                self.blocks[i].init_from_pretrained(
+                    pretained_block=d2v_model.blocks[i],
+                    modality=modality,
+                    init_attention=True,
+                )
+
+        text_embed_sd = get_d2v_text_embed()
+        img_embed_sd = get_d2v_image_embed()
+        embed_sd = text_embed_sd | img_embed_sd
+        _, unexpected_keys = self.load_state_dict(embed_sd, strict=False)
+        assert len(unexpected_keys) == 0
+        for module in [self.patch_embed, self.img_pos_embed, self.cls_token, self.img_norm,
+                       self.token_embed, self.text_pos_embed, self.text_norm]:
+            self._freeze(module)
 
     def forward(
         self,
@@ -257,31 +279,26 @@ class AMMData2Vec(nn.Module):
         return out
     
     def encode_image(self, image):
+        x = self.patch_embed(image)
+        x = x + self.cls_token.expand(x.shape[0], -1, -1)
+        x = x + self.img_pos_embed
+        x = self.img_norm(x)
 
-        with torch.no_grad():
-            x = self.teacher(image)
+        if self.dropout_input is not None:
+            x = self.dropout_input(x)
         
-        encoder_out = x
-        out = {
-            "encoder_out": encoder_out,
-        }
-        if self.cfg.itc:
-            x = self.img_proj(x)
-        x = x / x.norm(dim=-1, keepdim=True)
-        out["x"] = x
-
-        return out
+        for i in range(self.cfg.depth):
+            x, _ = self.blocks[i](
+                x,
+                modality=Modality.IMAGE,
+            )
+        
+        return self.encode_shared(x)
 
     def encode_text(self, text, padding_mask):
-        extractor_out = self.text_feature_extractor(
-            features=text,
-            padding_mask=padding_mask,
-            mask=False,
-            remove_masked=False,
-        )
-
-        x = extractor_out["x"]
-        padding_mask = extractor_out["padding_mask"]
+        x = self.token_embed(text)
+        x = x + self.text_pos_embed(text)
+        x = self.text_norm(x)
 
         if self.dropout_input is not None:
             x = self.dropout_input(x)
@@ -292,18 +309,16 @@ class AMMData2Vec(nn.Module):
                 modality=Modality.TEXT,
                 padding_mask=padding_mask,
             )
-        encoder_out = self.proj(x[:, 0])
-        out = {
-            "encoder_out": encoder_out,
-        }
-        if self.cfg.itc:
-            x = self.text_proj(x[:, 0])
-        else:
-            x = encoder_out
+        
+        return self.encode_shared(x)
+    
+    def encode_shared(self, x):
+        out_dict = dict()
+        x = self.shared(x[:, 0])
+        out_dict["encoder_out"] = x
         x = x / x.norm(dim=-1, keepdim=True)
-        out["x"] = x
-
-        return out
+        out_dict["x"] = x
+        return out_dict
 
     def _freeze(self, module:nn.Module) -> None:
         for param in module.parameters():
