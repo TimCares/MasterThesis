@@ -52,12 +52,15 @@ class SHRePreTrainingLightningModule(L.LightningModule):
 
         kl_loss = []
         for input in [input_text, input_image]:
-            kl_loss_ = F.kl_div(input=input, target=target, log_target=True)
+            kl_loss_ = F.kl_div(input=input, target=target, log_target=True, reduction='batchmean')
             kl_loss.append(kl_loss_)
         kl_loss = sum(kl_loss) / 2
         
-        itc_loss = self.itc_loss(text_features=output_dict['x_text'], image_features=output_dict['x_image'])
-        self.log(f"{stage}/itc_loss", itc_loss)
+        if self.itc:
+            itc_loss = self.itc_loss(text_features=output_dict['x_text'], image_features=output_dict['x_image'])
+            self.log(f"{stage}/itc_loss", itc_loss)
+        else:
+            itc_loss = torch.tensor(0.0).to(kl_loss.device)
         
         loss = kl_loss + itc_loss
 
@@ -67,9 +70,11 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         return loss
     
     def itc_loss(self, text_features:torch.Tensor, image_features:torch.Tensor, stage:str='train') -> torch.Tensor:
-        # scale = self.model.logit_scale.exp()
+        scale = self.model.logit_scale.exp()
         
         logits_per_image = image_features @ text_features.t()
+        self._log_similarity(logits_per_image, stage)
+        logits_per_image = logits_per_image*scale
         logits_per_text = logits_per_image.t()
 
         self._log_similarity(logits_per_image, stage)
@@ -165,6 +170,8 @@ class SHRe(nn.Module):
         super(SHRe, self).__init__()
         self.cfg = cfg
         self.supported_modalities = [Modality.IMAGE, Modality.TEXT]
+        if self.cfg.itc:
+            self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
         self.shared = Mlp(
             in_features=self.cfg.embed_dim,
