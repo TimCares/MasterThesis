@@ -48,7 +48,6 @@ class AMMData2VecPreTrainingLightningModule(L.LightningModule):
         kd_loss = F.mse_loss(output_dict['encoder_out_text'][:, 0], output_dict['encoder_out_image'][:, 0], reduction="mean")
         
         if self.itc:
-            kd_loss = kd_loss / 2
             itc_loss = self.itc_loss(text_features=output_dict['x_text'], image_features=output_dict['x_image'])
             self.log(f"{stage}/itc_loss", itc_loss)
         else:
