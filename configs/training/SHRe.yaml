@@ -25,27 +25,19 @@ nlp_context_length: 64 # inspired by BEiT3
 
 model:
   pretrained_path: ${model_path}
+  pretrained:
+    audio: base_libri.pt
+    image: base_imagenet.pt
+    text: nlp_base.pt
 
   itc: True
 
   embed_dim: 768
 
   depth: 7
-  num_heads: 12 
   mlp_ratio: 4.0
-  encoder_dropout: 0.0
-  dropout_input: 0.0
-  attention_dropout: 0.0
-  activation_dropout: 0.0
-  post_mlp_drop: 0.0
   norm_eps: 1e-6
   norm_affine: True
-  layer_norm_first: False
-  start_drop_path_rate: 0
-  end_drop_path_rate: 0
-  layerdrop: 0.0
-
-  seed: ${seed}
 
 data:
   dataloader:
