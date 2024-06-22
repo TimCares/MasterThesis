@@ -17,6 +17,17 @@ from timm.layers import Mlp
 
 logger = logging.getLogger(__name__)
 
+class Mlp_(Mlp):
+    def forward(self, x):
+        x = self.fc1(x)
+        x = self.act(x)
+        x = self.drop1(x)
+        x = self.norm(x)
+        x_interm = x
+        x = self.fc2(x)
+        x = self.drop2(x)
+        return x_interm, x
+
 
 class SHRePreTrainingLightningModule(L.LightningModule):
     def __init__(self, cfg):
@@ -50,14 +61,14 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         input_text = torch.nn.functional.log_softmax(output_dict['encoder_out_text'], dim=1)
         input_image = torch.nn.functional.log_softmax(output_dict['encoder_out_image'], dim=1)
 
-        kl_loss = []
-        for input in [input_text, input_image]:
-            kl_loss_ = F.kl_div(input=input, target=target, log_target=True, reduction='batchmean')
-            kl_loss.append(kl_loss_)
-        kl_loss = sum(kl_loss) / 2
+        kl_loss1 = F.kl_div(input=input_text, target=target, log_target=True, reduction='batchmean')
+        kl_loss2 = F.kl_div(input=input_image, target=target, log_target=True, reduction='batchmean')
+        kl_loss = (kl_loss1 + kl_loss2) / 2
         
         if self.itc:
-            itc_loss = self.itc_loss(text_features=output_dict['x_text'], image_features=output_dict['x_image'])
+            itc_loss1 = self.itc_loss(text_features=output_dict['x_interm_text'], image_features=output_dict['x_interm_image'])
+            itc_loss2 = self.itc_loss(text_features=output_dict['x_text'], image_features=output_dict['x_image'])
+            itc_loss = (itc_loss1 + itc_loss2) / 2
             self.log(f"{stage}/itc_loss", itc_loss)
         else:
             itc_loss = torch.tensor(0.0).to(kl_loss.device)
@@ -168,15 +179,17 @@ class SHRe(nn.Module):
         super(SHRe, self).__init__()
         self.cfg = cfg
         self.supported_modalities = [Modality.IMAGE, Modality.TEXT]
+        make_layer_norm = partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
         if self.cfg.itc:
             self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
-        self.shared = Mlp(
+        self.shared = Mlp_(
             in_features=self.cfg.embed_dim,
             hidden_features=int(self.cfg.embed_dim*self.cfg.mlp_ratio),
             out_features=1000,
-            norm_layer=partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine),
+            norm_layer=make_layer_norm,
         )
+        self.norm = make_layer_norm(self.cfg.embed_dim)
 
         self.apply(init_bert_params)
 
@@ -224,10 +237,13 @@ class SHRe(nn.Module):
     
     def encode_shared(self, x):
         out_dict = dict()
-        x = self.shared(x[:, 0])
+        x_interm, x = self.shared(x[:, 0])
+        x = self.norm(x)
         out_dict["encoder_out"] = x
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
+        x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
+        out_dict["x_interm"] = x_interm
         return out_dict
 
     def _freeze(self, module:nn.Module) -> None:
