@@ -185,7 +185,7 @@ class SHRe(nn.Module):
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, self.cfg.embed_dim))
 
-        d = Dictionary.load(os.path.join(self.cfg.pretrained_path, 'dict.txt'))
+        d = Dictionary.load('/workspace/dict.txt')
         self.token_embed = nn.Embedding(len(d), self.cfg.embed_dim, d.pad())
         self.text_pos_embed = nn.Embedding(512, self.cfg.embed_dim, d.pad())
         self.text_norm = nn.LayerNorm(self.cfg.embed_dim, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
