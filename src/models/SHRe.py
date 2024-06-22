@@ -192,7 +192,7 @@ class SHRe(nn.Module):
 
         self.shared = Mlp(
             in_features=self.cfg.embed_dim,
-            hidden_features=self.cfg.embed_dim*self.cfg.mlp_ratio,
+            hidden_features=int(self.cfg.embed_dim*self.cfg.mlp_ratio),
             out_features=1000,
             norm_layer=partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine),
         )
