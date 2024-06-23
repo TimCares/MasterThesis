@@ -30,8 +30,6 @@ model:
     image: base_imagenet.pt
     text: nlp_base.pt
 
-  itc: True
-
   embed_dim: 768
 
   depth: 7
