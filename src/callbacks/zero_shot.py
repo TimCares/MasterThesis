@@ -53,7 +53,7 @@ def _zero_shot_classifier(pl_module:AMMData2VecPreTrainingLightningModule, devic
         texts = texts.to(device)
         padding_masks = padding_masks.to(device)
         # check for fp16 not needed here -> texts is long tensor and will be converted by embedding table to correct dtype
-        class_embeddings = pl_module.model.encode_text(text=texts, padding_mask=padding_masks)
+        class_embeddings = pl_module.model.encode_text(text=texts, padding_mask=padding_masks)['x']
         class_embedding = class_embeddings.mean(dim=0)
         class_embedding /= class_embedding.norm()
         zeroshot_weights.append(class_embedding)
@@ -89,7 +89,7 @@ def run_multimodal_zero_shot(pl_module:AMMData2VecPreTrainingLightningModule,
         target = target.to(device)
         if pl_module.dtype == torch.float16: # when using deep speed
             images = images.half()
-        image_features = pl_module.model.encode_image(image=images)
+        image_features = pl_module.model.encode_image(image=images)['x']
         logits = 100.0 * image_features @ classifier
 
         # measure accuracy

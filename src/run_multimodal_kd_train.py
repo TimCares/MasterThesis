@@ -129,7 +129,9 @@ def main(cfg: DictConfig) -> None:
         from lightning.pytorch.utilities.deepspeed import convert_zero_checkpoint_to_fp32_state_dict
         output_path = os.path.join(cfg.checkpoint.dirpath, 'fp32_last.ckpt')
         convert_zero_checkpoint_to_fp32_state_dict(model_path, output_path)
-        os.remove(model_path)
+        files = [os.path.join(cfg.checkpoint.dirpath, f) for f in os.listdir(cfg.checkpoint.dirpath) if f != 'fp32_last.ckpt']
+        for f in files:
+            os.remove(f) # remove unneeded files -> same disk space
 
 if __name__ == "__main__":
     main()

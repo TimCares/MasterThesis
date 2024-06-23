@@ -83,8 +83,8 @@ def zero_shot_retrieval(model:AMMData2Vec, dataloader, device, name):
         text = batch['text'].to(device)
         padding_mask = batch['padding_mask'].to(device) if 'padding_mask' in batch else None
         # encoding also normalizes the output
-        img_emb = model.encode_image(image=image)
-        text_emb = model.encode_text(text=text, padding_mask=padding_mask)
+        img_emb = model.encode_image(image=image)['x']
+        text_emb = model.encode_text(text=text, padding_mask=padding_mask)['x']
         img_embeds.append(img_emb)
         text_embeds.append(text_emb)
         img_ids.append(batch['id'].to(device))
