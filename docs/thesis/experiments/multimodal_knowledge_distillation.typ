@@ -1,4 +1,133 @@
 == Multimodal Knowledge Distillation
+=== Aligned Representations
+==== Dual encoder
+===== Unimodal Student
+- we start as simple as possible
+- we just want to create aligned cross-modal representations, i.e. have the same representation for the same concept -> same
+  representation for an image and its corresponding text (image-text pair in the dataset)
+- multiple architectures are possible, we start with a CLIP-like architecture
+- means one encoder per modalitiy, so one for image and one for text
+- usually trained for scratch -> but expensive, and we want to utilize already pretrained(!) (self-supervised, not trained on labeled data) 
+  unimodal models
+- we use BEiT-2 as the teacher model, which is an image model, and at the same time serves as our image encoder
+- to now align representations, we just train the text encoder to regress the cls token of the image encoder
+- hope is that the cls token of the teacher, which is regressed, has learned a representation that is abstract enough so that it can be
+  applied independently of the modality, in this case images
+  - although there has been no incentive for the teacher model to learn which is independent of the modality, as the model has only been pretrained
+    on images -> if the representation (cls token) does still contain image specific information, the student model will not be able to learn a
+    meaningful representation of the text, as image and text are inherently different
+- in the first experiment we just train the text encoder to regress the cls token of the image encoder, nothing more
+- the text model is smaller than the image model, it contains only 7 layers, while the image model contains 12 layers
+- hope is that through Knowledge-Distillation we do not need a model as large as the teacher model, as we have seen that a smaller model can achive
+  a performance quite similar to the larger teacher model through KD in the unimodal case
+  - whether this translates to an multimodal setting can be derived from the results of this experiment
+  - this could be seen in the retrieval application of our model -> if the performance on text-image retrieval is similar to the performance of the
+    teacher model, then we can assume that the student model has learned a meaningful representation of the text(?)
+- we still have the option to expand our student model to the same size as the teacher model, i.e. 12 layers
+- still relatively cheap, as we only have to train the text encoder and, as we are doing in the first experiment with 7 layers, we can initialize
+  the text encoder (the student) with the weights of the text D2V2 model, meaning we do not start from scratch
+
+===== Reproducing: "See, Hear, and Read: Deep Aligned Representations" @sheear
+- we start as simple as possible
+- we first want to reproduce the results of the paper "See, Hear, and Read: Deep Aligned Representations" @sheear
+- for the sake of simplicity, we will refer to the paper as SHRe (SEe, HEar, and REad), as the title is quite long and the authors do not name the architecture
+- will give us a baseline on which to improve, compare our results to (especially because SHRe does not benchmark retrieval on karpathy COCO), and test new ideas
+- we use the same architecture as in the paper, which is a dual encoder architecture
+  - has one text and one image encoder/network, quite like CLIP does
+- difference to CLIP is: we now have a shared network at the top
+- for our image and text encoder we use the pretrained image D2V2, and the pretrained text D2V2, model respectively
+  - this differs to SHRe, as they used conv nets for both image and text encoder
+- unlike SHRe, we directly initialize the encoders with the weights of the respective D2V2 model, and do not train them from scratch
+- further, because we would like to keep the model smaller, which is less expensive to train and we can train it, thanks to Deepspeed,
+  on a single GPU, we only use the first 7 layers of the D2V2 models
+- SHRe added two MLP layers as the shared network, we will do the same, but use the same MLP architecture as present in Transformer layers
+  - means, two linear layers, with a GELU activation and layer norm in between
+  - first linear layer expands the embedding dimension to 4 times the size, second linear layer reduces it to the number of classes in imagenet (1000), not
+    the embedding dimension
+- recall the SHRe uses the kl-divergence loss, common in labeled KD
+  - means the output of our multimodal model, i.e. shared network, is a probablity distribution over the classes in imagenet
+- we regress the probablity distribution of a resnet-b-50 model, which was trained on imagenet with labeled data, and is used as the teacher model
+  - SHRe did not mention which architecture they used, only that teacher was trained on imagenet
+- to pass the features from the modality specific encoders (image and text), which operate on time steps, to the shared network, which does not operate on time steps, we use the cls tokens of the output of the encoders (the first token)
+- SHRe uses two training targets: minimization of the KL-divergence, and the maximization of the cosine similarity for the
+  activations of the shared network between matching image-text pairs (positive) and the minimization of the cosine similarity for the activations of the shared network between non-matching image-text pairs (negative)
+- this is basically a contrastive loss, similar to that of CLIP
+- we do not exactly follow this approach, but instead the of VLMo
+- we compute the cosine similarity between the normalized logits of the shared network for all possible image-text pairs of a batch
+  - we take the output of our model, i.e. the shared network, without softmax, and normalize it
+- and then take softmax over the cosine similarities, and then compute the cross-entropy loss
+- for each image/text, the target is the matching text/image in the batch, of which there is only one, and the rest texts/images in the batch are non-matching
+- following CLIP, we divide the cosine similarity by a, in log-space, learnable temperature parameter
+- this way we align image-text pairs in predictions, i.e. class probabilities, and in represenation space
+
+===== Feature-based Knowledge Distillation
+- if we want to keep the approach from SHRe, i.e. use KD and contrastive learning, for a self-supervised trained teacher that does not provide us with a
+  probabilty distribution to regress, then we have to regress the activations/features of the teacher model
+- this is similar to the unimodal distillation in the first experimental sections
+- however, we can't just regress all time steps of the teacher model, i.e. all activations of the teacher, as we did in the unimodal case
+  - this works for the image encoder of our multimodal model, because the teacher model is an image model, but not for the text encoder
+- firstly, is is not possible because the text might not have as many tokens (time steps) as the image has patches (time steps)
+- so regressing a timestep/patch of the image, say 180, with the same timestep of the text, also 180, is not possible if the text is not that long
+  - in our case for example, the text has a max sequence length of only 64 tokens
+- even if we were to set the max text sequence length to the same number of time steps as an image has (196+1), i.e. through padding,
+  it will certainly never be the case that a specific timestep/patch of an image aligns semantically with the text token at the same timestep 
+- the reason is that each time step for an image corresponds to a patch, which contains some information
+- if we want to align the representation of that specific patch with a text token as the same timestep, then the text token has to contain the same
+  information as the patch in text form
+  - e.g. if a patch contains a piece of cheese, then the text token at the same timestep has to contain the word "cheese"
+  - this would have to hold for all timesteps
+  - so no fill words or padding allowed, as they do not contain any information
+  - text would not make any sense and would not describe the overall content of the image
+- therefore, we have to somehow regress the global information of the image, and can't regress any specific patch
+- this is where the cls token comes in handy, as its goal is to aggregate a global representation of the image
+- this is independent of any patch
+- if our text encoder also has a cls token, then we can make the cls token of the text encoder regress the cls token of the (image) teacher
+- in principle, for the image encoder we could regress all timesteps as in the unimodal case, as this is the same modalitiy, but we should
+  keep it consistent and regress the cls token of the image encoder as well
+
+- in principle nothing "bad", as probabilty distribution originates from a linear layer, which uses the cls token of the last layer
+- also: makes the encoders push as many information as possible to their cls token
+- to first validate if regressing just the cls token of the teacher model even works with a teacher that has been trained with labels, we first
+  use the exact same approach as before, i.e. keep the supervised teacher model, but regress the cls token of the teacher model now
+- we do not need any linear classifier on top of our model, and we also do not need it from the teacher model
+- we just take the cls token output of the last transformer layer of the teacher model as the target
+
+- questions is whether the information contained in the cls token of the teacher, which has now been trained without lables, are abstract enought...
+
+===== Modality-invariant Representations
+- we want to learn a representation that is invariant/independent to the modality
+  - optimally representation of an image should not change if we pass a caption (text) of the image through the model
+- can be learned e.g. by contrastive learning, here image-text contrastive learning
+- we are not only using contrastive learning, but also KD to align the representations of the image and text
+- we regress the output of a teacher model, in the above case the probability distribution over the 1000 classes of imagenet
+- because this forces the model to learn a representation which is more focused on real-world concepts/objects, like e.g. a cat,
+  the focus is shifted away from the modality specific features
+- this is actually what we want -> we do not want to regress any representation of probabilty distribution that still contains modality specific features/information
+  - imagenet classes are not modality specific, therefore the probabilty distribution we regress does not contain modality specific information
+    - a cat is a cat, no matter if we see it or read about it
+- this is why the whole process works -> we can still regress the probabilty distribution of imagenet, even though we are processing text
+  - e.g. a text about a cat should have the imagenet class "cat" as the highest probability
+- generally, there has been no incentive for our unimodal teacher model to learn a representation that is independent of the modality
+- however, labels are modality independent, so the ouput of the model, i.e. the logits become modality independent
+
+- goal of this paper is to create a multimodal model from an unimodal one, with the constraint that the unimodal (teacher) model has not been trained on labeled data -> we do not want to rely on labeled data -> self-supervised
+- the question is, if the model is unimodal, meaning there has been no incentive to learn a representation that is independent of the modality, and there
+  were no labels involved that could push the model to learn representations independent of the modality, then can we still learn a representation that is
+  modalitiy-invariant?
+- this is crucial, as if the teacher image model, e.g. BEiT-2, outputs a cls token that still encodes image specific information, then the student text model
+  will not be able to learn a meaningful representation of the text
+- so what it boils down to is: Do unimodal, self-supervised trained, models learn representations abstract enough so that they can be regressed by models
+  of a different modality?
+
+===== Adding Image-Text Contrast
+- until now we did not actually used the same philosophy as in CLIP, which relies on, next to a seperate image and text encoder, a contrastive loss
+  to align the representations of the image and text, so does not do KD and trains both text and image encoder from scratch
+- as mentioned in the chapter about CLIP, the architecture features two linear projections, one for each modality/encoder
+- goal is to project the image/text represenation in a shared multimodal embedding/latent space, on which the contrastive loss is computed
+- if we also manage to do this successfully, the performance on image-text retrieval should increase by a margin
+
+
+===== Stagewise Unimodal Distillation
 == Seperate Self-Attention
 
 === Baseline
@@ -139,7 +268,7 @@
   - avg. cosine similarity for positive pairs and negative pairs
 
 
-- we do not compare with See, Hear, and Read: Deep Aligned Representations @sheear, as they did not use the karpathy splits @karpathy_split,
+- we do not compare with See, Hear, and Read: Deep Aligned Representations// @sheear, as they did not use the karpathy splits @karpathy_split,
   use the average median rank instead of recall at a specific percent, and from their experimental setup it is not clear which samples
   they used from Visual Genome for their retrieval experiments.
 
