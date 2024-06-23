@@ -14,11 +14,13 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
             end_decay_rate:Union[float, None]=None, # 0.98-0.99999
             max_steps:Union[int, None]=None,
             device:str='cuda',
-            precision:int=32): 
+            half_precision:bool=False,
+            log_similarity:bool=False,): 
         super().__init__()
         self.batch_size = batch_size
         self.size = size - batch_size # one batch is always new samples
         self.start_decay_rate = start_decay_rate
+        self.log_similarity = log_similarity
         if self.start_decay_rate == 1:
             end_decay_rate = None
         self.end_decay_rate = end_decay_rate
@@ -28,7 +30,7 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         assert size % batch_size == 0, "Size of memory bank must be multiple of batch size"
         self.image_memory_bank = torch.zeros((self.size, embed_size), dtype=torch.float32, device=device)
         self.text_memory_bank = torch.zeros((self.size, embed_size), dtype=torch.float32, device=device)
-        if precision == 16:
+        if half_precision:
             self.image_memory_bank = self.image_memory_bank.half()
             self.text_memory_bank = self.text_memory_bank.half()
         self.index_pointer = 0
@@ -65,7 +67,8 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
             logit_scale:torch.Tensor,
             img_emb:torch.Tensor,
             text_emb:torch.Tensor,
-            step:int,) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+            step:int,
+            stage:str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         assert img_emb.size(0) == text_emb.size(0) == self.batch_size
 
         # current samples always have an age of 0
@@ -75,8 +78,12 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         weights = weights / weights.sum()
         
         scale = logit_scale.exp()
-        logits_per_image = scale * img_emb @ torch.concat([text_emb, self.text_memory_bank], dim=0).t()
-        logits_per_text = scale * text_emb @ torch.concat([img_emb, self.image_memory_bank], dim=0).t()
+        logits_per_image = img_emb @ torch.concat([text_emb, self.text_memory_bank], dim=0).t()
+        logits_per_text = text_emb @ torch.concat([img_emb, self.image_memory_bank], dim=0).t()
+        if self.log_similarity:
+            self._log_similarity(logits_per_image, stage=stage)
+        logits_per_image = logits_per_image * scale
+        logits_per_text = logits_per_text * scale
 
         target = torch.arange(len(logits_per_image)).long().to(logits_per_image.device)
 
@@ -90,3 +97,13 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
 
         self._update(img_emb, text_emb)
         return itc_loss, img_itc_acc, text_itc_acc
+    
+    def _log_similarity(self, logits: torch.Tensor, stage:str='train') -> None:
+        diagonal_mask = torch.eye(logits.size(0)).bool()
+        mean_pos_sim = logits[diagonal_mask].mean()
+        mean_neg_sim = logits[~diagonal_mask].mean()
+        self.log(f"{stage}/itc_mean_pos_similarity", mean_pos_sim)
+        self.log(f"{stage}/itc_mean_neg_similarity", mean_neg_sim)
+
+    def log(self, *args, **kwargs):
+        super().log(batch_size=self.batch_size, sync_dist=True, *args, **kwargs)
