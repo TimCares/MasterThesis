@@ -42,9 +42,13 @@ def load_model(pretrained_model_cfg:DictConfig,
     return model
 
 
-def load_pretrained_d2v_model(state_dict_path:str, keep_decoder:bool=False) -> Data2VecMultiModel:
+def load_pretrained_d2v_model(state_dict_path:str, keep_decoder:bool=False, remove_dropout:bool=False) -> Data2VecMultiModel:
     model_meta_data = torch.load(state_dict_path)
     pretrained_model_cfg = OmegaConf.create(model_meta_data['cfg']['model'])
+    if remove_dropout:
+        for k in pretrained_model_cfg.keys():
+            if 'drop' in k:
+                pretrained_model_cfg[k] = 0.0
     model = load_model(pretrained_model_cfg=pretrained_model_cfg, model_state_dict=model_meta_data['model'])
 
     # removes decoder, and all encoders with modality != supported modality
@@ -176,43 +180,3 @@ def prepare_salient_patches(
     layer_results = prepare_output(out=layer_results, modality=modality, norm=not norm_first)
     # B x num_keep+1 x D -> one (+1) stems from additional special token
     return layer_results
-
-
-def get_d2v_image_embed(path:str='/workspace/models/base_imagenet.pt') -> Dict[str, torch.Tensor]:
-    sd=torch.load(path)['model']
-    image_embed_sd = dict()
-    prefix = 'modality_encoders.IMAGE.'
-    for k, v in sd.items():
-        if k.startswith(prefix) and 'decoder' not in k:
-            image_embed_sd[k.replace(prefix, '')] = v
-
-    image_embed_sd['cls_token'] = image_embed_sd.pop('extra_tokens')
-    for k, v in list(image_embed_sd.items()):
-        if 'local_encoder' in k:
-            image_embed_sd[k.replace('local_encoder', 'patch_embed')] = image_embed_sd.pop(k)
-        if 'context_encoder.' in k:
-            image_embed_sd[k.replace('context_encoder.', '')] = image_embed_sd.pop(k)
-        if 'fixed_positional_encoder.positions' == k:
-            image_embed_sd['img_pos_embed'] = image_embed_sd.pop(k)
-        if 'norm' in k:
-            image_embed_sd[k.replace('norm', 'img_norm')] = image_embed_sd.pop(k)
-    
-    return image_embed_sd
-
-def get_d2v_text_embed(path:str='/workspace/models/nlp_base.pt') -> Dict[str, torch.Tensor]:
-    sd=torch.load(path)['model']
-    text_embed_sd = dict()
-    prefix = 'modality_encoders.TEXT.'
-    for k, v in sd.items():
-        if k.startswith(prefix) and 'decoder' not in k:
-            text_embed_sd[k.replace(prefix, '')] = v
-
-    for k, v in list(text_embed_sd.items()):
-        if 'local_encoder.embed_tokens' in k:
-            text_embed_sd[k.replace('local_encoder.embed_tokens', 'token_embed')] = text_embed_sd.pop(k)
-        if 'local_encoder.embed_positions' in k:
-            text_embed_sd[k.replace('local_encoder.embed_positions', 'pos_embed')] = text_embed_sd.pop(k)
-        if 'local_encoder.layernorm_embedding' in k:
-            text_embed_sd[k.replace('local_encoder.layernorm_embedding', 'text_norm')] = text_embed_sd.pop(k)
-    
-    return text_embed_sd
