@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from data2vec_fairseq.data.modality import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
-import timm
+from transformers import ViTForImageClassification
 from timm.layers import Mlp
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ class SHRePreTrainingLightningModule(L.LightningModule):
 
         self.model = SHRe(cfg=self.cfg.model)
 
-        self.teacher = timm.create_model('resnet50.a1_in1k', pretrained=True)
+        self.teacher = ViTForImageClassification.from_pretrained('google/vit-base-patch16-224')
         self.model._freeze(self.teacher)
 
         self.save_hyperparameters()
@@ -51,11 +51,13 @@ class SHRePreTrainingLightningModule(L.LightningModule):
     def validation_step(self, batch:Dict[str, Any], batch_idx:int):
         return self._step(batch, batch_idx, stage='val')
 
-    def _step(self, batch:Dict[str, Any], batch_idx, stage:str='train'):   
+    def _step(self, batch:Dict[str, Any], batch_idx, stage:str='train'):
         if 'target' in batch:
             batch.pop('target') # unused, layer activations are the targets
 
-        target = self.teacher(batch['image'])
+        with torch.no_grad():
+            target = self.teacher({'pixel_values': batch['image']}).logits
+        
         output_dict = self(batch) # call "forward"
         target = torch.nn.functional.log_softmax(target, dim=1)
         input_text = torch.nn.functional.log_softmax(output_dict['encoder_out_text'], dim=1)
