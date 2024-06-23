@@ -180,7 +180,6 @@ class SHRe(nn.Module):
                  ):
         super(SHRe, self).__init__()
         self.cfg = cfg
-        self.supported_modalities = [Modality.IMAGE, Modality.TEXT]
         make_layer_norm = partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
         if self.cfg.itc:
             self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
