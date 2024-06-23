@@ -190,7 +190,7 @@ class SHRe(nn.Module):
             out_features=1000,
             norm_layer=make_layer_norm,
         )
-        self.norm = make_layer_norm(self.cfg.embed_dim)
+        self.norm = make_layer_norm(1000)
 
         self.apply(init_bert_params)
 
