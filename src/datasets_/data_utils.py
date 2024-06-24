@@ -58,6 +58,7 @@ def download_and_unzip(urls:List[str], store_at:str="../data", archive_type:str=
 def get_transforms(
         pretraining,
         train,
+        size:int=224,
         color_jitter=None,
         aa="rand-m9-mstd0.5-inc1",
         reprob=0.25,
@@ -69,6 +70,7 @@ def get_transforms(
     if pretraining:
         return get_transforms_pretraining(
             train=train,
+            size=size,
             beit_transforms=beit_transforms,
             color_jitter=color_jitter,
             crop_scale=crop_scale
@@ -76,6 +78,7 @@ def get_transforms(
     else:
         return get_transforms_finetuning(
             train=train,
+            size=size,
             color_jitter=color_jitter,
             aa=aa,
             reprob=reprob,
@@ -85,6 +88,7 @@ def get_transforms(
 
 def get_transforms_pretraining(
     train:bool=True,
+    size:int=224,
     beit_transforms:bool=False,
     color_jitter=None,
     crop_scale:Tuple[float, float]=(0.08, 1.0)):
@@ -97,7 +101,7 @@ def get_transforms_pretraining(
     )
 
     if not train:
-        transform_train = transforms.Resize((224, 224), interpolation=PIL.Image.BICUBIC)
+        transform_train = transforms.Resize((size, size), interpolation=PIL.Image.BICUBIC)
     elif beit_transforms:
         beit_transform_list = []
         beit_transform_list.append(transforms.ColorJitter(0.4, 0.4, 0.4))
@@ -105,7 +109,7 @@ def get_transforms_pretraining(
             [
                 transforms.RandomHorizontalFlip(p=0.5),
                 RandomResizedCropAndInterpolationWithTwoPic(
-                    size=(224, 224),
+                    size=(size, size),
                     second_size=None,
                     interpolation="bicubic",
                     second_interpolation=None,
@@ -117,7 +121,7 @@ def get_transforms_pretraining(
     else:
         transform_train_list = [
             transforms.RandomResizedCrop(
-                size=(224, 224), scale=crop_scale, interpolation=3
+                size=(size, size), scale=crop_scale, interpolation=3
             ),  # 3 is bicubic
             transforms.RandomHorizontalFlip(),
         ]
@@ -140,6 +144,7 @@ def get_transforms_pretraining(
 
 def get_transforms_finetuning(
         train,
+        size:int=224,
         color_jitter=None,
         aa="rand-m9-mstd0.5-inc1",
         reprob=0.25,
@@ -152,7 +157,7 @@ def get_transforms_finetuning(
     if train:
         # this should always dispatch to transforms_imagenet_train
         transform = create_transform(
-            input_size=224,
+            input_size=size,
             is_training=True,
             color_jitter=color_jitter,
             auto_augment=aa,
@@ -170,9 +175,9 @@ def get_transforms_finetuning(
         transforms.ToImage(),
         transforms.ToDtype(torch.uint8, scale=True),
         transforms.Resize(
-            224, interpolation=PIL.Image.BICUBIC
+            size, interpolation=PIL.Image.BICUBIC
         ),
-        transforms.CenterCrop(224),
+        transforms.CenterCrop(size),
         transforms.ToDtype(torch.float32, scale=True),
         transforms.Normalize(mean, std)
     ]
