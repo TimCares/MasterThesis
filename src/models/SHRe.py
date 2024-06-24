@@ -44,7 +44,7 @@ class SHRePreTrainingLightningModule(L.LightningModule):
             batch.pop('target') # unused, layer activations are the targets
 
         with torch.no_grad():
-            target = self.teacher(pixel_values=batch['image']).logits
+            target = self.teacher(pixel_values=batch.pop('image_teacher')).logits
         
         output_dict = self(batch) # call "forward"
         target = torch.nn.functional.log_softmax(target, dim=1)
