@@ -238,6 +238,7 @@ class SHRe(nn.Module):
         out_dict["x"] = x
         x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
         out_dict["x_interm"] = x_interm
+        return out_dict
 
     def _freeze(self, module:nn.Module) -> None:
         for param in module.parameters():
