@@ -119,6 +119,63 @@
 - so what it boils down to is: Do unimodal, self-supervised trained, models learn representations abstract enough so that they can be regressed by models
   of a different modality?
 
+==== Contrastive Learning with Memory Bank
+- currently we do contrastive learning based on all samples of the current batch
+  - for an image, its corresponding text is the positive example, all other 255 (we use batch size of 256) captions are negative examples
+- generally, it is advised to use bigger batch sizes with contrastive learning -> increases number of negative examples
+  - VLMo uses batch size of up to 32k, FLAVA 8192, CLIP also 32k
+  - comparison between VLMo models trained with batch size of 1024 and 32k showed that this improves the model greatly
+  - FLAVA mentioned it made their training more stable
+- not feasible for us -> max batch size, with deepspeed stage 2, is 256, gpu memory is full
+- we would still like to have more negative examples, while keeping batch size the same
+- solution is memory bank
+- Initially popularized by @memory_bank
+- initially developed for self-supervised learning on images only
+- stores the representations/embeddings of all samples of the dataset, this is the memory bank
+- for each sample passed through the model, i.e. each sample in the batch, embedding is computed and cosine similarity to all embeddings in the memory bank, i.e. all samples of the dataset, is computed
+  - softmax is then applied over the cosine similarities -> each image in the dataset, i.e. each sample in the memory bank, is seen as one class
+  - for n images in the dataset, we have an n-class classification problem
+- each time an image is padded through the model, the embedding is updated in the memory bank
+- helps to increase the number of negative examples, without increasing the batch size
+
+#figure(
+  image("../figures/memory_bank_images.png"),
+  caption: [Memory Bank],
+) <memory_bank_images>
+
+- disadvantage:
+  - memory bank is very large for large datasets, e.g. ImageNet -> they report 600MB for 128 dimensional embeddings, we use 768
+  - too much memory for our GPU setup
+  - classification problem -> as in our contrastive loss, we do softmax over all samples/classes
+    - will take long on large datasets
+  - embeddings are only updated when their sample is passed through the model
+    - for large datasets, some embeddings might be old and not of high quality
+
+- we use a memory bank, but not based on the size of the whole dataset -> we want to "simulate" the contrastive loss of large batch sizes
+- means memory bank of size similar to the batch size of e.g. VLMo -> 16k-32k
+- should fit on GPU
+- softmax over less classes, so relatively fast -> should not be the bottleneck operation
+- not all samples of the dataset will be in the memory bank
+- for each batch, we do contrastive loss over the batch and all samples in the memory bank
+- we treat the memory bank as a FIFO queue
+  - after contrastive loss has been computed for current batch, we add it to the memory bank and discard the oldest batch
+- depending on the size of the memory bank, samples in the memory bank are more "fresh"
+
+- we initialize the memory bank with zero-embeddings
+  - first batch will only have contrastive loss based on the current batch
+- we fill the memory bank with each batch
+- second batch will do contrastive loss based on the current batch and the first batch
+- if memory bank is full, we do contrastive loss based on the current batch and all samples in the memory bank
+- then replace the oldest batch in the memory bank with the current batch
+
+
+==== Decaying Memory Bank
+Decay:
+
+
+
+Scheduled Decay:
+
 ===== Adding Image-Text Contrast
 - until now we did not actually used the same philosophy as in CLIP, which relies on, next to a seperate image and text encoder, a contrastive loss
   to align the representations of the image and text, so does not do KD and trains both text and image encoder from scratch
