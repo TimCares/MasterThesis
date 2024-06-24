@@ -19,6 +19,9 @@ def fetch_single_image(image_url, img_path, idx):
             )
             with urllib.request.urlopen(request, timeout=5) as req:
                 image = PIL.Image.open(io.BytesIO(req.read()))
+                w, h = image.size
+                if w==1 or h==1:
+                    return
                 path = os.path.join(img_path, f"{idx}.jpg")
                 image.save(path, format='JPEG')
             break
