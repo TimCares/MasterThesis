@@ -73,8 +73,7 @@ data:
     coco_captions:
       task: captioning
 
-    conceptual_captions:
-      data_fraction: 0.2 # just for download purposes, we use the first (available) 500k in the train index file
+    conceptual_captions: {}
 
 checkpoint:
   dirpath: "${model_path}/${now:%Y-%m-%d_%H-%M-%S}"

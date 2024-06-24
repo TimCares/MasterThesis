@@ -26,7 +26,7 @@ class COCOCaptions(BaseImageText):
         self,
         data_path,
         split,
-        num_max_bpe_tokens,
+        num_max_bpe_tokens=64,
         task="captioning",
         color_jitter=None,
         beit_transforms=False,
@@ -300,7 +300,7 @@ class VisualGenome(BaseImageText):
         data_path,
         split,
         concat_captions=False,
-        num_max_bpe_tokens=512,
+        num_max_bpe_tokens=64,
         color_jitter=None,
         beit_transforms=False,
         crop_scale=(0.6, 1.0),
@@ -419,8 +419,7 @@ class ConceptualCaptions(BaseImageText):
         self,
         data_path,
         split,
-        data_fraction=0.1,
-        num_max_bpe_tokens=512,
+        num_max_bpe_tokens=64,
         color_jitter=None,
         beit_transforms=False,
         crop_scale=(0.6, 1.0),
@@ -433,8 +432,6 @@ class ConceptualCaptions(BaseImageText):
             beit_transforms=beit_transforms,
             crop_scale=crop_scale
         )
-
-        self.data_fraction = data_fraction
         self.path_to_data = os.path.join(self.data_path, "conceptual_captions")
         self.img_path = os.path.join(self.path_to_data, "images")
         os.makedirs(self.path_to_data, exist_ok=True)

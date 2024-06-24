@@ -102,7 +102,6 @@ class VisualGenomeDataModule(BaseImageTextDataModule):
 class ConceptualCaptionsDataModule(BaseImageTextDataModule):
     def __init__(self,
                 data_path,
-                data_fraction,
                 num_max_bpe_tokens,
                 color_jitter=None,
                 beit_transforms=False,
@@ -110,7 +109,6 @@ class ConceptualCaptionsDataModule(BaseImageTextDataModule):
                 *args,
                 **kwargs):
         super().__init__(data_path, *args, **kwargs)
-        self.data_fraction = data_fraction
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.color_jitter = color_jitter
         self.beit_transforms = beit_transforms
@@ -127,7 +125,6 @@ class ConceptualCaptionsDataModule(BaseImageTextDataModule):
     def set_train_dataset(self):
         self.train_dataset = ConceptualCaptions(data_path=self.data_path,
                                                 split='train',
-                                                data_fraction=self.data_fraction,
                                                 num_max_bpe_tokens=self.num_max_bpe_tokens,
                                                 color_jitter=self.color_jitter,
                                                 beit_transforms=self.beit_transforms,
