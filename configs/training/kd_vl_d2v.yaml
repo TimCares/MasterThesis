@@ -58,7 +58,7 @@ model:
 data:
   dataloader:
     batch_size: 256
-    num_workers: 3 # each loader has 3 workers -> 9 in total
+    num_workers: 3 # each loader has 3 workers -> 6 in total
     shuffle: True
     drop_last: True
 
