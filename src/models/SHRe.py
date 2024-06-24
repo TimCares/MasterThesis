@@ -12,10 +12,21 @@ from dataclasses import dataclass, field
 from data2vec_fairseq.data.modality import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
-from transformers import ViTForImageClassification
+import timm
 from timm.layers import Mlp
 
 logger = logging.getLogger(__name__)
+
+class Mlp_(Mlp):
+    def forward(self, x):
+        x = self.fc1(x)
+        x_interm = x
+        x = self.act(x)
+        x = self.drop1(x)
+        x = self.norm(x)
+        x = self.fc2(x)
+        x = self.drop2(x)
+        return x_interm, x
 
 
 class SHRePreTrainingLightningModule(L.LightningModule):
@@ -25,7 +36,7 @@ class SHRePreTrainingLightningModule(L.LightningModule):
 
         self.model = SHRe(cfg=self.cfg.model)
 
-        self.teacher = ViTForImageClassification.from_pretrained('google/vit-base-patch16-224')
+        self.teacher = timm.create_model('resnet50.a1_in1k', pretrained=True)
         self.model._freeze(self.teacher)
 
         self.save_hyperparameters()
@@ -44,7 +55,7 @@ class SHRePreTrainingLightningModule(L.LightningModule):
             batch.pop('target') # unused, layer activations are the targets
 
         with torch.no_grad():
-            target = self.teacher(pixel_values=batch.pop('image_teacher')).logits
+            target = self.teacher(batch.pop('image_teacher'))
         
         output_dict = self(batch) # call "forward"
         target = torch.nn.functional.log_softmax(target, dim=1)
@@ -58,7 +69,9 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         kl_loss = (kl_loss1 + kl_loss2) / 2
         self.log(f"{stage}/kl_loss", kl_loss)
 
-        itc_loss = self.itc_loss(text_features=output_dict['x_text'], image_features=output_dict['x_image'])
+        itc_loss1 = self.itc_loss(text_features=output_dict['x_interm_text'], image_features=output_dict['x_interm_image'])
+        itc_loss2 = self.itc_loss(text_features=output_dict['x_text'], image_features=output_dict['x_image'])
+        itc_loss = (itc_loss1 + itc_loss2) / 2
         self.log(f"{stage}/itc_loss", itc_loss)
         
         loss = kl_loss + itc_loss
@@ -166,7 +179,7 @@ class SHRe(nn.Module):
         make_layer_norm = partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
-        self.shared = Mlp(
+        self.shared = Mlp_(
             in_features=self.cfg.embed_dim,
             hidden_features=int(self.cfg.embed_dim*self.cfg.mlp_ratio),
             out_features=1000,
@@ -219,11 +232,12 @@ class SHRe(nn.Module):
     
     def encode_shared(self, x):
         out_dict = dict()
-        x = self.shared(x[:, 0])
+        x_interm, x = self.shared(x[:, 0])
         out_dict["encoder_out"] = x
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
-        return out_dict
+        x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
+        out_dict["x_interm"] = x_interm
 
     def _freeze(self, module:nn.Module) -> None:
         for param in module.parameters():
