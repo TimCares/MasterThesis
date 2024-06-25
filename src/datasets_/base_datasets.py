@@ -9,7 +9,7 @@ from .data_utils import get_transforms
 from bpe_encoder import get_bpe_encoder as get_bpe_encoder_from_utils
 import torch.nn.functional as F
 
-from fairseq.data.data_utils import compute_block_mask_1d, compute_block_mask_2d, load_indexed_dataset
+from fairseq.data.data_utils import load_indexed_dataset
 from data2vec_fairseq.data.modality import Modality
 from utils import pad_text_sequence
 
@@ -24,6 +24,7 @@ from fairseq.data import (
 )
 
 from torchvision.datasets.folder import default_loader
+import timm
 
 logger = logging.getLogger(__name__)
 
@@ -337,6 +338,9 @@ class BaseImageText(ImageDataset):
         self.bos_token_id = self.dictionary.bos()
         self.eos_token_id = self.dictionary.eos()
         self.pad_token_id = self.dictionary.pad()
+
+        data_config = timm.data.resolve_model_data_config(timm.create_model('resnet50.a1_in1k', pretrained=True))
+        self.teacher_transform = timm.data.create_transform(**data_config, is_training=False)
         
     @property
     def modality(self) -> Modality:
@@ -370,7 +374,7 @@ class BaseImageText(ImageDataset):
 
     def _get_image(self, image_path: str):
         image = self.loader(image_path)
-        return self.transform(image)
+        return self.transform(image), self.teacher_transform(image)
 
     def _get_text_segment(self, text_segment, max_len=None):
         assert isinstance(text_segment, list)
@@ -388,8 +392,9 @@ class BaseImageText(ImageDataset):
     def _get_image_text_example(self, index: int, data: dict):
         item = self.items[index]
         img_path = item["image_path"]
-        img = self._get_image(img_path)
-        data["image"] = img
+        img_student, img_teacher = self._get_image(img_path)
+        data["image"] = img_student
+        data["image_teacher"] = img_teacher
         data["id"] = item["id"]
 
         text_segment = item["text"]

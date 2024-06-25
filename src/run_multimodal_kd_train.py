@@ -12,7 +12,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, Mo
 from pytorch_lightning.loggers import WandbLogger
 import sys
 sys.path.append("beit2")
-from models.mm_data2vec_beit import AMMData2VecConfig, AMMData2VecPreTrainingLightningModule
+from models.SHRe import SHReConfig, SHRePreTrainingLightningModule
 from datamodules import DATAMODULE_REGISTRY
 from callbacks import MultimodalZeroShotRetrievalCallback, WallClockCallback
 from multi_data_loader import MultiDataModule
@@ -31,14 +31,14 @@ def main(cfg: DictConfig) -> None:
                                save_dir=cfg.log_dir,
                                log_model=False,)
     
-    cfg.model = merge_with_parent(dc=AMMData2VecConfig(), cfg=cfg.model, remove_missing=False)
+    cfg.model = merge_with_parent(dc=SHReConfig(), cfg=cfg.model, remove_missing=False)
     if 'seed' in cfg and cfg.seed is not None:
         seed_everything(seed=cfg.seed, workers=True)
     else:
         logger.info('No seed set.')
 
     logger.info('Starting training.')
-    module = AMMData2VecPreTrainingLightningModule(cfg=cfg)
+    module = SHRePreTrainingLightningModule(cfg=cfg)
 
     OmegaConf.resolve(cfg=cfg) # resolving done in-place
 
