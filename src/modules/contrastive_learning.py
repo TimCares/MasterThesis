@@ -76,14 +76,14 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
             stage:str=None) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         assert img_emb.size(0) == text_emb.size(0) == self.batch_size
 
+        mask = self.indexer.bool()
         # current samples always have an age of 0
-        weights = torch.concat([torch.zeros(self.batch_size, device=self.age.device), self.age], dim=0)
+        weights = torch.concat([torch.zeros(self.batch_size, device=self.age.device), self.age[mask]], dim=0)
         decay_rate = self._get_decay(step)
         weights = torch.pow(decay_rate, weights.float())
         weights = weights / weights.sum()
         
         scale = logit_scale.exp()
-        mask = self.indexer.bool()
         logits_per_image = img_emb @ torch.concat([text_emb, self.text_memory_bank[mask]], dim=0).t()
         logits_per_text = text_emb @ torch.concat([img_emb, self.image_memory_bank[mask]], dim=0).t()
         if self.log_similarity:
