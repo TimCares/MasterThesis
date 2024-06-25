@@ -95,7 +95,8 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
             + F.cross_entropy(logits_per_text.float(), target, weight=weights)
         ) / 2
 
-        self._update(img_emb, text_emb)
+        if stage == 'train': # we do not want to update the memory bank with batches/samples from the validation set
+            self._update(img_emb, text_emb)
         return itc_loss, img_itc_acc, text_itc_acc
     
     def _log_similarity(self, logits: torch.Tensor, stage:str='train') -> None:
