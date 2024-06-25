@@ -63,8 +63,9 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
             logit_scale:torch.Tensor,
             img_emb:torch.Tensor,
             text_emb:torch.Tensor,
-            step:int,) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        return self.compute_loss(logit_scale, img_emb, text_emb, step)
+            step:int,
+            stage:str=None) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        return self.compute_loss(logit_scale, img_emb, text_emb, step, stage)
 
     def compute_loss(
             self,
@@ -72,7 +73,7 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
             img_emb:torch.Tensor,
             text_emb:torch.Tensor,
             step:int,
-            stage:str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+            stage:str=None) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         assert img_emb.size(0) == text_emb.size(0) == self.batch_size
 
         # current samples always have an age of 0
@@ -86,6 +87,7 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         logits_per_image = img_emb @ torch.concat([text_emb, self.text_memory_bank[mask]], dim=0).t()
         logits_per_text = text_emb @ torch.concat([img_emb, self.image_memory_bank[mask]], dim=0).t()
         if self.log_similarity:
+            assert stage is not None
             self._log_similarity(logits_per_image, stage=stage)
         logits_per_image = logits_per_image * scale
         logits_per_text = logits_per_text * scale
