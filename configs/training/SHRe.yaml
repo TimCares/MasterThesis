@@ -96,3 +96,14 @@ lightning_trainer:
   num_sanity_val_steps: 0 # would run zero shot at the beginning if > 0
   precision: 16-mixed
   log_every_n_steps: 50
+
+memory_bank:
+  embed_size: ${model.embed_dim}
+  batch_size: ${data.dataloader.batch_size}
+  size: 16384
+  start_decay_rate: 1
+  end_decay_rate: # None
+  max_steps: ${lightning_trainer.max_steps}
+  device: 'cuda'
+  half_precision: True
+  log_similarity: False

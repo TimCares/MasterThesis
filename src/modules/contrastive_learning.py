@@ -35,6 +35,9 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
             self.text_memory_bank = self.text_memory_bank.half()
         self.index_pointer = 0
         self.age = torch.zeros(self.size, dtype=torch.long, device=device)
+        self.indexer = torch.zeros(self.size, dtype=torch.long, device=device)
+        # "indexer" is used to only do contrastive loss on non-empty (non-zero) entries in the memory bank 
+        # -> if the memory bank is full, "indexer" will be all ones -> all samples are used
 
     def _update(self, img_emb:torch.Tensor, text_emb:torch.Tensor) -> None:
         end_idx = self.index_pointer + self.batch_size
@@ -42,6 +45,7 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         self.text_memory_bank[self.index_pointer:end_idx] = text_emb.detach()
         self.age[self.index_pointer:end_idx] = 0
         self.age += 1 # new samples always have an age of 1
+        self.indexer[self.index_pointer:end_idx] = 1
         if end_idx == self.size:
             self.index_pointer = 0
         else:
@@ -78,8 +82,9 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         weights = weights / weights.sum()
         
         scale = logit_scale.exp()
-        logits_per_image = img_emb @ torch.concat([text_emb, self.text_memory_bank], dim=0).t()
-        logits_per_text = text_emb @ torch.concat([img_emb, self.image_memory_bank], dim=0).t()
+        mask = self.indexer.bool()
+        logits_per_image = img_emb @ torch.concat([text_emb, self.text_memory_bank[mask]], dim=0).t()
+        logits_per_text = text_emb @ torch.concat([img_emb, self.image_memory_bank[mask]], dim=0).t()
         if self.log_similarity:
             self._log_similarity(logits_per_image, stage=stage)
         logits_per_image = logits_per_image * scale

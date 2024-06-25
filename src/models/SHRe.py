@@ -14,6 +14,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup, get_const
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 import timm
 from timm.layers import Mlp
+from modules import ContrastiveLearningMemoryBankModule
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,9 @@ class SHRePreTrainingLightningModule(L.LightningModule):
 
         self.teacher = timm.create_model('resnet50.a1_in1k', pretrained=True)
         self.model._freeze(self.teacher)
+
+        self.mb_1 = ContrastiveLearningMemoryBankModule(**self.cfg.memory_bank)
+        self.mb_2 = ContrastiveLearningMemoryBankModule(**self.cfg.memory_bank)
 
         self.save_hyperparameters()
 
@@ -69,45 +73,32 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         kl_loss = (kl_loss1 + kl_loss2) / 2
         self.log(f"{stage}/kl_loss", kl_loss)
 
-        itc_loss1 = self.itc_loss(text_features=output_dict['x_interm_text'], image_features=output_dict['x_interm_image'])
-        itc_loss2 = self.itc_loss(text_features=output_dict['x_text'], image_features=output_dict['x_image'])
+        itc_loss1, _, _ = self.mb_1(
+            logit_scale=self.model.logit_scale,
+            img_emb=output_dict['x_interm_image'],
+            text_emb=output_dict['x_interm_text'],
+            step=self.global_step,
+            stage=stage,
+        )
+        itc_loss2, img_itc_acc, text_itc_acc = self.mb_2(
+            logit_scale=self.model.logit_scale,
+            img_emb=output_dict['x_image'],
+            text_emb=output_dict['x_text'],
+            step=self.global_step,
+            stage=stage,
+        )
         itc_loss = (itc_loss1 + itc_loss2) / 2
         self.log(f"{stage}/itc_loss", itc_loss)
         
         loss = kl_loss + itc_loss
 
         self.log(f"{stage}/loss", loss, prog_bar=True)
-        
-        return loss
-    
-    def itc_loss(self, text_features:torch.Tensor, image_features:torch.Tensor, stage:str='train') -> torch.Tensor:
-        scale = self.model.logit_scale.exp()
-        
-        logits_per_image = image_features @ text_features.t()
-        self._log_similarity(logits_per_image, stage)
-        logits_per_image = logits_per_image*scale
-        logits_per_text = logits_per_image.t()
 
-        target = torch.arange(len(logits_per_image)).long().to(logits_per_image.device)
-
-        img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
-        text_itc_acc = (logits_per_text.argmax(dim=1) == target).float().mean()
         self.log(f"{stage}/itc_text_acc", text_itc_acc)
         self.log(f"{stage}/itc_image_acc", img_itc_acc)
         self.log(f"{stage}/itc_acc", (img_itc_acc + text_itc_acc) / 2, prog_bar=True)
-
-        itc_loss = (
-            F.cross_entropy(logits_per_image.float(), target)
-            + F.cross_entropy(logits_per_text.float(), target)
-        ) / 2
-        return itc_loss
-    
-    def _log_similarity(self, logits: torch.Tensor, stage:str='train') -> None:
-        diagonal_mask = torch.eye(logits.size(0)).bool()
-        mean_pos_sim = logits[diagonal_mask].mean()
-        mean_neg_sim = logits[~diagonal_mask].mean()
-        self.log(f"{stage}/itc_mean_pos_similarity", mean_pos_sim)
-        self.log(f"{stage}/itc_mean_neg_similarity", mean_neg_sim)
+        
+        return loss
 
     def configure_optimizers(self):
         wd_params, non_wd_params = self._get_param_groups()
