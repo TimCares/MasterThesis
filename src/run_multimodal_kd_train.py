@@ -73,13 +73,12 @@ def main(cfg: DictConfig) -> None:
 
     torch.set_float32_matmul_precision("high") # or: "highest"
     trainer_args = OmegaConf.to_container(cfg.lightning_trainer, resolve=True)
-    if 'deepspeed' in trainer_args['strategy']:
-        trainer_args['strategy'] = DeepSpeedStrategy(
-            stage=int(re.search(r'\d', trainer_args['strategy']).group()),
-            offload_optimizer='offload' in trainer_args['strategy'],
-            allgather_bucket_size=5e8, # size as recommended by pytorch lightning deepspeed docs
-            reduce_bucket_size=5e8, # size as recommended by pytorch lightning deepspeed docs
-        )
+    if 'strategy' not in trainer_args:
+        if 'deepspeed' in trainer_args:
+            trainer_args['strategy'] = DeepSpeedStrategy(**trainer_args.pop('deepspeed'))
+        else:
+            trainer_args['strategy'] = 'auto'
+        
     trainer = Trainer(
         **trainer_args,
         enable_checkpointing=True,

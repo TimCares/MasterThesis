@@ -90,12 +90,17 @@ lightning_trainer:
   default_root_dir: ${log_dir}
   accelerator: gpu
   devices: -1
-  strategy: deepspeed_stage_2
   max_steps: 70_000
   val_check_interval: ${zero_shot_val.val_every_n_batches}
   num_sanity_val_steps: 0 # would run zero shot at the beginning if > 0
   precision: 16-mixed
   log_every_n_steps: 50
+
+  deepspeed:
+    stage: 2
+    offload_optimizer: False
+    allgather_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
+    reduce_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
 
 memory_bank:
   embed_size: ${model.embed_dim}
