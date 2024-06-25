@@ -103,7 +103,6 @@ lightning_trainer:
     reduce_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
 
 memory_bank:
-  embed_size: ${model.embed_dim}
   batch_size: ${data.dataloader.batch_size}
   size: 16384
   start_decay_rate: 1

@@ -40,8 +40,12 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         self.teacher = timm.create_model('resnet50.a1_in1k', pretrained=True)
         self.model._freeze(self.teacher)
 
-        self.mb_1 = ContrastiveLearningMemoryBankModule(**self.cfg.memory_bank)
-        self.mb_2 = ContrastiveLearningMemoryBankModule(**self.cfg.memory_bank)
+        self.mb_1 = ContrastiveLearningMemoryBankModule(
+            embed_size=3072,
+            **self.cfg.memory_bank)
+        self.mb_2 = ContrastiveLearningMemoryBankModule(
+            embed_size=1000,
+            **self.cfg.memory_bank)
 
         self.save_hyperparameters()
 
