@@ -9,44 +9,65 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
             self,
             embed_size:int=768,
             batch_size:int=256,
-            size:int=16384, # 2^14
-            start_decay_rate:float=0.99, # decay rate of 1 means no decay -> all samples are weighted equally
-            end_decay_rate:Union[float, None]=None, # 0.98-0.99999
+            start_size:Union[int, None]=None,
+            end_size:int=16384, # 2^14
+            start_decay_rate:Union[float, None]=None, # 0.98-0.99999 
+            end_decay_rate:float=1.0, # end_decay_rate of 1.0 and start_decay_rate=0 means no decay -> all samples are weighted equally
             max_steps:Union[int, None]=None,
             device:str='cuda',
             half_precision:bool=False,
             log_similarity:bool=False,): 
         super().__init__()
+        assert end_size % batch_size == 0, "Size of memory bank must be multiple of batch size"
+        self.start_size = start_size
         self.batch_size = batch_size
-        self.size = size - batch_size # one batch is always new samples
-        self.start_decay_rate = start_decay_rate
-        self.log_similarity = log_similarity
-        if self.start_decay_rate == 1:
-            end_decay_rate = None
-        self.end_decay_rate = end_decay_rate
-        if self.end_decay_rate is not None:
-            assert max_steps is not None
+        self.end_size = end_size - batch_size # one batch is always new samples
         self.max_steps = max_steps
-        assert size % batch_size == 0, "Size of memory bank must be multiple of batch size"
-        self.image_memory_bank = torch.zeros((self.size, embed_size), dtype=torch.float32, device=device)
-        self.text_memory_bank = torch.zeros((self.size, embed_size), dtype=torch.float32, device=device)
+
+        if self.start_size is not None:
+            assert self.max_steps is not None
+            assert self.start_size < self.end_size
+            assert self.end_size % self.start_size == 0
+            self.curr_size = self.start_size
+        else:
+            self.curr_size = self.end_size
+        
+        self.start_decay_rate = start_decay_rate
+        self.end_decay_rate = end_decay_rate
+        if self.start_decay_rate is not None:
+            assert self.max_steps is not None
+        
+        self.log_similarity = log_similarity
+        self.image_memory_bank = torch.zeros((self.end_size, embed_size), dtype=torch.float32, device=device)
+        self.text_memory_bank = torch.zeros((self.end_size, embed_size), dtype=torch.float32, device=device)
         if half_precision:
             self.image_memory_bank = self.image_memory_bank.half()
             self.text_memory_bank = self.text_memory_bank.half()
         self.index_pointer = 0
-        self.age = torch.zeros(self.size, dtype=torch.long, device=device)
-        self.indexer = torch.zeros(self.size, dtype=torch.long, device=device)
+        self.age = torch.zeros(self.end_size, dtype=torch.long, device=device)
+        self.indexer = torch.zeros(self.end_size, dtype=torch.long, device=device)
         # "indexer" is used to only do contrastive loss on non-empty (non-zero) entries in the memory bank 
         # -> if the memory bank is full, "indexer" will be all ones -> all samples are used
 
-    def _update(self, img_emb:torch.Tensor, text_emb:torch.Tensor) -> None:
+    def _set_size(self, step:int) -> None:
+        if self.start_size is None or self.max_steps is None or step >= self.max_steps:
+            return self.end_size
+        n_increases = (self.end_size - self.start_size) // self.batch_size
+        interval_increase = self.max_steps // n_increases
+        if step % interval_increase == 0:
+            self.index_pointer = self.curr_size
+            self.curr_size += self.batch_size
+        return self.curr_size
+
+    def _update(self, img_emb:torch.Tensor, text_emb:torch.Tensor, step:int) -> None:
+        self._set_size(step)
         end_idx = self.index_pointer + self.batch_size
         self.image_memory_bank[self.index_pointer:end_idx] = img_emb.detach()
         self.text_memory_bank[self.index_pointer:end_idx] = text_emb.detach()
         self.age[self.index_pointer:end_idx] = 0
         self.age += 1 # new samples always have an age of 1
         self.indexer[self.index_pointer:end_idx] = 1
-        if end_idx == self.size:
+        if end_idx == self.curr_size:
             self.index_pointer = 0
         else:
             self.index_pointer = end_idx
@@ -77,10 +98,11 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         assert img_emb.size(0) == text_emb.size(0)
         if stage == 'train': # if it is not the training stage, we can use any batch size, as we do not update the memory bank
             assert img_emb.size(0) == self.batch_size
-            
+        
         sample_size = img_emb.size(0)
 
         mask = self.indexer.bool()
+        mask[self.curr_size:] = False
         # current samples always have an age of 0
         weights = torch.concat([torch.zeros(sample_size, device=self.age.device), self.age[mask]], dim=0)
         decay_rate = self._get_decay(step)
@@ -106,7 +128,7 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         ) / 2
 
         if stage == 'train': # we do not want to update the memory bank with batches/samples from the validation set
-            self._update(img_emb, text_emb)
+            self._update(img_emb, text_emb, step)
         return itc_loss, img_itc_acc, text_itc_acc
     
     def _log_similarity(self, logits: torch.Tensor, stage:str='train') -> None:
