@@ -104,9 +104,8 @@ lightning_trainer:
 
 memory_bank:
   batch_size: ${data.dataloader.batch_size}
-  size: 16384
-  start_decay_rate: 1
-  end_decay_rate: # None
+  start_size: # None
+  end_size: 1024
   max_steps: ${lightning_trainer.max_steps}
   device: 'cuda'
   half_precision: True
