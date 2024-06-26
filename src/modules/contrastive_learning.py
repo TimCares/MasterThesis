@@ -11,8 +11,6 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
             batch_size:int=256,
             start_size:Union[int, None]=None,
             end_size:int=16384, # 2^14
-            start_decay_rate:Union[float, None]=None, # 0.98-0.99999 
-            end_decay_rate:float=1.0, # end_decay_rate of 1.0 and start_decay_rate=0 means no decay -> all samples are weighted equally
             max_steps:Union[int, None]=None,
             device:str='cuda',
             half_precision:bool=False,
@@ -32,11 +30,6 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         else:
             self.curr_size = self.end_size
         
-        self.start_decay_rate = start_decay_rate
-        self.end_decay_rate = end_decay_rate
-        if self.start_decay_rate is not None:
-            assert self.max_steps is not None
-        
         self.log_similarity = log_similarity
         self.image_memory_bank = torch.zeros((self.end_size, embed_size), dtype=torch.float32, device=device)
         self.text_memory_bank = torch.zeros((self.end_size, embed_size), dtype=torch.float32, device=device)
@@ -44,7 +37,6 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
             self.image_memory_bank = self.image_memory_bank.half()
             self.text_memory_bank = self.text_memory_bank.half()
         self.index_pointer = 0
-        self.age = torch.zeros(self.end_size, dtype=torch.long, device=device)
         self.indexer = torch.zeros(self.end_size, dtype=torch.long, device=device)
         # "indexer" is used to only do contrastive loss on non-empty (non-zero) entries in the memory bank 
         # -> if the memory bank is full, "indexer" will be all ones -> all samples are used
@@ -57,27 +49,17 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         if step % interval_increase == 0:
             self.index_pointer = self.curr_size
             self.curr_size += self.batch_size
-        return self.curr_size
 
     def _update(self, img_emb:torch.Tensor, text_emb:torch.Tensor, step:int) -> None:
         self._set_size(step)
         end_idx = self.index_pointer + self.batch_size
         self.image_memory_bank[self.index_pointer:end_idx] = img_emb.detach()
         self.text_memory_bank[self.index_pointer:end_idx] = text_emb.detach()
-        self.age[self.index_pointer:end_idx] = 0
-        self.age += 1 # new samples always have an age of 1
         self.indexer[self.index_pointer:end_idx] = 1
         if end_idx == self.curr_size:
             self.index_pointer = 0
         else:
             self.index_pointer = end_idx
-
-    def _get_decay(self, step:int) -> float:
-        if self.end_decay_rate is None:
-            return self.start_decay_rate
-        if step >= self.max_steps:
-            return self.end_decay_rate
-        return self.start_decay_rate + (self.end_decay_rate - self.start_decay_rate) * (step / self.max_steps)
     
     def forward(
             self,
@@ -98,16 +80,9 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         assert img_emb.size(0) == text_emb.size(0)
         if stage == 'train': # if it is not the training stage, we can use any batch size, as we do not update the memory bank
             assert img_emb.size(0) == self.batch_size
-        
-        sample_size = img_emb.size(0)
 
         mask = self.indexer.bool()
         mask[self.curr_size:] = False
-        # current samples always have an age of 0
-        weights = torch.concat([torch.zeros(sample_size, device=self.age.device), self.age[mask]], dim=0)
-        decay_rate = self._get_decay(step)
-        weights = torch.pow(decay_rate, weights.float())
-        weights = weights / weights.sum()
         
         scale = logit_scale.exp()
         logits_per_image = img_emb @ torch.concat([text_emb, self.text_memory_bank[mask]], dim=0).t()
@@ -123,8 +98,8 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         text_itc_acc = (logits_per_text.argmax(dim=1) == target).float().mean()
 
         itc_loss = (
-            F.cross_entropy(logits_per_image.float(), target, weight=weights)
-            + F.cross_entropy(logits_per_text.float(), target, weight=weights)
+            F.cross_entropy(logits_per_image.float(), target)
+            + F.cross_entropy(logits_per_text.float(), target)
         ) / 2
 
         if stage == 'train': # we do not want to update the memory bank with batches/samples from the validation set
