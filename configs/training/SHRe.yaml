@@ -109,4 +109,3 @@ memory_bank:
   max_steps: ${lightning_trainer.max_steps}
   device: cuda
   half_precision: True
-  log_similarity: False

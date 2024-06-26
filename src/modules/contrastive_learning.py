@@ -13,8 +13,7 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
             end_size:int=16384, # 2^14
             max_steps:Union[int, None]=None,
             device:str='cuda',
-            half_precision:bool=False,
-            log_similarity:bool=False,): 
+            half_precision:bool=False,): 
         super().__init__()
         assert end_size % batch_size == 0, "Size of memory bank must be multiple of batch size"
         self.start_size = start_size
@@ -30,7 +29,6 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         else:
             self.curr_size = self.end_size
         
-        self.log_similarity = log_similarity
         self.image_memory_bank = torch.zeros((self.end_size, embed_size), dtype=torch.float32, device=device)
         self.text_memory_bank = torch.zeros((self.end_size, embed_size), dtype=torch.float32, device=device)
         if half_precision:
@@ -81,12 +79,8 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         mask[self.curr_size:] = False
         
         scale = logit_scale.exp()
-        logits_per_image = img_emb @ torch.concat([text_emb, self.text_memory_bank[mask]], dim=0).t()
-        logits_per_text = text_emb @ torch.concat([img_emb, self.image_memory_bank[mask]], dim=0).t()
-        if self.log_similarity:
-            self._log_similarity(logits_per_image)
-        logits_per_image = logits_per_image * scale
-        logits_per_text = logits_per_text * scale
+        logits_per_image = scale * img_emb @ torch.concat([text_emb, self.text_memory_bank[mask]], dim=0).t()
+        logits_per_text = scale * text_emb @ torch.concat([img_emb, self.image_memory_bank[mask]], dim=0).t()
 
         target = torch.arange(len(logits_per_image)).long().to(logits_per_image.device)
 
@@ -100,13 +94,6 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
 
         self._update(img_emb, text_emb, step)
         return itc_loss, img_itc_acc, text_itc_acc
-    
-    def _log_similarity(self, logits: torch.Tensor) -> None:
-        diagonal_mask = torch.eye(logits.size(0)).bool()
-        mean_pos_sim = logits[diagonal_mask].mean()
-        mean_neg_sim = logits[~diagonal_mask].mean()
-        self.log("train/itc_mean_pos_similarity", mean_pos_sim)
-        self.log("train/itc_mean_neg_similarity", mean_neg_sim)
 
     def log(self, *args, **kwargs):
         super().log(batch_size=self.batch_size, sync_dist=True, *args, **kwargs)
