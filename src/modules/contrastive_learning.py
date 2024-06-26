@@ -43,7 +43,7 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
 
     def _set_size(self, step:int) -> None:
         if self.start_size is None or self.max_steps is None or step >= self.max_steps:
-            return self.end_size
+            return # do nothing
         n_increases = (self.end_size - self.start_size) // self.batch_size
         interval_increase = self.max_steps // n_increases
         if step % interval_increase == 0:
