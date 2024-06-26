@@ -83,14 +83,12 @@ class SHRePreTrainingLightningModule(L.LightningModule):
                 img_emb=output_dict['x_interm_image'],
                 text_emb=output_dict['x_interm_text'],
                 step=self.global_step,
-                stage=stage,
             )
             itc_loss2, img_itc_acc, text_itc_acc = self.mb_2(
                 logit_scale=self.model.logit_scale.exp(),
                 img_emb=output_dict['x_image'],
                 text_emb=output_dict['x_text'],
                 step=self.global_step,
-                stage=stage,
             )
         else:
             itc_loss1, _, _ = self.itc_loss(text_emb=output_dict['x_interm_text'], img_emb=output_dict['x_interm_image'])
