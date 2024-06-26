@@ -66,20 +66,16 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
             logit_scale:torch.Tensor,
             img_emb:torch.Tensor,
             text_emb:torch.Tensor,
-            step:int,
-            stage:str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        return self.compute_loss(logit_scale, img_emb, text_emb, step, stage)
+            step:int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        return self.compute_loss(logit_scale, img_emb, text_emb, step)
 
     def compute_loss(
             self,
             logit_scale:torch.Tensor,
             img_emb:torch.Tensor,
             text_emb:torch.Tensor,
-            step:int,
-            stage:str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        assert img_emb.size(0) == text_emb.size(0)
-        if stage == 'train': # if it is not the training stage, we can use any batch size, as we do not update the memory bank
-            assert img_emb.size(0) == self.batch_size
+            step:int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        assert img_emb.size(0) == text_emb.size(0) == self.batch_size
 
         mask = self.indexer.bool()
         mask[self.curr_size:] = False
@@ -88,7 +84,7 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         logits_per_image = img_emb @ torch.concat([text_emb, self.text_memory_bank[mask]], dim=0).t()
         logits_per_text = text_emb @ torch.concat([img_emb, self.image_memory_bank[mask]], dim=0).t()
         if self.log_similarity:
-            self._log_similarity(logits_per_image, stage=stage)
+            self._log_similarity(logits_per_image)
         logits_per_image = logits_per_image * scale
         logits_per_text = logits_per_text * scale
 
@@ -102,16 +98,15 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
             + F.cross_entropy(logits_per_text.float(), target)
         ) / 2
 
-        if stage == 'train': # we do not want to update the memory bank with batches/samples from the validation set
-            self._update(img_emb, text_emb, step)
+        self._update(img_emb, text_emb, step)
         return itc_loss, img_itc_acc, text_itc_acc
     
-    def _log_similarity(self, logits: torch.Tensor, stage:str='train') -> None:
+    def _log_similarity(self, logits: torch.Tensor) -> None:
         diagonal_mask = torch.eye(logits.size(0)).bool()
         mean_pos_sim = logits[diagonal_mask].mean()
         mean_neg_sim = logits[~diagonal_mask].mean()
-        self.log(f"{stage}/itc_mean_pos_similarity", mean_pos_sim)
-        self.log(f"{stage}/itc_mean_neg_similarity", mean_neg_sim)
+        self.log("train/itc_mean_pos_similarity", mean_pos_sim)
+        self.log("train/itc_mean_neg_similarity", mean_neg_sim)
 
     def log(self, *args, **kwargs):
         super().log(batch_size=self.batch_size, sync_dist=True, *args, **kwargs)
