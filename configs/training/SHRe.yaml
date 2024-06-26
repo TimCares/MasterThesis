@@ -107,6 +107,6 @@ memory_bank:
   start_size: # None
   end_size: 1024
   max_steps: ${lightning_trainer.max_steps}
-  device: 'cuda'
+  device: cuda
   half_precision: True
   log_similarity: False
