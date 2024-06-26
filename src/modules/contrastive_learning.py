@@ -78,9 +78,8 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         mask = self.indexer.bool()
         mask[self.curr_size:] = False
         
-        scale = logit_scale.exp()
-        logits_per_image = scale * img_emb @ torch.concat([text_emb, self.text_memory_bank[mask]], dim=0).t()
-        logits_per_text = scale * text_emb @ torch.concat([img_emb, self.image_memory_bank[mask]], dim=0).t()
+        logits_per_image = logit_scale * img_emb @ torch.concat([text_emb, self.text_memory_bank[mask]], dim=0).t()
+        logits_per_text = logit_scale * text_emb @ torch.concat([img_emb, self.image_memory_bank[mask]], dim=0).t()
 
         target = torch.arange(len(logits_per_image)).long().to(logits_per_image.device)
 

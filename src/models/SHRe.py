@@ -77,20 +77,25 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         kl_loss = (kl_loss1 + kl_loss2) / 2
         self.log(f"{stage}/kl_loss", kl_loss)
 
-        itc_loss1, _, _ = self.mb_1(
-            logit_scale=self.model.logit_scale,
-            img_emb=output_dict['x_interm_image'],
-            text_emb=output_dict['x_interm_text'],
-            step=self.global_step,
-            stage=stage,
-        )
-        itc_loss2, img_itc_acc, text_itc_acc = self.mb_2(
-            logit_scale=self.model.logit_scale,
-            img_emb=output_dict['x_image'],
-            text_emb=output_dict['x_text'],
-            step=self.global_step,
-            stage=stage,
-        )
+        if stage == 'train':
+            itc_loss1, _, _ = self.mb_1(
+                logit_scale=self.model.logit_scale.exp(),
+                img_emb=output_dict['x_interm_image'],
+                text_emb=output_dict['x_interm_text'],
+                step=self.global_step,
+                stage=stage,
+            )
+            itc_loss2, img_itc_acc, text_itc_acc = self.mb_2(
+                logit_scale=self.model.logit_scale.exp(),
+                img_emb=output_dict['x_image'],
+                text_emb=output_dict['x_text'],
+                step=self.global_step,
+                stage=stage,
+            )
+        else:
+            itc_loss1, _, _ = self.itc_loss(text_emb=output_dict['x_interm_text'], img_emb=output_dict['x_interm_image'])
+            itc_loss2, img_itc_acc, text_itc_acc = self.itc_loss(text_emb=output_dict['x_text'], img_emb=output_dict['x_image'])
+            
         itc_loss = (itc_loss1 + itc_loss2) / 2
         self.log(f"{stage}/itc_loss", itc_loss)
         
@@ -103,6 +108,23 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         self.log(f"{stage}/itc_acc", (img_itc_acc + text_itc_acc) / 2, prog_bar=True)
         
         return loss
+    
+    def itc_loss(self, text_emb:torch.Tensor, img_emb:torch.Tensor) -> torch.Tensor:
+        scale = self.model.logit_scale.exp()
+        
+        logits_per_image = scale * img_emb @ text_emb.t()
+        logits_per_text = logits_per_image.t()
+
+        target = torch.arange(len(logits_per_image)).long().to(logits_per_image.device)
+
+        img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
+        text_itc_acc = (logits_per_text.argmax(dim=1) == target).float().mean()
+
+        itc_loss = (
+            F.cross_entropy(logits_per_image.float(), target)
+            + F.cross_entropy(logits_per_text.float(), target)
+        ) / 2
+        return itc_loss, img_itc_acc, text_itc_acc
 
     def configure_optimizers(self):
         wd_params, non_wd_params = self._get_param_groups()
