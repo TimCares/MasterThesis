@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: SHRe
+run_name: SHRe_no_drop_mb_1024
 
 load_checkpoint:
 
@@ -75,7 +75,7 @@ zero_shot_val:
   num_max_bpe_tokens: ${nlp_context_length}
 
 optimizer:
-  lr: 0.0005
+  lr: 0.0002
   betas: [ 0.9,0.98 ]
   eps: 1e-06
   weight_decay: 0.01
@@ -83,7 +83,7 @@ optimizer:
 
 optimizer_schedule: # relevant if "optimizer.warmup" is True
   type: cosine # constant or cosine
-  warmup_steps: 6_000
+  warmup_steps: 7_000
   max_steps: ${lightning_trainer.max_steps}
 
 lightning_trainer:

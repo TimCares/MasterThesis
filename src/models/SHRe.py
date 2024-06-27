@@ -77,6 +77,8 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         kl_loss = (kl_loss1 + kl_loss2) / 2
         self.log(f"{stage}/kl_loss", kl_loss)
 
+        self.model.logit_scale.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
+
         if stage == 'train':
             itc_loss1, _, _ = self.mb_1(
                 logit_scale=self.model.logit_scale.exp(),
