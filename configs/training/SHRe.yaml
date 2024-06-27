@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: SHRe_no_drop_mb_1024_1e-4
+run_name: SHRe_mb_1024_1e-4
 
 load_checkpoint:
 

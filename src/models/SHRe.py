@@ -205,11 +205,9 @@ class SHRe(nn.Module):
 
         self.apply(init_bert_params)
 
-        self.text_model = load_pretrained_d2v_model(state_dict_path=os.path.join(self.cfg.pretrained_path, self.cfg.pretrained.text),
-                                                    remove_dropout=True,)
+        self.text_model = load_pretrained_d2v_model(state_dict_path=os.path.join(self.cfg.pretrained_path, self.cfg.pretrained.text))
         self.text_model.blocks = self.text_model.blocks[:self.cfg.depth]
-        self.image_model = load_pretrained_d2v_model(state_dict_path=os.path.join(self.cfg.pretrained_path, self.cfg.pretrained.image),
-                                                    remove_dropout=True,)
+        self.image_model = load_pretrained_d2v_model(state_dict_path=os.path.join(self.cfg.pretrained_path, self.cfg.pretrained.image))
         self.image_model.blocks = self.image_model.blocks[:self.cfg.depth]
 
     def forward(
