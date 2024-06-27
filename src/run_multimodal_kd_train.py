@@ -120,14 +120,14 @@ def main(cfg: DictConfig) -> None:
                 val_dataloaders=val_dataloaders,
                 ckpt_path=ckpt_path)
 
-    model_path = os.path.join(cfg.checkpoint.dirpath, 'last.ckpt')
-    if 'deepspeed' in cfg.lightning_trainer.strategy and os.path.isdir(model_path):
+    if 'deepspeed' in cfg.lightning_trainer.strategy:
         from lightning.pytorch.utilities.deepspeed import convert_zero_checkpoint_to_fp32_state_dict
-        output_path = os.path.join(cfg.checkpoint.dirpath, 'fp32_last.ckpt')
-        convert_zero_checkpoint_to_fp32_state_dict(model_path, output_path)
-        files = [os.path.join(cfg.checkpoint.dirpath, f) for f in os.listdir(cfg.checkpoint.dirpath) if f != 'fp32_last.ckpt']
-        for f in files:
-            os.remove(f) # remove unneeded files -> same disk space
+        get_type = lambda x: os.path.splitext(os.path.basename(x))[0].split('-')[-1]
+        model_paths = [os.path.join(cfg.checkpoint.dirpath, f) for f in os.listdir(cfg.checkpoint.dirpath) if f.endswith('.ckpt')]
+        output_paths = [os.path.join(cfg.checkpoint.dirpath, f'fp32_last_{get_type(v)}.ckpt') for v in model_paths]
+        for model_path, output_path in zip(model_paths, output_paths):
+            convert_zero_checkpoint_to_fp32_state_dict(model_path, output_path)
+            os.remove(model_path) # remove unneeded files -> same disk space
 
 if __name__ == "__main__":
     main()

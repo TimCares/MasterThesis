@@ -60,7 +60,6 @@ data:
 checkpoint:
   common:
     dirpath: ${model_path}/${run_name}
-    save_last: link
     enable_version_counter: False
     every_n_train_steps: 6_001 # save after every validation run (else checkpointing is run first, ... bug?)
     verbose: True
