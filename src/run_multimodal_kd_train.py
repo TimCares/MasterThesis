@@ -5,7 +5,6 @@ import os
 import torch
 from typing import List
 import logging
-import shutil
 from pytorch_lightning import seed_everything, Trainer, LightningDataModule
 from pytorch_lightning.strategies import DeepSpeedStrategy
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, ModelSummary
@@ -63,13 +62,11 @@ def main(cfg: DictConfig) -> None:
                 datamodules={'imagenet': imagenet},
                 **cfg.zero_shot_val,),
         )
-    # checkpoint last, so that zero shot has been performed before saving 
-    # (ModelCheckpoint usually executed last automatically, but just to be sure)
-    callbacks.append(
-        ModelCheckpoint(
-                **OmegaConf.to_container(cfg.checkpoint, resolve=True)
-            )
-    )        
+    
+    common_checkpoint_args = OmegaConf.to_container(cfg.checkpoint.common, resolve=True)
+    for ckpt in cfg.checkpoint.checkpoints:
+        args = OmegaConf.to_container(ckpt, resolve=True) | common_checkpoint_args
+        callbacks.append(ModelCheckpoint(**args))
 
     torch.set_float32_matmul_precision("high") # or: "highest"
     trainer_args = OmegaConf.to_container(cfg.lightning_trainer, resolve=True)
@@ -130,7 +127,7 @@ def main(cfg: DictConfig) -> None:
         convert_zero_checkpoint_to_fp32_state_dict(model_path, output_path)
         files = [os.path.join(cfg.checkpoint.dirpath, f) for f in os.listdir(cfg.checkpoint.dirpath) if f != 'fp32_last.ckpt']
         for f in files:
-            shutil.rmtree(f) if os.path.isdir(f) else os.remove(f) # remove unneeded files -> same disk space
+            os.remove(f) # remove unneeded files -> same disk space
 
 if __name__ == "__main__":
     main()
