@@ -5,7 +5,7 @@ import os
 import torch
 from typing import List
 import logging
-import re
+import shutil
 from pytorch_lightning import seed_everything, Trainer, LightningDataModule
 from pytorch_lightning.strategies import DeepSpeedStrategy
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, ModelSummary
@@ -130,7 +130,7 @@ def main(cfg: DictConfig) -> None:
         convert_zero_checkpoint_to_fp32_state_dict(model_path, output_path)
         files = [os.path.join(cfg.checkpoint.dirpath, f) for f in os.listdir(cfg.checkpoint.dirpath) if f != 'fp32_last.ckpt']
         for f in files:
-            os.remove(f) # remove unneeded files -> same disk space
+            shutil.rmtree(f) if os.path.isdir(f) else os.remove(f) # remove unneeded files -> same disk space
 
 if __name__ == "__main__":
     main()
