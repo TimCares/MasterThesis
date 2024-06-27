@@ -60,6 +60,141 @@
 - following CLIP, we divide the cosine similarity by a, in log-space, learnable temperature parameter
 - this way we align image-text pairs in predictions, i.e. class probabilities, and in represenation space
 
+Training Setup:
+- we train the model for 60k steps, with a batch size of 256
+- we train using Deepspeed stage 2, to be able to train on a single GPU
+- we use the AdamW optimizer, with a peak learning rate of 5e-4
+  - we do not have the resources for extensive tuning of the learning rate, and other hyperparameters
+  - we therfore use the same learning rate as in the unimodal experiments, which gave good results
+- we set the AdamW epsilon to 1e-6, weight decay to 0.01, and the betas to (0.9,0.98)
+- we use cosine scheduling, with a warmup of 10% of the total steps -> 6k steps
+
+- as explained in the chapter about the datasets, we set the max text sequence length to 64 tokens
+  - captions tend to be small and concise, as shown in section < TODO >
+  - enables faster training and less memory usage
+- we use COCO and Conceptual Captions in a round-robin fashion
+
+- text encoder and image encoder are initialized with the weights of the respective D2V2 models
+  - we only use the first 7 layers of the D2V2 models so that the model is smaller
+  - therefore, each encoder has 7 transformer layers
+- shared network is a two-layer MLP, and follows the same architecture as the MLP in a standard transformer layer
+  - first layer has 4 times the size of the embedding dimension, second layer directly reduces it to the number of classes in imagenet (1000)
+  - second layer is output layer, initialized with random weights
+
+- we use the CLIP implementation of imagenet zero-shot classification during validation, which we run every 6k steps
+
+#figure(
+  table(
+    table.vline(x:1, stroke: .3pt),
+    table.vline(x:2, stroke: .3pt),
+    columns: 3,
+    stroke: none,
+    table.hline(),
+    table.header(
+      [*Type*],
+      [*Hyperparameter*],
+      [*Value*],
+    ),
+    table.hline(stroke: .6pt),
+    table.cell(rowspan: 5, align:horizon, [*_Image/Text Encoder_*]),
+    [Layers], [7],
+    [Hidden size], [768],
+    [Attention heads], [12],
+    [FFN inner hidden size], [3072],
+    [Shared Encoder FFN output size], [1000],
+    table.hline(stroke: .6pt),
+    table.cell(rowspan: 9, align:horizon, [_*Training*_]), 
+    [Training steps], [60,000],
+    [Batch size], [256],
+    [AdamW ε], [1e-6],
+    [AdamW β], [(0.9, 0.98)],
+    [Peak learning rate], [5e-4],
+    [Learning rate schedule], [Cosine],
+    [Warmup steps], [6k (10%)],
+    [Weight decay], [0.01],
+    [Teacher], [Imagenet ResNet-50]
+  ),
+  caption: [Hyperparameters of reproduced SHRe model.],
+)<shre_first_hyperparams>
+
+After the training, we evaluate the model on the same CLIP zero-shot imagenet classification task, and using image-text retrieval on the MSCOCO and Flickr30K datasets. In both case the model is relieant on the quality of the representations it produces, making it a good benchmark. Further, we can compare the results directly to other papers like FLAVA, VLMo, and CLIP, and do not need to do any seperate finetuning. Both benchmarks are a direct indicator of the success of the method.
+
+#figure(
+  table(
+    columns: 2,
+    stroke: none,
+    table.hline(),
+    table.header(
+      [*Model*],
+      [*Accuracy*],
+    ),
+    table.hline(stroke: .6pt),
+    [Random], [0.001],
+    [Visual N-Grams @visual_n_grams], [11.5],
+    [CLIP @clip], [*72.6*],
+    [*SHRe reproduction (ours)*], [21.8],
+    table.hline(),
+  ),
+  caption: [First comparison of zero-shot imagenet classification accuracy with CLIP and Visual N-Grams.],
+)<clip_imagenet_zero_shot_first>
+
+As seen in table @clip_imagenet_zero_shot_first, the model achieves almost double the accuracy as Visual N-Grams, which was the initial approach on zero-shot transfer for classification. However, CLIP outperforms our model by a margin.
+This is to be expected as:
+1. The reported accuracy uses a model setup with 428 million parameters.
+2. The model was trained on up to 400 million image-text pairs.
+3. The model was trained on 256 V100 GPUs for 12 days.
+
+Huge difference to our model, which has 144 million parameters, was trained on just short of 1.4 million image-text pairs, and was trained on a single RTX 4090 for 7 hours. The cost accounts to 5.25 USD, compared to more than 73,000 USD for the CLIP model
+#footnote[Calculation was done based on the hourly GPU cost on #link("https://runpod.io")[runpod.io], which is the platform we used to rent GPUs. As of the time of our research,
+a single RTX 4090 costs 0.75 USD, and a single V100 1 USD per hour.].
+
+- table @image_text_retrieval_shre_first shows results of image-text retrieval on MSCOCO and Flickr30K
+- for now, we only compare to CLIP and FLAVA, as this is the only dual encoder model, i.e. the image and text encoder are completely seperate
+- we will compare to VLMo and BEiT-3 in the section on Mixture-of-Modality-Experts
+
+- we observe that model performs quite well on MSCOCO, but not so well on Flickr30K
+- reason might be that MSCOCO training and test datasets are very similar, and since we only use Conceptual Captions as additional data,
+  the model might be very biased towards MSCOCO
+- would explain poorer performance on Flickr30K, as the model has not seen any Flickr30k data during training
+- we can even see that the model performs slightly better image retrieval for MSCOCO on R@10, and is, for the model size and training data,
+  quite close to CLIP and FLAVA
+- important to note that the teacher is still supervised, which is a clear advantage over CLIP and FLAVA, which are trained from scratch, without KD
+- will be even more interesting to see how the model performs when the teacher is self-supervised, and does not provide us with a probability distribution to regress -> later sections
+
+#figure(
+  table(
+  columns: (25%, auto, auto, auto, auto, auto, auto, auto, auto, auto, auto, auto, auto),
+    stroke: none,
+    table.hline(),
+    table.header(
+      table.cell(rowspan: 3, colspan: 1, align:horizon, [*Model*]),
+      table.cell(colspan: 6, [*MSCOCO (5K test set)*]),
+      table.cell(colspan: 6, [*Flickr30K (1K test set)*]),
+      table.cell(colspan: 3, [Image $arrow.r$ Text]),
+      table.cell(colspan: 3, [Text $arrow.r$ Image]),
+      table.vline(stroke: .4pt),
+      table.cell(colspan: 3, [Image $arrow.r$ Text]),
+      table.cell(colspan: 3, [Text $arrow.r$ Image]),
+      table.hline(start: 1, end: 4, stroke: .2pt),
+      table.hline(start: 4, end: 7, stroke: .2pt),
+      table.hline(start: 7, end: 10, stroke: .2pt),
+      table.hline(start: 10, end: 13, stroke: .2pt),
+      [R@1], [R@5], [R@10], [R@1], [R@5], [R@10], [R@1], [R@5], [R@10], [R@1], [R@5], [R@10]
+    ),
+    table.hline(stroke: .4pt),
+    table.cell([_Zero-Shot_], align: left), table.cell(colspan: 12, []),
+    [FLAVA @flava], [42.74], [76.76], [-], [38.38], [67.47], [-], [67.7], [94.0], [-], [65.22], [89.38], [-],
+    [CLIP @clip], [58.4], [81.5], [88.1], [37.8], [62.4], [72.2], [88.0],[98.7], [99.4], [68.7], [90.6], [95.2],
+    [*SHRe \ reproduction (ours)*], [41.36], [71.16], [82.0], [30.2], [59.46], [72.54], [9.5], [35.68], [50.18], [8.38], [37.54], [49.88],
+    table.hline(),
+  ),
+  caption: [],
+)<image_text_retrieval_shre_first>
+
+These results can already be considered as a success, as the aim of this work is not to reach state-of-the-art performance, but to create a poof-of-concept for multimodal knowledge distillation, although a high performance is desirable.
+
+===== Region Descriptions with Contrastive Learning
+
 ===== Feature-based Knowledge Distillation
 - if we want to keep the approach from SHRe, i.e. use KD and contrastive learning, for a self-supervised trained teacher that does not provide us with a
   probabilty distribution to regress, then we have to regress the activations/features of the teacher model
@@ -161,20 +296,22 @@
   - after contrastive loss has been computed for current batch, we add it to the memory bank and discard the oldest batch
 - depending on the size of the memory bank, samples in the memory bank are more "fresh"
 
-- we initialize the memory bank with zero-embeddings
-  - first batch will only have contrastive loss based on the current batch
-- we fill the memory bank with each batch
-- second batch will do contrastive loss based on the current batch and the first batch
-- if memory bank is full, we do contrastive loss based on the current batch and all samples in the memory bank
-- then replace the oldest batch in the memory bank with the current batch
+- during start of the training, we progressively fill the memory bank with batches
+- during the first iterations/batches, memory bank will not be full
+- we therefore only do the contrastive loss based on the current amount of batches in the memory bank
+- after some steps, depending how large the memory bank is, the memory bank will be full, and we do contrastive loss with the whole memory bank
+- from this point on, with each batch we will replace the oldest batch in the memory bank with the current batch
 
-
-==== Decaying Memory Bank
-Decay:
+- we need two memory banks, one for images and one for text
 
 
 
-Scheduled Decay:
+Init results:
+- for 16k -> model bad -> task prob too difficult
+- for 1024 -> model starts well, then collapses -> lr too high (5e-4, but much lower in other itc papers)
+
+==== Scaling Memory Bank
+
 
 ===== Adding Image-Text Contrast
 - until now we did not actually used the same philosophy as in CLIP, which relies on, next to a seperate image and text encoder, a contrastive loss

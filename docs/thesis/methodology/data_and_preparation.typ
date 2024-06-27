@@ -69,7 +69,7 @@ Data Selection and Collection:
 - as Data2Vec not multimodal, we do not have any reference datasets
 - however, many multimodal models, like BEiT and VLMo use the same popular multimodal dataset
 - we therefore also opt for them
-- we use COCO, Visual Genome, and a subset of Google's Conceptual Captions
+- we use COCO and a subset of Google's Conceptual Captions
 - even though COCO contains just contains 82783 images, which is not that much, it
   contains multiple captions per image, meaning we can create multiple image-text pairs from one image
 - images have a little more than average 5 captions, yielding a total of 566747 actual examples for the training set (used for Knowledge-Distillation)
@@ -135,11 +135,14 @@ Data Selection and Collection:
     table.hline(),
   ),
   caption: [Multimodal Dataset used for aligning Image and Text. The maximum text sequence length is, inspired by
-  BEiT3, set to 64 tokens. The concat version of VG will therefore also have a maximum text sequence length of 64 tokens.],
+  BEiT3, set to 64 tokens.],
 )<vl_dataset_summary>
 
 - all captions are tokenized and encoded using the same GPT-2 byte-pair encoder as the text-only data
 - as usual, and done in BEiT, VLMo, and FLAVA, we prepend each caption with a start-of-sequence token and append an end-of-sequence token
+
+- it is important to note that we will only use Visual Genome in the first prelimary experiments, as we encountered problems when using it together
+  with contrastive learning, which will be explained in section < TODO >
 
 - we use the same data augmentation as in the unimodal case for the images
   - that is, during training we apply random resized crop, followed by a random horizontal flip, followed by the imagenet normalization
