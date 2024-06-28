@@ -72,7 +72,7 @@ checkpoint:
 
     - monitor: train/loss
       mode: min
-      filename: model-{step}-{${.monitor}}:.4f}-train
+      filename: model-{step}-{${.monitor}:.4f}-train
 
 zero_shot_val:
   val_every_n_batches: 6_000
