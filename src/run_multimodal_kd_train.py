@@ -10,6 +10,7 @@ from pytorch_lightning import seed_everything, Trainer, LightningDataModule
 from pytorch_lightning.strategies import DeepSpeedStrategy
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, ModelSummary
 from pytorch_lightning.loggers import WandbLogger
+from lightning.pytorch.utilities.deepspeed import convert_zero_checkpoint_to_fp32_state_dict
 import sys
 sys.path.append("beit2")
 from models.SHRe import SHReConfig, SHRePreTrainingLightningModule
@@ -121,14 +122,12 @@ def main(cfg: DictConfig) -> None:
                 val_dataloaders=val_dataloaders,
                 ckpt_path=ckpt_path)
 
-    if 'deepspeed' in cfg.lightning_trainer.strategy:
-        from lightning.pytorch.utilities.deepspeed import convert_zero_checkpoint_to_fp32_state_dict
-        get_type = lambda x: os.path.splitext(os.path.basename(x))[0].split('-')[-1]
-        model_paths = [os.path.join(cfg.checkpoint.dirpath, f) for f in os.listdir(cfg.checkpoint.dirpath) if f.endswith('.ckpt')]
-        output_paths = [os.path.join(cfg.checkpoint.dirpath, f'fp32_last_{get_type(v)}.ckpt') for v in model_paths]
-        for model_path, output_path in zip(model_paths, output_paths):
-            convert_zero_checkpoint_to_fp32_state_dict(model_path, output_path)
-            shutil.rmtree(model_path) # remove unneeded files -> same disk space
+    get_type = lambda x: os.path.splitext(os.path.basename(x))[0].split('-')[-1]
+    model_paths = [os.path.join(cfg.checkpoint.dirpath, f) for f in os.listdir(cfg.checkpoint.dirpath) if f.endswith('.ckpt')]
+    output_paths = [os.path.join(cfg.checkpoint.dirpath, f'fp32_last_{get_type(v)}.ckpt') for v in model_paths]
+    for model_path, output_path in zip(model_paths, output_paths):
+        convert_zero_checkpoint_to_fp32_state_dict(model_path, output_path)
+        shutil.rmtree(model_path) # remove unneeded files -> same disk space
 
 if __name__ == "__main__":
     main()
