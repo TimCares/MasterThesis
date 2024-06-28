@@ -64,16 +64,20 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
             logit_scale:torch.Tensor,
             img_emb:torch.Tensor,
             text_emb:torch.Tensor,
-            step:int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        return self.compute_loss(logit_scale, img_emb, text_emb, step)
+            step:int,
+            stage:str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        return self.compute_loss(logit_scale, img_emb, text_emb, step, stage)
 
     def compute_loss(
             self,
             logit_scale:torch.Tensor,
             img_emb:torch.Tensor,
             text_emb:torch.Tensor,
-            step:int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        assert img_emb.size(0) == text_emb.size(0) == self.batch_size
+            step:int,
+            stage:str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        assert img_emb.size(0) == text_emb.size(0)
+        if stage == 'train': # if it is not the training stage, we can use any batch size, as we do not update the memory bank
+            assert img_emb.size(0) == self.batch_size
 
         mask = self.indexer.bool()
         mask[self.curr_size:] = False
@@ -91,7 +95,8 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
             + F.cross_entropy(logits_per_text.float(), target)
         ) / 2
 
-        self._update(img_emb, text_emb, step)
+        if stage == 'train': # we do not want to update the memory bank with batches/samples from the validation set
+            self._update(img_emb, text_emb, step)
         return itc_loss, img_itc_acc, text_itc_acc
 
     def log(self, *args, **kwargs):
