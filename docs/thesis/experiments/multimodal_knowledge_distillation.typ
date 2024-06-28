@@ -312,6 +312,18 @@ Init results:
 
 ==== Scaling Memory Bank
 
+==== Feature Whitening
+- as noted by @feature_whitening, masked image modeling (MIM) usually ahead of contrastive learning
+  - especially for downstream/finetuning tasks
+- authors report increased performance, when distilling contrastive models using a special feature distillation, on downstream tasks
+- fits our use case, as we already do distillation and contrastive learning
+- higher performance on downstream task, like imagenet (zero-shot) classification is desirable
+  -> as mentioned by FLAVA authors, multimodal model should not only perform well on multimodel tasks, but also on unimodal tasks
+
+...
+
+- they use feature map as targets, not logits, as some models do not have logits, i.e. probability distributions, as output/target to regress
+- exactly what we are aiming for, as self-supervised models do not have logits as outputs, but feature (maps)
 
 ===== Adding Image-Text Contrast
 - until now we did not actually used the same philosophy as in CLIP, which relies on, next to a seperate image and text encoder, a contrastive loss

@@ -1,4 +1,4 @@
-=== Data and Preparation
+=== Data Collection and Preprocessing
 
 General:
 - data we need to collect has to be both unimodal and multimodal
@@ -200,8 +200,13 @@ MNLI:
     ),
     table.hline(stroke: .4pt),
     [CoLA], [Our friends won't buy this analysis, let alone the next one we propose.], [1],
+    [SST-2], [hide new secretions from the parental units], [0],
+    [MRPC], [Amrozi accused his brother, whom he called "the witness", of deliberately distorting his evidence. [SEP] Referring to him as only "the witness", Amrozi accused his brother of deliberately distorting his evidence.], [1],
+    [STS-B], [A plane is taking off. [SEP] An air plane is taking off.], [5.0],
+    [QQP], [How is the life of a math student? Could you describe your own experiences? [SEP] Which level of prepration is enough for the exam jlpt5?], [0],
     [MNLI], [Conceptually cream skimming has two basic dimensions - product and geography. [SEP] Product and geography are what make cream skimming work.], [1],
-    [CC3M Subset], [500,000],
+    [QNLI], [When did the third Digimon series begin? [SEP] Unlike the two seasons before it and most of the seasons that followed, Digimon Tamers takes a darker and more realistic approach to its story featuring Digimon who do not reincarnate after their deaths and more complex character development in the original Japanese.], [1],
+    [RTE], [No Weapons of Mass Destruction Found in Iraq Yet. [SEP] Weapons of Mass Destruction Found in Iraq.], [1],
   ),
   caption: [Glue Example],
 )<glue_example>
