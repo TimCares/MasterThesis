@@ -2,7 +2,9 @@ import torch
 import torch.nn.functional as F
 from typing import Tuple, Union
 from pytorch_lightning import LightningModule
+import logging
 
+logger = logging.getLogger(__name__)
 
 class ContrastiveLearningMemoryBankModule(LightningModule):
     def __init__(
@@ -24,7 +26,7 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         if self.start_size is not None:
             assert self.max_steps is not None
             assert self.start_size < self.end_size
-            assert self.end_size % self.start_size == 0
+            assert self.start_size % batch_size == 0
             self.curr_size = self.start_size
         else:
             self.curr_size = self.end_size
@@ -39,17 +41,20 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         # "indexer" is used to only do contrastive loss on non-empty (non-zero) entries in the memory bank 
         # -> if the memory bank is full, "indexer" will be all ones -> all samples are used
 
-    def _set_size(self, step:int) -> None:
-        if self.start_size is None or self.max_steps is None or step >= self.max_steps:
-            return # do nothing
+    def _set_size(self, step:int) -> torch.Tensor:
+        if self.start_size is None or self.max_steps is None or self.curr_size >= self.end_size:
+            return self.curr_size
         n_increases = (self.end_size - self.start_size) // self.batch_size
         interval_increase = self.max_steps // n_increases
         if step % interval_increase == 0:
             self.index_pointer = self.curr_size
-            self.curr_size += self.batch_size
+            new_size = self.curr_size + self.batch_size
+            logger.info(f"Step {step}: Memory bank size increased to {new_size}")
+            return new_size
+        return self.curr_size
 
     def _update(self, img_emb:torch.Tensor, text_emb:torch.Tensor, step:int) -> None:
-        self._set_size(step)
+        self.curr_size = self._set_size(step)
         end_idx = self.index_pointer + self.batch_size
         self.image_memory_bank[self.index_pointer:end_idx] = img_emb.detach()
         self.text_memory_bank[self.index_pointer:end_idx] = text_emb.detach()
