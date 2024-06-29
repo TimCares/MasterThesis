@@ -83,6 +83,7 @@ class SHRePreTrainingLightningModule(L.LightningModule):
             logit_scale=self.model.logit_scale.exp(),
             img_emb=output_dict['x_interm_image'],
             text_emb=output_dict['x_interm_text'],
+            id=batch['id'],
             step=self.global_step,
             stage=stage,
         )
@@ -90,6 +91,7 @@ class SHRePreTrainingLightningModule(L.LightningModule):
             logit_scale=self.model.logit_scale.exp(),
             img_emb=output_dict['x_image'],
             text_emb=output_dict['x_text'],
+            id=batch['id'],
             step=self.global_step,
             stage=stage,
         )
