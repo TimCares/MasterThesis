@@ -101,7 +101,7 @@ class COCOCaptions(BaseImageText):
             for item in data["images"]:
                 if item["split"] in karpathy_split:
                     image_path = os.path.join(self.path_to_data, item["filepath"], item["filename"])
-                    items += self._encode_all(item, image_path, image_counter, bpe_encoder)
+                    items += self._encode_all(item, image_path, bpe_encoder)
                     if image_path not in image_counter:
                         image_counter.add(image_path)
         self.log("Find %d images and %d image-text pairs for karpathy dataset %s split !" % \
@@ -109,12 +109,12 @@ class COCOCaptions(BaseImageText):
         index_file = os.path.join(self.path_to_data, self.get_index_files()[0])
         write_data_into_jsonl(items, index_file)
 
-    def _encode_all(self, item, image_path, image_counter, bpe_encoder):
+    def _encode_all(self, item, image_path, bpe_encoder):
         return [
             {
                 "image_path": image_path,
                 "text": bpe_encoder.encode(sent["raw"]),
-                "id": len(image_counter) if self.task=="retrieval" else item["cocoid"],
+                "id": item["cocoid"],
             }
             for sent in item["sentences"]
         ]
