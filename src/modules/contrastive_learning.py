@@ -11,55 +11,33 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
             self,
             embed_size:int=768,
             batch_size:int=256,
-            start_size:Union[int, None]=None,
-            end_size:int=16384, # 2^14
-            max_steps:Union[int, None]=None,
+            size:int=16384, # 2^14
             device:str='cuda',
             half_precision:bool=False,): 
         super().__init__()
-        assert end_size % batch_size == 0, "Size of memory bank must be multiple of batch size"
-        self.start_size = start_size
+        assert size % batch_size == 0, "Size of memory bank must be multiple of batch size"
         self.batch_size = batch_size
-        self.end_size = end_size - batch_size # one batch is always new samples
-        self.max_steps = max_steps
-
-        if self.start_size is not None:
-            assert self.max_steps is not None
-            assert self.start_size < self.end_size
-            assert self.start_size % batch_size == 0
-            self.curr_size = self.start_size
-        else:
-            self.curr_size = self.end_size
+        self.size = size - batch_size # one batch is always new samples
         
-        self.image_memory_bank = torch.zeros((self.end_size, embed_size), dtype=torch.float32, device=device)
-        self.text_memory_bank = torch.zeros((self.end_size, embed_size), dtype=torch.float32, device=device)
         if half_precision:
-            self.image_memory_bank = self.image_memory_bank.half()
-            self.text_memory_bank = self.text_memory_bank.half()
+            dtype = torch.float16
+        else:
+            dtype = torch.float32
+        
+        imb_tmp = torch.rand((self.size, embed_size), dtype=dtype, device=device, requires_grad=False)
+        imb_tmp = imb_tmp / imb_tmp.norm(dim=-1, keepdim=True)
+        self.register_buffer('image_memory_bank', imb_tmp)
+
+        tmb_tmp = torch.rand((self.size, embed_size), dtype=dtype, device=device, requires_grad=False)
+        tmb_tmp = tmb_tmp / tmb_tmp.norm(dim=-1, keepdim=True)
+        self.register_buffer('text_memory_bank', tmb_tmp)
         self.index_pointer = 0
-        self.indexer = torch.zeros(self.end_size, dtype=torch.long, device=device)
-        # "indexer" is used to only do contrastive loss on non-empty (non-zero) entries in the memory bank 
-        # -> if the memory bank is full, "indexer" will be all ones -> all samples are used
 
-    def _set_size(self, step:int) -> torch.Tensor:
-        if self.start_size is None or self.max_steps is None or self.curr_size >= self.end_size:
-            return self.curr_size
-        n_increases = (self.end_size - self.start_size) // self.batch_size
-        interval_increase = self.max_steps // n_increases
-        if step % interval_increase == 0:
-            self.index_pointer = self.curr_size
-            new_size = self.curr_size + self.batch_size
-            logger.info(f"Step {step}: Memory bank size increased to {new_size}")
-            return new_size
-        return self.curr_size
-
-    def _update(self, img_emb:torch.Tensor, text_emb:torch.Tensor, step:int) -> None:
-        self.curr_size = self._set_size(step)
+    def _update(self, img_emb:torch.Tensor, text_emb:torch.Tensor) -> None:
         end_idx = self.index_pointer + self.batch_size
         self.image_memory_bank[self.index_pointer:end_idx] = img_emb.detach()
         self.text_memory_bank[self.index_pointer:end_idx] = text_emb.detach()
-        self.indexer[self.index_pointer:end_idx] = 1
-        if end_idx == self.curr_size:
+        if end_idx == self.size:
             self.index_pointer = 0
         else:
             self.index_pointer = end_idx
@@ -69,26 +47,21 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
             logit_scale:torch.Tensor,
             img_emb:torch.Tensor,
             text_emb:torch.Tensor,
-            step:int,
             stage:str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        return self.compute_loss(logit_scale, img_emb, text_emb, step, stage)
+        return self.compute_loss(logit_scale, img_emb, text_emb, stage)
 
     def compute_loss(
             self,
             logit_scale:torch.Tensor,
             img_emb:torch.Tensor,
             text_emb:torch.Tensor,
-            step:int,
             stage:str) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         assert img_emb.size(0) == text_emb.size(0)
         if stage == 'train': # if it is not the training stage, we can use any batch size, as we do not update the memory bank
             assert img_emb.size(0) == self.batch_size
-
-        mask = self.indexer.bool()
-        mask[self.curr_size:] = False
         
-        logits_per_image = logit_scale * img_emb @ torch.cat([text_emb, self.text_memory_bank[mask]], dim=0).t()
-        logits_per_text = logit_scale * text_emb @ torch.cat([img_emb, self.image_memory_bank[mask]], dim=0).t()
+        logits_per_image = logit_scale * img_emb @ torch.cat([text_emb, self.text_memory_bank], dim=0).t()
+        logits_per_text = logit_scale * text_emb @ torch.cat([img_emb, self.image_memory_bank], dim=0).t()
 
         target = torch.arange(len(logits_per_image)).long().to(logits_per_image.device)
 
@@ -101,5 +74,5 @@ class ContrastiveLearningMemoryBankModule(LightningModule):
         ) / 2
 
         if stage == 'train': # we do not want to update the memory bank with batches/samples from the validation set
-            self._update(img_emb, text_emb, step)
+            self._update(img_emb, text_emb)
         return itc_loss, img_itc_acc, text_itc_acc
