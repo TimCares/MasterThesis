@@ -1,3 +1,2 @@
-from typing import Dict, Any
-
-MODEL_REGISTRY:Dict[str, Dict[str, Any]] = {}
+from .model_registry import MODEL_REGISTRY
+from .SHRe import SHRePreTrainingLightningModule, SHReConfig
