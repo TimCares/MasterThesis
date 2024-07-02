@@ -27,7 +27,9 @@ Implementation:
   - can be done efficiently by normalizing each embedding and then perform matrix multiplication
 - for a batch size of e.g. 256, each image has 255 negative samples, i.e. captions of other images, and one positive sample, i.e. its own caption, and vice versa
 - can be interpreted as a classification problem with 256 classes, where the model has to predict the correct class, i.e. the positive sample, out of 256 classes/representations
-- cross-entropy can then be used as the loss function, metric is accuracy
+- result of matrix multiplication is a 256x256 matrix with logits, where the diagonal contains the cosine similarity between the positive samples, i.e. the correct class
+- we can do softmax row-wise to get probabilities for each image, and column-wise to get probabilities for each caption
+- cross-entropy can then be used as the loss function on the probability distributions, metric is accuracy
 
 Problem:
 - result highly dependend on the amount of negative samples that are available
@@ -36,5 +38,10 @@ Problem:
 - result will be better with more negative examples, as task more challenging
 - more negative samples can be achieved by using larger batch sizes, but this usually require, depending on the model architecture, higher VRAM GPUs or even multiple GPUs
   - costly
+
+#figure(
+  image("../figures/itc.png"),
+  caption: [Contrastive Learning is performed using Matrix-Multiplication of normalized representations (1). The diagonal of the resulting matrix contains the cosine similarity between positive samples. After the softmax operation (2) we have a probabilty distribution for each image over all captions, and vice versa. The cross-entropy loss is then used to calculate the loss for the image scores and caption scores, respectively. The final loss is the mean of both losses. Image-Text pairs in the figure have been taken from the COCO train set @coco.],
+) <contrastive_learning>
 
 === Retrieval

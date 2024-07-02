@@ -27,9 +27,9 @@
 - still relatively cheap, as we only have to train the text encoder and, as we are doing in the first experiment with 7 layers, we can initialize
   the text encoder (the student) with the weights of the text D2V2 model, meaning we do not start from scratch
 
-===== Reproducing: "See, Hear, and Read: Deep Aligned Representations" @sheear
+===== Reproducing: "See, Hear, and Read: Deep Aligned Representations" @shre
 - we start as simple as possible
-- we first want to reproduce the results of the paper "See, Hear, and Read: Deep Aligned Representations" @sheear
+- we first want to reproduce the results of the paper "See, Hear, and Read: Deep Aligned Representations" @shre
 - for the sake of simplicity, we will refer to the paper as SHRe (SEe, HEar, and REad), as the title is quite long and the authors do not name the architecture
 - will give us a baseline on which to improve, compare our results to (especially because SHRe does not benchmark retrieval on karpathy COCO), and test new ideas
 - we use the same architecture as in the paper, which is a dual encoder architecture
@@ -313,7 +313,7 @@ Init results:
 ==== Scaling Memory Bank
 
 ==== Feature Whitening
-- as noted by @feature_whitening, masked image modeling (MIM) usually ahead of contrastive learning
+- as noted by \@feature_whitening, masked image modeling (MIM) usually ahead of contrastive learning
   - especially for downstream/finetuning tasks
 - authors report increased performance, when distilling contrastive models using a special feature distillation, on downstream tasks
 - fits our use case, as we already do distillation and contrastive learning
@@ -474,7 +474,7 @@ Init results:
   - avg. cosine similarity for positive pairs and negative pairs
 
 
-- we do not compare with See, Hear, and Read: Deep Aligned Representations// @sheear, as they did not use the karpathy splits @karpathy_split,
+- we do not compare with See, Hear, and Read: Deep Aligned Representations// @shre, as they did not use the karpathy splits @karpathy_split,
   use the average median rank instead of recall at a specific percent, and from their experimental setup it is not clear which samples
   they used from Visual Genome for their retrieval experiments.
 

@@ -1,0 +1,51 @@
+Introduction
+Background
+	Self-Supervised Learning
+		Masked Modality (Image/Text) Modeling
+		Contrastive Learning and Retrieval
+		Knowledge-Distillation
+	Related Work
+		Data2Vec
+		(See, Hear, and Read:) Deep Aligned Representations
+		VLMo
+		BEiT
+		CLIP
+		FLAVA
+Methodology
+	Tools
+    Experimental Approach
+	Data and Preparation
+Experiments
+	Unimodal Knowledge Distillation
+	Multimodal Knowledge Distillation
+		Differences to Unimodal KD
+		Aligned Representations
+			Dual Encoder
+				Reproducing: “See, Hear, Read: Deep Aligned Representations"
+                Increasing Negative Examples
+				    Memory Bank
+                    Larger Batch Sizes with GPU Offloading
+				Multi-Caption Images
+				Self-Supervised Teacher
+				Feature Whitening
+				Unimodal Student
+				Stagewise Unimodal Distillation
+
+				
+				Importance of the right Teacher
+			(Biased VL Initialization)
+			Mixture-of-Modality Experts
+				Baseline
+				Mixing Positional Encodings
+				Token-Type Embeddings
+			Reusing Teacher Activations
+			Ablation Study: Reduction of Data
+
+			Limitations (from trained models alone: No NRLV2, etc possible)
+		Aligned Referencing Representations
+			Relevance (regarding: unimodal model as teacher no possible)
+		
+Outlook
+Conclusion
+Lessons Learned
+Appendix (plots, money spend etc.)
