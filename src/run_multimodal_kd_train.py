@@ -32,7 +32,7 @@ def main(cfg: DictConfig) -> None:
                                save_dir=cfg.log_dir,
                                log_model=False,)
     
-    cfg_cls = MODEL_REGISTRY[cfg.model_name]['cls']
+    cfg_cls = MODEL_REGISTRY[cfg.model_name]['cfg']
     module_cls = MODEL_REGISTRY[cfg.model_name]['module']
     
     cfg.model = merge_with_parent(dc=cfg_cls(), cfg=cfg.model, remove_missing=False)
