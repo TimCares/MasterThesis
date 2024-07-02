@@ -38,15 +38,17 @@ def main():
     os.makedirs(path_to_data, exist_ok=True)
     os.makedirs(img_path, exist_ok=True)
 
-    
-    url="https://www.cs.rice.edu/~vo9/sbucaptions/sbu-captions-all.tar.gz"
-    download_url(url=url, root=path_to_data)
-    filepath = os.path.join(path_to_data, os.path.basename(url))
-    with tarfile.open(filepath, "r") as tar:
-        tar.extractall(path=path_to_data)
-
     index_name = "sbu-captions-all.json"
     index_path = os.path.join(path_to_data, index_name)
+
+    if not os.path.exists(index_path):
+        url="https://www.cs.rice.edu/~vo9/sbucaptions/sbu-captions-all.tar.gz"
+        download_url(url=url, root=path_to_data)
+        filepath = os.path.join(path_to_data, os.path.basename(url))
+        with tarfile.open(filepath, "r") as tar:
+            tar.extractall(path=path_to_data)
+        os.remove(filepath)
+
     with open(index_path) as f:
         sbu = json.load(f)
 
@@ -62,7 +64,8 @@ def main():
     sbu = sbu[~sbu.index.isin(already_existing)]
     n_workers = os.cpu_count()*4
     with concurrent.futures.ThreadPoolExecutor(n_workers) as executor:
-        futures = [executor.submit(fetch_single_image, url, img_path, idx) for idx, url in sbu['image_urls'].items()]
+        futures = [executor.submit(fetch_single_image, url, img_path, idx) for idx, url in 
+            tqdm(sbu['image_urls'].items(), total=len(sbu), desc="Scheduling tasks")]
         list(tqdm(concurrent.futures.as_completed(futures), total=len(sbu), desc="Downloading images"))
 
     n_failed = len(sbu) - len(os.listdir(img_path))
