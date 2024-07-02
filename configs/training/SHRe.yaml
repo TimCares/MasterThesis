@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: SHRe_1e-4_2xscale_dropout_0.1_vg
+run_name: SHRe_1e-4_2xscale_dropout_0.1
 model_name: SHRe
 
 load_checkpoint:
@@ -56,8 +56,7 @@ data:
     coco_captions:
       task: captioning
 
-    visual_genome:
-      concat_captions: False
+    sbu: {}
 
     conceptual_captions: {}
 

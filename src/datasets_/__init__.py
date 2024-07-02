@@ -29,6 +29,7 @@ from .multimodal_datasets import (
     VQAv2,
     NLVR2,
     CommonVoice,
+    SBUCaptions,
     MULTIMODAL_DATASET_REGISTRY,
 )
 

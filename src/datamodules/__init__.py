@@ -20,6 +20,7 @@ from .multimodal_datamodules import (
     Flickr30DataModule,
     Flickr8AudioDataModule,
     CommonVoiceDataModule,
+    SBUCaptionsDataModule,
     MULTIMODAL_DATAMODULE_REGISTRY
 )
 from .kd_datamodules import (

@@ -1,4 +1,3 @@
-import concurrent.futures
 import os
 import json
 import torch
@@ -17,8 +16,8 @@ from collections import defaultdict, Counter
 import soundfile as sf
 import random
 import zipfile
-import concurrent
 from torchvision.datasets.utils import download_url
+import tarfile
 from .base_datasets import BaseImageText, BaseTextAudio, BaseImageAudio
 
 class COCOCaptions(BaseImageText):        
@@ -475,8 +474,70 @@ class ConceptualCaptions(BaseImageText):
                 'text': encoder.encode(index.at[idx, 0].strip()),
                 'id': idx,
             })
-        n_failed = len(index) - len(items)
-        self.log(f"Failed to download {n_failed} images (pairs). Percentage: {n_failed/len(index)*100:.2f}%")
+        self.log(f"Collected {len(items)} image-text pairs!")
+        write_data_into_jsonl(items, os.path.join(self.path_to_data, self.get_index_files()[0]))
+
+
+class SBUCaptions(BaseImageText):
+    def __init__(
+        self,
+        data_path,
+        split,
+        num_max_bpe_tokens=64,
+        color_jitter=None,
+        beit_transforms=False,
+        crop_scale=(0.6, 1.0),
+    ):
+        super().__init__(
+            data_path=data_path,
+            split=split,
+            num_max_bpe_tokens=num_max_bpe_tokens,
+            color_jitter=color_jitter,
+            beit_transforms=beit_transforms,
+            crop_scale=crop_scale
+        )
+        self.path_to_data = os.path.join(self.data_path, "sbu")
+        self.img_path = os.path.join(self.path_to_data, "images")
+        os.makedirs(self.path_to_data, exist_ok=True)
+        os.makedirs(self.img_path, exist_ok=True)
+        if self.index_exists(dataset_path=self.path_to_data):
+            return
+        
+        self.make_sbu_captions_dataset_index()
+
+    def get_index_files(self):
+        return (f"sbu.jsonl", ) # only for pretraining, so no splits
+
+    def make_sbu_captions_dataset_index(self):
+        items = []
+        index_name = "sbu-captions-all.json"
+        index_path = os.path.join(self.path_to_data, index_name)
+
+        if not os.path.exists(index_path):
+            url="https://www.cs.rice.edu/~vo9/sbucaptions/sbu-captions-all.tar.gz"
+            download_url(url=url, root=self.path_to_data)
+            filepath = os.path.join(self.path_to_data, os.path.basename(url))
+            with tarfile.open(filepath, "r") as tar:
+                tar.extractall(path=self.path_to_data)
+            os.remove(filepath)
+
+        with open(index_path) as f:
+            sbu = json.load(f)
+
+        sbu.pop('user_ids', None)
+        sbu = pd.DataFrame(sbu)
+        index = sbu['image_urls'].str.split('/').str[-1].str.split('.').str[0]
+        index.name = 'id'
+        sbu.set_index(index, inplace=True)
+        
+        encoder = self.get_bpe_encoder()
+        for img in tqdm(os.listdir(self.img_path), desc="Making index"):
+            idx = os.path.splitext(img)[0]
+            items.append({
+                'image_path': os.path.join(self.img_path, img),
+                'text': encoder.encode(sbu.at[idx, 'captions'].strip()),
+                'id': idx,
+            })
         self.log(f"Collected {len(items)} image-text pairs!")
         write_data_into_jsonl(items, os.path.join(self.path_to_data, self.get_index_files()[0]))
 
@@ -900,5 +961,6 @@ MULTIMODAL_DATASET_REGISTRY = {
     "conceptual_captions": ConceptualCaptions,
     "vqa": VQAv2,
     "nlvr2": NLVR2,
-    "common_voice": CommonVoice
+    "common_voice": CommonVoice,
+    "sbu": SBUCaptions,
 }

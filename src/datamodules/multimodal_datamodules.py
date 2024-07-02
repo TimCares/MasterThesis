@@ -1,7 +1,7 @@
 from typing import Tuple, Dict, Any
 from .unimodal_datamodules import BaseDataModule
 from data2vec_fairseq.data.modality import Modality
-from datasets_ import COCOCaptions, VisualGenome, VQAv2, NLVR2, Flickr30Dataset, CommonVoice, Flickr8KAudioDataset, ConceptualCaptions
+from datasets_ import COCOCaptions, VisualGenome, VQAv2, NLVR2, Flickr30Dataset, CommonVoice, Flickr8KAudioDataset, ConceptualCaptions, SBUCaptions
 
 class BaseImageTextDataModule(BaseDataModule):
     @property
@@ -129,6 +129,38 @@ class ConceptualCaptionsDataModule(BaseImageTextDataModule):
                                                 color_jitter=self.color_jitter,
                                                 beit_transforms=self.beit_transforms,
                                                 crop_scale=self.crop_scale,)
+        
+
+class SBUCaptionsDataModule(BaseImageTextDataModule):
+    def __init__(self,
+                data_path,
+                num_max_bpe_tokens,
+                color_jitter=None,
+                beit_transforms=False,
+                crop_scale=(0.6, 1.0),
+                *args,
+                **kwargs):
+        super().__init__(data_path, *args, **kwargs)
+        self.num_max_bpe_tokens = num_max_bpe_tokens
+        self.color_jitter = color_jitter
+        self.beit_transforms = beit_transforms
+        self.crop_scale = crop_scale
+
+    def prepare_data(self):
+        if not hasattr(self, 'train_dataset'):
+            self.set_train_dataset()
+
+    def setup(self, stage=None):
+        if stage == 'fit' or stage is None:
+            self.train_dataset.load()
+
+    def set_train_dataset(self):
+        self.train_dataset = SBUCaptions(data_path=self.data_path,
+                                         split='train',
+                                         num_max_bpe_tokens=self.num_max_bpe_tokens,
+                                         color_jitter=self.color_jitter,
+                                         beit_transforms=self.beit_transforms,
+                                         crop_scale=self.crop_scale,)
         
 
 class VQAv2DataModule(BaseImageTextDataModule):
@@ -393,4 +425,5 @@ MULTIMODAL_DATAMODULE_REGISTRY = {
     "flickr30": Flickr30DataModule,
     "flickr8_audio": Flickr8AudioDataModule,
     "common_voice": CommonVoiceDataModule,
+    "sbu": SBUCaptionsDataModule,
 }
