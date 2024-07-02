@@ -14,7 +14,6 @@ from transformers.optimization import get_cosine_schedule_with_warmup, get_const
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 import timm
 from timm.layers import Mlp
-from modules import ContrastiveLearningMemoryBankModule
 
 logger = logging.getLogger(__name__)
 
