@@ -1,4 +1,4 @@
-=== Contrastive Learning
+=== Contrastive Learning <contrastive_learning_section>
 - is used to compare samples (e.g. images) with each other in representation space, typically by some distance metric, of which cosine similarity is
   the usual choice
 - used in self-supervised learning to learn representations without classical labels such as class targets
@@ -41,7 +41,28 @@ Problem:
 
 #figure(
   image("../figures/itc.png"),
-  caption: [Contrastive Learning is performed using Matrix-Multiplication of normalized representations (1). The diagonal of the resulting matrix contains the cosine similarity between positive samples. After the softmax operation (2) we have a probabilty distribution for each image over all captions, and vice versa. The cross-entropy loss is then used to calculate the loss for the image scores and caption scores, respectively. The final loss is the mean of both losses. Image-Text pairs in the figure have been taken from the COCO train set @coco.],
-) <contrastive_learning>
+  caption: [Contrastive Learning is performed using Matrix-Multiplication of normalized representations (1). The diagonal of the resulting matrix contains the cosine similarity between positive samples. The softmax operation along the rows yields a probabilty distribution for each image over all captions, and the softmax operation along the columns vice versa. The cross-entropy loss is then used to calculate the loss for the image scores and caption scores, respectively. The final loss is the mean of both losses. Image-Text pairs in the figure have been taken from the COCO train set @coco.],
+) <contrastive_learning_fig>
 
 === Retrieval
+- useful for benchmarking multimodal models
+- cheap way, as is does not involve finetuning, just the embeddings produced by the model are needed
+- goal: find matching (most similar) caption for a given image, and vice versa
+  - means other part of the pair
+- we first have a set of samples, e.g. images/captions, which we embed and normalize the embedding-> become a set of keys
+- then we have a query, e.g. an image/text, which we also embed and normalize -> becomes a query
+- now we compute cosine similarity between the query and all keys
+- rank them based on the similarity, and retrieved sample is the one with the highest similarity
+- computation can be done the same as described for contrastive learning @contrastive_learning_section (contrastive learning and retrieval are basically the same)
+  - only softmax operation is not needed (step 2 in @contrastive_learning_fig)
+  - just take the maximum of all similarities -> most similar sample
+- in application of this thesis, as contrastive learning, done for image-text pairs
+- i.e. find caption for a given image in all captions of the dataset, that is used for benchmarking, and vice versa
+- metric used is Rank\@K (R\@K), where K determines at which rank the paired sample has at least to be in the ranking in order to be considered as a correct retrieval
+  - we use R@1, R@5, and R@10
+  - R@1 is simply the normal accuracy, i.e. paired sample has to be the most similar one
+  - R@5 means that the paired sample has to be in the top 5 most similar samples
+  - R@10 means that the paired sample has to be in the top 10 most similar samples
+- in this thesis we use the 5k test set of MSCOCO @coco, and the 1k test set of Flickr30k @flickr30k for benchmarking
+- used by most multimodal models like FLAVA @flava, CLIP @clip, VLMo @vlmo, and BEiT-3 @beit3
+-> we can easily and cheaply compare our model to those papers/models

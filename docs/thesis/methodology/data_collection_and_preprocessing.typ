@@ -74,12 +74,12 @@ Data Selection and Collection:
   contains multiple captions per image, meaning we can create multiple image-text pairs from one image
 - images have a little more than average 5 captions, yielding a total of 566747 actual examples for the training set (used for Knowledge-Distillation)
  
-- same goes for Visual Genome: contains 108249 images 
-- here, each image has on average even 50 captions yielding 5408689 unique image-text pairs (examples) for training
-- we have to consider why that is -> 50 captions quite a lot per image
-  - the reason why that is is because captions are extracted from region descriptions of images
-  - describe, not as in coco, the focus of the image, or rather a short description/summary of the image, but individual, sometimes
-  small, regions of the image -> VG also used for object detection
+// - same goes for Visual Genome: contains 108249 images 
+// - here, each image has on average even 50 captions yielding 5408689 unique image-text pairs (examples) for training
+// - we have to consider why that is -> 50 captions quite a lot per image
+//   - the reason why that is is because captions are extracted from region descriptions of images
+//   - describe, not as in coco, the focus of the image, or rather a short description/summary of the image, but individual, sometimes
+//   small, regions of the image -> VG also used for object detection
 // - three problems can come with that:
 //   1. the captions can be very similar, and we sometimes observe repreated captions
 //   2. captions might focus on small parts of the image, failing the describe the actual focus/context of the image
@@ -104,14 +104,19 @@ Data Selection and Collection:
 
 // - disadvantage: reduces the number of unique examples the model sees during training
 // - that is why we do not do the same for COCO, as the ratio is more balanced
-- we also additionally use a subset of Google's Conceptual Captions, which originally contains over 3.3M unique image-text pairs
-- we use this, because with COCO and VG we have a overrepresentation of text -> for each image multiple captions -> higher variety of text than images
-- in CC3m each image is only associated with one caption, reducing the relative overrepresentation of text
-- Google only provides an index file with captions to image urls
-  - urls are sourced from the web, so there is no guarantee that all images are still available
-- we use the first 500,000 available, as of June 2024, images (with their captions) as a subset from the training set index published by Google #footnote[https://ai.google.com/research/ConceptualCaptions/download].
-- storing the whole dataset is not feasible for us and the combination with COCO and VG should already provide enough data for training
-- ids and urls of image-text pairs used are available on GitHub
+- we also additionally use SBU Captions (SBU) and a subset of Google's Conceptual Captions (CC3M), which originally contain 1M and over 3.3M unique image-text pairs, respectively
+- COCO has comparatively few images, just 82,783, so we need more data to train the model
+- also helps in balancing the ratio of unique images and text
+- with just COCO, we have five times more variety in text than in images
+- in SBU and CC3M each image is only associated with one caption, and because we use at least 10x more images than in COCO, we can reduce the relative overrepresentation of text
+- both datsets do not provide the images directly, but instead an index with the url of an image, and a correspondig caption
+- url point to various sources on the web, so there is no guarantee that all images are still available
+- for SBU, we collect all image(-text pairs) that are available as of July 2024
+- 
+- for Google's CC3m we use the first 800,000 available, as of July 2024, images (with their captions) as a subset from the training set index published by Google #footnote[https://ai.google.com/research/ConceptualCaptions/download].
+- storing the whole dataset is not feasible for us and the combination with COCO and SBU should already provide enough data for training, as shown in table @vl_dataset_summary
+  - we are constrained by 500GB of disk space, which must also be shared with other datsets, e.g. ImageNet-1k
+- ids and urls of image-text pairs used, for both SBU and CC3M, are available on GitHub #emph(text(red)[< TODO: Footnote with URL!!! >])
 
 #figure(
   table(
@@ -126,10 +131,9 @@ Data Selection and Collection:
       [*\# Image-Text Pairs*]
     ),
     table.hline(stroke: .4pt),
-    [COCO], [82,783], [5.0], [11.0], [566,747],
-    [VG], [108,249], [50.0], [4.7], [5,408,689],
-    //[VG Concat], [108,249], [6.0], [52.7], [653,792],
-    [CC3M Subset], [500,000], [1.0], [50.0], [500,000],
+    [COCO @coco], [82,783], [5.0], [11.0], [566,747],
+    [SBU Captions @sbu], [108,249], [1.0], [#emph(text(red)[TODO])], [5,408,689],
+    [CC3M @cc3m (Subset)], [800,000], [1.0], [10.3], [800,000],
     table.hline(stroke: .4pt),
     [Total], [691,032], [-], [-], [6,475,436],
     table.hline(),
@@ -138,11 +142,15 @@ Data Selection and Collection:
   BEiT3, set to 64 tokens.],
 )<vl_dataset_summary>
 
+- aforementioned papers (e.g. BEiT-3) also use the popular Visual Genome (VG) dataset, containing 108,249 images with on average 50 captions per image
+- we have that many captions, because the captions are actually region descriptions of the images, not a general/global description of the image @vg
+  - can be very short and only capture a small part of the image
+  - are used for describing regions/objects in the image
+- still used by the papers
+- we will not use it as we encountered problems when using it together with contrastive learning, which will be explained in section #emph(text(red)[TODO])
+
 - all captions are tokenized and encoded using the same GPT-2 byte-pair encoder as the text-only data
 - as usual, and done in BEiT, VLMo, and FLAVA, we prepend each caption with a start-of-sequence token and append an end-of-sequence token
-
-- it is important to note that we will only use Visual Genome in the first prelimary experiments, as we encountered problems when using it together
-  with contrastive learning, which will be explained in section < TODO >
 
 - we use the same data augmentation as in the unimodal case for the images
   - that is, during training we apply random resized crop, followed by a random horizontal flip, followed by the imagenet normalization

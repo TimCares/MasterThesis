@@ -193,6 +193,14 @@ a single RTX 4090 costs 0.75 USD, and a single V100 1 USD per hour.].
 
 These results can already be considered as a success, as the aim of this work is not to reach state-of-the-art performance, but to create a poof-of-concept for multimodal knowledge distillation, although a high performance is desirable.
 
+==== Increasing Negative Samples
+===== Memory Bank
+- as mentioned in the section about contrastive learning @contrastive_learning_section, quality of representations learning using contrastive loss greatly improves with more negative samples
+-> for example, CLIP, trained only using contrastive learning, uses a batch size of 32k @clip, the the large variant of VLMo between 16k and 32k @vlmo, and FLAVA 8k @flava
+- not necessary though -> base model of VLMo uses "just" 1024 @vlmo, and SHRe just 200 @shre, both achieve, as described in the respective chapters, good results
+- we are limited by GPU memory, currently using a batch size of 256, can't increase it without further optimizations or multiple GPUs
+===== Larger Batch Sizes with GPU Offloading 
+
 ===== Region Descriptions with Contrastive Learning
 
 ===== Feature-based Knowledge Distillation
