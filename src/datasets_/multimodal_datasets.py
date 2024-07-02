@@ -357,11 +357,26 @@ class VisualGenome(BaseImageText):
             region_descriptions = json.load(fp)
 
         if self.concat_captions:
+            items = self._drop_short_and_duplicate_descriptions(region_descriptions, drop_short=False)
             items = self._make_index_with_concat_caption(region_descriptions)
         else:
+            items = self._drop_short_and_duplicate_descriptions(region_descriptions, drop_short=True)
             items = self._make_index_with_single_caption(region_descriptions)
         
         write_data_into_jsonl(items, os.path.join(self.path_to_data, self.get_index_files()[0]))
+
+    def _drop_short_and_duplicate_descriptions(self, region_descriptions, drop_short):
+        region_descriptions_ = []
+        for image_meta in region_descriptions:
+            image_meta_ = {'id': image_meta['id'], 'regions': []}
+            description_set = set()
+            for region in image_meta["regions"]:
+                keep_condition = len(region['phrase'].split()) >= 7 if drop_short else True
+                if keep_condition and region['phrase'].strip() not in description_set:
+                    image_meta_['regions'].append(region)
+                    description_set.add(region['phrase'].strip())
+            region_descriptions_.append(image_meta_)
+        return region_descriptions_
 
     def _make_index_with_single_caption(self, region_descriptions):
         items = []
