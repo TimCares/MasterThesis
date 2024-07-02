@@ -13,7 +13,7 @@ from pytorch_lightning.loggers import WandbLogger
 from lightning.pytorch.utilities.deepspeed import convert_zero_checkpoint_to_fp32_state_dict
 import sys
 sys.path.append("beit2")
-from models.SHRe import SHReConfig, SHRePreTrainingLightningModule
+from models import MODEL_REGISTRY
 from datamodules import DATAMODULE_REGISTRY
 from callbacks import MultimodalZeroShotRetrievalCallback, WallClockCallback
 from multi_data_loader import MultiDataModule
@@ -32,14 +32,17 @@ def main(cfg: DictConfig) -> None:
                                save_dir=cfg.log_dir,
                                log_model=False,)
     
-    cfg.model = merge_with_parent(dc=SHReConfig(), cfg=cfg.model, remove_missing=False)
+    cfg_cls = MODEL_REGISTRY[cfg.model_name]['cls']
+    module_cls = MODEL_REGISTRY[cfg.model_name]['module']
+    
+    cfg.model = merge_with_parent(dc=cfg_cls(), cfg=cfg.model, remove_missing=False)
     if 'seed' in cfg and cfg.seed is not None:
         seed_everything(seed=cfg.seed, workers=True)
     else:
         logger.info('No seed set.')
 
     logger.info('Starting training.')
-    module = SHRePreTrainingLightningModule(cfg=cfg)
+    module = module_cls(cfg)
 
     OmegaConf.resolve(cfg=cfg) # resolving done in-place
 

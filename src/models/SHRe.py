@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from functools import partial
-from typing import Dict, Any, List
+from typing import Dict, Any
 import numpy as np
 import os
 from utils import load_pretrained_d2v_model
@@ -14,6 +14,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup, get_const
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 import timm
 from timm.layers import Mlp
+from . import MODEL_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -259,3 +260,8 @@ class SHRe(nn.Module):
         for param in module.parameters():
             param.requires_grad = True
         module.train()
+
+MODEL_REGISTRY['SHRe'] = {
+    'cfg': SHReConfig,
+    'module': SHRePreTrainingLightningModule
+}
