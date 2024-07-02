@@ -4,7 +4,8 @@ pretrained_path: /workspace/models/
 d2v_image_path: ${pretrained_path}base_imagenet.pt
 d2v_text_path: ${pretrained_path}workspace/models/nlp_base.pt
 
-model_version: # kd model
+model_version:
+model_name: SHRe
 
 eval_d2v: False
 

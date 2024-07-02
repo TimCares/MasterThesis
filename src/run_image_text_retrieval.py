@@ -3,7 +3,8 @@ from rich.progress import track
 from typing import *
 import torch
 import os
-from models.mm_data2vec import AMMData2Vec, AMMData2VecPreTrainingLightningModule
+from pytorch_lightning import LightningModule
+from models import MODEL_REGISTRY
 from datamodules import DATAMODULE_REGISTRY
 from utils import load_pretrained_d2v_model
 from omegaconf import DictConfig, open_dict
@@ -73,7 +74,7 @@ def compute_scores(img_embeds, text_embeds, img_ids):
 
 
 @torch.no_grad()
-def zero_shot_retrieval(model:AMMData2Vec, dataloader, device, name):
+def zero_shot_retrieval(model, dataloader, device, name):
     img_embeds = []
     text_embeds = []
     img_ids = []
@@ -160,8 +161,9 @@ def main(cfg: DictConfig) -> None:
             d2v_zero_shot_retrieval(dm.test_dataloader(), device, name)
     else:
         logger.info("Evaluating KD model")
-        path = os.path.join(cfg.pretrained_path, cfg.model_version, 'last.ckpt')
-        model = AMMData2VecPreTrainingLightningModule.load_from_checkpoint(path).model
+        path = os.path.join(cfg.pretrained_path, cfg.model_version)
+        model_cls:LightningModule = MODEL_REGISTRY[cfg.model_name]['module']
+        model = model_cls.load_from_checkpoint(path).model
         model = model.to(device)
         model.eval()
 
