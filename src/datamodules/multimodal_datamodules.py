@@ -228,16 +228,23 @@ class Flickr30DataModule(BaseImageTextDataModule):
         super().__init__(data_path, *args, **kwargs)
         self.num_max_bpe_tokens = num_max_bpe_tokens
 
+    def prepare_data(self):
+        if not hasattr(self, 'test_dataset'):
+            self.set_test_dataset()
 
-    def set_train_dataset(self):
-        self.train_dataset = Flickr30Dataset(data_path=self.data_path,
-                                             split='train',
-                                             num_max_bpe_tokens=self.num_max_bpe_tokens,)
+    def setup(self, stage=None):
+        if stage == 'test' or stage is None:
+            self.test_dataset.load()
 
-    def set_val_dataset(self):
-        self.val_dataset = Flickr30Dataset(data_path=self.data_path,
-                                           split='val',
-                                           num_max_bpe_tokens=self.num_max_bpe_tokens,)
+    # def set_train_dataset(self):
+    #     self.train_dataset = Flickr30Dataset(data_path=self.data_path,
+    #                                          split='train',
+    #                                          num_max_bpe_tokens=self.num_max_bpe_tokens,)
+
+    # def set_val_dataset(self):
+    #     self.val_dataset = Flickr30Dataset(data_path=self.data_path,
+    #                                        split='val',
+    #                                        num_max_bpe_tokens=self.num_max_bpe_tokens,)
 
     def set_test_dataset(self): # to be used for zero-shot retrieval
         self.test_dataset = Flickr30Dataset(data_path=self.data_path,
