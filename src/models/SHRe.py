@@ -40,13 +40,6 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         self.teacher = timm.create_model('resnet50.a1_in1k', pretrained=True)
         self.model._freeze(self.teacher)
 
-        self.mb_1 = ContrastiveLearningMemoryBankModule(
-            embed_size=3072,
-            **self.cfg.memory_bank)
-        self.mb_2 = ContrastiveLearningMemoryBankModule(
-            embed_size=1000,
-            **self.cfg.memory_bank)
-
         self.save_hyperparameters()
 
     def forward(self, input_dict):
@@ -77,22 +70,19 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         kl_loss = (kl_loss1 + kl_loss2) / 2
         self.log(f"{stage}/kl_loss", kl_loss)
 
-        self.model.logit_scale.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
+        self.model.logit_scale_interm.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
+        self.model.logit_scale_out.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
 
-        itc_loss1, _, _ = self.mb_1(
-            logit_scale=self.model.logit_scale.exp(),
-            img_emb=output_dict['x_interm_image'],
-            text_emb=output_dict['x_interm_text'],
-            step=self.global_step,
-            stage=stage,
-        )
-        itc_loss2, img_itc_acc, text_itc_acc = self.mb_2(
-            logit_scale=self.model.logit_scale.exp(),
-            img_emb=output_dict['x_image'],
-            text_emb=output_dict['x_text'],
-            step=self.global_step,
-            stage=stage,
-        )
+        itc_loss1 = self.itc_loss(
+            text_features=output_dict['x_interm_text'],
+            image_features=output_dict['x_interm_image'],
+            logit_scale=self.model.logit_scale_interm.exp(),
+            stage=stage)
+        itc_loss2 = self.itc_loss(
+            text_features=output_dict['x_text'],
+            image_features=output_dict['x_image'],
+            logit_scale=self.model.logit_scale_out.exp(),
+            stage=stage)
             
         itc_loss = (itc_loss1 + itc_loss2) / 2
         self.log(f"{stage}/itc_loss", itc_loss)
@@ -100,12 +90,32 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         loss = kl_loss + itc_loss
 
         self.log(f"{stage}/loss", loss, prog_bar=True)
+        
+        return loss
+    
+    def itc_loss(
+        self,
+        text_features:torch.Tensor,
+        image_features:torch.Tensor,
+        logit_scale:torch.Tensor,
+        stage:str='train') -> torch.Tensor:
+        
+        logits_per_image = logit_scale * image_features @ text_features.t()
+        logits_per_text = logits_per_image.t()
 
+        target = torch.arange(len(logits_per_image)).long().to(logits_per_image.device)
+
+        img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
+        text_itc_acc = (logits_per_text.argmax(dim=1) == target).float().mean()
         self.log(f"{stage}/itc_text_acc", text_itc_acc)
         self.log(f"{stage}/itc_image_acc", img_itc_acc)
         self.log(f"{stage}/itc_acc", (img_itc_acc + text_itc_acc) / 2, prog_bar=True)
-        
-        return loss
+
+        itc_loss = (
+            F.cross_entropy(logits_per_image.float(), target)
+            + F.cross_entropy(logits_per_text.float(), target)
+        ) / 2
+        return itc_loss
 
     def configure_optimizers(self):
         wd_params, non_wd_params = self._get_param_groups()
@@ -175,7 +185,8 @@ class SHRe(nn.Module):
         super(SHRe, self).__init__()
         self.cfg = cfg
         make_layer_norm = partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
-        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        self.logit_scale_interm = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        self.logit_scale_out = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
         self.shared = Mlp_(
             in_features=self.cfg.embed_dim,

@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: SHRe_mb_1024_1e-4
+run_name: SHRe
 
 load_checkpoint:
 
@@ -106,10 +106,8 @@ lightning_trainer:
     allgather_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
     reduce_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
 
-memory_bank:
-  batch_size: ${data.dataloader.batch_size}
-  start_size: 256
-  end_size: 16384
-  max_steps: ${lightning_trainer.max_steps}
-  device: cuda
-  half_precision: True
+# memory_bank:
+#   batch_size: ${data.dataloader.batch_size}
+#   size: 16384
+#   device: cuda
+#   half_precision: True
