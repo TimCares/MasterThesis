@@ -357,10 +357,10 @@ class VisualGenome(BaseImageText):
             region_descriptions = json.load(fp)
 
         if self.concat_captions:
-            items = self._drop_short_and_duplicate_descriptions(region_descriptions, drop_short=False)
+            region_descriptions = self._drop_short_and_duplicate_descriptions(region_descriptions, drop_short=False)
             items = self._make_index_with_concat_caption(region_descriptions)
         else:
-            items = self._drop_short_and_duplicate_descriptions(region_descriptions, drop_short=True)
+            region_descriptions = self._drop_short_and_duplicate_descriptions(region_descriptions, drop_short=True)
             items = self._make_index_with_single_caption(region_descriptions)
         
         write_data_into_jsonl(items, os.path.join(self.path_to_data, self.get_index_files()[0]))
