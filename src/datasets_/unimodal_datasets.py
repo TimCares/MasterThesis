@@ -485,12 +485,6 @@ class ImageNetDataset(ImageDataset):
             'target': item['target']
         }
         return data
-
-    def __len__(self):
-        if self.split == 'val':
-            return 15_000
-        else:
-            return len(self.items)
     
     def _make_imagenet_dataset_index(self):
         items = []
