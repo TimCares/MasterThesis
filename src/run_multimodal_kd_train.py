@@ -93,14 +93,14 @@ def main(cfg: DictConfig) -> None:
     wandb.save('run_multimodal_kd_train.py') # saves "train" code to wandb
 
     dataloader_args = cfg.data.dataloader
-    shared_args = cfg.data.shared
+    common_args = cfg.data.common
 
     datamodules:List[LightningDataModule] = []
     for datamodule_key in cfg.data.datamodules.keys():
         dataset_args = cfg.data.datamodules[datamodule_key]
         with open_dict(dataset_args):
             dataset_args.update(dataloader_args)
-            dataset_args.update(shared_args)
+            dataset_args.update(common_args)
         datamodules.append(DATAMODULE_REGISTRY[datamodule_key](**dataset_args))
         logger.info(f"Train datamodule {datamodule_key}: {dataset_args}")
     
@@ -126,8 +126,9 @@ def main(cfg: DictConfig) -> None:
                 ckpt_path=ckpt_path)
 
     get_type = lambda x: os.path.splitext(os.path.basename(x))[0].split('-')[-1]
-    model_paths = [os.path.join(cfg.checkpoint.dirpath, f) for f in os.listdir(cfg.checkpoint.dirpath) if f.endswith('.ckpt')]
-    output_paths = [os.path.join(cfg.checkpoint.dirpath, f'fp32_last_{get_type(v)}.ckpt') for v in model_paths]
+    base_path = cfg.checkpoint.common.dirpath
+    model_paths = [os.path.join(base_path, f) for f in os.listdir(base_path) if f.endswith('.ckpt')]
+    output_paths = [os.path.join(base_path, f'fp32_last_{get_type(v)}.ckpt') for v in model_paths]
     for model_path, output_path in zip(model_paths, output_paths):
         convert_zero_checkpoint_to_fp32_state_dict(model_path, output_path)
         shutil.rmtree(model_path) # remove unneeded files -> same disk space

@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: SHRe_1e-4_2xscale_dropout_0.1
+run_name: SHRe_1e-4_2xscale_dropout_0.1_vg
 model_name: SHRe
 
 load_checkpoint:
@@ -45,7 +45,7 @@ data:
     shuffle: True
     drop_last: True
 
-  shared: # keys used for all datasets
+  common: # keys used for all datasets
     data_path: ${data_path}
     num_max_bpe_tokens: ${nlp_context_length}
     color_jitter: # None
@@ -55,6 +55,9 @@ data:
   datamodules:
     coco_captions:
       task: captioning
+
+    visual_genome:
+      concat_captions: False
 
     conceptual_captions: {}
 
