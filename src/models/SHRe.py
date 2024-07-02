@@ -185,8 +185,7 @@ class SHRe(nn.Module):
         super(SHRe, self).__init__()
         self.cfg = cfg
         make_layer_norm = partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
-        self.logit_scale_interm = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
-        self.logit_scale_out = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        self.dropout = nn.Dropout(0.1)
 
         self.shared = Mlp_(
             in_features=self.cfg.embed_dim,
@@ -196,6 +195,9 @@ class SHRe(nn.Module):
         )
 
         self.apply(init_bert_params)
+
+        self.logit_scale_interm = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        self.logit_scale_out = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
         self.text_model = load_pretrained_d2v_model(state_dict_path=os.path.join(self.cfg.pretrained_path, self.cfg.pretrained.text))
         self.text_model.blocks = self.text_model.blocks[:self.cfg.depth]
@@ -241,7 +243,7 @@ class SHRe(nn.Module):
     
     def encode_shared(self, x):
         out_dict = dict()
-        x_interm, x = self.shared(x[:, 0])
+        x_interm, x = self.shared(self.dropout(x[:, 0]))
         out_dict["encoder_out"] = x
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
