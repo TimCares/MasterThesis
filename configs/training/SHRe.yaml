@@ -41,7 +41,7 @@ model:
 data:
   dataloader:
     batch_size: 256
-    num_workers: 3 # each loader has 3 workers -> 6 in total
+    num_workers: 6
     shuffle: True
     drop_last: True
 
@@ -99,6 +99,7 @@ lightning_trainer:
   devices: -1
   max_steps: 70_000
   val_check_interval: ${zero_shot_val.val_every_n_batches}
+  check_val_every_n_epoch: # None
   num_sanity_val_steps: 0 # would run zero shot at the beginning if > 0
   precision: 16-mixed
   log_every_n_steps: 50

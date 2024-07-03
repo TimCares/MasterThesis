@@ -14,9 +14,8 @@ from lightning.pytorch.utilities.deepspeed import convert_zero_checkpoint_to_fp3
 import sys
 sys.path.append("beit2")
 from models import MODEL_REGISTRY
-from datamodules import DATAMODULE_REGISTRY
+from datamodules import DATAMODULE_REGISTRY, MultiDataModule
 from callbacks import MultimodalZeroShotRetrievalCallback, WallClockCallback
-from multi_data_loader import MultiDataModule
 
 from fairseq.dataclass.utils import merge_with_parent
 
@@ -89,8 +88,8 @@ def main(cfg: DictConfig) -> None:
     )
     if trainer.global_rank == 0:
         wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
-    wandb.save('models/SHRe.py') # saves the model file to wandb
-    wandb.save('run_multimodal_kd_train.py') # saves "train" code to wandb
+    wandb.save(f'models/{cfg.model_name}.py') # saves the model file to wandb
+    wandb.save('run_multimodal_kd_train.py') # saves train code to wandb
 
     dataloader_args = cfg.data.dataloader
     common_args = cfg.data.common
@@ -104,7 +103,7 @@ def main(cfg: DictConfig) -> None:
         datamodules.append(DATAMODULE_REGISTRY[datamodule_key](**dataset_args))
         logger.info(f"Train datamodule {datamodule_key}: {dataset_args}")
     
-    multi_datamodule = MultiDataModule(datamodules=datamodules)
+    multi_datamodule = MultiDataModule(datamodules=datamodules, **dataloader_args)
 
     logger.info("Setting up datamodules:")
     multi_datamodule.prepare_data()
