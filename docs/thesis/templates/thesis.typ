@@ -144,6 +144,7 @@
   include("../methodology/tools_and_approach.typ")
   include("../methodology/data_collection_and_preprocessing.typ")
   include("../theoretical_foundation/contrastive_learning_and_retrieval.typ")
+  include("../experiments/differences_to_unimodal_kd.typ")
   include("../experiments/multimodal_knowledge_distillation.typ")
 
   // Appendix.
