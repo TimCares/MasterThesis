@@ -45,7 +45,8 @@ def main():
     index = index[~index.index.isin(already_existing)]
     n_workers = os.cpu_count()*4
     with concurrent.futures.ThreadPoolExecutor(n_workers) as executor:
-        futures = [executor.submit(fetch_single_image, url, img_path, idx) for idx, url in index[1].items()]
+        futures = [executor.submit(fetch_single_image, url, img_path, idx) for idx, url in 
+                   tqdm(index[1].items(), total=len(index), desc="Scheduling tasks")]
         list(tqdm(concurrent.futures.as_completed(futures), total=len(index), desc="Downloading images"))
 
     n_failed = len(index) - len(os.listdir(img_path))
