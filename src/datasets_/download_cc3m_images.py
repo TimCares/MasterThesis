@@ -29,7 +29,7 @@ def fetch_single_image(image_url, img_path, idx):
             pass
 
 
-def make_conceptual_captions_dataset_index():
+def main():
     path_to_data = os.path.join('/workspace', "conceptual_captions")
     img_path = os.path.join(path_to_data, "images")
     os.makedirs(path_to_data, exist_ok=True)
@@ -52,4 +52,4 @@ def make_conceptual_captions_dataset_index():
     print(f"Failed to download {n_failed} images (pairs). Percentage: {n_failed/len(index)*100:.2f}%")
     
 if __name__ == "__main__":
-    make_conceptual_captions_dataset_index()
+    main()
