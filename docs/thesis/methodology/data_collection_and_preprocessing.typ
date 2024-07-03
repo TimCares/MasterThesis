@@ -1,4 +1,4 @@
-=== Data Collection and Preprocessing
+=== Data Collection and Preprocessing <data_collection_and_preprocessing>
 
 General:
 - data we need to collect has to be both unimodal and multimodal
@@ -112,34 +112,32 @@ Data Selection and Collection:
 - both datsets do not provide the images directly, but instead an index with the url of an image, and a correspondig caption
 - url point to various sources on the web, so there is no guarantee that all images are still available
 - for SBU, we collect all image(-text pairs) that are available as of July 2024
-- 
 - for Google's CC3m we use the first 800,000 available, as of July 2024, images (with their captions) as a subset from the training set index published by Google #footnote[https://ai.google.com/research/ConceptualCaptions/download].
 - storing the whole dataset is not feasible for us and the combination with COCO and SBU should already provide enough data for training, as shown in table @vl_dataset_summary
-  - we are constrained by 500GB of disk space, which must also be shared with other datsets, e.g. ImageNet-1k
+  - we are constrained by 600GB of disk space, which must also be shared with other datsets, e.g. ImageNet-1k
 - ids and urls of image-text pairs used, for both SBU and CC3M, are available on GitHub #emph(text(red)[< TODO: Footnote with URL!!! >])
 
 #figure(
   table(
-    columns: 5,
+    columns: 4,
     stroke: none,
     table.hline(),
     table.header(
       [*Dataset*],
       [*\# Images*],
-      [*Avg. Captions*],
       [*Avg. Caption Length*],
       [*\# Image-Text Pairs*]
     ),
     table.hline(stroke: .4pt),
-    [COCO @coco], [82,783], [5.0], [11.0], [566,747],
-    [SBU Captions @sbu], [108,249], [1.0], [#emph(text(red)[TODO])], [5,408,689],
-    [CC3M @cc3m (Subset)], [800,000], [1.0], [10.3], [800,000],
+    [COCO @coco], [82,783], [11.0], [566,747],
+    [SBU Captions @sbu], [840,792], [12.0], [840,792],
+    [CC3M @cc3m (Subset)], [1,516,133], [10.3], [1,516,133],
     table.hline(stroke: .4pt),
-    [Total], [691,032], [-], [-], [6,475,436],
+    [Total], [2,439,708], [-], [2,923,672],
     table.hline(),
   ),
   caption: [Multimodal Dataset used for aligning Image and Text. The maximum text sequence length is, inspired by
-  BEiT3, set to 64 tokens.],
+  BEiT3, set to 64 tokens @beit3.],
 )<vl_dataset_summary>
 
 - aforementioned papers (e.g. BEiT-3) also use the popular Visual Genome (VG) dataset, containing 108,249 images with on average 50 captions per image
@@ -147,7 +145,7 @@ Data Selection and Collection:
   - can be very short and only capture a small part of the image
   - are used for describing regions/objects in the image
 - still used by the papers
-- we will not use it as we encountered problems when using it together with contrastive learning, which will be explained in section #emph(text(red)[TODO])
+- we will not use it as we encountered problems when using it together with contrastive learning, which will be explained in section @region_descriptions_with_contrastive_learning
 
 - all captions are tokenized and encoded using the same GPT-2 byte-pair encoder as the text-only data
 - as usual, and done in BEiT, VLMo, and FLAVA, we prepend each caption with a start-of-sequence token and append an end-of-sequence token

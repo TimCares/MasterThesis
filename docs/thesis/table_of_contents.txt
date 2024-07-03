@@ -22,6 +22,7 @@ Experiments
 		Aligned Representations
 			Dual Encoder
 				Reproducing: “See, Hear, Read: Deep Aligned Representations"
+				Region Descriptions with Contrastive Learning
                 Increasing Negative Examples
 				    Memory Bank
                     Larger Batch Sizes with GPU Offloading

@@ -193,6 +193,29 @@ a single RTX 4090 costs 0.75 USD, and a single V100 1 USD per hour.].
 
 These results can already be considered as a success, as the aim of this work is not to reach state-of-the-art performance, but to create a poof-of-concept for multimodal knowledge distillation, although a high performance is desirable.
 
+==== Region Descriptions with Contrastive Learning <region_descriptions_with_contrastive_learning>
+- many papers use the Visual Genome dataset, consisting of images with region descriptions
+  -> attractive source, as region descriptions are human annotated and highly curated -> focus on specfic regions of the image
+- as mentioned in section @data_collection_and_preprocessing, we do not use Visual Genome because we encoutered problems when using it with Contrastive Learning
+- @itc_vg shows accuracy on image-text contrast, which is image-text retrieval, when using data datasets in combination with Visual Genome and without
+
+#figure(
+  image("../figures/itc_vg.png"),
+  caption: [Training accuracy of Image-Text Contrast with Visual Genome (left) vs. without Visual Genome (right). Removing Visual Genome from the training data leads to a more stable training and a higher accuracy in the first 6k steps.],
+) <itc_vg>
+
+- comparison is only for the first 6k steps, as we stop experiments that show errors or do not seem promising, due to the high computational cost
+- contrary to expectations, the accuracy of the model without Visual Genome continously increases after the first 6k steps (@itc_vg_full), where is stagnates for a while
+
+#figure(
+  image("../figures/itc_vg_full.png", width: 50%),
+  caption: [],
+) <itc_vg_full>
+
+- we assume reason is that region descriptions are too specific, i.e. focus on a specific part/region of the image, and do not capture the overall content of the image
+- also, since the regions can be small, the caption will also be
+
+
 ==== Increasing Negative Samples
 ===== Memory Bank
 - as mentioned in the section about contrastive learning @contrastive_learning_section, quality of representations learning using contrastive loss greatly improves with more negative samples
