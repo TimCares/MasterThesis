@@ -531,12 +531,13 @@ class SBUCaptions(BaseImageText):
         sbu.set_index(index, inplace=True)
         
         encoder = self.get_bpe_encoder()
-        for img in tqdm(os.listdir(self.img_path), desc="Making index"):
-            idx = os.path.splitext(img)[0]
+        for idx, img in tqdm(enumerate(os.listdir(self.img_path)), desc="Making index"):
+            sbu_idx = os.path.splitext(img)[0]
             items.append({
                 'image_path': os.path.join(self.img_path, img),
-                'text': encoder.encode(sbu.at[idx, 'captions'].strip()),
+                'text': encoder.encode(sbu.at[sbu_idx, 'captions'].strip()),
                 'id': idx,
+                'sbu_idx': sbu_idx,
             })
         self.log(f"Collected {len(items)} image-text pairs!")
         write_data_into_jsonl(items, os.path.join(self.path_to_data, self.get_index_files()[0]))
