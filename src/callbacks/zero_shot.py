@@ -220,11 +220,9 @@ class ZeroShotCallback(Callback):
     """
     def __init__(
             self,
-            datamodules: Dict[str, LightningDataModule],
-            val_every_n_batches:int,):
+            datamodules: Dict[str, LightningDataModule],):
         super().__init__()
         self.datamodules = datamodules
-        self.val_every_n_batches = val_every_n_batches
 
     def validate(self, trainer, pl_module) -> None:
         raise NotImplementedError
@@ -314,11 +312,9 @@ class MultimodalZeroShotRetrievalCallback(ZeroShotCallback):
     def __init__(
             self,
             datamodules: Dict[str, LightningDataModule],
-            val_every_n_batches:int,
             num_max_bpe_tokens:int):
         super().__init__(
             datamodules=datamodules,
-            val_every_n_batches=val_every_n_batches,
         )
         self.num_max_bpe_tokens = num_max_bpe_tokens
 

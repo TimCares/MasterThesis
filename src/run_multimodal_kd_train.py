@@ -59,13 +59,11 @@ def main(cfg: DictConfig) -> None:
         ModelSummary(),
         LearningRateMonitor(logging_interval="step"),
         WallClockCallback(), # before zero-shot, so that we measure only the training batch time
+        MultimodalZeroShotRetrievalCallback(
+            datamodules={'imagenet': imagenet},
+            num_max_bpe_tokens=cfg.nlp_context_length,
+        ),
     ]
-    if 'zero_shot_val' in cfg:
-        callbacks.append(
-            MultimodalZeroShotRetrievalCallback(
-                datamodules={'imagenet': imagenet},
-                **cfg.zero_shot_val,),
-        )
     
     common_checkpoint_args = OmegaConf.to_container(cfg.checkpoint.common, resolve=True)
     for ckpt in cfg.checkpoint.checkpoints:
