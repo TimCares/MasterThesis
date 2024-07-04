@@ -47,6 +47,12 @@ well researched
 - not possible, as result would be just a concatenation of words and no meaningful text
 - also, text naturally contains fill words, e.g. "the", "a", "is", which is nothing that can be represented in any way in an image
 - also those words do not have any meaning regarding real-world concepts, like a dog, cat, or car
+- example illustrated in @mm_kd_cls_token
+
+#figure(
+  image("../figures/mm_kd_cls_token.png"),
+  caption: [The meaning/content of time steps across modalities is not aligned, and the number of time steps will differ between modalities. This makes alignment on the level of individual time steps impossible. The CLS token aggregates global information independent of time steps, and captures the meaning and interpretation of the respective input, making alignment possible. This requires the teacher CLS token to not contain any modality-specific (in this case image) information after the last layer. Image-Text example is taken from the COCO train set @coco.],
+) <mm_kd_cls_token>
 
 - that is why we have to regress the global representation of the image and text
 - means the CLS/BOS token -> goal of it is to aggregate as much information as possible, meaning it is a global representation of the image/text content
@@ -56,11 +62,11 @@ well researched
 - if the representation of the CLS token still contains image specific information, then the student model will not be able to align the representation of the caption with that of the image
   - based on the caption, it is impossible to predict the image-specific information still encoded in the representation of the CLS token
   - also not desired, representation should be independent of the modality
-- this is something we will elaborate on in @self_supervised_teacher
+- this is something we will elaborate on in < TODO: cite > //@self_supervised_teacher
 
 - SHRe can be seen as a special case of regressing the CLS token @shre
 - was published before the inception of Transformers @transformer
 - uses ConvNets
 - output of FFN head of deep ConvNets usually contains global information of the image due to the increased receptive field with more layers
 - so in a sense, SHRe does exactly what we aim to do, just in a supervised way: it regresses the probability distribution of the Imagenet-1k classes
-  - text and image of image-text pair should have the same probability distribution as the image predicted by the teacher model
+- probability distribution created from FFN head of the ConvNet, contains global information of the image, like the CLS token in Transformers
