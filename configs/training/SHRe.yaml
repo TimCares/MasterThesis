@@ -34,9 +34,11 @@ model:
   embed_dim: 768
 
   depth: 7
+  num_heads: 12
   mlp_ratio: 4.0
   norm_eps: 1e-6
   norm_affine: True
+  layer_init_scale: 0.2 # VLMo and BEiT use 0.1, we have half the depth so 0.2
 
 data:
   dataloader:

@@ -13,22 +13,10 @@ from data2vec_fairseq.data.modality import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 import timm
-from timm.layers import Mlp
 from . import MODEL_REGISTRY
+from modules import Block
 
 logger = logging.getLogger(__name__)
-
-class Mlp_(Mlp):
-    def forward(self, x):
-        x = self.fc1(x)
-        x_interm = x
-        x = self.act(x)
-        x = self.drop1(x)
-        x = self.norm(x)
-        x = self.fc2(x)
-        x = self.drop2(x)
-        return x_interm, x
-
 
 class SHRePreTrainingLightningModule(L.LightningModule):
     def __init__(self, cfg):
@@ -174,9 +162,11 @@ class SHReConfig():
     embed_dim: int = 768
 
     depth: int = 6
+    num_heads: int = 12
     mlp_ratio: float = 4.0
     norm_eps: float = 1e-6
     norm_affine: bool = True
+    layer_init_scale: float = 0.2
 
 class SHRe(nn.Module):
     def __init__(self,
@@ -187,11 +177,13 @@ class SHRe(nn.Module):
         make_layer_norm = partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
         self.dropout = nn.Dropout(0.1)
 
-        self.shared = Mlp_(
-            in_features=self.cfg.embed_dim,
-            hidden_features=int(self.cfg.embed_dim*self.cfg.mlp_ratio),
-            out_features=1000,
+        self.shared = Block(
+            dim=self.cfg.embed_dim,
+            num_heads=self.cfg.num_heads,
+            mlp_ratio=self.cfg.mlp_ratio,
+            qkv_bias=True,
             norm_layer=make_layer_norm,
+            init_values=self.cfg.layer_init_scale,
         )
 
         self.apply(init_bert_params)
@@ -225,25 +217,30 @@ class SHRe(nn.Module):
         return out
     
     def encode_image(self, image):
-        x = self.image_model.extract_features(
+        encoder_out = self.image_model.extract_features(
             source=image,
             remove_extra_tokens=False,
-        )['x']
+        )
         
-        return self.encode_shared(x)
+        return self.encode_shared(encoder_out)
 
     def encode_text(self, text, padding_mask):
-        x = self.text_model.extract_features(
+        encoder_out = self.text_model.extract_features(
             source=text,
             padding_mask=padding_mask,
             remove_extra_tokens=False,
-        )['x']
+        )
         
-        return self.encode_shared(x)
+        return self.encode_shared(encoder_out)
     
-    def encode_shared(self, x):
+    def encode_shared(self, encoder_out):
         out_dict = dict()
-        x_interm, x = self.shared(self.dropout(x[:, 0]))
+        x = self.dropout(encoder_out['x'])
+        mask = encoder_out['padding_mask'] if 'padding_mask' in encoder_out else None
+        x_interm, x = self.shared(x=x, mask=mask)
+        x_interm = x_interm[:, 0]
+        x = x[:, 0]
+
         out_dict["encoder_out"] = x
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
