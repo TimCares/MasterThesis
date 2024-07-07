@@ -6,7 +6,7 @@ Background
 		Knowledge-Distillation
 	Related Work
 		Data2Vec
-		(See, Hear, and Read:) Deep Aligned Representations
+		Deep Aligned Representations
 		VLMo
 		BEiT
 		CLIP
@@ -22,11 +22,12 @@ Experiments
 		Aligned Representations
 			Dual Encoder
 				Reproducing: “See, Hear, Read: Deep Aligned Representations"
-				Region Descriptions with Contrastive Learning
-                Increasing Negative Examples
-				    Memory Bank
-                    Larger Batch Sizes with GPU Offloading
-				Multi-Caption Images
+				Applying Contrastive Learning
+					On FLAVA's retrieval performance
+					Short Captions (Region Descriptions)
+					Memory Bank for Larger Batch Sizes
+					GPU Offloading for Larger Batch Sizes
+					VLMo Contrast vs. SHRe Contrast
 				Self-Supervised Teacher
 				Feature Whitening
 				Unimodal Student
@@ -41,6 +42,7 @@ Experiments
 				Token-Type Embeddings
 			Reusing Teacher Activations
 			Ablation Study: Reduction of Data
+			Ablation Study: Uncurated Datasets (CC12M)
 
 			Limitations (from trained models alone: No NRLV2, etc possible)
 		Aligned Referencing Representations

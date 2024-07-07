@@ -44,7 +44,7 @@ Problem:
   caption: [Contrastive Learning is performed using Matrix-Multiplication of normalized representations (1). The diagonal of the resulting matrix contains the cosine similarity between positive samples. The softmax operation along the rows yields a probabilty distribution for each image over all captions, and the softmax operation along the columns vice versa. The cross-entropy loss is then used to calculate the loss for the image scores and caption scores, respectively. The final loss is the mean of both losses. Image-Text pairs in the figure have been taken from the COCO train set @coco.],
 ) <contrastive_learning_fig>
 
-=== Retrieval
+=== Retrieval <retrieval>
 - useful for benchmarking multimodal models
 - cheap way, as is does not involve finetuning, just the embeddings produced by the model are needed
 - goal: find matching (most similar) caption for a given image, and vice versa

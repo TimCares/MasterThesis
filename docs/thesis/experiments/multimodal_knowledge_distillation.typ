@@ -193,7 +193,47 @@ a single RTX 4090 costs 0.75 USD, and a single V100 1 USD per hour.].
 
 These results can already be considered as a success, as the aim of this work is not to reach state-of-the-art performance, but to create a poof-of-concept for multimodal knowledge distillation, although a high performance is desirable.
 
-==== Region Descriptions with Contrastive Learning <region_descriptions_with_contrastive_learning>
+==== Applying Contrastive Learning
+==== On FLAVA's retrieval performance
+- FLAVA authors claim their performance on image-text retrieval on MSCOCO and Flickr30K is zero-shot
+- however, this is not true
+- they train there model using contrastive loss, among other losses
+- as mentioned in @retrieval, contrastive learning and retrieval are basically the same
+  - contrastive learning uses cosine similarity to push embeddings of matching pairs closer together, and embeddings of non-matching pairs further apart
+  - retrieval uses cosine similarity to find the matching pair for a given query (aims to e.g. find the caption for a given image)
+- so with contrastive learning, the model learns to perform retrieval
+- zero-shot is when a trained model is applied to a task it has not been trained on, e.g. when a multimodal model is trained only using masked-image-modeling (MIM) and masked-language-modeling (MLM), and then applied to image-text retrieval
+  - or when an LLM is applied to a tabular classification task
+- however, FLAVA uses contrastive learning, and therefore the model has been trained on the retrieval task, and is not zero-shot
+- also the model has been trained using the MSCOCO train set, and the image-text retrieval is done on the MSCOCO test set
+- if the samples from MSCOCO train and test set are similar, then it is just a normal application of a trained model to a task it has been trained on (among other tasks)
+- application of itr on Flickr30K is still not zero-shot, as, again, the model has been trained using a contrastive loss
+- one example for actual zero-shot retrieval would be BEiT-3, having only been trained using MIM and MLM @beit3
+  - finetuning BEiT-3 on Flickr30K using contrastive less then show slight improvement
+
+#figure(
+  table(
+  columns: (25%, auto, auto, auto, auto, auto, auto),
+    stroke: none,
+    table.hline(),
+    table.header(
+      table.cell(rowspan: 3, colspan: 1, align:horizon, [*Model*]),
+      table.cell(colspan: 6, [*Flickr30K (1K test set)*]),
+      table.cell(colspan: 3, [Image $arrow.r$ Text]),
+      table.cell(colspan: 3, [Text $arrow.r$ Image]),
+      table.hline(start: 1, end: 4, stroke: .2pt),
+      table.hline(start: 4, end: 7, stroke: .2pt),
+      [R@1], [R@5], [R@10], [R@1], [R@5], [R@10]
+    ),
+    table.hline(stroke: .4pt),
+    [BEiT-3 _zero-shot_], [94.9], [99.9], [*100.0*], [81.5], [95.6], [97.8],
+    [BEiT-3 _finetuning_], [*98.0*], [*100.0*], [*100.0*], [*90.3*], [*98.7*], [*99.5*],
+    table.hline(),
+  ),
+  caption: [],
+)<beit3_flickr30k>
+
+==== Short Captions <short_captions>
 - many papers use the Visual Genome dataset, consisting of images with region descriptions
   -> attractive source, as region descriptions are human annotated and highly curated -> focus on specfic regions of the image
 - as mentioned in section @data_collection_and_preprocessing, we do not use Visual Genome because we encoutered problems when using it with Contrastive Learning
@@ -215,16 +255,13 @@ These results can already be considered as a success, as the aim of this work is
 - we assume reason is that region descriptions are too specific, i.e. focus on a specific part/region of the image, and do not capture the overall content of the image
 - also, since the regions can be small, the caption will also be
 
-
-==== Increasing Negative Samples
-===== Memory Bank
+==== Memory Bank for Larger Batch Sizes
 - as mentioned in the section about contrastive learning @contrastive_learning_section, quality of representations learning using contrastive loss greatly improves with more negative samples
 -> for example, CLIP, trained only using contrastive learning, uses a batch size of 32k @clip, the the large variant of VLMo between 16k and 32k @vlmo, and FLAVA 8k @flava
 - not necessary though -> base model of VLMo uses "just" 1024 @vlmo, and SHRe just 200 @shre, both achieve, as described in the respective chapters, good results
 - we are limited by GPU memory, currently using a batch size of 256, can't increase it without further optimizations or multiple GPUs
-===== Larger Batch Sizes with GPU Offloading 
-
-===== Region Descriptions with Contrastive Learning
+===== GPU Offloading for Larger Batch Sizes
+===== VLMo Contrast vs. SHRe Contrast
 
 ===== Feature-based Knowledge Distillation
 - if we want to keep the approach from SHRe, i.e. use KD and contrastive learning, for a self-supervised trained teacher that does not provide us with a
