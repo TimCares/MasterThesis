@@ -160,7 +160,8 @@ Data Selection and Collection:
     has a caption describing the image, and some parts focusing on the cropped parts, which can especially happen for VG, where the
     captions consists of region descriptions, then we might have captions that do not match the image anymore
   - that is why papers that use random crop use higher values -> BEiT3 uses 0.5, FLAVA 0.9, VLMo uses RandAugment
-  - we consider 0.9 too high and 0.5 too low, so we opt for 0.6
+  - we consider 0.5 too low, and because our model is smaller, and we use less data, we are more prone to noise, so we use FLAVA's value of 0.9
+  - danger is high that semantic content, described in the caption, is lost
 
 - examples of image-text pairs and the effect of the crop size can be seen in the appendix
 
