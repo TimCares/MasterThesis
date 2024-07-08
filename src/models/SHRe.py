@@ -175,7 +175,6 @@ class SHRe(nn.Module):
         super(SHRe, self).__init__()
         self.cfg = cfg
         make_layer_norm = partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
-        self.dropout = nn.Dropout(0.1)
 
         self.shared = Block(
             dim=self.cfg.embed_dim,
@@ -235,7 +234,7 @@ class SHRe(nn.Module):
     
     def encode_shared(self, encoder_out):
         out_dict = dict()
-        x = self.dropout(encoder_out['x'])
+        x = encoder_out['x']
         mask = encoder_out['padding_mask'] if 'padding_mask' in encoder_out else None
         x_interm, x = self.shared(x=x, mask=mask)
         x_interm = x_interm[:, 0]
