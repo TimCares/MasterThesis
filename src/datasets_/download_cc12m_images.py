@@ -6,6 +6,7 @@ import concurrent.futures
 from tqdm import tqdm
 import urllib
 from datasets.utils.file_utils import get_datasets_user_agent
+from torchvision.datasets.utils import download_url
 
 USER_AGENT = get_datasets_user_agent()
 
@@ -30,20 +31,18 @@ def fetch_single_image(image_url, img_path, idx):
 
 
 def main():
-    path_to_data = os.path.join('/workspace', "conceptual_captions")
+    path_to_data = os.path.join('/workspace', "conceptual_captions_12m")
     img_path = os.path.join(path_to_data, "images")
     os.makedirs(path_to_data, exist_ok=True)
     os.makedirs(img_path, exist_ok=True)
 
-    index_path = os.path.join('/workspace', "Train-GCC-training.tsv")
-    if not os.path.exists(index_path):
-        raise FileNotFoundError(f"Conceptual Captions index file {index_path} not found, download it first: "
-                                "https://ai.google.com/research/ConceptualCaptions/download")   
+    download_url(url='https://storage.googleapis.com/conceptual_12m/cc12m.tsv', root=path_to_data)
+    index_path = os.path.join(path_to_data, "cc12m.tsv") 
     index = pd.read_csv(index_path, sep='\t', header=None).reset_index(drop=True)
-    index.columns = ['caption', 'image_url']
+    index.columns = ['image_url', 'caption']
     already_existing = os.listdir(img_path)
     already_existing = [int(os.path.splitext(img)[0]) for img in already_existing]
-    index = index[~index.index.isin(already_existing)]
+    index = index[~index.index.isin(already_existing)][:int(3e6)]
     n_workers = os.cpu_count()*4
     with concurrent.futures.ThreadPoolExecutor(n_workers) as executor:
         futures = [executor.submit(fetch_single_image, url, img_path, idx) for idx, url in 

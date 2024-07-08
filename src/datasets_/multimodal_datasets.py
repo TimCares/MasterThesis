@@ -18,6 +18,7 @@ import random
 import zipfile
 from torchvision.datasets.utils import download_url
 import tarfile
+from functools import partial
 from .base_datasets import BaseImageText, BaseTextAudio, BaseImageAudio
 
 class COCOCaptions(BaseImageText):        
@@ -431,6 +432,7 @@ class VisualGenome(BaseImageText):
 class ConceptualCaptions(BaseImageText):
     def __init__(
         self,
+        type,
         data_path,
         split,
         num_max_bpe_tokens=64,
@@ -446,7 +448,9 @@ class ConceptualCaptions(BaseImageText):
             beit_transforms=beit_transforms,
             crop_scale=crop_scale
         )
-        self.path_to_data = os.path.join(self.data_path, "conceptual_captions")
+        self.type = type
+        assert type in ["cc3m", "cc12m"]
+        self.path_to_data = os.path.join(self.data_path, f"conceptual_captions_{self.type}")
         self.img_path = os.path.join(self.path_to_data, "images")
         os.makedirs(self.path_to_data, exist_ok=True)
         os.makedirs(self.img_path, exist_ok=True)
@@ -456,22 +460,26 @@ class ConceptualCaptions(BaseImageText):
         self.make_conceptual_captions_dataset_index()
 
     def get_index_files(self):
-        return (f"conceptual_captions.jsonl", ) # only for pretraining, so no splits
+        return (f"conceptual_captions_{self.type}.jsonl", ) # only for pretraining, so no splits
 
     def make_conceptual_captions_dataset_index(self):
         items = []
-        index_path = os.path.join(self.data_path, "Train-GCC-training.tsv")
-        if not os.path.exists(index_path):
-            raise FileNotFoundError(f"Conceptual Captions index file {index_path} not found, download it first: "
-                                    "https://ai.google.com/research/ConceptualCaptions/download")   
+        if self.type == "cc3m":
+            index_name = "Train-GCC-training.tsv"
+            col_names = ['caption', 'image_url']
+        else:
+            index_name = "cc12m.tsv"
+            col_names = ['image_url', 'caption']
+        index_path = os.path.join(self.data_path, index_name) 
         index = pd.read_csv(index_path, sep='\t', header=None).reset_index(drop=True)
+        index.columns = col_names
         
         encoder = self.get_bpe_encoder()
         for img in tqdm(os.listdir(self.img_path), desc="Making index"):
             idx = int(os.path.splitext(img)[0])
             items.append({
                 'image_path': os.path.join(self.img_path, img),
-                'text': encoder.encode(index.at[idx, 0].strip()),
+                'text': encoder.encode(index.at[idx, 'caption'].strip()),
                 'id': idx,
             })
         self.log(f"Collected {len(items)} image-text pairs!")
@@ -960,6 +968,8 @@ MULTIMODAL_DATASET_REGISTRY = {
     "flickr8k_audio": Flickr8KAudioDataset,
     "visual_genome": VisualGenome,
     "conceptual_captions": ConceptualCaptions,
+    "conceptual_captions_cc3m": partial(ConceptualCaptions, type="cc3m"),
+    "conceptual_captions_cc12m": partial(ConceptualCaptions, type="cc12m"),
     "vqa": VQAv2,
     "nlvr2": NLVR2,
     "common_voice": CommonVoice,

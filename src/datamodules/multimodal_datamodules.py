@@ -2,6 +2,7 @@ from typing import Tuple, Dict, Any
 from .unimodal_datamodules import BaseDataModule
 from data2vec_fairseq.data.modality import Modality
 from datasets_ import COCOCaptions, VisualGenome, VQAv2, NLVR2, Flickr30Dataset, CommonVoice, Flickr8KAudioDataset, ConceptualCaptions, SBUCaptions
+from functools import partial
 
 class BaseImageTextDataModule(BaseDataModule):
     @property
@@ -101,6 +102,7 @@ class VisualGenomeDataModule(BaseImageTextDataModule):
 
 class ConceptualCaptionsDataModule(BaseImageTextDataModule):
     def __init__(self,
+                type,
                 data_path,
                 num_max_bpe_tokens,
                 color_jitter=None,
@@ -109,6 +111,7 @@ class ConceptualCaptionsDataModule(BaseImageTextDataModule):
                 *args,
                 **kwargs):
         super().__init__(data_path, *args, **kwargs)
+        self.type = type
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.color_jitter = color_jitter
         self.beit_transforms = beit_transforms
@@ -123,12 +126,14 @@ class ConceptualCaptionsDataModule(BaseImageTextDataModule):
             self.train_dataset.load()
 
     def set_train_dataset(self):
-        self.train_dataset = ConceptualCaptions(data_path=self.data_path,
-                                                split='train',
-                                                num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                                color_jitter=self.color_jitter,
-                                                beit_transforms=self.beit_transforms,
-                                                crop_scale=self.crop_scale,)
+        self.train_dataset = ConceptualCaptions(
+            type=self.type,
+            data_path=self.data_path,
+            split='train',
+            num_max_bpe_tokens=self.num_max_bpe_tokens,
+            color_jitter=self.color_jitter,
+            beit_transforms=self.beit_transforms,
+            crop_scale=self.crop_scale,)
         
 
 class SBUCaptionsDataModule(BaseImageTextDataModule):
@@ -420,6 +425,8 @@ MULTIMODAL_DATAMODULE_REGISTRY = {
     "coco_captions": COCOCaptionsDataModule,
     "visual_genome": VisualGenomeDataModule,
     "conceptual_captions": ConceptualCaptionsDataModule,
+    "conceptual_captions_3m": partial(ConceptualCaptionsDataModule, type='cc3m'),
+    "conceptual_captions_12m": partial(ConceptualCaptionsDataModule, type='cc12m'),
     "vqa_v2": VQAv2DataModule,
     "nlvr2": NLVR2DataModule,
     "flickr30": Flickr30DataModule,
