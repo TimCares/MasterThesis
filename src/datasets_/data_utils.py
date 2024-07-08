@@ -1,6 +1,6 @@
 from torchvision.transforms import v2 as transforms
 from timm.data import create_transform
-from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+from timm.data.constants import OPENAI_CLIP_MEAN, OPENAI_CLIP_STD, IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 import torch
 import logging
 import json
@@ -11,8 +11,7 @@ from torchvision.datasets.utils import download_url
 from pydub import AudioSegment
 import multiprocessing
 from rich.progress import track
-
-from data2vec_fairseq.data.mae_image_dataset import RandomResizedCropAndInterpolationWithTwoPic
+from timm.data.transforms import RandomResizedCropAndInterpolation
 
 logger = logging.getLogger(__name__)
 
@@ -104,16 +103,14 @@ def get_transforms_pretraining(
         transform_train = transforms.Resize((size, size), interpolation=PIL.Image.BICUBIC)
     elif beit_transforms:
         beit_transform_list = []
-        beit_transform_list.append(transforms.ColorJitter(0.4, 0.4, 0.4))
+        # beit_transform_list.append(transforms.ColorJitter(0.4, 0.4, 0.4))
         beit_transform_list.extend(
             [
                 transforms.RandomHorizontalFlip(p=0.5),
-                RandomResizedCropAndInterpolationWithTwoPic(
+                RandomResizedCropAndInterpolation(
                     size=(size, size),
-                    second_size=None,
+                    scale=crop_scale,
                     interpolation="bicubic",
-                    second_interpolation=None,
-                    scale=crop_scale
                 ),
             ]
         )
@@ -135,7 +132,7 @@ def get_transforms_pretraining(
         [
             transforms.ToDtype(torch.float32, scale=True),
             transforms.Normalize(
-                mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD
+                mean=OPENAI_CLIP_MEAN, std=OPENAI_CLIP_STD
             ),
         ]
     )
