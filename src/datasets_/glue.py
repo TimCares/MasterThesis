@@ -94,7 +94,8 @@ class CoLA(GLUE):
         for _, target, text in iter(self._dataset(split=self.split)):
             tokens = bpe_encoder.encode(text)
             language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_tokens_upper_bound,
-                                                              pad_idx=self.pad_token_id, bos_idx=self.bos_token_id)
+                                                              pad_idx=self.pad_token_id, bos_idx=self.bos_token_id,
+                                                              eos_idx=self.eos_token_id)
             items.append({'x': language_tokens,
                           'padding_mask': padding_mask,
                           'target': target})
@@ -118,7 +119,8 @@ class SST(GLUE):
         for text, target in iter(self._dataset(split=self.split)):
             tokens = bpe_encoder.encode(text)
             language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_tokens_upper_bound,
-                                                                pad_idx=self.pad_token_id, bos_idx=self.bos_token_id)
+                                                              pad_idx=self.pad_token_id, bos_idx=self.bos_token_id,
+                                                              eos_idx=self.eos_token_id)
             items.append({'x': language_tokens,
                           'padding_mask': padding_mask,
                           'target': target})
@@ -153,7 +155,8 @@ class QNLI(GLUE):
             assert len(tokens) <= self.num_max_bpe_tokens
             
             language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_tokens_upper_bound,
-                                                              pad_idx=self.pad_token_id, bos_idx=self.bos_token_id)
+                                                              pad_idx=self.pad_token_id, bos_idx=self.bos_token_id,
+                                                              eos_idx=self.eos_token_id)
             assert self.eos_token_id in language_tokens # both text and question should still be there after potential truncation
 
             items.append({'x': language_tokens,
@@ -192,7 +195,8 @@ class RTE(GLUE):
             assert len(tokens) <= self.num_max_bpe_tokens
             
             language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_tokens_upper_bound,
-                                                              pad_idx=self.pad_token_id, bos_idx=self.bos_token_id)
+                                                              pad_idx=self.pad_token_id, bos_idx=self.bos_token_id,
+                                                              eos_idx=self.eos_token_id)
             assert self.eos_token_id in language_tokens # both text and question should still be there after potential truncation
 
             items.append({'x': language_tokens,
@@ -272,7 +276,8 @@ class QQP(GLUE):
             assert len(tokens) <= self.num_max_bpe_tokens
             
             language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                                              pad_idx=self.pad_token_id, bos_idx=self.bos_token_id)
+                                                              pad_idx=self.pad_token_id, bos_idx=self.bos_token_id,
+                                                              eos_idx=self.eos_token_id)
             assert self.eos_token_id in language_tokens # both text and question should still be there after potential truncation
 
             items.append({'x': language_tokens,

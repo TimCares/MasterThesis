@@ -60,18 +60,16 @@ def load_pretrained_d2v_model(state_dict_path:str, keep_decoder:bool=False, remo
 def pad_text_sequence(tokens:List[int],
                       num_max_bpe_tokens:int,
                       pad_idx:int,
-                      bos_idx:int=None,
-                      eos_idx:int=None) -> Tuple[List[int], List[int]]:
+                      bos_idx:int,
+                      eos_idx:int) -> Tuple[List[int], List[int]]:
     """
     Pads a list of language tokens to num_max_bpe_tokens and inserts bos token at front.
     Also inserts eos token if provided.
     """
     
-    substract = 2 if eos_idx is not None else 1
-    
-    if len(tokens) > num_max_bpe_tokens - substract:
-        tokens = tokens[:num_max_bpe_tokens - substract]
-    tokens = ([bos_idx] if bos_idx is not None else []) + tokens + ([eos_idx] if eos_idx is not None else [])
+    if len(tokens) > num_max_bpe_tokens - 2:
+        tokens = tokens[:num_max_bpe_tokens - 2]
+    tokens = ([bos_idx] if tokens[0]!=bos_idx else []) + tokens + ([eos_idx] if tokens[-1]!=eos_idx else [])
     num_tokens = len(tokens)
     padding_mask = [0] * num_tokens + [1] * (num_max_bpe_tokens - num_tokens)
     language_tokens =  tokens + [pad_idx] * (num_max_bpe_tokens - num_tokens)

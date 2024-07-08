@@ -385,7 +385,8 @@ class BaseImageText(ImageDataset):
             max_len = self.num_max_bpe_tokens
 
         language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=max_len,
-                                                          pad_idx=self.pad_token_id, bos_idx=self.bos_token_id)
+                                                          pad_idx=self.pad_token_id, bos_idx=self.bos_token_id,
+                                                          eos_idx=self.eos_token_id)
 
         return language_tokens, padding_mask, max_len # language_tokens, padding_mask are lists, converted to tensors in collater
 
@@ -580,7 +581,8 @@ class BaseTextAudio(AudioDataset):
             max_len = self.num_max_bpe_tokens
 
         language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=max_len,
-                                                          pad_idx=self.pad_token_id, bos_idx=self.bos_token_id)
+                                                          pad_idx=self.pad_token_id, bos_idx=self.bos_token_id,
+                                                          eos_idx=self.eos_token_id)
         
         return language_tokens, padding_mask, max_len # language_tokens, padding_mask are lists, converted to tensors in collater
     

@@ -111,6 +111,7 @@ class IMDBDataset(BaseDataset):
 
         bos_token_id = dictionary.bos()
         pad_token_id = dictionary.pad()
+        eos_token_id = dictionary.eos()
                 
         os.makedirs(self.path_to_data, exist_ok=True)
         
@@ -123,7 +124,8 @@ class IMDBDataset(BaseDataset):
         for label, text in data_loader:
             tokens = bpe_encoder.encode(text)
             language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                                              pad_idx=pad_token_id, bos_idx=bos_token_id)
+                                                              pad_idx=pad_token_id, bos_idx=bos_token_id,
+                                                              eos_idx=eos_token_id)
             label = label-1 # 1 -> 0, 2 -> 1
             items.append({'x': language_tokens, 'padding_mask': padding_mask, 'target': label})
 
@@ -165,6 +167,7 @@ class QQPDataset(BaseDataset): # used for zero-shot validation, not as GLUE benc
 
         bos_token_id = dictionary.bos()
         pad_token_id = dictionary.pad()
+        eos_token_id = dictionary.eos()
                 
         os.makedirs(self.path_to_data, exist_ok=True)
         
@@ -193,7 +196,8 @@ class QQPDataset(BaseDataset): # used for zero-shot validation, not as GLUE benc
             for i, text in enumerate([example['question1'], example['question2']]):
                 tokens = bpe_encoder.encode(text)
                 language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                                                  pad_idx=pad_token_id, bos_idx=bos_token_id)
+                                                                  pad_idx=pad_token_id, bos_idx=bos_token_id,
+                                                                  eos_idx=eos_token_id)
                 pair[f'x{i}'] = language_tokens
                 pair[f'padding_mask{i}'] = padding_mask
             
@@ -238,6 +242,7 @@ class MRPCDataset(BaseDataset): # used for zero-shot validation, not as GLUE ben
 
         bos_token_id = dictionary.bos()
         pad_token_id = dictionary.pad()
+        eos_token_id = dictionary.eos()
                 
         os.makedirs(self.path_to_data, exist_ok=True)
         
@@ -254,7 +259,8 @@ class MRPCDataset(BaseDataset): # used for zero-shot validation, not as GLUE ben
             for i, text in enumerate([text1, text2]):
                 tokens = bpe_encoder.encode(text)
                 language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                                                  pad_idx=pad_token_id, bos_idx=bos_token_id)
+                                                                  pad_idx=pad_token_id, bos_idx=bos_token_id,
+                                                                  eos_idx=eos_token_id)
                 pair[f'x{i}'] = language_tokens
                 pair[f'padding_mask{i}'] = padding_mask
             

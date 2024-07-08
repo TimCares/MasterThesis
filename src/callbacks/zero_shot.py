@@ -40,7 +40,8 @@ def _zero_shot_classifier(pl_module:AMMData2VecPreTrainingLightningModule, devic
         padding_masks = []
         for i in range(len(texts)):
             language_tokens, padding_mask = pad_text_sequence(tokens=texts[i], num_max_bpe_tokens=num_max_bpe_tokens,
-                                                              pad_idx=dictionary.pad(), bos_idx=dictionary.bos())
+                                                              pad_idx=dictionary.pad(), bos_idx=dictionary.bos(),
+                                                              eos_idx=dictionary.eos(),)
             
             texts[i] = language_tokens
             padding_masks.append(padding_mask)
