@@ -42,7 +42,7 @@ model:
 
 data:
   dataloader:
-    batch_size: 256
+    batch_size: 512
     num_workers: 8
     shuffle: True
     drop_last: True

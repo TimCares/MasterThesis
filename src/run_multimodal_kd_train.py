@@ -2,7 +2,6 @@ import hydra
 import wandb
 from omegaconf import OmegaConf, open_dict, DictConfig
 import os
-import shutil
 import torch
 from typing import List
 import logging
@@ -10,7 +9,6 @@ from pytorch_lightning import seed_everything, Trainer, LightningDataModule
 from pytorch_lightning.strategies import DeepSpeedStrategy
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, ModelSummary
 from pytorch_lightning.loggers import WandbLogger
-from lightning.pytorch.utilities.deepspeed import convert_zero_checkpoint_to_fp32_state_dict
 import sys
 sys.path.append("beit2")
 from models import MODEL_REGISTRY
@@ -121,14 +119,6 @@ def main(cfg: DictConfig) -> None:
                 train_dataloaders=multi_datamodule.train_dataloader(),
                 val_dataloaders=val_dataloaders,
                 ckpt_path=ckpt_path)
-
-    get_type = lambda x: os.path.splitext(os.path.basename(x))[0].split('-')[-1]
-    base_path = cfg.checkpoint.common.dirpath
-    model_paths = [os.path.join(base_path, f) for f in os.listdir(base_path) if f.endswith('.ckpt')]
-    output_paths = [os.path.join(base_path, f'fp32_last_{get_type(v)}.ckpt') for v in model_paths]
-    for model_path, output_path in zip(model_paths, output_paths):
-        convert_zero_checkpoint_to_fp32_state_dict(model_path, output_path)
-        shutil.rmtree(model_path) # remove unneeded files -> same disk space
 
 if __name__ == "__main__":
     main()
