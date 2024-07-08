@@ -44,7 +44,7 @@ Experiments
 			Ablation Study: Reduction of Data
 			Ablation Study: Uncurated Datasets (CC12M)
 
-			Limitations (from trained models alone: No NRLV2, etc possible)
+			Limitations (from trained models alone: No NRLV2, etc possible) -> mention https://arxiv.org/pdf/2102.03334 section 2.1 beginning page 3
 		Aligned Referencing Representations
 			Relevance (regarding: unimodal model as teacher no possible)
 		

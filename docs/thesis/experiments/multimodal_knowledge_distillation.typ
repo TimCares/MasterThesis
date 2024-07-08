@@ -193,6 +193,12 @@ a single RTX 4090 costs 0.75 USD, and a single V100 1 USD per hour.].
 
 These results can already be considered as a success, as the aim of this work is not to reach state-of-the-art performance, but to create a poof-of-concept for multimodal knowledge distillation, although a high performance is desirable.
 
+==== Multimodal Self-Attention
+- VLMo showed that shared block(s) do not necessarily have to only be linear layers, as in SHRe @shre
+- they use normal Transformer blocks, with self-attention @vlmo
+  - required self-attention to capture modalitiy-independent information
+- seemd to work well in practice, so we adapt this approach, so that our model consists only of Transformer blocks
+
 ==== Applying Contrastive Learning
 ==== On FLAVA's retrieval performance
 - FLAVA authors claim their performance on image-text retrieval on MSCOCO and Flickr30K is zero-shot

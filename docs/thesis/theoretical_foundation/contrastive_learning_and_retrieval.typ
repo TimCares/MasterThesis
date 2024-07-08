@@ -1,3 +1,4 @@
+#set heading(numbering: "1.1")
 === Contrastive Learning <contrastive_learning_section>
 - is used to compare samples (e.g. images) with each other in representation space, typically by some distance metric, of which cosine similarity is
   the usual choice

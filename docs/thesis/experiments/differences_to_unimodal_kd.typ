@@ -70,3 +70,5 @@ well researched
 - output of FFN head of deep ConvNets usually contains global information of the image due to the increased receptive field with more layers
 - so in a sense, SHRe does exactly what we aim to do, just in a supervised way: it regresses the probability distribution of the Imagenet-1k classes
 - probability distribution created from FFN head of the ConvNet, contains global information of the image, like the CLS token in Transformers
+
+< TODO: add plot for top k classes for a given image and compare it to content of caption >
