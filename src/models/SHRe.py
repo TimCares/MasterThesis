@@ -181,8 +181,8 @@ class SHRe(nn.Module):
             num_heads=self.cfg.num_heads,
             mlp_ratio=self.cfg.mlp_ratio,
             qkv_bias=True,
-            norm_layer=make_layer_norm,
             init_values=self.cfg.layer_init_scale,
+            norm_layer=make_layer_norm,
         )
 
         self.apply(init_bert_params)
