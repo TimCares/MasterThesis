@@ -58,9 +58,9 @@ data:
     coco_captions:
       task: captioning
 
-    sbu: {}
+    conceptual_captions_3m: {}
 
-    conceptual_captions: {}
+    conceptual_captions_12m: {}
 
 checkpoint:
   common:
