@@ -42,7 +42,7 @@ model:
 
 data:
   dataloader:
-    batch_size: 512
+    batch_size: 256
     num_workers: 8
     shuffle: True
     drop_last: True
@@ -101,11 +101,11 @@ lightning_trainer:
   precision: 16-mixed
   log_every_n_steps: 50
 
-  deepspeed:
-    stage: 2
-    offload_optimizer: False
-    allgather_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
-    reduce_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
+  # deepspeed:
+  #   stage: 3
+  #   offload_optimizer: False
+  #   allgather_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
+  #   reduce_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
 
 # memory_bank:
 #   batch_size: ${data.dataloader.batch_size}

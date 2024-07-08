@@ -84,8 +84,8 @@ def main(cfg: DictConfig) -> None:
     )
     if trainer.global_rank == 0:
         wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
-    wandb.save(f'models/{cfg.model_name}.py') # saves the model file to wandb
-    wandb.save('run_multimodal_kd_train.py') # saves train code to wandb
+        wandb.save(f'models/{cfg.model_name}.py') # saves the model file to wandb
+        wandb.save('run_multimodal_kd_train.py') # saves train code to wandb
 
     dataloader_args = cfg.data.dataloader
     common_args = cfg.data.common

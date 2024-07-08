@@ -28,13 +28,15 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         self.teacher = timm.create_model('resnet50.a1_in1k', pretrained=True)
         self.model._freeze(self.teacher)
 
+        self.save_hyperparameters()
+
+    def on_train_start(self):
+        logger.info(f'World size: {self.trainer.world_size}')
         self.itc_loss = ClipLoss(
             cache_labels=True,
             rank=self.trainer.local_rank,
             world_size=self.trainer.world_size,
         )
-
-        self.save_hyperparameters()
 
     def forward(self, input_dict):
         return self.model(**input_dict)
