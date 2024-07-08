@@ -450,7 +450,7 @@ class ConceptualCaptions(BaseImageText):
         )
         self.type = type
         assert type in ["cc3m", "cc12m"]
-        self.path_to_data = os.path.join(self.data_path, f"conceptual_captions_{self.type}")
+        self.path_to_data = os.path.join(self.data_path, f"conceptual_captions_{self.type[2:]}")
         self.img_path = os.path.join(self.path_to_data, "images")
         os.makedirs(self.path_to_data, exist_ok=True)
         os.makedirs(self.img_path, exist_ok=True)
@@ -460,7 +460,7 @@ class ConceptualCaptions(BaseImageText):
         self.make_conceptual_captions_dataset_index()
 
     def get_index_files(self):
-        return (f"conceptual_captions_{self.type}.jsonl", ) # only for pretraining, so no splits
+        return (f"conceptual_captions_{self.type[2:]}.jsonl", ) # only for pretraining, so no splits
 
     def make_conceptual_captions_dataset_index(self):
         items = []
