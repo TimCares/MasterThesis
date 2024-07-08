@@ -1,6 +1,6 @@
 from torchvision.transforms import v2 as transforms
 from timm.data import create_transform
-from timm.data.constants import OPENAI_CLIP_MEAN, OPENAI_CLIP_STD, IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 import torch
 import logging
 import json
@@ -132,7 +132,7 @@ def get_transforms_pretraining(
         [
             transforms.ToDtype(torch.float32, scale=True),
             transforms.Normalize(
-                mean=OPENAI_CLIP_MEAN, std=OPENAI_CLIP_STD
+                mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD
             ),
         ]
     )
