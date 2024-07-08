@@ -2,7 +2,7 @@
 - training large image/text models is computationally expensive
 - models often need up to 100 million parameters to achieve state-of-the-art performance
 - training those models requires a lot of computational resources, e.g. GPUs, time and data
-- for example, Meta's largest Llama 2 model was trained for more than 1.7 million GPU hours @llama2
+- for example, Meta's largest Llama 2 model was trained for more than 1.7 million GPU hours// @llama2
   - used NVIDIA A100 80GB GPUs
   - if one would cost 5 USD per hour, the training would cost more than 8.5 million USD #footnote[Calculation done based on the price per GPU hour of the NVIDIA A100 80GB GPU on AWS for instance p4de.24xlarge, as of July 2024.]
 - infeasible to train such, or similar, models for researchers, students, or companies with limited resources
@@ -21,11 +21,21 @@
 - teacher model is/was trained in a supervised manner
 - provides logits as predictions for a given sample
 - are the target of the student model
-- logits are regressed by output of student model, which usually has the same shape
-  - in that case mean squared error (MSE) is used as loss function
-- student model can also regress the probabilty distribution of the teacher model, so the output of the teacher
+- regress the probabilty distribution of the teacher model, so the output of the teacher
   after softmax has been applied on logits
-  - in that case Kullback-Leibler divergence (KLD) is used as loss function
+  - also called soft targets, because logit for each class is divided by a temperature parameter before softmax is applied
+  - smoothens the distribution and increases the relative importance of logits with lower values
+    -> Hinton et al. argue that this makes the model learn encoded information the teacher model has learned that is not encoded in the activation for the correct class, which also helps the student model to generalize better, especially on less data, compared to a model trained from scratch //@kd
+  - usually a tuneable hyperparameter, but can also be learned, as shown in < TODO: \@vlmo_section >
+- here Kullback-Leibler divergence (KL) is used as loss function
+- mathematical formulation is as follows:
+- let $f$ be the teacher model, $g$ the student model, and $x$ the input sample, for example an image
+- we define $u=f(x)$ and $z=g(x)$ as the output of the teacher and student model, respectively
+  - those are the logits, and for a classification task of e.g. 1000 classes, 1000-dimensional vectors
+- after that, we apply the softmax function on the logits, with a temperature $T$, to get the soft targets
+$p_i = exp(u_i/T) / (sum_(j) exp(u_j/T))$
+
+$q_i = exp(z_i/T) / (sum_(j) exp(z_j/T))$
 
 ==== Feature-based Knowledge Distillation
 - teacher model is/was trained in a self-supervised, or supervised, manner
