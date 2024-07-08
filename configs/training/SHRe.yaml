@@ -43,7 +43,7 @@ model:
 data:
   dataloader:
     batch_size: 256
-    num_workers: 6
+    num_workers: 8
     shuffle: True
     drop_last: True
 
@@ -89,14 +89,14 @@ optimizer:
 
 optimizer_schedule: # relevant if "optimizer.warmup" is True
   type: cosine # constant or cosine
-  warmup_steps: 8_000
-  max_steps: ${lightning_trainer.max_steps}
+  warmup_steps: 7_600
+  max_steps: 76520
 
 lightning_trainer:
   default_root_dir: ${log_dir}
   accelerator: gpu
   devices: -1
-  max_epochs: 7
+  max_epochs: 6
   num_sanity_val_steps: 0 # would run zero shot at the beginning if > 0
   precision: 16-mixed
   log_every_n_steps: 50
