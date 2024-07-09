@@ -6,7 +6,6 @@ import torch
 from typing import List
 import logging
 from pytorch_lightning import seed_everything, Trainer, LightningDataModule
-from pytorch_lightning.strategies import DeepSpeedStrategy, DDPStrategy
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, ModelSummary
 from pytorch_lightning.loggers import WandbLogger
 import sys
@@ -72,8 +71,10 @@ def main(cfg: DictConfig) -> None:
     trainer_args = OmegaConf.to_container(cfg.lightning_trainer, resolve=True)
     if 'strategy' not in trainer_args:
         if 'deepspeed' in trainer_args:
+            from pytorch_lightning.strategies import DeepSpeedStrategy
             trainer_args['strategy'] = DeepSpeedStrategy(**trainer_args.pop('deepspeed'))
         elif 'ddp' in trainer_args:
+            from pytorch_lightning.strategies import DDPStrategy
             trainer_args['strategy'] = DDPStrategy(**trainer_args.pop('ddp'))
         else:
             trainer_args['strategy'] = 'auto'
