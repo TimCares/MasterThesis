@@ -178,6 +178,9 @@ class SHRe(nn.Module):
             norm_layer=make_layer_norm,
         )
 
+        self.fc_norm = make_layer_norm(self.cfg.embed_dim)
+        self.head = nn.Linear(self.cfg.embed_dim, 1000)
+
         self.apply(init_bert_params)
 
         self.logit_scale_interm = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
@@ -232,8 +235,11 @@ class SHRe(nn.Module):
         x_interm, x = self.shared(x=x, mask=mask)
         x_interm = x_interm[:, 0]
         x = x[:, 0]
+        
+        logits = self.fc_norm(x)
+        logits = self.head(logits)
 
-        out_dict["encoder_out"] = x
+        out_dict["encoder_out"] = logits
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
         x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
