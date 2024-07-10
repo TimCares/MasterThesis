@@ -43,3 +43,6 @@ export CUDACXX=/usr/local/cuda-12.1/bin/nvcc
 mkdir build && cd build
 cmake .. -DCUTLASS_NVCC_ARCHS=89 # 89 -> RTX 3090
 export CUTLASS_PATH=/root/cutlass
+
+cd /usr/local/lib/python3.10/dist-packages/torch/lib
+ln -s /usr/local/cuda/lib64/libcurand.so .
