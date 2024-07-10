@@ -70,7 +70,7 @@ class Attention(nn.Module):
 
         if mask is not None:
             mask = mask.bool()
-            attn = attn.masked_fill(~mask[:, None, None, :], float("-inf"))
+            attn = attn.masked_fill(mask[:, None, None, :], float("-inf"))
         attn = attn.softmax(dim=-1).type_as(x)
         attn = self.attn_drop(attn)
 
@@ -118,6 +118,7 @@ class Block(nn.Module):
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor=None) -> torch.Tensor:
         x = x + self.drop_path1(self.ls1(self.attn(self.norm1(x), mask=mask)))
+        x_res = x
         x_interm, x = self.mlp(self.norm2(x))
-        x = x + self.drop_path2(self.ls2(x))
+        x = x_res + self.drop_path2(self.ls2(x))
         return x_interm, x
