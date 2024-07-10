@@ -33,3 +33,13 @@ rm -r $ffmpeg_dir
 # for deep speed
 apt-get update
 apt-get install libaio-dev
+
+# cutlass, for deepspeed
+apt-get install cmake
+cd ..
+git clone https://github.com/NVIDIA/cutlass.git
+cd cutlass
+export CUDACXX=/usr/local/cuda-12.1/bin/nvcc
+mkdir build && cd build
+cmake .. -DCUTLASS_NVCC_ARCHS=89 # 89 -> RTX 3090
+export CUTLASS_PATH=/root/cutlass
