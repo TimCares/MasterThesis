@@ -8,6 +8,7 @@ import os
 from utils import load_pretrained_d2v_model
 import logging
 import pytorch_lightning as L
+from deepspeed.ops.adam import FusedAdam, DeepSpeedCPUAdam
 from dataclasses import dataclass, field
 from data2vec_fairseq.data.modality import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
@@ -101,16 +102,25 @@ class SHRePreTrainingLightningModule(L.LightningModule):
     def configure_optimizers(self):
         wd_params, non_wd_params = self._get_param_groups()
         assert len(wd_params) + len(non_wd_params) == len(list(self.model.parameters()))
-        optimizer = torch.optim.AdamW(
-            params=[
+        optim_args = {
+            "params": [
                 {"params": wd_params, "weight_decay": self.cfg.optimizer.weight_decay},
                 {"params": non_wd_params, "weight_decay": 0}
             ],
-            lr=self.cfg.optimizer.lr,
-            betas=tuple(self.cfg.optimizer.betas),
-            eps=self.cfg.optimizer.eps,
-            # weight_decay=self.cfg.optimizer.weight_decay -> not needed becuase of param groups
-        )
+            "lr": self.cfg.optimizer.lr,
+            "betas": tuple(self.cfg.optimizer.betas),
+            "eps": self.cfg.optimizer.eps,
+        }
+        if 'deepspeed' in self.cfg.lightning_trainer:
+            if self.cfg.lightning_trainer.deepspeed.offload_optimizer:
+                opt_cls = DeepSpeedCPUAdam
+                optim_args['model_params'] = optim_args.pop("params")
+            else:
+                opt_cls = FusedAdam
+        else:
+            opt_cls = torch.optim.AdamW
+            
+        optimizer = opt_cls(**optim_args)
         
         if self.cfg.optimizer.warmup:
             name = self.cfg.optimizer_schedule.type
