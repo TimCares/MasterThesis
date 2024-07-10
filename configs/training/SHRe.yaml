@@ -89,27 +89,27 @@ optimizer:
 
 optimizer_schedule: # relevant if "optimizer.warmup" is True
   type: cosine # constant or cosine
-  warmup_steps: 8_900
-  max_steps: 89273
+  warmup_steps: 7_600
+  max_steps: 76519
 
 lightning_trainer:
   default_root_dir: ${log_dir}
   accelerator: gpu
   devices: -1
-  max_epochs: 7
+  max_epochs: 6
   num_sanity_val_steps: 0 # would run zero shot at the beginning if > 0
   precision: 16-mixed
   log_every_n_steps: 50
 
-  # deepspeed:
-  #   stage: 3
-  #   offload_optimizer: False
-  #   allgather_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
-  #   reduce_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
+  deepspeed:
+    stage: 2
+    offload_optimizer: False
+    allgather_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
+    reduce_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
 
-  ddp:
-    gradient_as_bucket_view: True # optimizes memory usage
-    static_graph: True # optimizes memory usage
+  # ddp:
+  #   gradient_as_bucket_view: True # optimizes memory usage
+  #   static_graph: True # optimizes memory usage
 
 # memory_bank:
 #   batch_size: ${data.dataloader.batch_size}
