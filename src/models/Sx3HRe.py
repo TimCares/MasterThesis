@@ -8,7 +8,6 @@ import os
 from utils import load_pretrained_d2v_model
 import logging
 import pytorch_lightning as L
-from deepspeed.ops.adam import FusedAdam, DeepSpeedCPUAdam
 from dataclasses import dataclass, field
 from data2vec_fairseq.data.modality import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
@@ -126,9 +125,11 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         }
         if 'deepspeed' in self.cfg.lightning_trainer:
             if self.cfg.lightning_trainer.deepspeed.offload_optimizer:
+                from deepspeed.ops.adam import DeepSpeedCPUAdam
                 opt_cls = DeepSpeedCPUAdam
                 optim_args['model_params'] = optim_args.pop("params")
             else:
+                from deepspeed.ops.adam import FusedAdam
                 opt_cls = FusedAdam
         else:
             opt_cls = torch.optim.AdamW
