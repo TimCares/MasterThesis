@@ -16,6 +16,7 @@ from fairseq.modules.transformer_sentence_encoder import init_bert_params
 import timm
 from . import MODEL_REGISTRY
 from modules import Block, ClipLoss
+from utils import freeze_module
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         self.model = SHRe(cfg=self.cfg.model)
 
         self.teacher = timm.create_model('resnet50.a1_in1k', pretrained=True)
-        self.model._freeze(self.teacher)
+        freeze_module(self.teacher)
 
         self.save_hyperparameters()
 
@@ -255,16 +256,6 @@ class SHRe(nn.Module):
         x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
         out_dict["x_interm"] = x_interm
         return out_dict
-
-    def _freeze(self, module:nn.Module) -> None:
-        for param in module.parameters():
-            param.requires_grad = False
-        module.eval()
-
-    def _unfreeze(self, module:nn.Module) -> None:
-        for param in module.parameters():
-            param.requires_grad = True
-        module.train()
 
 MODEL_REGISTRY['SHRe'] = {
     'cfg': SHReConfig,

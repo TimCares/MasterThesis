@@ -8,7 +8,7 @@ from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from collections import OrderedDict
 from typing import List, Tuple, Dict, Optional
-
+import torch.nn as nn
 from data2vec_fairseq.models.data2vec2 import Data2VecMultiModel
 from data2vec_fairseq.models.data2vec2 import Data2VecMultiConfig
 from data2vec_fairseq.models.modalities.base import ModalitySpecificEncoder
@@ -178,3 +178,13 @@ def prepare_salient_patches(
     layer_results = prepare_output(out=layer_results, modality=modality, norm=not norm_first)
     # B x num_keep+1 x D -> one (+1) stems from additional special token
     return layer_results
+
+def freeze_module(self, module:nn.Module) -> None:
+    for param in module.parameters():
+        param.requires_grad = False
+    module.eval()
+
+def unfreeze_module(self, module:nn.Module) -> None:
+    for param in module.parameters():
+        param.requires_grad = True
+    module.train()
