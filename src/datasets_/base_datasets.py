@@ -342,9 +342,9 @@ class BaseImageText(ImageDataset):
         self.eos_token_id = self.dictionary.eos()
         self.pad_token_id = self.dictionary.pad()
 
-        BeitTransformsArgs = namedtuple('BeitTransformsArgs', 'imagenet_default_mean_and_std', 'input_size',
+        BeitTransformsArgs = namedtuple('BeitTransformsArgs', ['imagenet_default_mean_and_std', 'input_size',
                                         'second_input_size', 'min_crop_scale', 'train_interpolation',
-                                        'second_interpolation',)
+                                        'second_interpolation',],)
         transforms_args = BeitTransformsArgs(imagenet_default_mean_and_std=True, input_size=224, second_input_size=None,
                                              min_crop_scale=0.9, train_interpolation='bicubic', second_interpolation='bicubic')
         
