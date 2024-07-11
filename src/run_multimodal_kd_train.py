@@ -111,7 +111,7 @@ def main(cfg: DictConfig) -> None:
 
     if 'load_checkpoint' in cfg and cfg.load_checkpoint is not None:
         logger.info(f'Resuming from checkpoint: {cfg.load_checkpoint}')
-        ckpt_path = os.path.join(cfg.model_path, cfg.load_checkpoint)
+        ckpt_path = cfg.load_checkpoint
     else:
         ckpt_path = None
 
