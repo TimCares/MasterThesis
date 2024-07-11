@@ -180,12 +180,12 @@ def prepare_salient_patches(
     # B x num_keep+1 x D -> one (+1) stems from additional special token
     return layer_results
 
-def freeze_module(self, module:nn.Module) -> None:
+def freeze_module(module:nn.Module) -> None:
     for param in module.parameters():
         param.requires_grad = False
     module.eval()
 
-def unfreeze_module(self, module:nn.Module) -> None:
+def unfreeze_module(module:nn.Module) -> None:
     for param in module.parameters():
         param.requires_grad = True
     module.train()
