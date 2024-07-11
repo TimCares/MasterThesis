@@ -2,6 +2,7 @@ from omegaconf import OmegaConf
 import os
 import torch
 import logging
+from functools import partial
 from collections import namedtuple
 import logging
 from omegaconf import OmegaConf
@@ -9,14 +10,14 @@ from omegaconf.dictconfig import DictConfig
 from collections import OrderedDict
 from typing import List, Tuple, Dict, Optional
 import torch.nn as nn
+import torch.nn.functional as F
 from data2vec_fairseq.models.data2vec2 import Data2VecMultiModel
 from data2vec_fairseq.models.data2vec2 import Data2VecMultiConfig
 from data2vec_fairseq.models.modalities.base import ModalitySpecificEncoder
+from data2vec_fairseq.data.modality import Modality
 from fairseq.data import Dictionary
 from fairseq.dataclass.utils import merge_with_parent
-
-from data2vec_fairseq.data.modality import Modality
-import torch.nn.functional as F
+from beit2.modeling_pretrain import VisionTransformerForMaskedImageModeling
 
 logger = logging.getLogger(__name__)
 
@@ -188,3 +189,19 @@ def unfreeze_module(self, module:nn.Module) -> None:
     for param in module.parameters():
         param.requires_grad = True
     module.train()
+
+def load_beit2_teacher(sd_path:str, **kwargs) -> VisionTransformerForMaskedImageModeling:
+    sd = torch.load(sd_path)['model']
+    for key in list(sd.keys()):
+        if "cls_pt_layers" in key:
+            del sd[key]
+
+    beit2 = VisionTransformerForMaskedImageModeling(
+        patch_size=16, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs
+    )
+
+    result = beit2.load_state_dict(sd)
+    logger.info(f"Loaded BEiT2 teacher state dict with result: {result}")
+    del beit2.lm_head
+    return beit2
