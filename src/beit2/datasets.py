@@ -48,27 +48,14 @@ class DataAugmentationForBEiT(object):
                 std=torch.tensor(std))
         ])
 
-        self.visual_token_transform = transforms.Compose([
-            transforms.ToTensor(),])                                             
-
-        self.masked_position_generator = MaskingGenerator(
-            args.window_size, num_masking_patches=args.num_mask_patches,
-            max_num_patches=args.max_mask_patches_per_block,
-            min_num_patches=args.min_mask_patches_per_block,
-        )
-
     def __call__(self, image):
-        for_patches, for_visual_tokens = self.common_transform(image)
-        return \
-            self.patch_transform(for_patches), self.visual_token_transform(for_visual_tokens), \
-            self.masked_position_generator()
+        for_patches = self.common_transform(image)
+        return self.patch_transform(for_patches)
 
     def __repr__(self):
         repr = "(DataAugmentationForBEiT,\n"
         repr += "  common_transform = %s,\n" % str(self.common_transform)
         repr += "  patch_transform = %s,\n" % str(self.patch_transform)
-        repr += "  visual_tokens_transform = %s,\n" % str(self.visual_token_transform)
-        repr += "  Masked position generator = %s,\n" % str(self.masked_position_generator)
         repr += ")"
         return repr
 

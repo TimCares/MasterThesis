@@ -4,6 +4,7 @@ import torch
 import json
 from typing import *
 import numpy as np
+from collections import namedtuple
 import soundfile as sf
 from .data_utils import get_transforms 
 from bpe_encoder import get_bpe_encoder as get_bpe_encoder_from_utils
@@ -25,6 +26,8 @@ from fairseq.data import (
 
 from torchvision.datasets.folder import default_loader
 import timm
+
+from beit2.datasets import DataAugmentationForBEiT
 
 logger = logging.getLogger(__name__)
 
@@ -339,8 +342,13 @@ class BaseImageText(ImageDataset):
         self.eos_token_id = self.dictionary.eos()
         self.pad_token_id = self.dictionary.pad()
 
-        data_config = timm.data.resolve_model_data_config(timm.create_model('resnet50.a1_in1k', pretrained=True))
-        self.teacher_transform = timm.data.create_transform(**data_config, is_training=False)
+        BeitTransformsArgs = namedtuple('BeitTransformsArgs', 'imagenet_default_mean_and_std', 'input_size',
+                                        'second_input_size', 'min_crop_scale', 'train_interpolation',
+                                        'second_interpolation',)
+        transforms_args = BeitTransformsArgs(imagenet_default_mean_and_std=True, input_size=224, second_input_size=None,
+                                             min_crop_scale=0.9, train_interpolation='bicubic', second_interpolation='bicubic')
+        
+        self.teacher_transform = DataAugmentationForBEiT(transforms_args)
         
     @property
     def modality(self) -> Modality:
