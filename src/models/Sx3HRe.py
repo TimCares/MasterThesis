@@ -26,11 +26,11 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
 
         self.model = Sx3HRe(cfg=self.cfg.model)
 
-        beit2_kwargs = OmegaConf.to_container(self.cfg.beit2_args, resolve=True)
-        beit2_kwargs.pop("pretrained_path")
+        beit2_kwargs = OmegaConf.to_container(self.cfg.beit2, resolve=True)
+        sd_path = beit2_kwargs.pop("pretrained_path")
 
         self.teacher = load_beit2_teacher(
-            sd_path=self.cfg.beit2_args.pretrained_path,
+            sd_path=sd_path,
             **beit2_kwargs,
         )
         freeze_module(self.teacher)

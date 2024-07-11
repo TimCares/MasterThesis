@@ -24,7 +24,7 @@ load_checkpoint:
 
 nlp_context_length: 64 # inspired by BEiT3
 
-beit2_args:
+beit2:
   pretrained_path: ${model_path}/beitv2_base_patch16_224_pt1k.pth
   drop_path_rate: 0.1
   use_shared_rel_pos_bias: True
