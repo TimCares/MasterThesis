@@ -18,6 +18,7 @@ log_dir: ${base_dir}/logs
 seed: 42
 
 run_name: Sx3HRe
+id:
 model_name: Sx3HRe
 
 load_checkpoint:

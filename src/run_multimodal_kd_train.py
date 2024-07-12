@@ -5,6 +5,8 @@ import os
 import torch
 from typing import List
 import logging
+import git
+from datetime import datetime
 from pytorch_lightning import seed_everything, Trainer, LightningDataModule
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, ModelSummary
 from pytorch_lightning.loggers import WandbLogger
@@ -13,7 +15,6 @@ sys.path.append("beit2")
 from models import MODEL_REGISTRY
 from datamodules import DATAMODULE_REGISTRY, MultiDataModule
 from callbacks import MultimodalZeroShotRetrievalCallback, WallClockCallback
-
 from fairseq.dataclass.utils import merge_with_parent
 
 
@@ -21,12 +22,28 @@ logger = logging.getLogger(__name__)
 
 @hydra.main(version_base=None, config_path=os.path.join("..", "configs", "training"))
 def main(cfg: DictConfig) -> None:
+    if cfg.id is None:
+        repo = git.Repo(search_parent_directories=True)
+        sha = repo.head.object.hexsha[:7]
+        now = datetime.now()
+        timestamp = now.strftime("%Y_%m_%d_%H_%M_%S")
+        id = f"{sha}__{timestamp}"
+    else:
+        assert cfg.load_checkpoint is not None, "If id is set, load_checkpoint must be set as well."
+        id = cfg.id
+
     # first things first: set up logging
     # that way we log everything that happens during setup and do not miss anything
-    wandb_logger = WandbLogger(project='MMRL',
-                               name=cfg.run_name,
-                               save_dir=cfg.log_dir,
-                               log_model=False,)
+    wandb_logger = WandbLogger(
+        project='MMRL',
+        name=cfg.run_name,
+        save_dir=cfg.log_dir,
+        log_model=False,
+        id=id,
+        config=OmegaConf.to_container(cfg, resolve=True),
+        save_code=True,
+        resume='allow',
+    )
     
     cfg_cls = MODEL_REGISTRY[cfg.model_name]['cfg']
     module_cls = MODEL_REGISTRY[cfg.model_name]['module']
@@ -86,9 +103,7 @@ def main(cfg: DictConfig) -> None:
         logger=wandb_logger,
     )
     if trainer.global_rank == 0:
-        wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
         wandb.save(f'models/{cfg.model_name}.py') # saves the model file to wandb
-        wandb.save('run_multimodal_kd_train.py') # saves train code to wandb
 
     dataloader_args = cfg.data.dataloader
     common_args = cfg.data.common
