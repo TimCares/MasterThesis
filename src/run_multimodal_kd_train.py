@@ -32,8 +32,6 @@ def main(cfg: DictConfig) -> None:
         assert cfg.load_checkpoint is not None, "If id is set, load_checkpoint must be set as well."
         id = cfg.id
 
-    # first things first: set up logging
-    # that way we log everything that happens during setup and do not miss anything
     wandb_logger = WandbLogger(
         project='MMRL',
         name=cfg.run_name,
@@ -104,6 +102,7 @@ def main(cfg: DictConfig) -> None:
         logger=wandb_logger,
     )
     if trainer.global_rank == 0:
+        wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
         wandb.save(f'models/{cfg.model_name}.py') # saves the model file to wandb
 
     dataloader_args = cfg.data.dataloader

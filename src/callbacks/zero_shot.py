@@ -229,6 +229,7 @@ class ZeroShotCallback(Callback):
         raise NotImplementedError
 
     @torch.no_grad()
+    @rank_zero_only
     def on_validation_start(self, trainer, pl_module, **kwargs) -> None:
         for name_key in self.datamodules.keys(): # setup datamodules
             self.datamodules[name_key].prepare_data()
