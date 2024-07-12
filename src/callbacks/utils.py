@@ -27,3 +27,18 @@ class WallClockCallback(Callback):
 
         logger.info(f"Average GPU Wall Clock Time per batch: {self.gpu_wall_clock_time/self.n_batches:.2f} seconds")
         trainer.logger.experiment.log({"gpu_wall_clock_time_per_batch": self.gpu_wall_clock_time/self.n_batches})
+
+    @property
+    def state_key(self) -> str:
+        return f"WallClock[gpu_wall_clock_time={self.gpu_wall_clock_time}, n_batches={self.n_batches}]"
+
+    def load_state_dict(self, state_dict):
+        self.gpu_wall_clock_time = state_dict["gpu_wall_clock_time"]
+        self.n_batches = state_dict["n_batches"]
+
+    def state_dict(self):
+        sd = {
+            "gpu_wall_clock_time": self.gpu_wall_clock_time,
+            "n_batches": self.n_batches
+        }
+        return sd
