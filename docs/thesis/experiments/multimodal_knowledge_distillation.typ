@@ -193,11 +193,139 @@ a single RTX 4090 costs 0.75 USD, and a single V100 1 USD per hour.].
 
 These results can already be considered as a success, as the aim of this work is not to reach state-of-the-art performance, but to create a poof-of-concept for multimodal knowledge distillation, although a high performance is desirable.
 
-==== Multimodal Self-Attention
+==== Multimodal Self-Attention <multimodal_self_attention>
 - VLMo showed that shared block(s) do not necessarily have to only be linear layers, as in SHRe @shre
 - they use normal Transformer blocks, with self-attention @vlmo
   - required self-attention to capture modalitiy-independent information
-- seemd to work well in practice, so we adapt this approach, so that our model consists only of Transformer blocks
+- seems to work well in practice, so we adapt this approach, so that our model consists only of Transformer blocks
+
+- we use the same architecture as in the first experiment, only shared block is now different -> before Transformer MLP, now whole Transformer block
+- because transformer hidden dim 768, but output layer is required to have dim of 1000 (for 1000 imagenet classes @imagenet) for probability
+distribution over classes, we add a linear layers as a classification head after the shared block
+- head is prepended by layer norm
+- this is actually the usual setup for both Vision Transformers @vit and BERT-like @bert models
+- so in retrospect, we could have used a setup with an additional classification head from the beginning
+- should also make learning in general easier, as before, the final layer of our model, i.e. the final linear layer in the shared
+Transformer MLP block, had to (1) have aligned representations for an image-text pairs through the contrastive loss, and (2) output a
+probability distribution over the classes in imagenet, which should be the same as the one of the teacher model
+-> kl div would push the final layer, and with that the model, to produce a high output for the neuron corresponding to the correct class,
+and low outputs for the other neurons
+-> this is not optimal for the contrastive loss, as it reduces the freedom of the model to align the represenation of the image and text
+-> the model has less freedom in the represenation space
+- with new approach, MLP layers of shared Transformer block now can focus on aligning representations, while the head takes the aligned
+representations and maps them to the probability distribution based on what the represenations represent
+- objectives harmonize with each other, because contrastive loss pushes the model towards similar representations for image-text pairs,
+which is needed for the classification head to output the correct class (or soft targets)
+  - if student model receives a caption, the produced probability distribution should be the same as if the student model receives the image
+  - both should be the same as the teacher model, which receives the image
+- training setup remains the same
+
+< plots >
+< also text kldiv loss and image kldiv loss together in one plot >
+< if similar, then target should not contain image-specific information >
+
+==== Self-Supervised Teacher <self_supervised_teacher>
+- previous chapter showed that approach of SHRe works for Transformer architecture
+- also adjustments of contrastive loss through techniques developed by the VLMo authors, like the temperature parameter and the cross-entropy loss @vlmo, worked well and improved the model
+- experiment also shows that Self-Attention is able to handle multiple modalities, so we are not limited to linear layers for the shared block, which has also been shown by VLMo @vlmo, BEiT-3 @beit3, and FLAVA @flava
+- up to this point teacher model was a supervised model, trained on labeled data (Imagenet-1k)
+- provided us with a probability distribution over classes to regress
+- works well, as those classes, like "dog" or "cat", are modality independent concepts of the real world
+  - concept of a dog does not change, no matter if we see an image of a dog or read about one dog
+
+- now we want to move to a self-supervised teacher model, which has not been trained on labeled data
+- if we were to successfully train a student model with a self-supervised teacher, then the whole end-to-end process would be self-supervised
+  - currently it is not, as labeled data was used to train the teacher model
+  - same problem in VLMo, only that they use the weights of a supervised model to initialize the Self-Attention weights of their model @vlmo
+- this is the goal of this work
+
+- if we want to keep the approach from SHRe, i.e. use KD and contrastive learning, for a self-supervised trained teacher that does not provide us with a probabilty distribution to regress, then we have to regress the activations/features of the teacher model
+- this is similar to the unimodal distillation in the first experimental sections
+- previously, in unimodal knowledge distillation, we were able to regress all time steps of the teacher model with the student model
+- means the representation of each patch or text token, respectively
+  - included the CLS/BOS token
+- for multimodal Knowledge Distillation, we can't do this
+  - we have to regress the whole image/text representation
+  - and not the representation of each patch or text token
+- has two reasons
+1.
+- the number of time steps (patches) an image model has is usually not the same as the number of time steps (text tokens) a text model has
+- so we can't just regress all time steps
+- also, text can vary in length, and we use padding -> embedding at the time steps where there is padding is not meaningful
+- we would regress the representation of individual image patches -> if an image time step (patch) contains e.g. an eye, and the text token at the same time step is a padding token, then regressing this does not make sense
+2.
+- in order for this to work, a text token at a certain time step has to be related to the image patch at the same time step
+- so if an image patch contains an eye, the text token at the same time step has to contain the word "eye"
+- not possible, as result would be just a concatenation of words and no meaningful text
+- also, text naturally contains fill words, e.g. "the", "a", "is", which is nothing that can be represented in any way in an image
+- also those words do not have any meaning regarding real-world concepts, like a dog, cat, or car
+- example illustrated in @mm_kd_cls_token
+
+#figure(
+  image("../figures/mm_kd_cls_token.png"),
+  caption: [The meaning/content of time steps across modalities is not aligned, and the number of time steps will differ between modalities. This makes alignment on the level of individual time steps impossible. The CLS token aggregates global information independent of time steps, and captures the meaning and interpretation of the respective input, making alignment possible. This requires the teacher CLS token to not contain any modality-specific (in this case image) information after the last layer. Image-Text example is taken from the COCO train set @coco.],
+) <mm_kd_cls_token>
+
+- that is why we have to regress the global representation of the image and text
+- means the CLS/BOS token -> goal of it is to aggregate as much information as possible, meaning it is a global representation of the image/text content
+- is independent of the number of time steps (patches) or text tokens or what is going on in a certain time step
+- necessary requirement: representation of CLS token that is returned by the teacher and regressed by the student has to be independent of the image modality
+- means it should be abstract enought that it can be used to also describe the content of the caption of the image
+- if the representation of the CLS token still contains image specific information, then the student model will not be able to align the representation of the caption with that of the image
+  - based on the caption, it is impossible to predict the image-specific information still encoded in the representation of the CLS token
+  - also not desired, representation should be independent of the modality
+
+- SHRe can be seen as a special case of regressing the CLS token @shre
+- was published before the inception of Transformers @transformer
+- uses ConvNets
+- output of FFN head of deep ConvNets usually contains global information of the image due to the increased receptive field with more layers
+- so in a sense, SHRe does exactly what we aim to do, just in a supervised way
+- probability distribution created from FFN head of the ConvNet, contains global information of the image, like the CLS token in Transformers
+
+- therefore, we build a model that predicts the CLS token of the teacher model
+- as first test, we keep architecture the same as before, i.e. one Transformer text encoder, one Transformer image encoder, both initialized with the weights of the respective D2V2 model blocks
+- shared Transformer block on top
+- we remove classification head and layer norm before, as those were only necessary for regressing the probability distribution
+- contrastive loss remains the same: still done over intermediate, and output, CLS activations of MLP of shared Transformer block
+- at the same time, we regress the CLS token of the teacher model using MSE loss
+  - done by the final CLS token of the student model
+  - exactly this one is also used for the contrastive loss, similar to < section before multimodal self-attention >
+    - results in the aforementioned section showed that this works, though not as well as with adjustments in @multimodal_self_attention
+    - conflict as decribed in @multimodal_self_attention could happen in a similar way here
+      - MSE loss will push CLS token to be similar to the teacher model, and contrastive loss will push the CLS token to be similar to the text representation
+      - if the CLS token of the teacher still contains image-specific information, then the student will have problems aligning the representation of the text with the image, or vice versa
+
+< comparison between mse loss of text and image cls token >
+< if text lower, then target cls token contains (to some extend) image-specific information >
+
+==== Projections for Task-Seperation <projections_for_task_seperation>
+- previous section showed promising results, though not as good as with a supervised teacher @multimodal_self_attention
+- we are assuming the model suffers from conflict in the objectives of the contrastive loss and the MSE loss, as described in @multimodal_self_attention
+- we try to assign responsibilities for the objectives to different parts of the model
+- first test:
+  - add a linear projection on the final CLS token of the student model
+  - add layer norm before
+  - else architecture remains the same
+- output of the projection is used for the MSE loss
+- CLS representation of MLP of shared Transformer block is used for the contrastive loss (exactly as before)
+-> if task is retrieval, then use the CLS token output of the shared Transformer block
+-> if task is e.g. downstream finetuning, e.g. classification, then use the output of the projection
+(test output of projection with retrieval and compare to output of shared Transformer block)
+
+- second test:
+  - add linear projections to the cls tokens of the intermediate, and output, layer of the MLP of the shared Transformer block
+    - so the ones used for the contrastive loss
+  - output of projections then used for the contrastive loss and retrieval
+  - we project the representations is a shared multimodal space
+  - this is how VLMo @vlmo does it
+  - VLMo uses one projection for image -> mm space, and one for text -> mm space
+  - we do the same here -> since we do contrastive loss on two layers, and we need two projections for each layer, we have four projections in total
+  - hope is that CLS representations of shared Transformer block are not necessarily aligned across modalities, which is helpful for regressing the CLS token
+  - but at the same time the projections learn a mapping from those CLS tokens to a shared multimodal space
+  - we use the final CLS token of the shared Transformer block to regress the CLS token of the teacher model, so no projection in this test,
+    as was done in the first test
+- for retrieval, use the output of the projections for image->mm space, and text->mm space of the shared Transformer block output (not those of the intermediate MLP layer, but the final one (the second MLP layer))
+- for downstream tasks and finetuning, e.g. imagenet classification, use the CLS token of the shared Transformer block output directly, without projecting it to the shared multimodal space
 
 ==== Applying Contrastive Learning
 ==== On FLAVA's retrieval performance

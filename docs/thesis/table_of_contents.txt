@@ -18,17 +18,17 @@ Methodology
 Experiments
 	Unimodal Knowledge Distillation
 	Multimodal Knowledge Distillation
-		Differences to Unimodal KD
 		Aligned Representations
 			Dual Encoder
 				Reproducing: “See, Hear, Read: Deep Aligned Representations"
+				Self-Supervised Teacher
+					Implications of Feature-Based Distillation 
 				Applying Contrastive Learning
 					On FLAVA's retrieval performance
 					Short Captions (Region Descriptions)
 					Memory Bank for Larger Batch Sizes
-					GPU Offloading for Larger Batch Sizes
+					(Larger Batch Sizes with DDP)
 					VLMo Contrast vs. SHRe Contrast
-				Self-Supervised Teacher
 				Feature Whitening
 				Unimodal Student
 				Stagewise Unimodal Distillation

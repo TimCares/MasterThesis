@@ -62,7 +62,7 @@ well researched
 - if the representation of the CLS token still contains image specific information, then the student model will not be able to align the representation of the caption with that of the image
   - based on the caption, it is impossible to predict the image-specific information still encoded in the representation of the CLS token
   - also not desired, representation should be independent of the modality
-- this is something we will elaborate on in < TODO: cite > //@self_supervised_teacher
+- this is something we will elaborate on in @self_supervised_teacher
 
 - SHRe can be seen as a special case of regressing the CLS token @shre
 - was published before the inception of Transformers @transformer
