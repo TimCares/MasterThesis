@@ -42,3 +42,15 @@ class WallClockCallback(Callback):
             "n_batches": self.n_batches
         }
         return sd
+    
+
+class GracefulStoppingCallback(Callback):
+    def __init__(self, ckpt_path:str):
+        self.ckpt_path = ckpt_path
+
+    def on_train_batch_start(self, trainer:Trainer, pl_module:LightningModule, batch:Any, batch_idx:int) -> None:
+        if trainer.received_sigterm:
+            logger.info("Received SIGTERM. Gracefully stopping and saving checkpoint...")
+            trainer.save_checkpoint(filepath=self.ckpt_path)
+            trainer.should_stop = True
+            logger.info("Checkpoint saved.")

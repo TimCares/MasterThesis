@@ -14,7 +14,7 @@ import sys
 sys.path.append("beit2")
 from models import MODEL_REGISTRY
 from datamodules import DATAMODULE_REGISTRY, MultiDataModule
-from callbacks import MultimodalZeroShotRetrievalCallback, WallClockCallback
+from callbacks import MultimodalZeroShotRetrievalCallback, WallClockCallback, GracefulStoppingCallback
 from fairseq.dataclass.utils import merge_with_parent
 
 
@@ -70,6 +70,7 @@ def main(cfg: DictConfig) -> None:
     imagenet = DATAMODULE_REGISTRY['imagenet'](**imagenet_args)
 
     callbacks = [
+        GracefulStoppingCallback(ckpt_path=os.path.join(cfg.checkpoint.common.dirpath, 'last.ckpt')),
         ModelSummary(),
         LearningRateMonitor(logging_interval="step"),
         WallClockCallback(), # before zero-shot, so that we measure only the training batch time

@@ -5,7 +5,6 @@ from functools import partial
 from typing import Dict, Any
 import numpy as np
 import os
-import signal
 from utils import load_pretrained_d2v_model
 import logging
 import pytorch_lightning as L
@@ -45,16 +44,6 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             rank=self.trainer.local_rank,
             world_size=self.trainer.world_size,
         )
-
-        last_ckpt_path = os.path.join(self.cfg.checkpoint.common.dirpath, 'last.ckpt')
-        def handle_exit_func(signum, frame):
-            logger.info(f"Received signal {signum}. Saving checkpoint...")
-            self.trainer.save_checkpoint(filepath=last_ckpt_path)
-            logger.info("Checkpoint saved. Exiting...")
-            self.trainer.should_stop = True
-        
-        signal.signal(signal.SIGTERM, handle_exit_func)
-        signal.signal(signal.SIGINT, handle_exit_func)
 
     def forward(self, input_dict):
         return self.model(**input_dict)
