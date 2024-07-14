@@ -62,15 +62,20 @@ class ResumeCheckModelCheckpoint(ModelCheckpoint):
         super().__init__(*args, **kwargs)
         self.has_resumed = False
 
-    def on_validation_end(self, trainer, pl_module):
+    def check_if_just_resumed(self):
         if self.has_resumed:
+            logger.info("Resumed from checkpoint. Skipping repeated saving.")
             self.has_resumed = False
+            return True
+        return False # else
+
+    def on_validation_end(self, trainer, pl_module):
+        if self.check_if_just_resumed():
             return
         super().on_validation_end(trainer, pl_module)
 
     def on_train_epoch_end(self, trainer, pl_module):
-        if self.has_resumed:
-            self.has_resumed = False
+        if self.check_if_just_resumed():
             return
         super().on_train_epoch_end(trainer, pl_module)
 

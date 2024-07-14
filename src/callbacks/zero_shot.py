@@ -224,6 +224,7 @@ class ZeroShotCallback(Callback):
             datamodules: Dict[str, LightningDataModule],):
         super().__init__()
         self.datamodules = datamodules
+        self.has_resumed = False
 
     def validate(self, trainer, pl_module) -> None:
         raise NotImplementedError
@@ -231,6 +232,9 @@ class ZeroShotCallback(Callback):
     @torch.no_grad()
     @rank_zero_only
     def on_validation_start(self, trainer, pl_module, **kwargs) -> None:
+        if self.check_if_just_resumed():
+            return
+
         for name_key in self.datamodules.keys(): # setup datamodules
             self.datamodules[name_key].prepare_data()
             self.datamodules[name_key].setup(stage='fit')
@@ -241,6 +245,16 @@ class ZeroShotCallback(Callback):
         for name_key in self.datamodules.keys(): # cleanup datamodules
             self.datamodules[name_key].teardown(stage='fit')
             self.datamodules[name_key].teardown(stage='test')
+
+    def check_if_just_resumed(self):
+        if self.has_resumed:
+            logger.info("Resumed from checkpoint. Skipping repeated zero-shot validation.")
+            self.has_resumed = False
+            return True
+        return False # else
+
+    def on_train_start(self, trainer, pl_module):
+        self.has_resumed = trainer.ckpt_path is not None
 
 
 class ZeroShotRetrievalCallback(ZeroShotCallback):
