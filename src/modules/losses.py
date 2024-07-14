@@ -82,3 +82,67 @@ class ClipLoss(nn.Module):
             F.cross_entropy(logits_per_text, labels)
             ) / 2
         return total_loss, logits_per_image, logits_per_text, labels
+
+class ITMSimilarityLoss(nn.Module):
+    def __init__(self, batch_size):
+        super().__init__()
+        self.batch_size = batch_size
+
+    def forward(self,
+                all_image_features,
+                all_text_features,
+                logits_per_image,
+                logits_per_text,
+                proj_head,):
+        device = logits_per_image.device
+        itm_labels = torch.cat([
+            torch.ones(self.batch_size), 
+            torch.zeros(self.batch_size), 
+            torch.zeros(self.batch_size)]).to(device)
+
+        with torch.no_grad():       
+            weights_i2t = F.softmax(logits_per_image[:self.batch_size].float(), dim=1)
+            weights_t2i = F.softmax(logits_per_text[:self.batch_size].float(), dim=1)
+            weights_i2t.fill_diagonal_(0)
+            weights_t2i.fill_diagonal_(0)
+
+        neg_text_idx = torch.multinomial(weights_i2t, 1)
+        neg_image_idx = torch.multinomial(weights_t2i, 1)
+
+        pos_image_text_pairs = torch.concat([all_image_features[:self.batch_size], all_text_features[:self.batch_size]], dim=1)
+        neg_image_text_pairs = torch.concat([all_image_features[:self.batch_size], all_text_features[neg_text_idx]], dim=1)
+        neg_text_image_samples = torch.concat([all_image_features[neg_image_idx], all_text_features[:self.batch_size]], dim=1)
+
+        examples = torch.concat([pos_image_text_pairs, neg_image_text_pairs, neg_text_image_samples], dim=0)
+
+        logits = proj_head(examples)
+
+        return F.cross_entropy(logits, itm_labels)
+
+    # def forward(self,
+    #             logits_per_image,
+    #             logits_per_text,):
+    #     device = logits_per_image.device
+    #     itm_labels = torch.zeros(self.batch_size).to(device)
+
+    #     with torch.no_grad():       
+    #         weights_i2t = F.softmax(logits_per_image[:self.batch_size].float(), dim=1)
+    #         weights_t2i = F.softmax(logits_per_text[:self.batch_size].float(), dim=1)
+    #         weights_i2t.fill_diagonal_(0)
+    #         weights_t2i.fill_diagonal_(0)
+
+    #     neg_text_idx = torch.multinomial(weights_i2t, 1)
+    #     neg_image_idx = torch.multinomial(weights_t2i, 1)
+
+    #     pos_idx = torch.arange(self.batch_size, device=device, dtype=torch.long).unsqueeze(1)
+    #     image_indices = torch.cat([pos_idx, neg_text_idx], dim=1)
+    #     text_indices = torch.cat([pos_idx, neg_image_idx], dim=1)
+
+    #     binary_logits_image = logits_per_image[image_indices]
+    #     binary_logits_text = logits_per_text[text_indices]
+
+    #     total_loss = (
+    #         F.cross_entropy(binary_logits_image, itm_labels) +
+    #         F.cross_entropy(binary_logits_text, itm_labels)
+    #         ) / 2
+    #     return total_loss
