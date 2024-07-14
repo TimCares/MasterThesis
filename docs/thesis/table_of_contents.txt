@@ -7,10 +7,10 @@ Background
 	Related Work
 		Data2Vec
 		Deep Aligned Representations
-		VLMo
-		BEiT
 		CLIP
 		FLAVA
+		VLMo
+		BEiT
 Methodology
 	Tools
     Experimental Approach
