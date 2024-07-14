@@ -1,5 +1,6 @@
 import logging
 from pytorch_lightning import Callback, Trainer, LightningModule
+from pytorch_lightning.callbacks import ModelCheckpoint
 from typing import *
 from time import time
 
@@ -54,3 +55,24 @@ class GracefulStoppingCallback(Callback):
             trainer.save_checkpoint(filepath=self.ckpt_path)
             trainer.should_stop = True
             logger.info("Checkpoint saved.")
+
+
+class ResumeCheckModelCheckpoint(ModelCheckpoint):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.has_resumed = False
+
+    def on_validation_end(self, trainer, pl_module):
+        if self.has_resumed:
+            self.has_resumed = False
+            return
+        super().on_validation_end(trainer, pl_module)
+
+    def on_train_epoch_end(self, trainer, pl_module):
+        if self.has_resumed:
+            self.has_resumed = False
+            return
+        super().on_train_epoch_end(trainer, pl_module)
+
+    def on_train_start(self, trainer, pl_module):
+        self.has_resumed = trainer.ckpt_path is not None

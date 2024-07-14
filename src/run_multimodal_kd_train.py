@@ -14,7 +14,7 @@ import sys
 sys.path.append("beit2")
 from models import MODEL_REGISTRY
 from datamodules import DATAMODULE_REGISTRY, MultiDataModule
-from callbacks import MultimodalZeroShotRetrievalCallback, WallClockCallback, GracefulStoppingCallback
+from callbacks import MultimodalZeroShotRetrievalCallback, WallClockCallback, GracefulStoppingCallback, ResumeCheckModelCheckpoint
 from fairseq.dataclass.utils import merge_with_parent
 
 
@@ -81,7 +81,7 @@ def main(cfg: DictConfig) -> None:
     common_checkpoint_args = OmegaConf.to_container(cfg.checkpoint.common, resolve=True)
     for ckpt in cfg.checkpoint.checkpoints:
         args = OmegaConf.to_container(ckpt, resolve=True) | common_checkpoint_args
-        callbacks.append(ModelCheckpoint(**args))
+        callbacks.append(ResumeCheckModelCheckpoint(**args))
 
     torch.set_float32_matmul_precision("high") # or: "highest"
     trainer_args = OmegaConf.to_container(cfg.lightning_trainer, resolve=True)
