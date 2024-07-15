@@ -193,6 +193,9 @@ class Sx3HRe(nn.Module):
         self.cfg = cfg
         make_layer_norm = partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
 
+        self.proj_norm = make_layer_norm(self.cfg.embed_dim)
+        self.proj_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim)
+
         self.shared = Block(
             dim=self.cfg.embed_dim,
             num_heads=self.cfg.num_heads,
@@ -257,7 +260,9 @@ class Sx3HRe(nn.Module):
         x_interm = x_interm[:, 0]
         x = x[:, 0]
 
-        out_dict["encoder_out"] = x
+        encoder_out = self.proj_head(self.proj_norm(x))
+
+        out_dict["encoder_out"] = encoder_out
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
         x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
