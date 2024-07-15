@@ -130,7 +130,7 @@ class ITMSimilarityLoss(nn.Module):
         logits = proj_head(examples)
 
         out_dict = {
-            'loss': F.cross_entropy(logits, itm_labels),
+            'loss': F.cross_entropy(logits, itm_labels.long()),
             'logits': logits,
             'targets': itm_labels,
         }
