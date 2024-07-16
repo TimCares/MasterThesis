@@ -14,7 +14,8 @@ from transformers.optimization import get_cosine_schedule_with_warmup, get_const
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
-from modules import Block, ClipLoss
+from timm.layers import Mlp
+from modules import Block, ClipLoss, ITMSimilarityLoss
 from utils import freeze_module, load_beit2_teacher
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             rank=self.trainer.local_rank,
             world_size=self.trainer.world_size,
         )
+        self.itm_loss = ITMSimilarityLoss(batch_size=self.cfg.data.dataloader.batch_size)
 
     def forward(self, input_dict):
         return self.model(**input_dict)
@@ -82,27 +84,51 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.model.logit_scale_interm.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
         self.model.logit_scale_out.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
 
-        itc_loss1, _, _, _ = self.itc_loss(
+        itc_out1 = self.itc_loss(
             image_features=output_dict['x_interm_image'],
             text_features=output_dict['x_interm_text'],
             logit_scale=self.model.logit_scale_interm.exp(),
         )
+        
+        itm_out1 = self.itm_loss(
+            all_image_features=itc_out1['all_image_features'],
+            all_text_features=itc_out1['all_text_features'],
+            logits_per_image=itc_out1['logits_per_image'],
+            logits_per_text=itc_out1['logits_per_text'],
+            proj_head=self.model.itm_head_iterm,
+        )
 
-        itc_loss2, logits_per_image, logits_per_text, target = self.itc_loss(
+        itc_out2 = self.itc_loss(
             image_features=output_dict['x_text'],
             text_features=output_dict['x_image'],
             logit_scale=self.model.logit_scale_out.exp(),
         )
-        self.log_itc_acc(logits_per_text, logits_per_image, target, stage)
-            
-        itc_loss = (itc_loss1 + itc_loss2) / 2
-        self.log(f"{stage}/itc_loss", itc_loss)
         
-        loss = kd_loss + itc_loss
+        itm_out2 = self.itm_loss(
+            all_image_features=itc_out2['all_image_features'],
+            all_text_features=itc_out2['all_text_features'],
+            logits_per_image=itc_out2['logits_per_image'],
+            logits_per_text=itc_out2['logits_per_text'],
+            proj_head=self.model.itm_head_out,
+        )
+        self.log_itc_acc(itc_out2['logits_per_text'], itc_out2['logits_per_image'], itc_out2['targets'], stage)
+        self.log_itm_acc(itm_out2['logits'], itm_out2['targets'], stage)
+            
+        itc_loss = (itc_out1['loss'] + itc_out2['loss']) / 2
+        self.log(f"{stage}/itc_loss", itc_loss)
+
+        itm_loss = (itm_out1['loss'] + itm_out2['loss']) / 2
+        self.log(f"{stage}/itm_loss", itm_loss)
+        
+        loss = kd_loss + itc_loss + itm_loss
 
         self.log(f"{stage}/loss", loss, prog_bar=True)
         
         return loss
+    
+    def log_itm_acc(self, logits, target, stage):
+        acc = (logits.argmax(dim=1) == target).float().mean()
+        self.log(f"{stage}/itm_acc", acc, prog_bar=True)
     
     def log_itc_acc(self, logits_per_text, logits_per_image, target, stage):
         img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
@@ -195,6 +221,19 @@ class Sx3HRe(nn.Module):
 
         self.proj_norm = make_layer_norm(self.cfg.embed_dim)
         self.proj_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim)
+
+        self.itm_head_iterm = Mlp(
+            in_features=int(self.cfg.embed_dim*self.cfg.mlp_ratio)*2,
+            hidden_features=self.cfg.embed_dim,
+            out_features=2,
+            norm_layer=make_layer_norm,
+        )
+        self.itm_head_out = Mlp(
+            in_features=self.cfg.embed_dim*2,
+            hidden_features=self.cfg.embed_dim,
+            out_features=2,
+            norm_layer=make_layer_norm,
+        )
 
         self.shared = Block(
             dim=self.cfg.embed_dim,
