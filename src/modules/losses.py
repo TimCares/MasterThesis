@@ -95,10 +95,9 @@ class ClipLoss(nn.Module):
         return out_dict
 
 # adapted from VLMo -> https://github.com/microsoft/unilm/blob/master/vlmo/vlmo/modules/objectives.py
-class ITMSimilarityLoss(nn.Module):
-    def __init__(self, batch_size):
+class ITMLoss(nn.Module):
+    def __init__(self):
         super().__init__()
-        self.batch_size = batch_size
 
     def forward(self,
                 all_image_features,
@@ -107,23 +106,24 @@ class ITMSimilarityLoss(nn.Module):
                 logits_per_text,
                 proj_head,):
         device = logits_per_image.device
+        bsz = logits_per_image.shape[0]
         itm_labels = torch.cat([
-            torch.ones(self.batch_size), 
-            torch.zeros(self.batch_size), 
-            torch.zeros(self.batch_size)]).to(device)
+            torch.ones(bsz), 
+            torch.zeros(bsz), 
+            torch.zeros(bsz)]).to(device)
 
-        with torch.no_grad():       
-            weights_i2t = F.softmax(logits_per_image[:self.batch_size].float(), dim=1)
-            weights_t2i = F.softmax(logits_per_text[:self.batch_size].float(), dim=1)
+        with torch.no_grad():
+            weights_i2t = F.softmax(logits_per_image[:bsz].float(), dim=1)
+            weights_t2i = F.softmax(logits_per_text[:bsz].float(), dim=1)
             weights_i2t.fill_diagonal_(0)
             weights_t2i.fill_diagonal_(0)
 
         neg_text_idx = torch.multinomial(weights_i2t, 1).squeeze()
         neg_image_idx = torch.multinomial(weights_t2i, 1).squeeze()
 
-        pos_image_text_pairs = torch.concat([all_image_features[:self.batch_size], all_text_features[:self.batch_size]], dim=1)
-        neg_image_text_pairs = torch.concat([all_image_features[:self.batch_size], all_text_features[neg_text_idx]], dim=1)
-        neg_text_image_samples = torch.concat([all_image_features[neg_image_idx], all_text_features[:self.batch_size]], dim=1)
+        pos_image_text_pairs = torch.concat([all_image_features[:bsz], all_text_features[:bsz]], dim=1)
+        neg_image_text_pairs = torch.concat([all_image_features[:bsz], all_text_features[neg_text_idx]], dim=1)
+        neg_text_image_samples = torch.concat([all_image_features[neg_image_idx], all_text_features[:bsz]], dim=1)
 
         examples = torch.concat([pos_image_text_pairs, neg_image_text_pairs, neg_text_image_samples], dim=0)
 

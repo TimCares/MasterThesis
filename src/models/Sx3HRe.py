@@ -15,7 +15,7 @@ from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
 from timm.layers import Mlp
-from modules import Block, ClipLoss, ITMSimilarityLoss
+from modules import Block, ClipLoss, ITMLoss
 from utils import freeze_module, load_beit2_teacher
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             rank=self.trainer.local_rank,
             world_size=self.trainer.world_size,
         )
-        self.itm_loss = ITMSimilarityLoss(batch_size=self.cfg.data.dataloader.batch_size)
+        self.itm_loss = ITMLoss()
 
     def forward(self, input_dict):
         return self.model(**input_dict)
