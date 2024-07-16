@@ -14,8 +14,9 @@ Background
 Methodology
 	Tools
     Experimental Approach
-	Data and Preparation
+	Data and Preparation (mention uncurated nature -> imporant for scaling)
 Experiments
+	Notations and Definitions (... of image patches etc. -> if this changes for specific experiments, mention then and redefine)
 	Unimodal Knowledge Distillation
 	Multimodal Knowledge Distillation
 		Aligned Representations
@@ -23,30 +24,32 @@ Experiments
 				Reproducing: “See, Hear, Read: Deep Aligned Representations"
 				Self-Supervised Teacher
 					Implications of Feature-Based Distillation 
-				Applying Contrastive Learning
+				Applying Contrastive Learnings
 					On FLAVA's retrieval performance
 					Short Captions (Region Descriptions)
-					Memory Bank for Larger Batch Sizes
+					Memory Bank for Larger Batch Sizes (mention momentum encoder from MoCo and ALBEF -> we can't use it due to memory constraint + one additional component would make it more complicated)
 					(Larger Batch Sizes with DDP)
-					VLMo Contrast vs. SHRe Contrast
+					Projections for Task-Seperation
+					Image-Text Matching with Feature-Fusion
+					Align before Fuse [(try both, comare performance on retrieval (once using image/text encoder cls, 
+					once with shared cls output), test performance of linear eval on imagenet/glue -> is no align before fuse better? Here it makes sense to use seperate VLMo-like projections as the cls output of the encoders are still modality independent)
 				Feature Whitening
 				Unimodal Student
 				Stagewise Unimodal Distillation
 
-				
-				Importance of the right Teacher
-			(Biased VL Initialization)
+				Embedding Clusters
+				Importance of the right Teacher (why BEiT-2? etc...)
+				Biased VL Initialization (init from text)
 			Mixture-of-Modality Experts
 				Baseline
 				Mixing Positional Encodings
 				Token-Type Embeddings
-			Reusing Teacher Activations
-			Ablation Study: Reduction of Data
-			Ablation Study: Uncurated Datasets (CC12M)
 
 			Limitations (from trained models alone: No NRLV2, etc possible) -> mention https://arxiv.org/pdf/2102.03334 section 2.1 beginning page 3
 		Aligned Referencing Representations
 			Relevance (regarding: unimodal model as teacher no possible)
+
+		Ablation Study: Reduction of Data
 		
 Outlook
 Conclusion

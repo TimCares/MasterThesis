@@ -142,7 +142,7 @@ As seen in table @clip_imagenet_zero_shot_first, the model achieves almost doubl
 This is to be expected as:
 1. The reported accuracy uses a model setup with 428 million parameters.
 2. The model was trained on up to 400 million image-text pairs.
-3. The model was trained on 256 V100 GPUs for 12 days.
+3. The model was trained on 256 V100 GPUs for 12 days. @clip
 
 Huge difference to our model, which has 144 million parameters, was trained on just short of 1.4 million image-text pairs, and was trained on a single RTX 4090 for 7 hours. The cost accounts to 5.25 USD, compared to more than 73,000 USD for the CLIP model
 #footnote[Calculation was done based on the hourly GPU cost on #link("https://runpod.io")[runpod.io], which is the platform we used to rent GPUs. As of the time of our research,
@@ -295,6 +295,8 @@ which is needed for the classification head to output the correct class (or soft
       - MSE loss will push CLS token to be similar to the teacher model, and contrastive loss will push the CLS token to be similar to the text representation
       - if the CLS token of the teacher still contains image-specific information, then the student will have problems aligning the representation of the text with the image, or vice versa
 
+- we call this model *Sx3HRe* (for Self-Supervised See Hear Read)
+
 < comparison between mse loss of text and image cls token >
 < if text lower, then target cls token contains (to some extend) image-specific information >
 
@@ -305,7 +307,7 @@ which is needed for the classification head to output the correct class (or soft
 - first test:
   - add a linear projection on the final CLS token of the student model
   - add layer norm before
-  - else architecture remains the same
+  - else architecture remains the same -> essentially the same as in @multimodal_self_attention
 - output of the projection is used for the MSE loss
 - CLS representation of MLP of shared Transformer block is used for the contrastive loss (exactly as before)
 -> if task is retrieval, then use the CLS token output of the shared Transformer block
@@ -326,6 +328,69 @@ which is needed for the classification head to output the correct class (or soft
     as was done in the first test
 - for retrieval, use the output of the projections for image->mm space, and text->mm space of the shared Transformer block output (not those of the intermediate MLP layer, but the final one (the second MLP layer))
 - for downstream tasks and finetuning, e.g. imagenet classification, use the CLS token of the shared Transformer block output directly, without projecting it to the shared multimodal space
+
+- results for imagenet zero-shot classification and image-text retrieval on MSCOCO and Flickr30K can be seen in @shre_projections_results respectively
+- additional head for CLS token regression performs better, as when we have VLMo-like projections for ITC
+- we assume that this is because the shared layer makes it easier to align the representations of the image and text, as the weights for image and text embeddings are already shared -> in contrast to that, with seperate projection layers we lose this advantage and have to
+train multiple layers to align their representations together
+- we generally have a different approach to VLMo -> VLMo shared transformer layers take concatenation of image and text timesteps as input, our shared transformer layer image and text seperatly -> our cls token represents the whole image/text, VLMo cls token represents the whole image and text together
+  - this is also one reason why the cls token or the shared transformer layers in VLMo can directly be fed into a classification layer
+    for image-text matching, more on that in @image_text_matching_with_feature_fusion
+
+#figure(
+  table(
+    columns: 5,
+    stroke: none,
+    table.hline(),
+    table.header(
+      [*Model*],
+      [*Imagenet Accuracy*],
+      [*Train MSE Loss*],
+      [*Mean Retrieval MSCOCO*],
+      [*Mean Retrieval Flickr30K*],
+      [*\#Params*],
+    ),
+    table.hline(stroke: .6pt),
+    [CLIP @clip], [*72.6*], [-], [66.73], [90.1], [428M],
+    [*SHRe*], [37.3], [-], [62.5], [39.1], [132M],
+    [*Sx3HRe*], [21.8], [1.29], [], [], [131M],
+    [*SHRe#sub[MSE Head]*], [26.1], [1.18], [], [], [132M],
+    [*SHRe#sub[ITC Heads]*], [24.2], [1.22], [], [], [151M],
+    table.hline(),
+  ),
+  caption: [Aggregated results of different approaches for image-text alignment and multimodal knowledge distillation.
+  A single linear projection for regressing the BEiT-2 CLS token (MSE Head) relieves the conflict between the contrastive loss and the MSE loss, and improves the model's performance. Seperate projections for ITC (ITC Heads) improve the baseline (Sx3HRe), but lack behind the single projection for the CLS token.],
+)<shre_projections_results>
+
+==== Image-Text Matching with Feature Fusion <image_text_matching_with_feature_fusion>
+- up to this point we only adapted ITC from VLMo to our model
+- we didn't use Masked Language Modeling (MLM), because we use Knowledge-Distillation to learn the features of the teacher model
+- we didn't use Image-Text Matching (ITM), because the CLS token of the shared Transformer block (student model) represents one image/text,
+  not an image-text pair -> we can't just pass our represenation to a classification head, as we need a combination of image and text
+  to make a prediction if they match
+- in @vlmo_out the final output of VLMo shows that text tokens and image patches are concatenated together, so that text tokens
+can attend to image patches, and vice versa
+- $bold(w)_L^[T\_C L S]$ is taken as the global image-text representation, containing information of both image and text
+- a classification head can, based on this representation, infer whether the image-text pair match or not
+
+$
+bold(H)^(w v)_(L)&=[bold(w)_L^[T\_C L S], bold(w)_L^1, ..., bold(w)_L^M, bold(w)_L^[T\_S E P], bold(v)_L^[I\_C L S], bold(v)_L^1, ..., bold(v)_L^N]
+$ <vlmo_out>
+
+- in out model this is not the case, $bold(w)_L^[T\_C L S]$ and $bold(v)_L^[I\_C L S]$ contain only information of the image or text, respectively (see @sx3hre_out)
+
+$
+bold(H)^w_(L)&=[bold(w)_L^[T\_C L S], bold(w)_L^1, ..., bold(w)_L^M, bold(w)_L^[T\_S E P]], bold(H)^v_(L)=[bold(v)_L^[I\_C L S], bold(v)_L^1, ..., bold(v)_L^N]\
+$ <sx3hre_out>
+
+- one could combine the cosine similarity between an image-text pair, which match if the cosine similarity is high, and vice versa
+- but this is already done in the contrastive loss
+- instead, we test an approach we call feature concatenation:
+  - inspired by the idea to concatenate image and text timesteps (as done in VLMo, BEiT-3, and FLAVA) to create a representation of the whole image-text pair, we concatenate the CLS tokens of the shared layer for the image and text of an image-text pair
+  - we pass this to a classification head, which predicts if the image-text pair match or not
+
+
+==== Align before Fuse <align_before_fuse>
 
 ==== Applying Contrastive Learning
 ==== On FLAVA's retrieval performance
