@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: Sx3HRe_proj_head_itm
+run_name: Sx3HRe_proj_head_itm_mlp
 id:
 model_name: Sx3HRe
 
