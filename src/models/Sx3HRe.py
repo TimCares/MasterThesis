@@ -11,7 +11,7 @@ import logging
 import pytorch_lightning as L
 from dataclasses import dataclass, field
 from data2vec_fairseq.data.modality import Modality
-from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
+from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
@@ -168,22 +168,16 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             
         optimizer = opt_cls(**optim_args)
         
-        if self.cfg.optimizer.warmup:
-            name = self.cfg.optimizer_schedule.type
-            if name == 'cosine':
-                scheduler = get_cosine_schedule_with_warmup(
-                    optimizer,
-                    num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,
-                    num_training_steps=self.cfg.optimizer_schedule.max_steps,
-                )
-            else:
-                scheduler = get_constant_schedule_with_warmup(
-                    optimizer,
-                    num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,
-                )
-            return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": name}]
-        else:
-            return optimizer
+        max_steps = int(self.cfg.optimizer_schedule.max_steps / ws)
+        warmup_steps = int(max_steps * 0.1)
+        logger.info(f"[Scheduler]: Max steps is {max_steps}")
+        logger.info(f"[Scheduler]: Warmup steps is {warmup_steps}")
+        scheduler = get_cosine_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=warmup_steps,
+            num_training_steps=max_steps,
+        )
+        return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": 'cosine'}]
         
     def _get_param_groups(self):
         wd_params, non_wd_params = [], []

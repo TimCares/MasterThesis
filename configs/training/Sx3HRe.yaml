@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: Sx3HRe_proj_head_mb_2048
+run_name: Sx3HRe_proj_head_mb_512
 id:
 model_name: Sx3HRe
 
@@ -94,12 +94,7 @@ optimizer:
   betas: [ 0.9,0.98 ]
   eps: 1e-06
   weight_decay: 0.01
-  warmup: True
-
-optimizer_schedule: # relevant if "optimizer.warmup" is True
-  type: cosine # constant or cosine
-  warmup_steps: 4463 # 0.1 of max_steps
-  max_steps: 44636 # 89,273 / 2 = 44,636.5 because we use 2 gpus with ddp
+  max_steps: 89273
 
 lightning_trainer:
   default_root_dir: ${log_dir}
@@ -116,11 +111,11 @@ lightning_trainer:
   #   allgather_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
   #   reduce_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
 
-  ddp:
-    gradient_as_bucket_view: True # optimizes memory usage
-    static_graph: True # optimizes memory usage
+  # ddp:
+  #   gradient_as_bucket_view: True # optimizes memory usage
+  #   static_graph: True # optimizes memory usage
 
 memory_bank:
   batch_size: ${data.dataloader.batch_size}
-  size: 2048
+  size: 512
   half_precision: False
