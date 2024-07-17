@@ -1,6 +1,8 @@
 import os
 import logging
 import torch
+from torch.utils.data import Dataset
+from torchvision.datasets.folder import default_loader
 import json
 from typing import *
 from functools import partial
@@ -541,6 +543,38 @@ class CIFARDataset(BaseDataset):
     def __getitem__(self, index):
         item = self.items[index]
         return {"x": item[0], "target": item[1]}
+    
+
+class UngroupedImageFolder(Dataset):
+    def __init__(self, img_dir, transform):
+        self.img_dir = img_dir
+        self.transform = transform
+        self.loader = default_loader
+        self.ids = []
+        self.items = []
+        for img_name in os.listdir(img_dir):
+            img_path = os.path.join(img_dir, img_name)
+            self.items.append(img_path)
+            self.ids.append(os.path.splitext(img_name)[0])
+
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, idx):
+        img_path = self.items[idx]
+        image = self.loader(img_path)
+        image = self.transform(image)
+        return {'image': image, 'file_id': self.ids[idx]}
+    
+    def collater(self, samples):
+        batch_tensors = {}
+        for tensor_key in samples[0]:
+            if isinstance(samples[0][tensor_key], torch.Tensor):
+                batch_tensors[tensor_key] = torch.stack([d[tensor_key] for d in samples])
+            else:
+                batch_tensors[tensor_key] = torch.tensor([d[tensor_key] for d in samples], dtype=torch.long)
+
+        return batch_tensors
 
 
 UNIMODAL_DATASET_REGISTRY = {

@@ -17,6 +17,7 @@ from .unimodal_datasets import (
     CIFARDataset,
     QQPDataset,
     MRPCDataset,
+    UngroupedImageFolder,
     UNIMODAL_DATASET_REGISTRY,
 )
 
