@@ -14,7 +14,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup, get_const
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
-from modules import Block, ClipLoss
+from modules import Block, ClipLoss, ClipMBLoss
 from utils import freeze_module, load_beit2_teacher
 
 logger = logging.getLogger(__name__)
@@ -39,10 +39,25 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
 
     def on_train_start(self):
         logger.info(f'World size: {self.trainer.world_size}')
-        self.itc_loss = ClipLoss(
+        logger.info(f'Local rank: {self.trainer.local_rank}')
+        self.clip_loss = ClipLoss(
             cache_labels=True,
             rank=self.trainer.local_rank,
             world_size=self.trainer.world_size,
+        )
+        self.clip_mb_loss1 = ClipMBLoss(
+            embed_size=int(self.cfg.model.embed_dim*self.cfg.model.mlp_ratio),
+            device=self.device,
+            world_size=self.trainer.world_size,
+            rank=self.trainer.local_rank,
+            **self.cfg.memory_bank,
+        )
+        self.clip_mb_loss2 = ClipMBLoss(
+            embed_size=self.cfg.model.embed_dim,
+            device=self.device,
+            world_size=self.trainer.world_size,
+            rank=self.trainer.local_rank,
+            **self.cfg.memory_bank,
         )
 
     def forward(self, input_dict):
@@ -82,13 +97,20 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.model.logit_scale_interm.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
         self.model.logit_scale_out.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
 
-        itc_out1 = self.itc_loss(
+        if stage == 'train':
+            itc_loss1 = self.clip_mb_loss1
+            itc_loss2 = self.clip_mb_loss2
+        else:
+            itc_loss1 = self.clip_loss
+            itc_loss2 = self.clip_loss
+
+        itc_out1 = itc_loss1(
             image_features=output_dict['x_interm_image'],
             text_features=output_dict['x_interm_text'],
             logit_scale=self.model.logit_scale_interm.exp(),
         )
         
-        itc_out2 = self.itc_loss(
+        itc_out2 = itc_loss2(
             image_features=output_dict['x_text'],
             text_features=output_dict['x_image'],
             logit_scale=self.model.logit_scale_out.exp(),

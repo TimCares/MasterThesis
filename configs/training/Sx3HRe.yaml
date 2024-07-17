@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: Sx3HRe_proj_head
+run_name: Sx3HRe_proj_head_mb_2048
 id:
 model_name: Sx3HRe
 
@@ -119,3 +119,8 @@ lightning_trainer:
   ddp:
     gradient_as_bucket_view: True # optimizes memory usage
     static_graph: True # optimizes memory usage
+
+memory_bank:
+  batch_size: ${data.dataloader.batch_size}
+  size: 2048
+  half_precision: False
