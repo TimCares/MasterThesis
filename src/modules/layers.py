@@ -4,8 +4,9 @@ import torch.nn.functional as F
 from timm.models.vision_transformer import LayerScale
 from timm.layers import Mlp, DropPath
 from typing import Optional
+import torch.distributed as dist
 
-# build using timm and VLMo
+# build using timm, VLMo and BEiT
 
 class Mlp_(Mlp):
     def forward(self, x):
@@ -122,3 +123,33 @@ class Block(nn.Module):
         x_interm, x = self.mlp(self.norm2(x))
         x = x_res + self.drop_path2(self.ls2(x))
         return x_interm, x
+
+
+# all following lines pasted 1 to 1 from BEiT-3 -> https://github.com/microsoft/unilm/blob/master/beit3/utils.py
+class GatherLayer(torch.autograd.Function):
+    """
+    Gather tensors from all workers with support for backward propagation:
+    This implementation does not cut the gradients as torch.distributed.all_gather does.
+    """
+    @staticmethod
+    def forward(ctx, x):
+        output = [torch.zeros_like(x) for _ in range(dist.get_world_size())]
+        dist.all_gather(output, x)
+        return tuple(output)
+    @staticmethod
+    def backward(ctx, *grads):
+        all_gradients = torch.stack(grads)
+        dist.all_reduce(all_gradients)
+        return all_gradients[dist.get_rank()]
+
+
+def gather_features(
+        image_features,
+        text_features,
+):
+    gathered_image_features = GatherLayer.apply(image_features)
+    gathered_text_features = GatherLayer.apply(text_features)
+    all_image_features = torch.cat(gathered_image_features)
+    all_text_features = torch.cat(gathered_text_features)
+
+    return all_image_features, all_text_features
