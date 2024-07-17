@@ -139,9 +139,9 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.log(f"{stage}/{key_prefix}itc_acc", (img_itc_acc + text_itc_acc) / 2, prog_bar=True)
 
     def configure_optimizers(self):
-        ws = torch.distributed.get_world_size()
+        ws = torch.cuda.device_count()
         learning_rate = self.cfg.optimizer.base_lr * (self.cfg.data.dataloader.batch_size*ws) / 256
-        logger.info(f"[Optimizer]: World size is  {ws}")
+        logger.info(f"[Optimizer]: World size is {ws}")
         logger.info(f"[Optimizer]: Base Learning rate is {self.cfg.optimizer.base_lr}")
         logger.info(f"[Optimizer]: Learning rate is {learning_rate}")
         wd_params, non_wd_params = self._get_param_groups()
@@ -168,7 +168,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             
         optimizer = opt_cls(**optim_args)
         
-        max_steps = int(self.cfg.optimizer_schedule.max_steps / ws)
+        max_steps = int(self.cfg.optimizer.max_steps / ws)
         warmup_steps = int(max_steps * 0.1)
         logger.info(f"[Scheduler]: Max steps is {max_steps}")
         logger.info(f"[Scheduler]: Warmup steps is {warmup_steps}")
