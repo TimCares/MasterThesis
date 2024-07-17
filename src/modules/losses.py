@@ -84,7 +84,7 @@ class ClipMBLoss(nn.Module):
         self.rank = rank
         self.batch_size = batch_size*self.world_size
         assert size % self.batch_size == 0, "Size of memory bank must be multiple of batch size"
-        self.size = size - batch_size # one batch is always new samples
+        self.size = size - self.batch_size # one batch is always new samples
         assert self.size > 0, "Size of memory bank must be larger than batch size"
         
         if half_precision:
