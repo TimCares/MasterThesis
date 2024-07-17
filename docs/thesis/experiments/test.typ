@@ -11,10 +11,11 @@ $
 
 - we define $bold(H)^w_(L)$ as the final output of the student model for the caption, and $bold(H)^v_(L)$ as the final output of the student model for the image, with $bold(H)^w_(L) in RR^((M+2) times D)$ and $bold(H)^v_(L) in RR^((N+1) times D)$
 
+==== Image-Text Matching with Feature Fusion <image_text_matching_with_feature_fusion>
 
 Up to this point, we only adapted the Image-Text Contrast (ITC) from VLMo to our model. Notably, we did not employ Masked Language Modeling (MLM) because we leverage Knowledge Distillation to learn the features of the teacher model, which are the representations the model returns. We also avoided using Image-Text Matching (ITM) due to the nature of the CLS token in the shared Transformer block of our adaptation, which represents image and text independently (as in TODO: cite SHRe), rather than an image-text pair (image and text together). This configuration prevents us from directly passing our representation to a classification head for ITM, since a combination of image and text is necessary to predict a match.
 
-In VLMo, as described in @vlmo_out, the final output demonstrates that text tokens and image patches are concatenated, allowing text tokens to attend to image patches through Self-Attention, and vice versa. Therefore, the global image-text representation, $bold(w)_L^[T_C L S]$, contains information from both the image and text. Consequently, a classification head can utilize this representation to infer if an image-text pair matches.
+In VLMo, as described in @vlmo_out, the final output demonstrates that text tokens and image patches are concatenated, allowing text tokens to attend to image patches through Self-Attention (TODO: Cite transformer paper), and vice versa. Therefore, the global image-text representation, $bold(w)_L^[T_C L S]$, contains information from both the image and text. Consequently, a classification head can utilize this representation to infer if an image-text pair matches.
 
 
 $
@@ -27,14 +28,23 @@ $
 bold(H)^w_(L)&=[bold(w)_L^[T\_C L S], bold(w)_L^1, ..., bold(w)_L^M, bold(w)_L^[T\_S E P]], bold(H)^v_(L)=[bold(v)_L^[I\_C L S], bold(v)_L^1, ..., bold(v)_L^N]\
 $ <sx3hre_out>
 
-Although it is possible to compute the cosine similarity between the global text representation $bold(w)_L^[T\_C L S]$ and the image representation $bold(v)_L^[I\_C L S]$, this is already addressed in the contrastive loss. Instead, we propose an approach we call feature fusion. Inspired by the method of concatenating image and text timesteps (as implemented in VLMo, BEiT-3, and FLAVA) to generate a representation of an image-text pair, we concatenate the global representations of the image and text to form an image-text representation. This combined representation is then passed to a classification head to predict whether the image-text pair matches.
+Although it is possible to compute the cosine similarity between the global text representation $bold(w)_L^[T\_C L S]$ 
+and the image representation $bold(v)_L^[I\_C L S]$, this is already performed by the contrastive loss (explained in TODO: cite cotrastive loss section). 
+Instead, we propose an approach we call feature fusion. Inspired by the method of concatenating image and text timesteps (as implemented in VLMo,
+BEiT-3, and FLAVA) to generate a representation of an image-text pair, we concatenate the global representations of the image
+and text to form an image-text representation. This combined representation is then passed to a classification head
+to predict whether the image-text pair matches.
 
 $
 bold(u)&=[bold(w)_L^[I\_C L S];bold(v)_L^[T\_C L S]]\
 bold(p)&=[p_0, p_1]=op("Head")_op("ITM")(bold(u))
 $ <itm_feature_fusion>
 
-Here, $bold(w)_L^[T\_C L S]$ and $bold(v)_L^[I\_C L S]$ together form the input $bold(u)$ to the image-text matching head $op("Head")_op("ITM")$, where $bold(u) in RR^(2 times D)$. The output, $bold(p) in RR^2$ contains the logits indicating whether the image and text match ($p_1$) or not ($p_0$). Before applying cross-entropy to calculate the ITM loss $cal(L)_"ITM"$ (described in @itm_loss), $bold(p)$ is softmax-normalized. The labels are defined such that $y_0=1$ and $y_1=0$ if the image-text pair does not match, and $y_0=0$ with $y_1=1$ if they do.
+Here, $bold(w)_L^[T\_C L S]$ and $bold(v)_L^[I\_C L S]$ together form the input $bold(u)$ to the image-text matching head $op("Head")_op("ITM")$, where $bold(u) in RR^(2 times D)$. The output, $bold(p) in RR^2$ contains the logits indicating whether the image and text match ($p_1$) or not ($p_0$). 
+
+Because the contrastive loss is applied on the [I_CLS]/[T_CLS] (depending which modality was the input) token of both the first and last MLP layer of the shared Transformer block, we also introduce ITM for both layers. This means that we have two classification heads, $op("Interm-Head")_op("ITM")$ and $op("Head")_op("ITM")$, one for the first and one for the last layer, respectively. The final loss for ITM is the mean of the losses of both layers.
+
+Before applying cross-entropy to calculate the ITM loss $cal(L)_"ITM"$ (described in @itm_loss), $bold(p)$ is softmax-normalized. The labels are defined such that $y_0=1$ and $y_1=0$ if the image-text pair does not match, and $y_0=0$ with $y_1=1$ if they do.
 
 $
 cal(L)_"ITM"=op("CE")(bold(p), bold(y))=-sum_(i=0)^1 y_i log(p_i), y_i in {0, 1}

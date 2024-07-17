@@ -42,7 +42,7 @@ Experiments
 				Embedding Clusters
 				Importance of the right Teacher (why BEiT-2? etc...)
 				Biased VL Initialization (init from text)
-				Comparison with Supervised Teacher
+				Fair Comparison with Supervised Teacher (bigger supervised teacher -> approx. 85 mill params)
 			Mixture-of-Modality Experts
 				Baseline
 				Mixing Positional Encodings

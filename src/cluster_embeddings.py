@@ -10,7 +10,7 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import seed_everything
 from datasets_ import UngroupedImageFolder
 from utils import freeze_module, load_beit2_teacher
-import cudf
+import cupy as cp
 from cuml.cluster import KMeans
 from tqdm import tqdm
 import logging
@@ -24,22 +24,33 @@ def main(cfg: DictConfig) -> None:
     else:
         logger.info('No seed set.')
 
-    dataset, idx2file_mapper = generate_beit2_embeddings(cfg)
-
-    logger.info("Converting dataset to cuDF for KMeans clustering.")
-    dataset = cudf.DataFrame(dataset.cpu().numpy())
-
-    kmeans = KMeans(**cfg.kmeans)
-    logger.info("Fitting KMeans.")
-    kmeans.fit(dataset)
-    del dataset
-    cluster_assignments = kmeans.labels_.to_pandas().values
-    logger.info("Clustering done.")
-    img2cluster = {idx2file_mapper[idx]: cluster for idx, cluster in cluster_assignments.items()}
+    if not os.path.exists(cfg.output_dir, 'beit2_embeddings.npy'):
+        logger.info("Generating BEiT2 embeddings.")
+        dataset, idx2file_mapper = generate_beit2_embeddings(cfg)
+        cp.save(os.path.join(cfg.output_dir, 'beit2_embeddings.npy'), dataset)
+        with open(os.path.join(cfg.output_dir, 'idx2file_mapper.json'), "w") as f:
+            json.dump(idx2file_mapper, f)
+    else:
+        logger.info("BEiT2 embeddings already exist, loading...")
+        dataset = cp.load(os.path.join(cfg.output_dir, 'beit2_embeddings.npy'))
+        with open(os.path.join(cfg.output_dir, 'idx2file_mapper.json'), "r") as f:
+            idx2file_mapper = json.load(f)
     
-    with open(os.path.join(cfg.output_dir, f"img2cluster_{cfg.kmeans.n_clusters}.json"), "w") as f:
-        json.dump(img2cluster, f)
-    logger.info("Finished embedding clustering.")
+    if not os.path.exists(cfg.output_dir, f'cluster2file_{cfg.kmeans.n_clusters}.json'):
+        kmeans = KMeans(**cfg.kmeans)
+        logger.info("Fitting KMeans.")
+        kmeans.fit(dataset)
+        del dataset
+        cluster_assignments = kmeans.labels_.to_pandas()
+        logger.info("Clustering done.")
+
+        img2cluster = {idx2file_mapper[idx]: cluster for idx, cluster in cluster_assignments.items()}
+        with open(os.path.join(cfg.output_dir, f"file2cluster_{cfg.kmeans.n_clusters}.json"), "w") as f:
+            json.dump(img2cluster, f)
+        logger.info("Finished embedding clustering.")
+    else:
+        logger.info(f"Cluster assignments already exist for {cfg.kmeans.n_clusters} clusters.")
+
 
 def generate_beit2_embeddings(cfg):
     BeitTransformsArgs = namedtuple('BeitTransformsArgs', 
@@ -81,7 +92,7 @@ def generate_beit2_embeddings(cfg):
 
     bool_masked_pos = torch.zeros((images.shape[0], beit2.patch_embed.num_patches), 
                                   dtype=torch.bool).to('cuda')
-    dataset = torch.empty((n_samples, beit2.embed_dim), dtype=torch.float32).to('cuda')
+    dataset = cp.empty((n_samples, beit2.embed_dim), dtype=cp.float32)
     idx2file_mapper = {}
     with torch.no_grad():
         for idx, batch in tqdm(enumerate(dataloader), desc="Iterating over batches"):
@@ -92,7 +103,7 @@ def generate_beit2_embeddings(cfg):
                 bool_masked_pos=bool_masked_pos,
             )[:, 0]
             start_idx = idx*bsz
-            dataset[start_idx:start_idx+bsz] = target
+            dataset[start_idx:start_idx+bsz] = cp.asarray(target)
             idx2file_mapper.update({k:v for k, v in zip(range(start_idx, start_idx+bsz), batch['file_id'].tolist())})
     return dataset, idx2file_mapper
 
