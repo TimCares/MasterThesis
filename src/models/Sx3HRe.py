@@ -116,6 +116,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             logit_scale=self.model.logit_scale_out.exp(),
         )
         
+        self.log_itc_acc(itc_out1['logits_per_text'], itc_out1['logits_per_image'], itc_out1['targets'], stage, key_prefix="interm")
         self.log_itc_acc(itc_out2['logits_per_text'], itc_out2['logits_per_image'], itc_out2['targets'], stage)
             
         itc_loss = (itc_out1['loss'] + itc_out2['loss']) / 2
@@ -127,12 +128,14 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         
         return loss
     
-    def log_itc_acc(self, logits_per_text, logits_per_image, target, stage):
+    def log_itc_acc(self, logits_per_text, logits_per_image, target, stage, key_prefix=""):
         img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
         text_itc_acc = (logits_per_text.argmax(dim=1) == target).float().mean()
-        self.log(f"{stage}/itc_text_acc", text_itc_acc)
-        self.log(f"{stage}/itc_image_acc", img_itc_acc)
-        self.log(f"{stage}/itc_acc", (img_itc_acc + text_itc_acc) / 2, prog_bar=True)
+        if key_prefix != "":
+            key_prefix = key_prefix + "_"
+        self.log(f"{stage}/{key_prefix}itc_text_acc", text_itc_acc)
+        self.log(f"{stage}/{key_prefix}itc_image_acc", img_itc_acc)
+        self.log(f"{stage}/{key_prefix}itc_acc", (img_itc_acc + text_itc_acc) / 2, prog_bar=True)
 
     def configure_optimizers(self):
         wd_params, non_wd_params = self._get_param_groups()

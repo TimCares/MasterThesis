@@ -142,6 +142,9 @@ class ClipMBLoss(nn.Module):
             all_image_features, all_text_features = gather_features(
                 image_features, text_features
             )
+        else:
+            all_image_features = image_features
+            all_text_features = text_features
         
         logits_per_image = logit_scale * image_features @ torch.cat([all_text_features, self.text_memory_bank], dim=0).t()
         logits_per_text = logit_scale * text_features @ torch.cat([all_image_features, self.image_memory_bank], dim=0).t()
