@@ -135,7 +135,7 @@ class ClipMBLoss(nn.Module):
             stage:str='train') -> Dict[str, torch.Tensor]:
         assert image_features.size(0) == text_features.size(0)
         if stage == 'train': # if it is not the training stage, we can use any batch size, as we do not update the memory bank
-            assert image_features.size(0) == self.batch_size
+            assert image_features.size(0) == self.batch_size/self.world_size
         device = image_features.device
 
         if self.world_size > 1:
