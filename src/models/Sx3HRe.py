@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.distributed
 import torch.nn.functional as F
 from functools import partial
 from typing import Dict, Any
@@ -138,6 +139,11 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.log(f"{stage}/{key_prefix}itc_acc", (img_itc_acc + text_itc_acc) / 2, prog_bar=True)
 
     def configure_optimizers(self):
+        ws = torch.distributed.get_world_size()
+        learning_rate = self.cfg.optimizer.base_lr * (self.cfg.data.dataloader.batch_size*ws) / 256
+        logger.info(f"[Optimizer]: World size is  {ws}")
+        logger.info(f"[Optimizer]: Base Learning rate is {self.cfg.optimizer.base_lr}")
+        logger.info(f"[Optimizer]: Learning rate is {learning_rate}")
         wd_params, non_wd_params = self._get_param_groups()
         assert len(wd_params) + len(non_wd_params) == len(list(self.model.parameters()))
         optim_args = {
@@ -145,7 +151,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
                 {"params": wd_params, "weight_decay": self.cfg.optimizer.weight_decay},
                 {"params": non_wd_params, "weight_decay": 0}
             ],
-            "lr": self.cfg.optimizer.lr,
+            "lr": learning_rate,
             "betas": tuple(self.cfg.optimizer.betas),
             "eps": self.cfg.optimizer.eps,
         }
