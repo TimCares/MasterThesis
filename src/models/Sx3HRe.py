@@ -170,9 +170,13 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
 
     def configure_optimizers(self):
         ws = torch.cuda.device_count()
-        learning_rate = self.cfg.optimizer.base_lr * (self.cfg.data.dataloader.batch_size*ws) / 256
         logger.info(f"[Optimizer]: World size is {ws}")
-        logger.info(f"[Optimizer]: Base Learning rate is {self.cfg.optimizer.base_lr}")
+        if 'lr' in self.cfg.optimizer:
+            learning_rate = self.cfg.optimizer.lr
+        else:
+            assert 'base_lr' in self.cfg.optimizer
+            learning_rate = self.cfg.optimizer.base_lr * (self.cfg.data.dataloader.batch_size*ws) / 256
+            logger.info(f"[Optimizer]: Base Learning rate is {self.cfg.optimizer.base_lr}")
         logger.info(f"[Optimizer]: Learning rate is {learning_rate}")
         wd_params, non_wd_params = self._get_param_groups()
         assert len(wd_params) + len(non_wd_params) == len(list(self.model.parameters()))
