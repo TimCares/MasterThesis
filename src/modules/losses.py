@@ -120,13 +120,15 @@ class ClipMBLoss(nn.Module):
             text_features:torch.Tensor,
             logit_scale:torch.Tensor,
             stage:str='train',
-            update:bool=True,) -> Dict[str, torch.Tensor]:
+            update:bool=True,
+            gather_negatives:bool=True,) -> Dict[str, torch.Tensor]:
         return self.compute_loss(
             logit_scale=logit_scale, 
             image_features=image_features, 
             text_features=text_features, 
             stage=stage,
             update=update,
+            gather_negatives=gather_negatives,
         )
 
     def compute_loss(
@@ -135,13 +137,14 @@ class ClipMBLoss(nn.Module):
             text_features:torch.Tensor,
             logit_scale:torch.Tensor,
             stage:str='train',
-            update:bool=True,) -> Dict[str, torch.Tensor]:
+            update:bool=True,
+            gather_negatives:bool=True,) -> Dict[str, torch.Tensor]:
         assert image_features.size(0) == text_features.size(0)
         if stage == 'train': # if it is not the training stage, we can use any batch size, as we do not update the memory bank
             assert image_features.size(0) == self.batch_size/self.world_size
         device = image_features.device
 
-        if self.world_size > 1:
+        if self.world_size > 1 and gather_negatives:
             all_image_features, all_text_features = gather_features(
                 image_features, text_features
             )
