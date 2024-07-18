@@ -109,17 +109,17 @@ lightning_trainer:
   precision: 16-mixed
   log_every_n_steps: 50
 
-  deepspeed:
-    stage: 2
-    offload_optimizer: False
-    allgather_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
-    reduce_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
+  # deepspeed:
+  #   stage: 2
+  #   offload_optimizer: False
+  #   allgather_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
+  #   reduce_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
 
-  # ddp:
-  #   gradient_as_bucket_view: True # optimizes memory usage
-  #   static_graph: True # optimizes memory usage
+  ddp:
+    gradient_as_bucket_view: True # optimizes memory usage
+    static_graph: True # optimizes memory usage
 
 memory_bank:
   batch_size: ${data.dataloader.batch_size}
-  size: 512
+  size: 4096 # as per MoCo v3
   half_precision: True

@@ -15,7 +15,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
-from modules import Block, ClipMBLoss
+from modules import Block, ClipMBLoss, gather_features
 from utils import freeze_module, load_beit2_teacher
 from timm.utils import ModelEmaV3
 
@@ -106,6 +106,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             logit_scale=self.model.logit_scale_interm.exp(),
             stage=stage,
             update=False,
+            gather_negatives=False,
         )
         
         itc_out2 = self.clip_mb_loss2(
@@ -114,6 +115,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             logit_scale=self.model.logit_scale_out.exp(),
             stage=stage,
             update=False,
+            gather_negatives=False,
         )
         
         self.log_itc_acc(itc_out1['logits_per_text'], itc_out1['logits_per_image'], itc_out1['targets'], stage, key_prefix="interm")
@@ -126,17 +128,36 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
 
         self.log(f"{stage}/loss", loss, prog_bar=True)
         
-        return loss
+        return {'loss': loss, 'module': self, 'stage': stage}
     
-    def on_train_batch_end(self, outputs, batch, batch_idx, dataloader_idx):
-        if 'target' in batch:
-            batch.pop('target') # unused, layer activations are the targets
-        batch.pop('image_teacher')
-        ema_out = self.ema(**batch)
-        self.clip_mb_loss1._update(ema_out['x_interm_image'], ema_out['x_interm_text'])
-        self.clip_mb_loss2._update(ema_out['x_text'], ema_out['x_image'])
-
+    def _ema_step(self, batch):
         self.ema.update(self.model)
+        
+        ema_out = self.ema(**batch)
+
+        x_interm_image, x_interm_text = gather_features(
+            ema_out['x_interm_image'],
+            ema_out['x_interm_text'],
+        )
+        x_image, x_text = gather_features(
+            ema_out['x_image'],
+            ema_out['x_text'],
+        )
+
+        self.clip_mb_loss1._update(x_interm_image, x_interm_text)
+        self.clip_mb_loss2._update(x_image, x_text)
+
+    def on_train_batch_end(self, outputs, batch, batch_idx):
+        if outputs['stage'] != 'train':
+            return
+        
+        module:Sx3HRePreTrainingLightningModule = outputs['module']
+
+        if 'target' in batch:
+            del batch['target']
+        del batch['image_teacher']
+
+        module._ema_step(batch)
     
     def log_itc_acc(self, logits_per_text, logits_per_image, target, stage, key_prefix=""):
         img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
@@ -196,6 +217,14 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             else:
                 wd_params.append(param)
         return wd_params, non_wd_params
+    
+    def state_dict(self, *args, **kwargs):
+        sd = super().state_dict(*args, **kwargs)
+        for k in ['clip_mb_loss1.image_memory_bank', 'clip_mb_loss1.text_memory_bank',
+                  'clip_mb_loss2.image_memory_bank', 'clip_mb_loss2.text_memory_bank']:
+            del sd[k]
+        
+        return sd
         
     def log(self, *args, **kwargs):
         super().log(batch_size=self.cfg.data.dataloader.batch_size, sync_dist=True, *args, **kwargs)
