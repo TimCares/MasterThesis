@@ -4,6 +4,8 @@ from typing import *
 import torch
 import os
 from pytorch_lightning import LightningModule
+import sys
+sys.path.append('beit2')
 from models import MODEL_REGISTRY
 from datamodules import DATAMODULE_REGISTRY
 from utils import load_pretrained_d2v_model
