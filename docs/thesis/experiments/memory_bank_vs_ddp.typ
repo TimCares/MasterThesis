@@ -97,3 +97,13 @@ $
 2. can't use memory bank that maps all training examples, as it would require too much additional GPU memory
 3. proximal regularization not applicable to a memory bank that is smaller than the training dataset
 4. momentum encoder required additional GPU memory, but might be a solution to stabilize the memory bank approach
+
+- test momentum encoder -> works
+- use just one gpu -> iterations per second less than with DDP, ddp with two gpus is more than twice as fast
+- cost wise, two gpus are more expensive than one gpu, but training is more than twice as fast, so in the end, two gpus are cheaper
+- we keep batch size of 256 per gpu, so 512 in total, and use DDP with two gpus
+- combine this with ema
+- because we use ddp and not deepspeed anymore, we get OOM errors
+- introduce optimization:
+  -> normal forward pass (kd+itc) -> backward and step -> free activations, gradients, and memory -> update ema -> forward pass with ema -> gather embeddings from
+    ema over all devices -> update memory bank

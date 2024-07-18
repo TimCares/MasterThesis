@@ -26,13 +26,13 @@ Experiments
 				Multimodal Transformer Block
 				Self-Supervised Teacher
 					Implications of Feature-Based Distillation 
-				Applying Contrastive Learnings
-					On FLAVA's retrieval performance
-					Short Captions (Region Descriptions)
-					Projections for Task-Seperation
-					Image-Text Matching with Feature-Fusion
-					Align before Fuse [(try both, comare performance on retrieval (once using image/text encoder cls, 
-					once with shared cls output), test performance of linear eval on imagenet/glue -> is no align before fuse better? Here it makes sense to use seperate VLMo-like projections as the cls output of the encoders are still modality independent)
+				On FLAVA's retrieval performance
+				Short Captions (Region Descriptions)
+				Projections for Task-Seperation
+				Image-Text Matching with Feature-Fusion
+				Align before Fuse [(try both, comare performance on retrieval (once using image/text encoder cls, 
+				once with shared cls output), test performance of linear eval on imagenet/glue -> is no align before fuse better? Here it makes sense to use seperate VLMo-like projections as the cls output of the encoders are still modality independent)
+				Increased Negative Examples for ITC
 					Memory Bank for Larger Batch Sizes (mention momentum encoder from MoCo and ALBEF -> we can't use it due to memory constraint + one additional component would make it more complicated)
 					Memory Bank vs. DDP (512)
 				Feature Whitening
