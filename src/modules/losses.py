@@ -119,12 +119,14 @@ class ClipMBLoss(nn.Module):
             image_features:torch.Tensor,
             text_features:torch.Tensor,
             logit_scale:torch.Tensor,
-            stage:str='train') -> Dict[str, torch.Tensor]:
+            stage:str='train',
+            update:bool=True,) -> Dict[str, torch.Tensor]:
         return self.compute_loss(
             logit_scale=logit_scale, 
             image_features=image_features, 
             text_features=text_features, 
-            stage=stage
+            stage=stage,
+            update=update,
         )
 
     def compute_loss(
@@ -132,7 +134,8 @@ class ClipMBLoss(nn.Module):
             image_features:torch.Tensor,
             text_features:torch.Tensor,
             logit_scale:torch.Tensor,
-            stage:str='train') -> Dict[str, torch.Tensor]:
+            stage:str='train',
+            update:bool=True,) -> Dict[str, torch.Tensor]:
         assert image_features.size(0) == text_features.size(0)
         if stage == 'train': # if it is not the training stage, we can use any batch size, as we do not update the memory bank
             assert image_features.size(0) == self.batch_size/self.world_size
@@ -165,7 +168,7 @@ class ClipMBLoss(nn.Module):
             + F.cross_entropy(logits_per_text.float(), labels)
         ) / 2
 
-        if stage == 'train': # we do not want to update the memory bank with batches/samples from the validation set
+        if stage == 'train' and update: # we do not want to update the memory bank with batches/samples from the validation set
             self._update(img_emb=all_image_features, text_emb=all_text_features)
 
         out_dict = {

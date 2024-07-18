@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: Sx3HRe_proj_head_mb_512
+run_name: Sx3HRe_proj_head_ema_mb_512
 id:
 model_name: Sx3HRe
 
@@ -48,6 +48,10 @@ model:
   norm_eps: 1e-6
   norm_affine: True
   layer_init_scale: 0.2 # VLMo and BEiT use 0.1, we have half the depth so 0.2
+
+ema:
+  decay: 0.99 # as per MoCo v3
+  use_warmup: False
 
 data:
   dataloader:
@@ -105,17 +109,17 @@ lightning_trainer:
   precision: 16-mixed
   log_every_n_steps: 50
 
-  # deepspeed:
-  #   stage: 2
-  #   offload_optimizer: False
-  #   allgather_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
-  #   reduce_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
+  deepspeed:
+    stage: 2
+    offload_optimizer: False
+    allgather_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
+    reduce_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
 
-  ddp:
-    gradient_as_bucket_view: True # optimizes memory usage
-    static_graph: True # optimizes memory usage
+  # ddp:
+  #   gradient_as_bucket_view: True # optimizes memory usage
+  #   static_graph: True # optimizes memory usage
 
 memory_bank:
   batch_size: ${data.dataloader.batch_size}
   size: 512
-  half_precision: False
+  half_precision: True

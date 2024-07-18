@@ -15,8 +15,9 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
-from modules import Block, ClipLoss, ClipMBLoss
+from modules import Block, ClipMBLoss
 from utils import freeze_module, load_beit2_teacher
+from timm.utils import ModelEmaV3
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,12 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.cfg = cfg
 
         self.model = Sx3HRe(cfg=self.cfg.model)
+        self.ema = ModelEmaV3(
+            model=self.model,
+            decay=self.cfg.ema.decay,
+            use_warmup=self.cfg.ema.use_warmup,
+        )
+        self.ema.requires_grad_(False)
 
         beit2_kwargs = OmegaConf.to_container(self.cfg.beit2, resolve=True)
         sd_path = beit2_kwargs.pop("pretrained_path")
@@ -41,11 +48,6 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
     def on_train_start(self):
         logger.info(f'World size: {self.trainer.world_size}')
         logger.info(f'Local rank: {self.trainer.local_rank}')
-        self.clip_loss = ClipLoss(
-            cache_labels=True,
-            rank=self.trainer.local_rank,
-            world_size=self.trainer.world_size,
-        )
         self.clip_mb_loss1 = ClipMBLoss(
             embed_size=int(self.cfg.model.embed_dim*self.cfg.model.mlp_ratio),
             device=self.device,
@@ -98,23 +100,20 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.model.logit_scale_interm.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
         self.model.logit_scale_out.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
 
-        if stage == 'train':
-            itc_loss1 = self.clip_mb_loss1
-            itc_loss2 = self.clip_mb_loss2
-        else:
-            itc_loss1 = self.clip_loss
-            itc_loss2 = self.clip_loss
-
-        itc_out1 = itc_loss1(
+        itc_out1 = self.clip_mb_loss1(
             image_features=output_dict['x_interm_image'],
             text_features=output_dict['x_interm_text'],
             logit_scale=self.model.logit_scale_interm.exp(),
+            stage=stage,
+            update=False,
         )
         
-        itc_out2 = itc_loss2(
+        itc_out2 = self.clip_mb_loss2(
             image_features=output_dict['x_text'],
             text_features=output_dict['x_image'],
             logit_scale=self.model.logit_scale_out.exp(),
+            stage=stage,
+            update=False,
         )
         
         self.log_itc_acc(itc_out1['logits_per_text'], itc_out1['logits_per_image'], itc_out1['targets'], stage, key_prefix="interm")
@@ -128,6 +127,16 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.log(f"{stage}/loss", loss, prog_bar=True)
         
         return loss
+    
+    def on_train_batch_end(self, outputs, batch, batch_idx, dataloader_idx):
+        if 'target' in batch:
+            batch.pop('target') # unused, layer activations are the targets
+        batch.pop('image_teacher')
+        ema_out = self.ema(**batch)
+        self.clip_mb_loss1._update(ema_out['x_interm_image'], ema_out['x_interm_text'])
+        self.clip_mb_loss2._update(ema_out['x_text'], ema_out['x_image'])
+
+        self.ema.update(self.model)
     
     def log_itc_acc(self, logits_per_text, logits_per_image, target, stage, key_prefix=""):
         img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
@@ -294,6 +303,16 @@ class Sx3HRe(nn.Module):
         x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
         out_dict["x_interm"] = x_interm
         return out_dict
+    
+    def prepare_for_inference(self, keep_modality:Modality=None, retrieval:bool=False):
+        if keep_modality == Modality.IMAGE:
+            self.text_model = None
+        elif keep_modality == Modality.TEXT:
+            self.image_model = None
+        if retrieval:
+            self.proj_norm = None
+            self.proj_head = None
+        
 
 MODEL_REGISTRY['Sx3HRe'] = {
     'cfg': Sx3HReConfig,
