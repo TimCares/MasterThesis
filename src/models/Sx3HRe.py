@@ -135,14 +135,20 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         
         ema_out = self.ema(**batch)
 
-        x_interm_image, x_interm_text = gather_features(
-            ema_out['x_interm_image'],
-            ema_out['x_interm_text'],
-        )
-        x_image, x_text = gather_features(
-            ema_out['x_image'],
-            ema_out['x_text'],
-        )
+        if self.trainer.world_size > 1:
+            x_interm_image, x_interm_text = gather_features(
+                ema_out['x_interm_image'],
+                ema_out['x_interm_text'],
+            )
+            x_image, x_text = gather_features(
+                ema_out['x_image'],
+                ema_out['x_text'],
+            )
+        else:
+            x_interm_image = ema_out['x_interm_image']
+            x_interm_text = ema_out['x_interm_text']
+            x_image = ema_out['x_image']
+            x_text = ema_out['x_text']
 
         self.clip_mb_loss1._update(x_interm_image, x_interm_text)
         self.clip_mb_loss2._update(x_image, x_text)
