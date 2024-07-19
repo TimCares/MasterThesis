@@ -25,21 +25,25 @@ Experiments
 				Larger Batch Sizes with DDP
 				Multimodal Transformer Block
 				Self-Supervised Teacher
-					Implications of Feature-Based Distillation 
-				On FLAVA's retrieval performance
-				Short Captions (Region Descriptions)
-				Projections for Task-Seperation
-				Image-Text Matching with Feature-Fusion
-				Align before Fuse [(try both, comare performance on retrieval (once using image/text encoder cls, 
-				once with shared cls output), test performance of linear eval on imagenet/glue -> is no align before fuse better? Here it makes sense to use seperate VLMo-like projections as the cls output of the encoders are still modality independent)
-				Increased Negative Examples for ITC
-					Memory Bank for Larger Batch Sizes (mention momentum encoder from MoCo and ALBEF -> we can't use it due to memory constraint + one additional component would make it more complicated)
-					Memory Bank vs. DDP (512)
+					Implications of Feature-Based Distillation
+				Contrastive Learning
+					On FLAVA's retrieval performance
+					Short Captions (Region Descriptions)
+					Projections for Task-Seperation
+					Image-Text Matching with Feature-Fusion
+					Align before Fuse [(try both, comare performance on retrieval (once using image/text encoder cls, 
+					once with shared cls output), test performance of linear eval on imagenet/glue -> is no align before fuse better? Here it makes sense to use seperate VLMo-like projections as the cls output of the encoders are still modality independent)
+					Increased Negative Examples for ITC
+						Memory Bank for Larger Batch Sizes
+						Memory Bank vs. DDP (512)
+					Cross-modal Late Interaction (maybe can also be used for KD? Prob lin transform of teacher cls token needed, maybe good in combination with PCA?)
 				Feature Whitening
 				Unimodal Student
 				Stagewise Unimodal Distillation
 
-				Embedding Clusters
+				Feature Compression
+					Dimensionality Reduction (PCA and one learnable conv1d layer/network (cnv1d inspred by paper about feature whitening to align embedding dims))
+					Feature Clusters
 				Importance of the right Teacher (why BEiT-2? etc...)
 				Biased VL Initialization (init from text)
 				Fair Comparison with Supervised Teacher (bigger supervised teacher -> approx. 85 mill params)

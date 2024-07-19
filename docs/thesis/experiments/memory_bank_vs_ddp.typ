@@ -2,11 +2,15 @@
 ===== Memory Bank vs DDP
 - current approach uses DDP with batch size of 256
 - we use two GPUs, so combined batch size is 512
-- negative samples are gathered from all devices to get more negative samples (following VLMo TODO: cite)
+- negative samples are gathered from all devices to get more negative samples @vlmo
 - as shown in experiments with supervised teacher (SHRe), significantly improves performance
 - problem is, it is expensive -> we need two GPUs instead of one
 - even though batch size is doubled, training time is not halved, due to distributed communication overhead
   - comes from gradient synchronization and gathering negative samples across devices
+
+- before we search for alternatives for more negative samples, we study the effect of using the same approach described prior, i.e. DDP with batch size of 512, but we do not gather negative samples from all devices, as done in the previous experiments
+- means effective batch size is 512, but ITC done on 256 negative samples
+- results will show us how important increased number of negative samples truly is for the performance of our model
 
 - search for alternatives, that allows for large number of negative samples, but without the need for two GPUs
 - one alternative is to use a FIFO queue based memory bank
@@ -18,7 +22,43 @@
 - given a batch size of 256, and a memory bank size of 256, we can have 511 negative samples, which is the same as having an
   effective batch size of 512, or using two GPUs with DDP and a batch size of 256, as done in the previous experiments
 
+- based on linear scaling rule (@linear_scaling_rule_lr) @mocov3 @lr_scaling_rule, we reduce the learning rate from 2e-4 to 1e-4
+- scaling rule is given by:
+
+$
+lr = "BaseLR" * "BatchSize" / 256
+$ <linear_scaling_rule_lr>
+
+- we use a batch size of 256 per device, and a base learning rate of 1e-4 ($"BaseLR"=0.0001$)
+- for two devices, we have an effective batch size of 512, that is why we used a learning rate of 2e-4 in the previous experiments (1e-4*512/256=2e-4)
+
+
 - doing this, we observe a significant drop in performance
+
+#figure(
+  table(
+    columns: 7,
+    stroke: none,
+    table.hline(),
+    table.header(
+      [Model],
+      [ImageNet-1k Accuracy],
+      [Retrieval MSCOCO],
+      [Retrieval Flickr30K],
+      [Batch Size],
+      [ITC \# Negative Examples],
+      [Wall Clock Time (in h)],
+    ),
+    table.hline(stroke: .6pt),
+    [CLIP @clip], [*72.6*], [*66.73*], [*90.1*], [32,768], [32,767], [-],
+    [*Sx3HRe#sub[DDP]*], [26.1], [66.3], [42.4], [512], [511], [7.09],
+    [*Sx3HRe#sub[MB]*], [17.8], [54.4], [30.3], [256], [511], [11.88],
+    [*Sx3HRe#sub[DDP NG]*], [17.8], [54.4], [30.3], [512], [255], [7.09],
+    table.hline(),
+  ),
+  caption: [CLIP],
+)<mb_results>
+
 - might come as a surprise, but is a well known
 - problem lies is rapidly changing model weights during training
 - when using actual batch size of 512, or DDP, all negative examples (the representations) come from the same model with the same weights
@@ -52,8 +92,8 @@ $ <proximal_regularization>
   ],
 ) <memory_bank_images>
 
-- problem also identified by (TODO: cite MOCO)
-- authors experiments, displaced in @moco_vs_mb, show that even a memory bank that maps all training examples performs significantly worse than using the actual batch size it tries to mimic
+- problem also identified by authors of MoCo @moco
+- authors experiments, displayed in @moco_vs_mb, show that even a memory bank that maps all training examples performs significantly worse than using the actual batch size it tries to mimic
 - especially with lower batch sizes
 - this type of memory bank need to sample up to 65,536 ($K=65,536$) negative examples to match actual, comparatively small, batch size of 1024
 
@@ -65,7 +105,7 @@ $ <proximal_regularization>
   ],
 ) <moco_vs_mb>
 
-- we can't use the memory bank style of (TODO: cite), since we have 3,264,868 training examples
+- we can't use the memory bank style of @memory_bank, since we have 3,264,868 training examples
   - each embedding has a size of 768, considering storing them at full precision, so float32, we would need $3,264,868 * 768 * 4 B > 10e^9 B = 10 "GB"$ of additional GPU memory
 
 - we suspect that using a proximal regularization term, as in @proximal_regularization, might help to stabilize our memory bank approach
@@ -92,11 +132,20 @@ $
 - disadvantage is that a copy of the same model that is being trained has to be kept in memory
 - even though no gradients are needed for the momentum encoder, it still requires additional GPU memory
 
+#figure(
+  image(
+  width: 50%,
+  "../figures/mm_momentum_encoder.png"),
+  caption: [Figure inspired by MoCo v2 @mocov2
+  ],
+) <mm_momentum_encoder>
+
 - in conclusion:
 1. can't use FIFO queue based memory bank, as representations of negative examples are inconsistent
 2. can't use memory bank that maps all training examples, as it would require too much additional GPU memory
 3. proximal regularization not applicable to a memory bank that is smaller than the training dataset
-4. momentum encoder required additional GPU memory, but might be a solution to stabilize the memory bank approach
+
+- only alternative is to use a momentum encoder as in MoCo
 
 - test momentum encoder -> works
 - use just one gpu -> iterations per second less than with DDP, ddp with two gpus is more than twice as fast
@@ -105,5 +154,17 @@ $
 - combine this with ema
 - because we use ddp and not deepspeed anymore, we get OOM errors
 - introduce optimization:
-  -> normal forward pass (kd+itc) -> backward and step -> free activations, gradients, and memory -> update ema -> forward pass with ema -> gather embeddings from
-    ema over all devices -> update memory bank
+  -> normal forward pass (kd+itc) -> backward and step -> free activations, gradients, and memory -> update ema -> forward pass with ema -> gather embeddings from ema over all devices -> update memory bank
+
+- first experiments show that this approach leads much worse performance on ImageNet-1K during training
+- we stop it early
+- ema decay of 0.99, following MoCo v3 (MoCo v1 achives best results with 0.999) for vision Transformers
+- maybe to high, try MoCo v1 with 0.999
+
+
+...
+- best approach would be to use no contrastive loss -> all the work we did before was because contrastive learning requires
+  large number of negative examples
+- BEiT-3 showed that this is not necessary
+
+#bibliography("../references.bib")
