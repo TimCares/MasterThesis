@@ -125,7 +125,7 @@ class Block(nn.Module):
         return x_interm, x
 
 
-# all following lines pasted 1 to 1 from BEiT-3 -> https://github.com/microsoft/unilm/blob/master/beit3/utils.py
+# GatherLayer and  gather_features copied from BEiT-3 -> https://github.com/microsoft/unilm/blob/master/beit3/utils.py
 class GatherLayer(torch.autograd.Function):
     """
     Gather tensors from all workers with support for backward propagation:
@@ -146,10 +146,16 @@ class GatherLayer(torch.autograd.Function):
 def gather_features(
         image_features,
         text_features,
+        padding_mask=None,
 ):
     gathered_image_features = GatherLayer.apply(image_features)
     gathered_text_features = GatherLayer.apply(text_features)
     all_image_features = torch.cat(gathered_image_features)
     all_text_features = torch.cat(gathered_text_features)
+    
+    if padding_mask is not None:
+        gathered_padding_mask = GatherLayer.apply(padding_mask)
+        all_padding_mask = torch.cat(gathered_padding_mask)
+        return all_image_features, all_text_features, all_padding_mask
 
     return all_image_features, all_text_features
