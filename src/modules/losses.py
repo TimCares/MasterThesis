@@ -229,7 +229,11 @@ class ITMLoss(nn.Module):
         return out_dict
 
 # following FILIP -> https://arxiv.org/pdf/2111.07783
-class CMLILoss(CachedLabelContrastiveLoss):    
+class CMLILoss(CachedLabelContrastiveLoss):
+    def __init__(self, cache_labels=False, rank=0, world_size=1, include_cls_token=False):
+        super().__init__(cache_labels, rank, world_size)
+        self.include_cls_token = include_cls_token
+     
     def _gather(self, image_features, text_features, padding_masks):
         if self.world_size > 1:
             all_image_features, all_text_features, all_padding_masks = gather_features(
@@ -244,24 +248,36 @@ class CMLILoss(CachedLabelContrastiveLoss):
     def forward(self, image, text, padding_masks, logit_scale=1.0):
         image, text, padding_masks = self._gather(image, text, padding_masks)
 
-        # Perform batched matrix multiplication
-        similarity = image.unsqueeze(1) @ text.unsqueeze(0).transpose(-1, -2)
+        similarity = logit_scale * image.unsqueeze(1) @ text.unsqueeze(0).transpose(-1, -2)
 
         # exclude similarity to padding tokens
         similarity = similarity.masked_fill(padding_masks[:, None, None, :].bool(), float('nan'))
 
-        # exclude cls token (1:) and sep token (:-1)
-        similarity = similarity[:, :, 1:, 1:-1]
+        if self.include_cls_token:
+            logits_per_cls_image = similarity[:, :, 0, 0]
+            logits_per_cls_text = logits_per_cls_image.t()
+        
+        # exclude cls token (1:)
+        similarity = similarity[:, :, 1:, 1:]
 
         logits_per_image = similarity.nan_to_num(float('-inf')).max(dim=3).values.mean(dim=2)
         logits_per_text = similarity.max(dim=2).values.nanmean(dim=2)
 
         labels = self.get_labels(logits_per_image.shape[0], logits_per_image.device)
 
-        total_loss = (
+        cmli_loss = (
             F.cross_entropy(logits_per_image, labels) +
             F.cross_entropy(logits_per_text, labels)
             ) / 2
+        
+        if self.include_cls_token:
+            itc_loss = (
+                F.cross_entropy(logits_per_cls_image, labels) +
+                F.cross_entropy(logits_per_cls_text, labels)
+                ) / 2
+            total_loss = (cmli_loss + itc_loss) / 2
+        else:
+            total_loss = cmli_loss
         
         out_dict = {
             'loss': total_loss,
