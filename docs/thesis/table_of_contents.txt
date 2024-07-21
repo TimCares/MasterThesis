@@ -43,7 +43,7 @@ Experiments
 
 				Towards Modality-Invariant Targets
 					Cross-modal Late Interaction on Teacher Features
-					Dimensionality Reduction (PCA and one learnable conv1d layer/network (cnv1d inspred by paper about feature whitening to align embedding dims))
+					Dimensionality Reduction (PCA or one learnable conv1d layer/network (cnv1d inspred by paper about feature whitening to align embedding dims))
 					Feature Clusters
 				Importance of the right Teacher (why BEiT-2? etc...)
 				Biased VL Initialization (init from text)

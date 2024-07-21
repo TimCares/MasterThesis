@@ -159,7 +159,17 @@ $
 - first experiments show that this approach leads much worse performance on ImageNet-1K during training
 - we stop it early
 - ema decay of 0.99, following MoCo v3 (MoCo v1 achives best results with 0.999) for vision Transformers
-- maybe to high, try MoCo v1 with 0.999
+- maybe decay of 0.99 too low combined with batch size of 4096 too high
+  - general rule of thumb: the large the memory bank, the more inconsistent the negative examples become
+    - and the smaller the decay rate, the more inconsistent the negative examples become
+- so maybe, even though samples will be way more consistent compared to vanilla MB, they are still not consistent enough
+- try higher decay rates (can work in some settings, as shown by MoCo v1) and smaller batch sizes (works for VLMo)
+- we test multiple approaches to verify the effectiveness of the momentum encoder
+  - we train the model with the different momentum encoder configurations for only two epochs -> should be enough to give a good indication of the performance
+  - otherwise to expensive
+1. mc with warmup and batch size of 1024 -> VLMo uses bsz of 1024
+2. mc with fixed decay at 0.999 and batch size of 1024
+3. based on results of 1. and 2. test higher batch sizes
 
 
 ...
