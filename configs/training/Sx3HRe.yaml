@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: Sx3HRe_proj_head_ema_mb_1024
+run_name: Sx3HRe_proj_head_ema_mb_24576
 id:
 model_name: Sx3HRe
 
@@ -104,7 +104,7 @@ lightning_trainer:
   default_root_dir: ${log_dir}
   accelerator: gpu
   devices: -1
-  max_epochs: 2
+  max_epochs: 7
   num_sanity_val_steps: 0 # would run zero shot at the beginning if > 0
   precision: 16-mixed
   log_every_n_steps: 50
@@ -120,5 +120,5 @@ lightning_trainer:
     static_graph: True # optimizes memory usage
 
 memory_bank:
-  size: 1024 # oriented on VLMo batch size
-  half_precision: False
+  size: 24576
+  half_precision: True

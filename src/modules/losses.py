@@ -54,9 +54,6 @@ class ClipLoss(CachedLabelContrastiveLoss):
 
         labels = self.get_labels(logits_per_image.shape[0], device)
 
-        all_image_features = all_image_features if self.world_size > 1 else image_features
-        all_text_features = all_text_features if self.world_size > 1 else text_features
-
         total_loss = (
             F.cross_entropy(logits_per_image, labels) +
             F.cross_entropy(logits_per_text, labels)
@@ -64,8 +61,6 @@ class ClipLoss(CachedLabelContrastiveLoss):
         
         out_dict = {
             'loss': total_loss,
-            'all_image_features': all_image_features,
-            'all_text_features': all_text_features,
             'logits_per_image': logits_per_image,
             'logits_per_text': logits_per_text,
             'targets': labels,
