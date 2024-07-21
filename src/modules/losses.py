@@ -91,11 +91,11 @@ class ClipMomentumMemoryBankLoss(nn.Module):
         else:
             dtype = torch.float32
         
-        imb_tmp = torch.rand((self.size, embed_size), dtype=dtype, device=device)
+        imb_tmp = torch.rand((self.size, embed_size), dtype=dtype, device=device, requires_grad=False)
         imb_tmp = imb_tmp / imb_tmp.norm(dim=-1, keepdim=True)
         self.register_buffer('image_memory_bank', imb_tmp)
 
-        tmb_tmp = torch.rand((self.size, embed_size), dtype=dtype, device=device)
+        tmb_tmp = torch.rand((self.size, embed_size), dtype=dtype, device=device, requires_grad=False)
         tmb_tmp = tmb_tmp / tmb_tmp.norm(dim=-1, keepdim=True)
         self.register_buffer('text_memory_bank', tmb_tmp)
         self.index_pointer = 0
@@ -115,8 +115,8 @@ class ClipMomentumMemoryBankLoss(nn.Module):
         assert self.size % bsz == 0
 
         end_idx = self.index_pointer + bsz
-        self.image_memory_bank[self.index_pointer:end_idx] = img_emb
-        self.text_memory_bank[self.index_pointer:end_idx] = text_emb
+        self.image_memory_bank[self.index_pointer:end_idx] = img_emb.detach()
+        self.text_memory_bank[self.index_pointer:end_idx] = text_emb.detach()
 
         self.index_pointer = end_idx % self.size
     
@@ -129,7 +129,7 @@ class ClipMomentumMemoryBankLoss(nn.Module):
             logit_scale:torch.Tensor,) -> Dict[str, torch.Tensor]:
         return self.compute_loss(
             logit_scale=logit_scale, 
-            image_features=image_features, 
+            image_features=image_features,
             text_features=text_features,
             image_features_m=image_features_m,
             text_features_m=text_features_m,
@@ -144,8 +144,8 @@ class ClipMomentumMemoryBankLoss(nn.Module):
             logit_scale:torch.Tensor,) -> Dict[str, torch.Tensor]:
         device = image_features.device
         
-        logits_per_image = logit_scale * image_features @ torch.cat([text_features_m, self.text_memory_bank.clone().detach()], dim=0).t()
-        logits_per_text = logit_scale * text_features @ torch.cat([image_features_m, self.image_memory_bank.clone().detach()], dim=0).t()
+        logits_per_image = logit_scale * image_features @ torch.cat([text_features_m, self.text_memory_bank], dim=0).t()
+        logits_per_text = logit_scale * text_features @ torch.cat([image_features_m, self.image_memory_bank], dim=0).t()
 
         num_logits = logits_per_image.shape[0]
         labels = torch.arange(num_logits, device=device, dtype=torch.long)
