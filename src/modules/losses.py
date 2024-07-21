@@ -265,32 +265,36 @@ class CMLITargetLoss(nn.Module):
     
     def forward(self, image, text, target, padding_masks):
 
-        similarity = text.unsqueeze(1) @ image.unsqueeze(0).transpose(-1, -2)
+        similarity = text.unsqueeze(1) @ target.unsqueeze(0).transpose(-1, -2)
+        similarity = torch.diagonal(similarity).permute(2, 0, 1)
 
         # exclude similarity to padding tokens
-        similarity = similarity.masked_fill(padding_masks[:, None, None, :].bool(), float('nan'))
+        similarity = similarity.masked_fill(padding_masks[:, :, None].bool(), float('-inf'))
+
+        # exclude cls token (1:)
+        similarity = similarity[:, 1:, 1:]
+
+        token2patch_sim, token2patch_idx = similarity.max(dim=2)
+
+        token_indices = token2patch_sim.max(dim=1).indices
+
+        each_example = torch.arange(token2patch_idx.size(0))
+
+        patch_indices = token2patch_idx[each_example, token_indices]
+
+        image_patches = target[each_example, patch_indices]
+        text_tokens = text[each_example, token_indices]
+
+        kd_matching_timesteps_loss = F.mse_loss(input=text_tokens, target=image_patches)
 
         kd_image_cls_loss = F.mse_loss(input=image[:, 0], target=target[:, 0])
-        
-        # exclude cls token (1:)
-        similarity = similarity[:, :, 1:, 1:]
-
-        token2patch = similarity.max(dim=3).indices
-
-        mask = torch.eye(image.shape[0], device=image.device, dtype=torch.bool)
-
-        token2patch = token2patch[mask] # (bsz, num_tokens)
-
-        F.mse_loss(input=text, target=image[token2patch])
-
 
         if self.text_cls_token:
             kd_text_cls_loss= F.mse_loss(input=text[:, 0], target=target[:, 0])
+            kd_text_loss = (kd_matching_timesteps_loss + kd_text_cls_loss) / 2
+        else:
+            kd_text_loss = kd_matching_timesteps_loss
+
+        total_loss = (kd_text_loss + kd_image_cls_loss) / 2
         
-        out_dict = {
-            'loss': total_loss,
-            'logits_per_image': logits_per_image,
-            'logits_per_text': logits_per_text,
-            'targets': labels,
-        }
-        return out_dict
+        return total_loss
