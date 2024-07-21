@@ -282,12 +282,14 @@ class CMLITargetLoss(nn.Module):
 
         patch_indices = token2patch_idx[each_example, token_indices]
 
-        image_patches = target[each_example, patch_indices]
-        text_tokens = text[each_example, token_indices]
+        # when indexing, add 1 because we exclude the cls token before
+        image_patches = target[each_example, patch_indices+1]
+        text_tokens = text[each_example, token_indices+1]
 
         kd_matching_timesteps_loss = F.mse_loss(input=text_tokens, target=image_patches)
 
         kd_image_cls_loss = F.mse_loss(input=image[:, 0], target=target[:, 0])
+        # todo add ranom selecting of patch for text-like loss?
 
         if self.text_cls_token:
             kd_text_cls_loss= F.mse_loss(input=text[:, 0], target=target[:, 0])
