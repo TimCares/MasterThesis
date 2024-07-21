@@ -129,24 +129,12 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.clip_mb_loss1._update(ema_out['x_interm_image'], ema_out['x_interm_text'])
         self.clip_mb_loss2._update(ema_out['x_image'], ema_out['x_text'])
         
-        return {'loss': loss, 'module': self, 'stage': stage}
+        return loss
     
     def _ema_step(self, batch):
         self.ema.update(self.model)
         ema_out = self.ema(**batch)
         return ema_out
-
-    def on_train_batch_end(self, outputs, batch, batch_idx):
-        if outputs['stage'] != 'train':
-            return
-        
-        module:Sx3HRePreTrainingLightningModule = outputs['module']
-
-        if 'target' in batch:
-            del batch['target']
-        del batch['image_teacher']
-
-        module._ema_step(batch)
     
     def log_itc_acc(self, logits_per_text, logits_per_image, target, stage, key_prefix=""):
         img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
