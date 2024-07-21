@@ -15,7 +15,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
-from modules import Block, ClipMomentumMemoryBankLoss
+from modules import Block, ClipMomentumMemoryBankLoss, ClipLoss
 from utils import freeze_module, load_beit2_teacher
 from timm.utils import ModelEmaV3
 
@@ -48,6 +48,11 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
     def on_train_start(self):
         logger.info(f'World size: {self.trainer.world_size}')
         logger.info(f'Local rank: {self.trainer.local_rank}')
+        self.clip_loss = ClipLoss(
+            cache_labels=True,
+            rank=self.trainer.local_rank,
+            world_size=self.trainer.world_size
+        )
         self.clip_mb_loss1 = ClipMomentumMemoryBankLoss(
             embed_size=int(self.cfg.model.embed_dim*self.cfg.model.mlp_ratio),
             device=self.device,
@@ -101,24 +106,38 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.model.logit_scale_interm.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
         self.model.logit_scale_out.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
 
-        itc_out1 = self.clip_mb_loss1(
-            image_features=output_dict['x_interm_image'],
-            text_features=output_dict['x_interm_text'],
-            image_features_m=ema_out['x_interm_image'],
-            text_features_m=ema_out['x_interm_text'],
-            logit_scale=self.model.logit_scale_interm.exp(),
-        )
+        if stage == 'train':
+            itc_out1 = self.clip_mb_loss1(
+                image_features=output_dict['x_interm_image'],
+                text_features=output_dict['x_interm_text'],
+                image_features_m=ema_out['x_interm_image'],
+                text_features_m=ema_out['x_interm_text'],
+                logit_scale=self.model.logit_scale_interm.exp(),
+            )
+
+            itc_out2 = self.clip_mb_loss2(
+                image_features=output_dict['x_image'],
+                text_features=output_dict['x_text'],
+                image_features_m=ema_out['x_image'],
+                text_features_m=ema_out['x_text'],
+                logit_scale=self.model.logit_scale_out.exp(),
+            )
+            self.clip_mb_loss1._update(ema_out['x_interm_image'], ema_out['x_interm_text'])
+            self.clip_mb_loss2._update(ema_out['x_image'], ema_out['x_text'])
+        else:
+            itc_out1 = self.clip_loss(
+                image_features=output_dict['x_interm_image'],
+                text_features=output_dict['x_interm_text'],
+                logit_scale=self.model.logit_scale_interm.exp(),
+            )
+            itc_out2 = self.clip_loss(
+                image_features=output_dict['x_image'],
+                text_features=output_dict['x_text'],
+                logit_scale=self.model.logit_scale_out.exp(),
+            )
         
-        itc_out2 = self.clip_mb_loss2(
-            image_features=output_dict['x_text'],
-            text_features=output_dict['x_image'],
-            image_features_m=ema_out['x_image'],
-            text_features_m=ema_out['x_text'],
-            logit_scale=self.model.logit_scale_out.exp(),
-        )
-        
-        self.log_itc_acc(itc_out1['logits_per_text'], itc_out1['logits_per_image'], itc_out1['targets'], stage, key_prefix="interm")
-        self.log_itc_acc(itc_out2['logits_per_text'], itc_out2['logits_per_image'], itc_out2['targets'], stage)
+        self.log_itc_acc(itc_out1['logits_per_image'], itc_out1['logits_per_text'], itc_out1['targets'], stage, key_prefix="interm")
+        self.log_itc_acc(itc_out2['logits_per_image'], itc_out2['logits_per_text'], itc_out2['targets'], stage)
             
         itc_loss = (itc_out1['loss'] + itc_out2['loss']) / 2
         self.log(f"{stage}/itc_loss", itc_loss)
@@ -126,9 +145,6 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         loss = kd_loss + itc_loss
 
         self.log(f"{stage}/loss", loss, prog_bar=True)
-
-        self.clip_mb_loss1._update(ema_out['x_interm_image'], ema_out['x_interm_text'])
-        self.clip_mb_loss2._update(ema_out['x_image'], ema_out['x_text'])
         
         return loss
     
@@ -137,7 +153,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         ema_out = self.ema(**batch)
         return ema_out
     
-    def log_itc_acc(self, logits_per_text, logits_per_image, target, stage, key_prefix=""):
+    def log_itc_acc(self, logits_per_image, logits_per_text, target, stage, key_prefix=""):
         img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
         text_itc_acc = (logits_per_text.argmax(dim=1) == target).float().mean()
         if key_prefix != "":
