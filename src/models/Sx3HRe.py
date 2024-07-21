@@ -75,6 +75,9 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             batch.pop('target') # unused, layer activations are the targets
 
         image_teacher = batch.pop('image_teacher')
+
+        ema_out = self._ema_step(batch) # do first to avoid cuda OOM
+
         # no mask
         bool_masked_pos = torch.zeros((image_teacher.shape[0], self.teacher.patch_embed.num_patches), 
                                       dtype=torch.bool).to(image_teacher.device)
@@ -94,8 +97,6 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.log(f"{stage}/kd_image_loss", kd_loss2)
         kd_loss = (kd_loss1 + kd_loss2) / 2
         self.log(f"{stage}/kd_loss", kd_loss)
-
-        ema_out = self._ema_step(batch)
 
         self.model.logit_scale_interm.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
         self.model.logit_scale_out.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
