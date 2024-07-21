@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: Sx3HRe_proj_head_ema_mb_512
+run_name: Sx3HRe_proj_head_ema_mb_1024
 id:
 model_name: Sx3HRe
 
@@ -50,7 +50,7 @@ model:
   layer_init_scale: 0.2 # VLMo and BEiT use 0.1, we have half the depth so 0.2
 
 ema:
-  decay: 0.99 # as per MoCo v3
+  decay: 0.995
   use_warmup: False
 
 data:
@@ -94,8 +94,7 @@ checkpoint:
       filename: model-{step}-{${.monitor}:.4f}-train
 
 optimizer:
-  lr: 0.00015 # as per MoCo v3 (1.5e-4)
-  # base_lr: 0.0001
+  base_lr: 0.0001
   betas: [ 0.9,0.98 ]
   eps: 1e-06
   weight_decay: 0.01
@@ -105,7 +104,7 @@ lightning_trainer:
   default_root_dir: ${log_dir}
   accelerator: gpu
   devices: -1
-  max_epochs: 7
+  max_epochs: 2
   num_sanity_val_steps: 0 # would run zero shot at the beginning if > 0
   precision: 16-mixed
   log_every_n_steps: 50
@@ -121,6 +120,5 @@ lightning_trainer:
     static_graph: True # optimizes memory usage
 
 memory_bank:
-  batch_size: ${data.dataloader.batch_size}
-  size: 4096 # as per MoCo v3
-  half_precision: True
+  size: 1024 # oriented on VLMo batch size
+  half_precision: False
