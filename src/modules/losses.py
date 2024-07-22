@@ -260,43 +260,84 @@ class CMLILoss(CachedLabelContrastiveLoss):
         return out_dict
 
 class CMLITargetLoss(nn.Module):
-    def __init__(self, text_cls_token=False):
-        self.text_cls_token = text_cls_token
-    
-    def forward(self, image, text, target, padding_masks):
+    def forward(self, image, text, target, padding_mask):
+        embed_dim = image.size(-1)
 
-        similarity = text.unsqueeze(1) @ target.unsqueeze(0).transpose(-1, -2)
+        text_norm = text / text.norm(dim=-1, keepdim=True)
+        target_norm = target / target.norm(dim=-1, keepdim=True)
+
+        similarity = text_norm.unsqueeze(1) @ target_norm.unsqueeze(0).transpose(-1, -2)
         similarity = torch.diagonal(similarity).permute(2, 0, 1)
-
-        # exclude similarity to padding tokens
-        similarity = similarity.masked_fill(padding_masks[:, :, None].bool(), float('-inf'))
 
         # exclude cls token (1:)
         similarity = similarity[:, 1:, 1:]
 
-        token2patch_sim, token2patch_idx = similarity.max(dim=2)
+        # +1 because we exclude the cls token before
+        token2patch_idx = similarity.argmax(dim=2)+1
 
-        token_indices = token2patch_sim.max(dim=1).indices
+        token2patch_idx = token2patch_idx.unsqueeze(-1).expand(-1, -1, embed_dim)
 
-        each_example = torch.arange(token2patch_idx.size(0))
+        padding_mask = ~padding_mask[:, 1:].contiguous().view(-1).bool()
 
-        patch_indices = token2patch_idx[each_example, token_indices]
+        token_aliged_patches = torch.gather(target, 1, token2patch_idx).view(-1, embed_dim)[padding_mask]
 
-        # when indexing, add 1 because we exclude the cls token before
-        image_patches = target[each_example, patch_indices+1]
-        text_tokens = text[each_example, token_indices+1]
+        tokens = text[:, 1:].contiguous().view(-1, embed_dim)[padding_mask]
 
-        kd_matching_timesteps_loss = F.mse_loss(input=text_tokens, target=image_patches)
+        kd_text_tokens_loss = F.mse_loss(input=tokens.float(), target=token_aliged_patches.float())
+        kd_text_cls_loss = F.mse_loss(input=text[:, 0].float(), target=target[:, 0].float())
 
-        kd_image_cls_loss = F.mse_loss(input=image[:, 0], target=target[:, 0])
-        # todo add ranom selecting of patch for text-like loss?
+        # include cls token in the loss by updating the mean
+        # -> cls token has the same weight as every other token
+        n_tokens_compared = tokens.size(0)
+        kd_text_loss = (n_tokens_compared * kd_text_tokens_loss + kd_text_cls_loss) / (n_tokens_compared + 1)
 
-        if self.text_cls_token:
-            kd_text_cls_loss= F.mse_loss(input=text[:, 0], target=target[:, 0])
-            kd_text_loss = (kd_matching_timesteps_loss + kd_text_cls_loss) / 2
-        else:
-            kd_text_loss = kd_matching_timesteps_loss
+        image_all = image.view(-1, embed_dim).float() # (B, D, C) -> (B*D, C)
+        target_all = target.view(-1, embed_dim).float() # (B, D, C) -> (B*D, C)
 
-        total_loss = (kd_text_loss + kd_image_cls_loss) / 2
+        kd_image_loss = F.mse_loss(input=image_all, target=target_all)
+
+        total_loss = (kd_text_loss + kd_image_loss) / 2
         
         return total_loss
+    
+
+    
+    # def forward2(self, image, text, target, padding_masks):
+
+    #     text_norm = text / text.norm(dim=-1, keepdim=True)
+    #     target_norm = target / target.norm(dim=-1, keepdim=True)
+
+    #     similarity = text_norm.unsqueeze(1) @ target_norm.unsqueeze(0).transpose(-1, -2)
+    #     similarity = torch.diagonal(similarity).permute(2, 0, 1)
+
+    #     # exclude similarity to padding tokens
+    #     similarity = similarity.masked_fill(padding_masks[:, :, None].bool(), float('-inf'))
+
+    #     # exclude cls token (1:)
+    #     similarity = similarity[:, 1:, 1:]
+
+    #     token2patch_sim, token2patch_idx = similarity.max(dim=2)
+
+    #     token_indices = token2patch_sim.max(dim=1).indices
+
+    #     each_example = torch.arange(token2patch_idx.size(0))
+
+    #     patch_indices = token2patch_idx[each_example, token_indices]
+
+    #     # when indexing, add 1 because we exclude the cls token before
+    #     image_patches = target[each_example, patch_indices+1]
+    #     text_tokens = text[each_example, token_indices+1]
+
+    #     kd_matching_timesteps_loss = F.mse_loss(input=text_tokens, target=image_patches)
+
+    #     kd_image_cls_loss = F.mse_loss(input=image[:, 0], target=target[:, 0])
+
+    #     if self.text_cls_token:
+    #         kd_text_cls_loss= F.mse_loss(input=text[:, 0], target=target[:, 0])
+    #         kd_text_loss = (kd_matching_timesteps_loss + kd_text_cls_loss) / 2
+    #     else:
+    #         kd_text_loss = kd_matching_timesteps_loss
+
+    #     total_loss = (kd_text_loss + kd_image_cls_loss) / 2
+        
+    #     return total_loss
