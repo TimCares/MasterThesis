@@ -1,37 +1,35 @@
 #set math.equation(numbering: "(1)")
-===== Memory Bank vs DDP
+===== Increasing Negative Examples for ITC
 - current approach uses DDP with batch size of 256
 - we use two GPUs, so combined batch size is 512
 - negative samples are gathered from all devices to get more negative samples @vlmo
-- as shown in experiments with supervised teacher (SHRe), significantly improves performance
-- problem is, it is expensive -> we need two GPUs instead of one
-- even though batch size is doubled, training time is not halved, due to distributed communication overhead
-  - comes from gradient synchronization and gathering negative samples across devices
+- as shown in experiments with supervised teacher (SHRe), improves performance
+- implementation of image-text models that use contrastive learning, use much larger batch sizes
+  - e.g. CLIP uses batch size of 32,768 @clip
+- larger batch sizes would require more GPUs, as higher batch sizes per device than 256 lead to OOM errors
+  - cost aspect would not be a big problem
+  - even though multiple GPUs are more expensive, training time is reduced by a factor of the number of GPUs used
+  - so if using two GPUs instead of one, training time is halved
+
+- search for alternatives, that allows for more negative samples
 
 - before we search for alternatives for more negative samples, we study the effect of using the same approach described prior, i.e. DDP with batch size of 512, but we do not gather negative samples from all devices, as done in the previous experiments
 - means effective batch size is 512, but ITC done on 256 negative samples
 - results will show us how important increased number of negative samples truly is for the performance of our model
 
-- search for alternatives, that allows for large number of negative samples, but without the need for two GPUs
 - one alternative is to use a FIFO queue based memory bank
 
 - memory bank stores image and text embeddings of previous batches
 - with every batch, we update the memory bank with the current batch embeddings, while discarding the oldest embeddings
 - embeddings from memory bank are then used, together with the embeddings of the current batch, as negative examples
 - given a batch size of $N$, and a memory bank size of $M$, we can have $N - 1 + M$ negative samples
-- given a batch size of 256, and a memory bank size of 256, we can have 511 negative samples, which is the same as having an
-  effective batch size of 512, or using two GPUs with DDP and a batch size of 256, as done in the previous experiments
+- given a batch size of 256, and a memory bank size of 768, we can have 1023 negative samples, which is the same as having an
+  effective batch size of 1024, or using four GPUs with DDP and a batch size of 256
+  - this "simulation" of bigger batch sizes with a memory bank would however only apply to the negative examples of the contrastive loss
+  - at the end in our case the gradients are still computed with an batch size 512 (256 per device)
 
-- based on linear scaling rule (@linear_scaling_rule_lr) @mocov3 @lr_scaling_rule, we reduce the learning rate from 2e-4 to 1e-4
-- scaling rule is given by:
-
-$
-lr = "BaseLR" * "BatchSize" / 256
-$ <linear_scaling_rule_lr>
-
-- we use a batch size of 256 per device, and a base learning rate of 1e-4 ($"BaseLR"=0.0001$)
-- for two devices, we have an effective batch size of 512, that is why we used a learning rate of 2e-4 in the previous experiments (1e-4*512/256=2e-4)
-
+- nonetheless, we experiment with the aforementioned approach
+- the training stays the same, but we additionall maintain a memory bank
 
 - doing this, we observe a significant drop in performance
 
@@ -146,35 +144,57 @@ $
 3. proximal regularization not applicable to a memory bank that is smaller than the training dataset
 
 - only alternative is to use a momentum encoder as in MoCo
+- therefore, we opt for this approach
 
-- test momentum encoder -> works
-- use just one gpu -> iterations per second less than with DDP, ddp with two gpus is more than twice as fast
-- cost wise, two gpus are more expensive than one gpu, but training is more than twice as fast, so in the end, two gpus are cheaper
-- we keep batch size of 256 per gpu, so 512 in total, and use DDP with two gpus
-- combine this with ema
-- because we use ddp and not deepspeed anymore, we get OOM errors
-- introduce optimization:
-  -> normal forward pass (kd+itc) -> backward and step -> free activations, gradients, and memory -> update ema -> forward pass with ema -> gather embeddings from ema over all devices -> update memory bank
+- experimental setup remains the same, but we add a momentum encoder, which is a copy of our (student) model that is trained
+- oriented on ALBEF @albef, we use a memory bank of size 65,536 and a momentum factor of 0.995
+  - both are hyperparameters that also lead to good results in MoCo, where this approach was first introduced @moco
 
-- first experiments show that this approach leads much worse performance on ImageNet-1K during training
-- we stop it early
-- ema decay of 0.99, following MoCo v3 (MoCo v1 achives best results with 0.999) for vision Transformers
-- maybe decay of 0.99 too low combined with batch size of 4096 too high
-  - general rule of thumb: the large the memory bank, the more inconsistent the negative examples become
-    - and the smaller the decay rate, the more inconsistent the negative examples become
-- so maybe, even though samples will be way more consistent compared to vanilla MB, they are still not consistent enough
-- try higher decay rates (can work in some settings, as shown by MoCo v1) and smaller batch sizes (works for VLMo)
-- we test multiple approaches to verify the effectiveness of the momentum encoder
-  - we train the model with the different momentum encoder configurations for only two epochs -> should be enough to give a good indication of the performance
-  - otherwise to expensive
-1. mc with warmup and batch size of 1024 -> VLMo uses bsz of 1024
-2. mc with fixed decay at 0.999 and batch size of 1024
-3. based on results of 1. and 2. test higher batch sizes
+- however, we get an OOM error
+- this is not surprising, as we have a very large memory bank of size 65,536
+- as seen in @mm_momentum_encoder, we can't just have one memory bank, as done in unimodal models like MoCo @moco,
+  because we need one memory bank for storing negative text examples and one for storing negative image examples
+- also recall that we do contrastive loss on both FFN layers of the shared Transformer layer
+- so we need two memory banks for each FFN layer
+- so we need four memory banks of size 65,536 each
+
+- we would like to keep the size of the memory bank, as this is important for performance (seen in @moco_vs_mb)
+- therefore, we perform two optimizations:
+  - we only do the contrastive loss on the last FFN layer of the shared Transformer layer, so on its cls token output
+  - will reduce the GPU memory by a margin, as we only need two memory banks of size 65,536 each
+  - also, while the memory bank of the last FFN layer stores embeddings of size 768, because this is the hidden dim used for our model,
+    the memory bank of the first FFN layer stores embeddings of size 3072
+    - this is because in Transformer layers the first FFN layer of the MLP expands the hidden dim by a factor of four ($4*768=3072$)
+  - just removing this memory bank will save us 1.6 GB of GPU memory
+  - reason: assuming embeddings are in full precision, so float32, we would need $3072 * 4 B = 12,288 B$, so approximately 12.3 KB per embedding
+  - for one memory bank, this means $12,288 * 65,536 = 805,8 "MB"$ of GPU memory is required
+  - for two memory banks, this means $805,8 "MB" * 2 approx 1.6 "GB"$ of GPU memory is required
+
+- this is still not enought to prevent OOM errors, and we identify a further optimization
+- usually, forward pass of momentum encoder is done after the forward pass of the model that is trained
+- that means that during the forward pass of the momentum encoder, where GPU memory is required to store the activations, gradients and activations of the actual model are also stored on the GPU
+- this approach, using in MoCo @moco and ALBEF @albef, is illustrated left in @me_forward_comparison
+- because we did not encoder OOM errors before using the momentum encoder, and we observed that the GPU memory in previous experiments was almost fully utilized, even without a momentum encoder, we suspect that the forward pass of the momentum encoder is the reason
+
+- we therefore perform the forward pass of the momentum encoder before any work is done in one step of the training loop
+- so momentum update and forward pass of the momentum encoder is done first
+- this way, activations of momentum encoder are freed before the forward pass of the model that is trained
+- performance stays the same, as the work that is done remains the same
+- with this strategy, we avoid OOM errors
+
+#figure(
+  image(
+  width: 50%,
+  "../figures/mm_momentum_encoder.png"),
+  caption: [me_forward_comparison
+  ],
+) <me_forward_comparison>
+
 
 
 ...
 - best approach would be to use no contrastive loss -> all the work we did before was because contrastive learning requires
   large number of negative examples
-- BEiT-3 showed that this is not necessary
+- BEiT-3 give good reason to discard it
 
 #bibliography("../references.bib")

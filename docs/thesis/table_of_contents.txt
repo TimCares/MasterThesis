@@ -1,3 +1,6 @@
+EMKUM: Extracting Multimodal Knowledge from Unimodal Models
+BYOML: Bootstrap your own multimodal latent
+
 Introduction
 Background
 	Self-Supervised Learning
@@ -19,42 +22,40 @@ Experiments
 	Notations and Definitions (... of image patches etc. -> if this changes for specific experiments, mention then and redefine)
 	Unimodal Knowledge Distillation
 	Multimodal Knowledge Distillation
+		Reproducing: “See, Hear, Read: Deep Aligned Representations"
 		Aligned Representations
-			Dual Encoder
-				Reproducing: “See, Hear, Read: Deep Aligned Representations"
+			Research-Independent Improvements
 				Larger Batch Sizes with DDP
 				Multimodal Transformer Block
 				Self-Supervised Teacher
 					Implications of Feature-Based Distillation
 				Contrastive Learning
-					On FLAVA's retrieval performance
+					On Zero-Shot Retrieval
 					Short Captions (Region Descriptions)
 					Projections for Task-Seperation
 					Image-Text Matching with Feature-Fusion
-					Align before Fuse [(try both, comare performance on retrieval (once using image/text encoder cls, 
-					once with shared cls output), test performance of linear eval on imagenet/glue -> is no align before fuse better? Here it makes sense to use seperate VLMo-like projections as the cls output of the encoders are still modality independent)
-					Increased Negative Examples for ITC
-						Memory Bank for Larger Batch Sizes
-						Memory Bank vs. DDP (512)
-					Cross-modal Late Interaction (maybe can also be used for KD? Prob lin transform of teacher cls token needed, maybe good in combination with PCA?)
+					Increasing Negative Examples for ITC
+					Cross-Modal Late Interaction
+				
+			Research-Specific Experiments
+				Distillation Without ITC
 				Feature Whitening
 				Unimodal Student
-				Stagewise Unimodal Distillation
-
-				Towards Modality-Invariant Targets
-					Cross-modal Late Interaction on Teacher Features
-					Dimensionality Reduction (PCA or one learnable conv1d layer/network (cnv1d inspred by paper about feature whitening to align embedding dims))
-					Feature Clusters
-				Importance of the right Teacher (why BEiT-2? etc...)
-				Biased VL Initialization (init from text)
+				CMLI on Teacher Features (lin transform of teacher cls token and student cls token needed?)
+				Dimensionality Reduction (PCA or one learnable conv1d layer/network (cnv1d inspred by paper about feature whitening to align embedding dims))
+				Feature Clusters
+				(Importance of the right Teacher (why BEiT-2? etc...))
+				(Biased VL Initialization (init from text))
 				Fair Comparison with Supervised Teacher (bigger supervised teacher -> approx. 85 mill params)
-			Mixture-of-Modality Experts
+			Architectural Studies
 				Mixed Positional Encodings (defaults with pretrained D2V modules, include Token-Type Embeddings!)
 				Shared Positional Encodings
-
 			Limitations (from trained models alone: No NRLV2, etc possible) -> mention https://arxiv.org/pdf/2102.03334 section 2.1 beginning page 3
+		
 		Aligned Referencing Representations
 			Relevance (regarding: unimodal model as teacher no possible)
+			Masked Vision-Language Modeling
+			Additional Contribution: DistilBEiT-3
 
 		Ablation Study: Reduction of Data
 		
