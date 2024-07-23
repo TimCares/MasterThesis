@@ -283,13 +283,10 @@ class CMLITargetLoss(nn.Module):
 
         tokens = text[:, 1:].contiguous().view(-1, embed_dim)[padding_mask]
 
-        kd_text_tokens_loss = F.mse_loss(input=tokens.float(), target=token_aliged_patches.float())
-        kd_text_cls_loss = F.mse_loss(input=text[:, 0].float(), target=target[:, 0].float())
+        all_tokens = torch.cat([text[:, :1], tokens], dim=0)
+        all_patches = torch.cat([image[:, :1], token_aliged_patches], dim=0)
 
-        # include cls token in the loss by updating the mean
-        # -> cls token has the same weight as every other token
-        n_tokens_compared = tokens.size(0)
-        kd_text_loss = (n_tokens_compared * kd_text_tokens_loss + kd_text_cls_loss) / (n_tokens_compared + 1)
+        kd_text_loss = F.mse_loss(input=all_tokens.float(), target=all_patches.float())
 
         image_all = image.view(-1, embed_dim).float() # (B, D, C) -> (B*D, C)
         target_all = target.view(-1, embed_dim).float() # (B, D, C) -> (B*D, C)
