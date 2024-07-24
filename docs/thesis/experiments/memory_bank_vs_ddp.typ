@@ -1,87 +1,122 @@
 #set math.equation(numbering: "(1)")
 ===== Increasing Negative Examples for ITC
-- current approach uses DDP with batch size of 256
-- we use two GPUs, so combined batch size is 512
-- negative samples are gathered from all devices to get more negative samples @vlmo
-- as shown in experiments with supervised teacher (SHRe), improves performance
-- implementation of image-text models that use contrastive learning, use much larger batch sizes
-  - e.g. CLIP uses batch size of 32,768 @clip
-- larger batch sizes would require more GPUs, as higher batch sizes per device than 256 lead to OOM errors
-  - cost aspect would not be a big problem
-  - even though multiple GPUs are more expensive, training time is reduced by a factor of the number of GPUs used
-  - so if using two GPUs instead of one, training time is halved
 
-- search for alternatives, that allows for more negative samples
+Our current approach utilizes Distributed Data Parallel (DDP) @pytorch_ddp with a batch size of 256 per GPU.
+With two GPUs, the combined batch size is 512, and image/text features are gathered from all devices to increase the number of negative examples,
+as described in VLMo @vlmo. This method, as demonstrated in experiments with the supervised teacher (SHRe), improves performance.
 
-- before we search for alternatives for more negative samples, we study the effect of using the same approach described prior, i.e. DDP with batch size of 512, but we do not gather negative samples from all devices, as done in the previous experiments
-- means effective batch size is 512, but ITC done on 256 negative samples
-- results will show us how important increased number of negative samples truly is for the performance of our model
+However, implementations of image-text models that leverage contrastive learning typically use much larger batch sizes, and therefore have much
+more negative examples available. For instance, CLIP uses a batch size of 32,768 @clip. Achieving such large batch sizes would require more GPUs, as
+batch sizes exceeding 256 (per device) lead to out-of-memory (OOM) errors on the GPU (NVIDIA RTX 4090).
 
-- one alternative is to use a FIFO queue based memory bank
+Although adding more GPUs to our setup is costly, the training time will be reduced proportionally to the number of GPUs used. For example, using two GPUs instead of one halves the training time. This is because DDP shardes the whole training dataset between all devices, such that each device processes a different part of the dataset @pytorch_ddp. From a cost perspective, this is acceptable, however, we decide against this approach, because we want to keep the number of GPUs manageable. Moreover, going with more GPUs would make the success of our approach dependent on the number of GPUs one has available, which is why we search for alternatives that allow us to increase the number of negative samples without requiring more GPUs.
 
-- memory bank stores image and text embeddings of previous batches
-- with every batch, we update the memory bank with the current batch embeddings, while discarding the oldest embeddings
-- embeddings from memory bank are then used, together with the embeddings of the current batch, as negative examples
-- given a batch size of $N$, and a memory bank size of $M$, we can have $N - 1 + M$ negative samples
-- given a batch size of 256, and a memory bank size of 768, we can have 1023 negative samples, which is the same as having an
-  effective batch size of 1024, or using four GPUs with DDP and a batch size of 256
-  - this "simulation" of bigger batch sizes with a memory bank would however only apply to the negative examples of the contrastive loss
-  - at the end in our case the gradients are still computed with an batch size 512 (256 per device)
 
-- nonetheless, we experiment with the aforementioned approach
-- the training stays the same, but we additionall maintain a memory bank
+// - before we search for alternatives for more negative samples, we study the effect of using the same approach described prior, i.e. DDP with batch size of 512, but we do not gather negative samples from all devices, as done in the previous experiments
+// - means effective batch size is 512, but ITC done on 256 negative samples
+// - results will show us how important increased number of negative samples truly is for the performance of our model
 
-- doing this, we observe a significant drop in performance
+One intuitive approach to increasing the number of negative examples is to use a FIFO queue-based memory bank.
+The queue stores image and text embeddings from previous batches. With each new batch, the memory bank is updated
+by adding the current batch embeddings and discarding the oldest (batch). These stored embeddings, combined with the embeddings of the current batch, are then used as negative examples.
+
+Given a batch size of $N$ and a memory bank size of $M$, we can achieve $N - 1 + M$ negative samples.
+For instance, with a batch size of 256 and a memory bank size of 768, we can attain 1023 negative samples.
+This configuration effectively simulates a contrastive loss with a batch size of 1024, and is comparable
+to four GPUs with DDP and a batch size of 256 per GPU. However, it is important to note that this “simulation”
+of larger batch sizes with a memory bank only applies to the number of negative examples.
+The actual gradients are still computed using the effective batch size of 512 (256 for two devices/GPUs).
+
+For an implementation the training setup remains the same, we are merely required to maintain four distinct memory banks.
+This is because we apply the contrastive loss to both the intermediate and output cls token $mono("[T_CLS]")$/$mono("[I_CLS]")$
+of the shared Transformer block, as illustrated in (TODO: cite model figure), and we need one memory bank for negative image and text
+examples, respectively.
 
 #figure(
   table(
-    columns: 7,
+    columns: 4,
+    stroke: none,
+    table.hline(),
+    table.header(
+      [No.],
+      [Modality],
+      [Layer],
+      [Stores negatives for:],
+    ),
+    table.hline(stroke: .6pt),
+    [1], [Image], [FFN #1], [$mono("[T_CLS]")$ of FFN #1],
+    [2], [Text], [FFN #1], [$mono("[I_CLS]")$ of FFN #1],
+    [3], [Image], [FFN #2], [$mono("[T_CLS]")$ of FFN #2],
+    [4], [Text], [FFN #2], [$mono("[I_CLS]")$ of FFN #2],
+    table.hline(),
+  ),
+  caption: [Each memory bank stores the representations of one modality, created by a layer, to use as negative examples for the
+  represenations of the other modality, created by the same layer.],
+)<number_of_mbs_required>
+
+Illustrated in @mb_results, we observed a significant drop in performance. This suggests that simply increasing the number of negative examples via a memory bank does not help in learning richer represenations.
+
+#figure(
+  table(
+    columns: 6, //7,
     stroke: none,
     table.hline(),
     table.header(
       [Model],
-      [ImageNet-1k Accuracy],
+      [ImageNet-1K Accuracy],
       [Retrieval MSCOCO],
       [Retrieval Flickr30K],
       [Batch Size],
       [ITC \# Negative Examples],
-      [Wall Clock Time (in h)],
+      //[Wall Clock Time (in h)],
     ),
     table.hline(stroke: .6pt),
-    [CLIP @clip], [*72.6*], [*66.73*], [*90.1*], [32,768], [32,767], [-],
-    [*Sx3HRe#sub[DDP]*], [26.1], [66.3], [42.4], [512], [511], [7.09],
-    [*Sx3HRe#sub[MB]*], [17.8], [54.4], [30.3], [256], [511], [11.88],
-    [*Sx3HRe#sub[DDP NG]*], [17.8], [54.4], [30.3], [512], [255], [7.09],
+    [CLIP @clip], [*72.6*], [*66.73*], [*90.1*], [32,768], [32,767], //[-],
+    [EMKUM#sub[DDP]], [26.1], [66.3], [42.4], [512], [511], //[7.09],
+    [EMKUM#sub[MB]], [17.8], [54.4], [30.3], [256], [511], //[11.88],
+    //[*Sx3HRe#sub[DDP NG]*], [17.8], [54.4], [30.3], [512], [255], [7.09],
     table.hline(),
   ),
   caption: [CLIP],
 )<mb_results>
 
-- might come as a surprise, but is a well known
-- problem lies is rapidly changing model weights during training
-- when using actual batch size of 512, or DDP, all negative examples (the representations) come from the same model with the same weights
-- when using a memory bank, the negative examples are stored from previous batches, or steps respectively
-- means from an older model with different weights
-- leads to a fast shift in embedding space, and in the embeddings in general
-- so pronounced, that even representations from the immediate previous steps are so different to the represenations of the current step, that they are not useful as negative examples
+We suspect this drop in performance originates because of the following reasons:
+When using an actual batch size of 512, so the same approach we used before (EMKUM#sub[DDP] in @mb_results), all negative examples come from the 
+same model with the same weights, as they are all generated during the same step.
+Therefore, the representations share the same latent space and are consistent with each other. A similarity measure, in our
+case the cosine similarity, can then provide the model with a meaning of distance between the representations, in our case an image and text.
 
-- memory bank was initially introduced as a mapping of the complete training dataset
-- embedding of each sample is stored in the memory bank
-- for each batch, $K$ samples are drawn from the memory bank to be used as negative examples
-- representations of samples that are currently in the batch are then updated in the memory bank
-- has the same problem that representations come from an older model with different weights, especially if the dataset is large
-- this is partly mitigated by using a proximal regularization, show in @proximal_regularization 
+However, when using a memory bank, the negative examples come from previous batches that were stored in the memory bank.
+At previous batches, or steps respectively, the model's weights were different, and therefore the information encoded in the representations.
+As the model's weights constantly change, especially at the beginning of training, there is a continous shift in the representation space. This shift is so pronounced that even representations from the immediate previous steps differ significantly from the current representations,
+and a similarity measure will not provide meaningful information to the model.
+
+This can be thought of as a less extreme case of comparing the representations of an image-only and text-only model, which are not associated with each other. In the beginning of our experiments, we tested image-text retrieval with the Data2Vec2 image and text model, and observed that
+this approach is ineffective for image-text retrieval. The representations produced by both models do not have any relationship with each other, and therefore the cosine similarity does not provide any meaningful information to the model.
+
+With a memory bank, this effect is less pronounced, as the representations are still generated by the same model, but the shift in the model's weights is still significant enough to make the representations inconsistent with each other.
+
+
+===== Relation to Initial Memory Bank Approach
+A memory bank was initially introduced by @memory_bank as a mapping of the complete training dataset.
+The embedding of each sample in the dataset is stored in the memory bank (illustrated in @memory_bank_images).
+For each batch, $K$ samples are randomly drawn from the memory bank to be used as negative examples.
+The representations of samples that are currently in the batch are then updated in the memory bank @memory_bank.
+This approach is similar to ours, but faces the same problem: The representations come from an older variant of the model with different weights.
+Even worse, the representation of an example in the dataset is updated when it was last seen in a batch, which can be a long time ago for large datasets. However, the authors mitigate this issue by using proximal regularization, as shown in @proximal_regularization.
 
 $
 -log h(i, bold(v)_i^(t-1))+lambda*||bold(v)_i^t-bold(v)_i^(t-1)||_2^2
 $ <proximal_regularization>
 
-- term $-log h(i, bold(v)_i^(t-1))$ can be ignored for now, and just be considered as the contrastive loss for simplicity
-- more interesting is proximal regularization term $lambda*||bold(v)_i^t-bold(v)_i^(t-1)||_2^2$
-- is the mean squared error between the representation $bold(v)_i$ of a training example $i$ in the current batch, e.g. an image, at time step $t$, and the representation of the same training example at time step $t-1$ (the last update)
-- enforces that representation of a training example does not change too rapidly
-- $lambda$ controls how strong this regularization is
-- allowes for more stable negative examples
+While the term $-log h(i, bold(v)_i^(t-1))$ can be ignored for now, as it just denotes a form of contrastive loss, the other term
+$lambda*||bold(v)_i^t-bold(v)_i^(t-1)||_2^2$ serves as the proximal regularization term. It describes the mean squared error between the representation $bold(v)_i^t$ of a training example $i$, e.g. an image, which is part of the current batch, and the representation of the same training example $bold(v)_i^(t-1)$ stored in the memory bank and updated when it was last seen, denoted as time step $t-1$.
+
+This term enforces that the representation of a training example does not change too rapidly between updates, and allows for more stable negative examples, depending on the value of weight $lambda$.
+The authors report improved results with a value of $lambda=30$ @memory_bank, meaning that the proximal regularization term is 30 times more important than the contrastive loss term.
+
+This forces the model to keep the representations of the training examples in the memory bank consistent with the current batch, so
+that a similarity measure can provide meaningful learning signals to the model. Our approach does not take this into account.
 
 #figure(
   image(
@@ -89,6 +124,8 @@ $ <proximal_regularization>
   caption: [
   ],
 ) <memory_bank_images>
+
+===== Momentum Encoder
 
 - problem also identified by authors of MoCo @moco
 - authors experiments, displayed in @moco_vs_mb, show that even a memory bank that maps all training examples performs significantly worse than using the actual batch size it tries to mimic
@@ -172,8 +209,8 @@ $
 
 - this is still not enought to prevent OOM errors, and we identify a further optimization
 - usually, forward pass of momentum encoder is done after the forward pass of the model that is trained
-- that means that during the forward pass of the momentum encoder, where GPU memory is required to store the activations, gradients and activations of the actual model are also stored on the GPU
-- this approach, using in MoCo @moco and ALBEF @albef, is illustrated left in @me_forward_comparison
+- this approach is used in MoCo @moco and ALBEF @albef
+- that means that during the forward pass of the momentum encoder, where GPU memory is required to store the results, all activations of the actual model are also stored on the GPU, as they are needed for the backward pass later
 - because we did not encoder OOM errors before using the momentum encoder, and we observed that the GPU memory in previous experiments was almost fully utilized, even without a momentum encoder, we suspect that the forward pass of the momentum encoder is the reason
 
 - we therefore perform the forward pass of the momentum encoder before any work is done in one step of the training loop
@@ -181,16 +218,51 @@ $
 - this way, activations of momentum encoder are freed before the forward pass of the model that is trained
 - performance stays the same, as the work that is done remains the same
 - with this strategy, we avoid OOM errors
+- time per step remains the same, as the work that is done remains the same
 
 #figure(
   image(
-  width: 50%,
-  "../figures/mm_momentum_encoder.png"),
-  caption: [me_forward_comparison
+  width: 100%,
+  "../figures/me_forward_comparison.png"),
+  caption: [Doing the forward pass of the momentum encoder after the forward pass of the model, when the model's activations are already stored on the GPU memory (left), leads to a cuda OOM error. This can be avoided by reorderind the operations, so that the momentum encoder (EMA) update and forward pass are performed before the forward pass of the model (right). Results are based on NVIDIA RTX 4090 with 24 GB of GPU memory.
   ],
 ) <me_forward_comparison>
 
 
+- compared to normal DDP, the memory bank approach with momentum encoder adds on average 5 minutes per epoch, so the overhead is marginal
+
+- in @zs_imagenet_itc_vs_mb we show the results of this approach
+- we see that the performance does not exceed that of the the standard gathering from all devices with just 511 negative examples (effective batch size of 512)
+- while we can observe that the zero-shot accuracy on ImageNet-1K exceeds that of the vanilla ITC approach towards the end of training, we consider such small improvement as worthwile, considering the amount of additional complexity required to achieve it
+- even though the memory bank approach looks more promising to achieve a higher accuracy than the previous approach, as the latter appears to saturate towards the end of training, but this would require longer training times
+- with a batch size of 256, the model is already trained for almost a combined 90k steps, and we consider longer training times as both out of scope for this work, and too long to consider our approach as efficient
+  - (the actual step size in training is around 45k (@zs_imagenet_itc_vs_mb left), as we divide the whole dataset between both GPUs, meaning the batch size is doubled to 512)
+- another reason is that we are going to introduce a new definition of similarity between image and text, which will be infeasible in combination with a memory bank
+
+#let st(r) = text(8pt)[#r]
+#figure(
+    grid(
+        columns: 2,
+        gutter: 2mm,
+        image( "../figures/zs_imagenet_itc_vs_mb.png"),
+        st(table(
+          columns: 4,
+          stroke: none,
+          table.hline(),
+          table.header(
+            [Model],
+            [ImageNet-1K Accuracy],
+            [Retrieval MSCOCO],
+            [Retrieval Flickr30K],
+          ),
+          table.hline(stroke: .6pt),
+          [Standard ITC], [26.1], [66.3], [42.4],
+          [Momentum Encoder], [26.0], [256], [30.3],
+          table.hline(),
+        )),
+    ),
+    caption: [Comparison of the Standard ITC approach with momentum encoder and a memory bank of size 65,536. The momentum encoder approach does not exceed the performance of the standard ITC approach (right), even though it shows a promising trend towards the end of training (left).]
+) <zs_imagenet_itc_vs_mb>
 
 ...
 - best approach would be to use no contrastive loss -> all the work we did before was because contrastive learning requires

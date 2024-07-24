@@ -38,7 +38,7 @@ Experiments
 					Cross-Modal Late Interaction
 				
 			Research-Specific Experiments
-				Distillation Without ITC
+				Ablation Study: Removing ITC
 				Feature Whitening
 				Unimodal Student
 				CMLI on Teacher Features (lin transform of teacher cls token and student cls token needed?)
