@@ -98,7 +98,7 @@ With a memory bank, this effect is less pronounced, as the representations are s
 
 
 ===== Relation to Initial Memory Bank Approach
-A memory bank was initially introduced by @memory_bank as a mapping of the complete training dataset.
+The memory bank was initially introduced by @memory_bank as a mapping of the complete training dataset.
 The embedding of each sample in the dataset is stored in the memory bank (illustrated in @memory_bank_images).
 For each batch, $K$ samples are randomly drawn from the memory bank to be used as negative examples.
 The representations of samples that are currently in the batch are then updated in the memory bank @memory_bank.
@@ -121,24 +121,42 @@ that a similarity measure can provide meaningful learning signals to the model. 
 #figure(
   image(
   "../figures/memory_bank_images.png"),
-  caption: [
+  caption: [The memory bank, originally developed for self-supervised image representation learning, stores the 128-dimensional embedding of each training example. Contrary to what can be observed, instead of all just $K$ samples are drawn from the memory bank in each iteration to be used as negative examples. @memory_bank
   ],
 ) <memory_bank_images>
 
 ===== Momentum Encoder
 
-- problem also identified by authors of MoCo @moco
-- authors experiments, displayed in @moco_vs_mb, show that even a memory bank that maps all training examples performs significantly worse than using the actual batch size it tries to mimic
-- especially with lower batch sizes
-- this type of memory bank need to sample up to 65,536 ($K=65,536$) negative examples to match actual, comparatively small, batch size of 1024
+This problem was also identified by the authors of MoCo @moco, and they employ a different approach to address this issue.
+They also use a queue-based memory bank, which is, similar to our approach, much smaller than the training dataset.
+However, in MoCo, the negative examples in the memory bank are not updated by the model that is being trained,
+but instead by a momentum encoder, which is an exponential moving average of the actual model weights, which is defined in @ema_update.
+Therefore, the negative examples do not come from the model that is trained, but only from the momentum encoder.
+This momentum encoder is a copy of the exact same model that is being trained, but its weights are not updated by gradients.
+
+$
+theta_k = m * theta_k + (1 - m) * theta_q
+$ <ema_update>
+
+With $theta_k$ being the momentum encoder weights, $theta_q$ the actual model weights, and $m$ the momentum coefficient,
+the momentum encoder is updated very slowly. Typical values for $m$ are usually picked between $m=0.99$ and $m=0.999$ @moco @mocov2 @mocov3 @albef.
+
+The results are weights that change very slowly, which will also hold for the representations the momentum encoder produces.
+This approach can be seen as maintaining consistency in the model that produces the negative examples, rather than making the negative examples consistent themselves, through an additional regularization term, as in @proximal_regularization. An application of this method for image-text contrastive learning can be seen in @mm_momentum_encoder.
+
+Even though no gradients are needed to update the momentum encoder, it still requires additional GPU memory to keep it in memory,
+which is the disadvantage of this variant.
 
 #figure(
   image(
   width: 50%,
-  "../figures/moco_vs_mb.png"),
-  caption: [
+  "../figures/mm_momentum_encoder.png"),
+  caption: [A momentum encoder generates negative examples for ITC, which are also stored in a memory bank that
+  discards the representations of the oldest batch when new ones are added after every step. Figure inspired by MoCo v2 @mocov2
   ],
-) <moco_vs_mb>
+) <mm_momentum_encoder>
+
+===== Resolution
 
 - we can't use the memory bank style of @memory_bank, since we have 3,264,868 training examples
   - each embedding has a size of 768, considering storing them at full precision, so float32, we would need $3,264,868 * 768 * 4 B > 10e^9 B = 10 "GB"$ of additional GPU memory
@@ -146,34 +164,6 @@ that a similarity measure can provide meaningful learning signals to the model. 
 - we suspect that using a proximal regularization term, as in @proximal_regularization, might help to stabilize our memory bank approach
 - however, we cannot use it -> the term is based on the representation of the same training example at the previous time step
 - but our memory bank is significantly smaller than the training dataset, and older samples are dequeued, so the same training example will never be in the memory bank and at the same time in the current batch
-
-- authors of MOCO propose a different approach to solving this problem
-- they use a queue based memory bank, much smaller than the training dataset (cite MoCo v2), so same approach as we use
-- but the negative examples in the memory bank are not updated by the model that is trained, but instead by a momentum encoder,
-  which is a moving average of the actual model weights
-- weight update of the momentum encoder is given by
-
-$
-theta_k = m * theta_k + (1 - m) * theta_q
-$
-
-- with $theta_k$ being the momentum encoder weights, $theta_q$ the actual model weights, and $m$ the momentum factor
-- set to to $m=0.999$, meaning the momentum encoder is updated very slowly
-- that way negative examples in the memory bank are updated by a model with similar weights as the model that is trained
-- makes them more stable and consistent
-- can be seen as keeping the model consistent that produces the negative examples, instead of making the negative examples themselves consistent
-  through an additional regularization term (@proximal_regularization)
-
-- disadvantage is that a copy of the same model that is being trained has to be kept in memory
-- even though no gradients are needed for the momentum encoder, it still requires additional GPU memory
-
-#figure(
-  image(
-  width: 50%,
-  "../figures/mm_momentum_encoder.png"),
-  caption: [Figure inspired by MoCo v2 @mocov2
-  ],
-) <mm_momentum_encoder>
 
 - in conclusion:
 1. can't use FIFO queue based memory bank, as representations of negative examples are inconsistent
@@ -195,7 +185,7 @@ $
 - so we need two memory banks for each FFN layer
 - so we need four memory banks of size 65,536 each
 
-- we would like to keep the size of the memory bank, as this is important for performance (seen in @moco_vs_mb)
+- we would like to keep the size of the memory bank, as this is important for performance
 - therefore, we perform two optimizations:
   - we only do the contrastive loss on the last FFN layer of the shared Transformer layer, so on its cls token output
   - will reduce the GPU memory by a margin, as we only need two memory banks of size 65,536 each
