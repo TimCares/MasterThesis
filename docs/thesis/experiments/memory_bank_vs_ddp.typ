@@ -38,7 +38,7 @@ examples, respectively.
     stroke: none,
     table.hline(),
     table.header(
-      [No.],
+      [],
       [Modality],
       [Layer],
       [Stores negatives for:],

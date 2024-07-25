@@ -39,8 +39,8 @@ Experiments
 				
 			Research-Specific Experiments
 				Ablation Study: Removing ITC
-				Feature Whitening
-				Unimodal Student
+				Feature whitening
+				Dino Loss
 				CMLI on Teacher Features (lin transform of teacher cls token and student cls token needed?)
 				Dimensionality Reduction (PCA or one learnable conv1d layer/network (cnv1d inspred by paper about feature whitening to align embedding dims))
 				Feature Clusters

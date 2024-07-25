@@ -217,23 +217,32 @@ class CMLILoss(CachedLabelContrastiveLoss):
             all_padding_masks = padding_masks
         return all_image_features, all_text_features, all_padding_masks
     
+    def _mask_eos(padding_masks):
+        last_zero_indices = (padding_masks == 0).cumsum(dim=1).argmax(dim=1)
+        padding_masks[torch.arange(padding_masks.size(0)), last_zero_indices] = 1
+        return padding_masks
+    
     def forward(self, image, text, padding_masks, logit_scale=1.0):
-        image, text, padding_masks = self._gather(image, text, padding_masks)
+        padding_masks = self._mask_eos(padding_masks)
+        all_image, all_text, all_padding_masks = self._gather(image, text, padding_masks)
 
-        similarity = logit_scale * image.unsqueeze(1) @ text.unsqueeze(0).transpose(-1, -2)
+        i2t = logit_scale * image.unsqueeze(1) @ all_text.unsqueeze(0).transpose(-1, -2)
+        t2i = logit_scale * text.unsqueeze(1) @ all_image.unsqueeze(0).transpose(-1, -2)
 
         # exclude similarity to padding tokens
-        similarity = similarity.masked_fill(padding_masks[:, None, None, :].bool(), float('nan'))
+        i2t = i2t.masked_fill(all_padding_masks[None, :, None, :].bool(), float('-inf'))
+        t2i = t2i.masked_fill(padding_masks[:, None, :, None].bool(), float('nan'))
 
         if self.include_cls_token:
-            logits_per_cls_image = similarity[:, :, 0, 0]
-            logits_per_cls_text = logits_per_cls_image.t()
+            logits_per_cls_image = i2t[:, :, 0, 0]
+            logits_per_cls_text = t2i[:, :, 0, 0]
         
         # exclude cls token (1:)
-        similarity = similarity[:, :, 1:, 1:]
+        i2t = i2t[:, :, 1:, 1:]
+        t2i = t2i[:, :, 1:, 1:]
 
-        logits_per_image = similarity.nan_to_num(float('-inf')).max(dim=3).values.mean(dim=2)
-        logits_per_text = similarity.max(dim=2).values.nanmean(dim=2)
+        logits_per_image = i2t.max(dim=-1).values.mean(dim=-1)
+        logits_per_text = t2i.max(dim=-1).values.nanmean(dim=-1)
 
         labels = self.get_labels(logits_per_image.shape[0], logits_per_image.device)
 
