@@ -205,23 +205,3 @@ def load_beit2_teacher(sd_path:str, **kwargs) -> VisionTransformerForMaskedImage
     logger.info(f"Loaded BEiT2 teacher state dict with result: {result}")
     del beit2.lm_head
     return beit2
-
-def infer_cmli_logits(
-    q_features:torch.Tensor,
-    k_features:torch.Tensor,
-    expanded_padding_mask:torch.Tensor,
-    pad_fill_value:float,
-    logit_scale:float|torch.Tensor=1.0,
-) -> Dict[str, torch.Tensor]:
-    sim = logit_scale * q_features.unsqueeze(1) @ k_features.unsqueeze(0).transpose(-1, -2)
-
-    sim = sim.masked_fill(expanded_padding_mask, pad_fill_value)
-
-    itc_logits = sim[:, :, 0, 0]
-
-    # exclude cls token (1:)
-    sim = sim[:, :, 1:, 1:]
-
-    logits = sim.max(dim=-1).values.nanmean(dim=-1)
-
-    return {"logits": logits, "itc_logits": itc_logits}

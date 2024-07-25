@@ -3,10 +3,29 @@ import torch.nn as nn
 import torch.nn.functional as F
 from .layers import gather_features
 from typing import Dict
-from utils import infer_cmli_logits
 import logging
 
 logger = logging.getLogger(__name__)
+
+def infer_cmli_logits(
+    q_features:torch.Tensor,
+    k_features:torch.Tensor,
+    expanded_padding_mask:torch.Tensor,
+    pad_fill_value:float,
+    logit_scale:float|torch.Tensor=1.0,
+) -> Dict[str, torch.Tensor]:
+    sim = logit_scale * q_features.unsqueeze(1) @ k_features.unsqueeze(0).transpose(-1, -2)
+
+    sim = sim.masked_fill(expanded_padding_mask, pad_fill_value)
+
+    itc_logits = sim[:, :, 0, 0]
+
+    # exclude cls token (1:)
+    sim = sim[:, :, 1:, 1:]
+
+    logits = sim.max(dim=-1).values.nanmean(dim=-1)
+
+    return {"logits": logits, "itc_logits": itc_logits}
 
 class CachedLabelContrastiveLoss(nn.Module):
     def __init__(
