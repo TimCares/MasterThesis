@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from .layers import gather_features
 from typing import Dict
+from utils import infer_cmli_logits
 import logging
 
 logger = logging.getLogger(__name__)
@@ -226,23 +227,26 @@ class CMLILoss(CachedLabelContrastiveLoss):
         padding_masks = self._mask_eos(padding_masks)
         all_image, all_text, all_padding_masks = self._gather(image, text, padding_masks)
 
-        i2t = logit_scale * image.unsqueeze(1) @ all_text.unsqueeze(0).transpose(-1, -2)
-        t2i = logit_scale * text.unsqueeze(1) @ all_image.unsqueeze(0).transpose(-1, -2)
+        image_result = infer_cmli_logits(
+            q_features=image,
+            k_features=all_text,
+            expanded_padding_mask=all_padding_masks[None, :, None, :].bool(),
+            pad_fill_value=float('-inf'),
+            logit_scale=logit_scale
+        )
+        text_result = infer_cmli_logits(
+            q_features=text,
+            k_features=all_image,
+            expanded_padding_mask=padding_masks[:, None, :, None].bool(),
+            pad_fill_value=float('nan'),
+            logit_scale=logit_scale
+        )
 
-        # exclude similarity to padding tokens
-        i2t = i2t.masked_fill(all_padding_masks[None, :, None, :].bool(), float('-inf'))
-        t2i = t2i.masked_fill(padding_masks[:, None, :, None].bool(), float('nan'))
-
-        if self.include_cls_token:
-            logits_per_cls_image = i2t[:, :, 0, 0]
-            logits_per_cls_text = t2i[:, :, 0, 0]
+        logits_per_image = image_result['logits']
+        logits_per_cls_image = image_result['itc_logits']
         
-        # exclude cls token (1:)
-        i2t = i2t[:, :, 1:, 1:]
-        t2i = t2i[:, :, 1:, 1:]
-
-        logits_per_image = i2t.max(dim=-1).values.mean(dim=-1)
-        logits_per_text = t2i.max(dim=-1).values.nanmean(dim=-1)
+        logits_per_text = text_result['logits']
+        logits_per_cls_text = text_result['itc_logits']
 
         labels = self.get_labels(logits_per_image.shape[0], logits_per_image.device)
 
