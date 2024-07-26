@@ -226,37 +226,37 @@ class CMLILoss(CachedLabelContrastiveLoss):
         super().__init__(cache_labels, rank, world_size)
         self.include_cls_token = include_cls_token
      
-    def _gather(self, image_features, text_features, padding_masks):
+    def _gather(self, image_features, text_features, padding_mask):
         if self.world_size > 1:
-            all_image_features, all_text_features, all_padding_masks = gather_features(
-                image_features, text_features, padding_masks
+            all_image_features, all_text_features, all_padding_mask = gather_features(
+                image_features, text_features, padding_mask
             )
         else:
             all_image_features = image_features
             all_text_features = text_features
-            all_padding_masks = padding_masks
-        return all_image_features, all_text_features, all_padding_masks
+            all_padding_mask = padding_mask
+        return all_image_features, all_text_features, all_padding_mask
     
     def _mask_eos(padding_masks):
         last_zero_indices = (padding_masks == 0).cumsum(dim=1).argmax(dim=1)
         padding_masks[torch.arange(padding_masks.size(0)), last_zero_indices] = 1
         return padding_masks
     
-    def forward(self, image, text, padding_masks, logit_scale=1.0):
-        padding_masks = self._mask_eos(padding_masks)
-        all_image, all_text, all_padding_masks = self._gather(image, text, padding_masks)
+    def forward(self, image, text, padding_mask, logit_scale=1.0):
+        padding_mask = self._mask_eos(padding_mask)
+        all_image, all_text, all_padding_mask = self._gather(image, text, padding_mask)
 
         image_result = infer_cmli_logits(
             q_features=image,
             k_features=all_text,
-            expanded_padding_mask=all_padding_masks[None, :, None, :].bool(),
+            expanded_padding_mask=all_padding_mask[None, :, None, :].bool(),
             pad_fill_value=float('-inf'),
             logit_scale=logit_scale
         )
         text_result = infer_cmli_logits(
             q_features=text,
             k_features=all_image,
-            expanded_padding_mask=padding_masks[:, None, :, None].bool(),
+            expanded_padding_mask=padding_mask[:, None, :, None].bool(),
             pad_fill_value=float('nan'),
             logit_scale=logit_scale
         )
