@@ -262,10 +262,10 @@ class CMLILoss(CachedLabelContrastiveLoss):
         )
 
         logits_per_image = image_result['logits']
-        logits_per_cls_image = image_result['itc_logits']
+        logits_per_image_cls = image_result['itc_logits']
         
         logits_per_text = text_result['logits']
-        logits_per_cls_text = text_result['itc_logits']
+        logits_per_text_cls = text_result['itc_logits']
 
         labels = self.get_labels(logits_per_image.shape[0], logits_per_image.device)
 
@@ -276,8 +276,8 @@ class CMLILoss(CachedLabelContrastiveLoss):
         
         if self.include_cls_token:
             itc_loss = (
-                F.cross_entropy(logits_per_cls_image, labels) +
-                F.cross_entropy(logits_per_cls_text, labels)
+                F.cross_entropy(logits_per_image_cls, labels) +
+                F.cross_entropy(logits_per_text_cls, labels)
                 ) / 2
             total_loss = (cmli_loss + itc_loss) / 2
         else:
@@ -287,6 +287,8 @@ class CMLILoss(CachedLabelContrastiveLoss):
             'loss': total_loss,
             'logits_per_image': logits_per_image,
             'logits_per_text': logits_per_text,
+            'logits_per_image_cls': logits_per_image_cls,
+            'logits_per_text_cls': logits_per_text_cls,
             'targets': labels,
         }
         return out_dict
