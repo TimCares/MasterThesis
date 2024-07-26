@@ -16,6 +16,8 @@ from data.imagenet_zeroshot_data import (
     imagenet_classnames,
     openai_imagenet_template,
 )
+from data.filip_zero_shot_data import filip_prompt_templates
+from losses import infer_cmli_logits
 from rich.progress import track
 from fairseq.data import Dictionary
 from utils import pad_text_sequence # src/utils.py
@@ -24,6 +26,81 @@ from data2vec_fairseq.data.modality import Modality
 
 
 logger = logging.getLogger(__name__)
+
+def filip_zero_shot(
+    pl_module:AMMData2VecPreTrainingLightningModule,
+    device,
+    num_max_bpe_tokens:int,):
+
+    data_path = '/workspace'
+    bpe_encoder:BPEEncoder = get_bpe_encoder(data_path)
+    dictionary = Dictionary.load(os.path.join(data_path, "dict.txt"))
+    
+    texts = bpe_encoder.encode_lines(
+        filip_prompt_templates,
+        tokens_per_sample=num_max_bpe_tokens,
+        to_tensor=False,
+    )
+    padding_masks = []
+    for i in range(len(texts)):
+        language_tokens, padding_mask = pad_text_sequence(tokens=texts[i], num_max_bpe_tokens=num_max_bpe_tokens,
+                                                          pad_idx=dictionary.pad(), bos_idx=dictionary.bos(),
+                                                          eos_idx=dictionary.eos(),)
+        
+        texts[i] = language_tokens
+        padding_masks.append(padding_mask)
+    
+    texts = torch.tensor(texts, dtype=torch.long)
+    padding_masks = torch.tensor(padding_masks, dtype=torch.long)
+    assert texts.size(1) == num_max_bpe_tokens
+    assert padding_masks.size(1) == num_max_bpe_tokens
+
+    texts = texts.to(device)
+    padding_masks = padding_masks.to(device)
+    stacked_classifier = pl_module.model.encode_text(text=texts, padding_mask=padding_masks)['encoder_out'] # (30000, num_max_bpe_tokens, embed_dim)
+    return stacked_classifier, padding_masks
+
+@rank_zero_only
+def run_filip_zero_shot(pl_module,
+                             dataloader:DataLoader,
+                             num_max_bpe_tokens:int,
+                             device,
+                             name,):
+    logger.info(f"Starting multimodal {name} Zero-Shot Eval")
+    logger.info("Building classifier")
+    classifier, padding_mask = filip_zero_shot(pl_module, device, num_max_bpe_tokens)
+    logger.info("Classifier built")
+    top1, top5, n = 0.0, 0.0, 0.0
+    for sample in track(dataloader, description=f"Zero-shot eval: {name}"):
+        images = sample["x"]
+        target = sample["target"]
+        images = images.to(device)
+        target = target.to(device)
+        if pl_module.dtype == torch.float16: # when using deep speed
+            images = images.half()
+        image_features = pl_module.model.encode_image(image=images)['encoder_out'] # (bsz, 197, embed_dim)
+        logits = infer_cmli_logits(
+            q_features=image_features,
+            k_features=classifier,
+            expanded_padding_mask=padding_mask[None, :, None, :].bool(),
+            pad_fill_value=float('-inf'),
+            logit_scale=100.0,
+        )['logits'] # (bsz, 30*1000)
+        logits = logits.view(-1, 1000, 30).mean(dim=-1) # (bsz, 1000)
+
+        # measure accuracy
+        acc1, acc5 = _n_correct(logits, target, topk=(1, 5))
+        top1 += acc1
+        top5 += acc5
+        n += images.size(0)
+
+    top1 = top1 / n
+    top5 = top5 / n
+    results = {}
+    results[f"multimodal-{name}--zeroshot-val-top1"] = top1
+    results[f"multimodal-{name}--zeroshot-val-top5"] = top5
+    return results
+
 
 def _zero_shot_classifier(pl_module:AMMData2VecPreTrainingLightningModule, device, num_max_bpe_tokens):
     data_path = '/workspace'
