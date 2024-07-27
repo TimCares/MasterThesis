@@ -242,20 +242,22 @@ class CMLILoss(CachedLabelContrastiveLoss):
         padding_masks[torch.arange(padding_masks.size(0)), last_zero_indices] = 1
         return padding_masks
     
-    def forward(self, image, text, padding_mask, logit_scale=1.0):
+    def forward(self, image_features, text_features, padding_mask, logit_scale=1.0):
         padding_mask = self._mask_eos(padding_mask)
-        all_image, all_text, all_padding_mask = self._gather(image, text, padding_mask)
+        all_image_features, all_text_features, all_padding_mask = self._gather(
+            image_features, text_features, padding_mask
+        )
 
         image_result = infer_cmli_logits(
-            q_features=image,
-            k_features=all_text,
+            q_features=image_features,
+            k_features=all_text_features,
             expanded_padding_mask=all_padding_mask[None, :, None, :].bool(),
             pad_fill_value=float('-inf'),
             logit_scale=logit_scale
         )
         text_result = infer_cmli_logits(
-            q_features=text,
-            k_features=all_image,
+            q_features=text_features,
+            k_features=all_image_features,
             expanded_padding_mask=padding_mask[:, None, :, None].bool(),
             pad_fill_value=float('nan'),
             logit_scale=logit_scale
