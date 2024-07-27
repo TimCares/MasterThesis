@@ -14,6 +14,8 @@ pip install -U scikit-learn
 
 pip install -U "huggingface_hub[cli]"
 
+pip install einops opt_einsum
+
 # ffmpeg
 
 wget https://johnvansickle.com/ffmpeg/builds/ffmpeg-git-amd64-static.tar.xz

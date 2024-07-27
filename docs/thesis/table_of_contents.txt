@@ -24,7 +24,7 @@ Experiments
 	Multimodal Knowledge Distillation
 		Reproducing: “See, Hear, Read: Deep Aligned Representations"
 		Aligned Representations
-			Research-Independent Improvements
+			Research-Independent Experiments
 				Larger Batch Sizes with DDP
 				Multimodal Transformer Block
 				Self-Supervised Teacher
@@ -36,9 +36,9 @@ Experiments
 					Image-Text Matching with Feature-Fusion
 					Increasing Negative Examples for ITC
 					Cross-Modal Late Interaction
+					Ablation Study: Removing ITC
 				
 			Research-Specific Experiments
-				Ablation Study: Removing ITC
 				Feature whitening
 				Dino Loss
 				CMLI on Teacher Features (lin transform of teacher cls token and student cls token needed?)

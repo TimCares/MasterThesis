@@ -1,31 +1,46 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import einops
+import opt_einsum
 from .layers import gather_features
 from typing import Dict
 import logging
 
 logger = logging.getLogger(__name__)
 
+# code for cmli logits heavily borrowed from x-clip -> https://github.com/lucidrains/x-clip
+# (https://github.com/lucidrains/x-clip/blob/main/x_clip/x_clip.py)
+
+def max_neg_value(dtype):
+    return -torch.finfo(dtype).max
+
+def masked_mean(t, mask, dim = 1, eps = 1e-6):
+    t = t.masked_fill(~mask, 0.)
+    numer = t.sum(dim = dim)
+    denom = mask.sum(dim = dim).clamp(min = eps)
+    return numer / denom
+
 def infer_cmli_logits(
     q_features:torch.Tensor,
     k_features:torch.Tensor,
-    expanded_padding_mask:torch.Tensor,
-    pad_fill_value:float,
+    padding_mask:torch.Tensor,
     logit_scale:float|torch.Tensor=1.0,
 ) -> Dict[str, torch.Tensor]:
-    sim = logit_scale * torch.einsum('x t d, y i d -> x y t i', q_features, k_features)
+    
+    q_features = q_features[:, 1:]
+    k_features = k_features[:, 1:]
+    sim = logit_scale * opt_einsum.contract('x t d, y i d -> x y t i', q_features, k_features)
 
-    sim = sim.masked_fill(expanded_padding_mask, pad_fill_value)
+    text_to_image = einops.reduce(sim, '... t i -> ... t', 'max')
+    text_to_image_mask = einops.rearrange(padding_mask, 'b t -> 1 b 1 t')
+    text_to_image = masked_mean(text_to_image, text_to_image_mask, dim = -1)
 
-    itc_logits = sim[:, :, 0, 0]
+    image_to_text_mask = einops.rearrange(padding_mask, 'b t -> b 1 t 1')
+    masked_sim = sim.masked_fill(~image_to_text_mask, max_neg_value(sim.dtype))
+    image_to_text = einops.reduce(einops.reduce(masked_sim, '... t i -> ... i', 'max'), '... i -> ...', 'mean')
 
-    # exclude cls token (1:)
-    sim = sim[:, :, 1:, 1:]
-
-    logits = sim.max(dim=-1).values.nanmean(dim=-1)
-
-    return {"logits": logits, "itc_logits": itc_logits}
+    return {"it2": image_to_text, "t2i": text_to_image}
 
 class CachedLabelContrastiveLoss(nn.Module):
     def __init__(
@@ -252,26 +267,16 @@ class CMLILoss(CachedLabelContrastiveLoss):
             image_features, text_features, padding_mask
         )
 
-        image_result = infer_cmli_logits(
-            q_features=image_features,
+        cmli_logits = infer_cmli_logits(
+            q_features=all_image_features,
             k_features=all_text_features,
-            expanded_padding_mask=all_padding_mask[None, :, None, :].bool(),
-            pad_fill_value=float('-inf'),
-            logit_scale=logit_scale
-        )
-        text_result = infer_cmli_logits(
-            q_features=text_features,
-            k_features=all_image_features,
-            expanded_padding_mask=padding_mask[:, None, :, None].bool(),
-            pad_fill_value=float('nan'),
+            padding_mask=all_padding_mask,
             logit_scale=logit_scale
         )
 
-        logits_per_image = image_result['logits']
-        logits_per_image_cls = image_result['itc_logits']
+        logits_per_image = cmli_logits['i2t']
         
-        logits_per_text = text_result['logits']
-        logits_per_text_cls = text_result['itc_logits']
+        logits_per_text = cmli_logits['t2i']
 
         labels = self.get_labels(logits_per_image.shape[0], logits_per_image.device)
 
@@ -280,21 +285,10 @@ class CMLILoss(CachedLabelContrastiveLoss):
             F.cross_entropy(logits_per_text, labels)
             ) / 2
         
-        if self.include_cls_token:
-            itc_loss = (
-                F.cross_entropy(logits_per_image_cls, labels) +
-                F.cross_entropy(logits_per_text_cls, labels)
-                ) / 2
-            total_loss = (cmli_loss + itc_loss) / 2
-        else:
-            total_loss = cmli_loss
-        
         out_dict = {
-            'loss': total_loss,
+            'loss': cmli_loss,
             'logits_per_image': logits_per_image,
             'logits_per_text': logits_per_text,
-            'logits_per_image_cls': logits_per_image_cls,
-            'logits_per_text_cls': logits_per_text_cls,
             'targets': labels,
         }
         return out_dict
@@ -325,7 +319,7 @@ class SparseCMLILoss(CMLILoss):
         k_features:torch.Tensor,
         logit_scale:float|torch.Tensor=1.0,
     ) -> torch.Tensor:
-        sim = logit_scale * torch.einsum('x t d, y i d -> x y t i', q_features, k_features)
+        sim = logit_scale * opt_einsum.contract('x t d, y i d -> x y t i', q_features, k_features)
 
         logits = sim.max(dim=-1).values.mean(dim=-1)
 
@@ -338,7 +332,7 @@ class SparseCMLILoss(CMLILoss):
 
         image_features = self.gather_top_tokens(image_features, image_attn)
         text_features = self.gather_top_tokens(text_features, text_attn, padding_mask)
-        
+
         all_image_features, all_text_features = self._gather(
             image_features, text_features
         )
