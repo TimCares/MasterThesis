@@ -15,7 +15,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
-from modules import Block, SparseCMLILoss
+from modules import Block, CMLILoss
 from utils import freeze_module, load_beit2_teacher
 
 logger = logging.getLogger(__name__)
@@ -41,12 +41,11 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
     def on_train_start(self):
         logger.info(f'World size: {self.trainer.world_size}')
         logger.info(f'Local rank: {self.trainer.local_rank}')
-        self.cmli_loss = SparseCMLILoss(
+        self.cmli_loss = CMLILoss(
             cache_labels=True,
             rank=self.trainer.local_rank,
             world_size=self.trainer.world_size,
             include_cls_token=self.cfg.model.cmli_include_cls_token,
-            token_fraction=0.25,
         )
 
     def forward(self, input_dict):
@@ -91,8 +90,6 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             image_features=output_dict['x_image'],
             text_features=output_dict['x_text'],
             padding_mask=output_dict['padding_mask_text'],
-            image_attn=output_dict['attn_image'],
-            text_attn=output_dict['attn_text'],
             logit_scale=self.model.logit_scale_out.exp(),
         )
         
@@ -274,13 +271,12 @@ class Sx3HRe(nn.Module):
         out_dict = dict()
         x = encoder_out['x']
         mask = encoder_out['padding_mask'] if 'padding_mask' in encoder_out else None
-        _, x, attn = self.shared(x=x, mask=mask)
+        _, x = self.shared(x=x, mask=mask)
 
         out_dict["encoder_out"] = x[:, 0]
         x = cmli_proj(x)
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
-        out_dict["attn"] = attn
         return out_dict
     
     def prepare_for_inference(self, keep_modality:Modality=None, retrieval:bool=False):

@@ -78,7 +78,7 @@ class Attention(nn.Module):
         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
-        return x, attn
+        return x
 
 class Block(nn.Module):
     def __init__(
@@ -118,12 +118,11 @@ class Block(nn.Module):
         self.drop_path2 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor=None) -> torch.Tensor:
-        x_tmp, attn_scores = self.attn(self.norm1(x), mask=mask)
-        x = x + self.drop_path1(self.ls1(x_tmp))
+        x = x + self.drop_path1(self.ls1(self.attn(self.norm1(x), mask=mask)))
         x_res = x
         x_interm, x = self.mlp(self.norm2(x))
         x = x_res + self.drop_path2(self.ls2(x))
-        return x_interm, x, attn_scores
+        return x_interm, x
 
 
 # GatherLayer and  gather_features copied from BEiT-3 -> https://github.com/microsoft/unilm/blob/master/beit3/utils.py

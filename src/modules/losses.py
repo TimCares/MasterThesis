@@ -311,7 +311,7 @@ class SparseCMLILoss(CMLILoss):
             attn = attn[:, 0]
         top_tokens = attn[:, 1:].topk(k=int(attn.shape[1]*self.token_fraction), dim=-1).indices
         top_tokens += 1
-        top_tokens_index = top_tokens.unsqueeze(-1).expand(-1, -1, self.cfg.model.cmli_dim)
+        top_tokens_index = top_tokens.unsqueeze(-1).expand(-1, -1, input.shape[-1])
         return torch.gather(input, 1, top_tokens_index)
     
     def _mask_eos(self, cls_attn, padding_masks):
@@ -375,7 +375,7 @@ class CMLITargetLoss(nn.Module):
 
         text_norm = text / text.norm(dim=-1, keepdim=True)
         target_norm = target / target.norm(dim=-1, keepdim=True)
-
+        # diagonal = torch.sum(A * B.transpose(-1, -2), dim=-1)
         similarity = text_norm.unsqueeze(1) @ target_norm.unsqueeze(0).transpose(-1, -2)
         similarity = torch.diagonal(similarity).permute(2, 0, 1)
 
