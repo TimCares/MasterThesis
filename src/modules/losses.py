@@ -298,6 +298,76 @@ class CMLILoss(CachedLabelContrastiveLoss):
             'targets': labels,
         }
         return out_dict
+    
+class SparseCMLILoss(CMLILoss):
+    def __init__(self, cache_labels=False, rank=0, world_size=1, include_cls_token=False, token_fraction=0.25):
+        super().__init__(cache_labels, rank, world_size, include_cls_token)
+        self.token_fraction = token_fraction
+    
+    def gather_top_tokens(self, input, attn, padding_mask=None):
+        if padding_mask is not None:
+            attn = self._mask_eos(attn[:, 0], padding_mask)
+        else:
+            attn = attn[:, 0]
+        top_tokens = attn[:, 1:].topk(k=int(attn.shape[1]*self.token_fraction), dim=-1).indices
+        top_tokens += 1
+        top_tokens_index = top_tokens.unsqueeze(-1).expand(-1, -1, self.cfg.model.cmli_dim)
+        return torch.gather(input, 1, top_tokens_index)
+    
+    def _mask_eos(self, cls_attn, padding_masks):
+        last_zero_indices = (padding_masks == 0).cumsum(dim=1).argmax(dim=1)
+        cls_attn[torch.arange(cls_attn.size(0)), last_zero_indices] = 0
+        return cls_attn
+    
+    def infer_cmli_logits(
+        self,
+        q_features:torch.Tensor,
+        k_features:torch.Tensor,
+        logit_scale:float|torch.Tensor=1.0,
+    ) -> torch.Tensor:
+        sim = logit_scale * q_features.unsqueeze(1) @ k_features.unsqueeze(0).transpose(-1, -2)
+
+        logits = sim.max(dim=-1).values.mean(dim=-1)
+
+        return logits
+    
+    def forward(self, image_features, text_features, padding_mask, image_attn, text_attn, logit_scale=1.0):
+        # following FILIP, we cast to half precision (fp16)
+        image_features = image_features.half()
+        text_features = text_features.half()
+
+        image_features = self.gather_top_tokens(image_features, image_attn)
+        text_features = self.gather_top_tokens(text_features, text_attn, padding_mask)
+        
+        all_image_features, all_text_features = self._gather(
+            image_features, text_features
+        )
+
+        logits_per_image = self.infer_cmli_logits(
+            q_features=image_features,
+            k_features=all_text_features,
+            logit_scale=logit_scale
+        )
+        logits_per_text = self.infer_cmli_logits(
+            q_features=text_features,
+            k_features=all_image_features,
+            logit_scale=logit_scale
+        )
+
+        labels = self.get_labels(logits_per_image.shape[0], logits_per_image.device)
+
+        cmli_loss = (
+            F.cross_entropy(logits_per_image, labels) +
+            F.cross_entropy(logits_per_text, labels)
+            ) / 2
+        
+        out_dict = {
+            'loss': cmli_loss,
+            'logits_per_image': logits_per_image,
+            'logits_per_text': logits_per_text,
+            'targets': labels,
+        }
+        return out_dict
 
 class CMLITargetLoss(nn.Module):
     def forward(self, image, text, target, padding_mask):
