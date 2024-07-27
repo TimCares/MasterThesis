@@ -243,6 +243,10 @@ class CMLILoss(CachedLabelContrastiveLoss):
         return padding_masks
     
     def forward(self, image_features, text_features, padding_mask, logit_scale=1.0):
+        # following FILIP, we cast to half precision (fp16)
+        image_features = image_features.half()
+        text_features = text_features.half()
+
         padding_mask = self._mask_eos(padding_mask)
         all_image_features, all_text_features, all_padding_mask = self._gather(
             image_features, text_features, padding_mask

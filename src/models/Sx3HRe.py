@@ -45,7 +45,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             cache_labels=True,
             rank=self.trainer.local_rank,
             world_size=self.trainer.world_size,
-            include_cls_token=self.cfg.include_cls_token,
+            include_cls_token=self.cfg.model.cmli_include_cls_token,
         )
 
     def forward(self, input_dict):
@@ -86,23 +86,16 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.model.logit_scale_interm.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
         self.model.logit_scale_out.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
 
-        itc_out1 = self.cmli_loss(
-            image_features=output_dict['x_interm_image'],
-            text_features=output_dict['x_interm_text'],
-            padding_mask=output_dict['padding_mask_text'],
-            logit_scale=self.model.logit_scale_interm.exp(),
-        )
-        itc_out2 = self.cmli_loss(
+        itc_out = self.cmli_loss(
             image_features=output_dict['x_image'],
             text_features=output_dict['x_text'],
             padding_mask=output_dict['padding_mask_text'],
             logit_scale=self.model.logit_scale_out.exp(),
         )
         
-        self.log_itc_acc(itc_out1['logits_per_image'], itc_out1['logits_per_text'], itc_out1['targets'], stage, key_prefix="interm")
-        self.log_itc_acc(itc_out2['logits_per_image'], itc_out2['logits_per_text'], itc_out2['targets'], stage)
+        self.log_itc_acc(itc_out['logits_per_image'], itc_out['logits_per_text'], itc_out['targets'], stage)
             
-        itc_loss = (itc_out1['loss'] + itc_out2['loss']) / 2
+        itc_loss = itc_out['loss']
         self.log(f"{stage}/itc_loss", itc_loss)
 
         loss = kd_loss + itc_loss
@@ -196,6 +189,8 @@ class Sx3HReConfig():
     pretrained: PretrainedStateDictsConfig = field(default_factory=PretrainedStateDictsConfig)
 
     embed_dim: int = 768
+    cmli_dim: int = 256
+    cmli_include_cls_token: bool = False
 
     depth: int = 6
     num_heads: int = 12
@@ -211,6 +206,9 @@ class Sx3HRe(nn.Module):
         super(Sx3HRe, self).__init__()
         self.cfg = cfg
         make_layer_norm = partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
+
+        self.text_embed_proj = nn.Linear(self.cfg.embed_dim, self.cfg.cmli_dim)
+        self.image_embed_proj = nn.Linear(self.cfg.embed_dim, self.cfg.cmli_dim)
 
         self.shared = Block(
             dim=self.cfg.embed_dim,
@@ -257,7 +255,7 @@ class Sx3HRe(nn.Module):
             remove_extra_tokens=False,
         )
         
-        return self.encode_shared(encoder_out)
+        return self.encode_shared(encoder_out, self.image_embed_proj)
 
     def encode_text(self, text, padding_mask):
         encoder_out = self.text_model.extract_features(
@@ -265,21 +263,20 @@ class Sx3HRe(nn.Module):
             padding_mask=padding_mask,
             remove_extra_tokens=False,
         )
-        out_dict = self.encode_shared(encoder_out)
+        out_dict = self.encode_shared(encoder_out, self.text_embed_proj)
         out_dict['padding_mask'] = padding_mask
         return out_dict
     
-    def encode_shared(self, encoder_out):
+    def encode_shared(self, encoder_out, cmli_proj):
         out_dict = dict()
         x = encoder_out['x']
         mask = encoder_out['padding_mask'] if 'padding_mask' in encoder_out else None
-        x_interm, x = self.shared(x=x, mask=mask)
+        _, x = self.shared(x=x, mask=mask)
 
         out_dict["encoder_out"] = x[:, 0]
+        x = cmli_proj(x)
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
-        x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
-        out_dict["x_interm"] = x_interm
         return out_dict
     
     def prepare_for_inference(self, keep_modality:Modality=None, retrieval:bool=False):

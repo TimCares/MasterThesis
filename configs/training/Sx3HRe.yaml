@@ -25,8 +25,6 @@ load_checkpoint:
 
 nlp_context_length: 64 # inspired by BEiT3
 
-include_cls_token: False
-
 beit2:
   pretrained_path: ${model_path}/beitv2_base_patch16_224_pt1k.pth
   drop_path_rate: 0.1
@@ -43,6 +41,9 @@ model:
     text: nlp_base.pt
 
   embed_dim: 768
+
+  cmli_dim: 256 # following FILIP
+  cmli_include_cls_token: False
 
   depth: 6
   num_heads: 12
