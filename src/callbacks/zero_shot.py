@@ -17,7 +17,7 @@ from data.imagenet_zeroshot_data import (
     openai_imagenet_template,
 )
 from data.filip_zero_shot_data import filip_prompt_templates
-from losses import infer_cmli_logits
+from modules import infer_cmli_logits
 from rich.progress import track
 from fairseq.data import Dictionary
 from utils import pad_text_sequence # src/utils.py
@@ -57,15 +57,17 @@ def filip_zero_shot(
 
     texts = texts.to(device)
     padding_masks = padding_masks.to(device)
-    stacked_classifier = pl_module.model.encode_text(text=texts, padding_mask=padding_masks)['encoder_out'] # (30000, num_max_bpe_tokens, embed_dim)
+    stacked_classifier = pl_module.model.encode_text(text=texts, padding_mask=padding_masks)['x'] # (30000, num_max_bpe_tokens, embed_dim)
     return stacked_classifier, padding_masks
 
 @rank_zero_only
-def run_filip_zero_shot(pl_module,
-                             dataloader:DataLoader,
-                             num_max_bpe_tokens:int,
-                             device,
-                             name,):
+def run_filip_zero_shot(
+    pl_module,
+    dataloader:DataLoader,
+    num_max_bpe_tokens:int,
+    device,
+    name,):
+
     logger.info(f"Starting multimodal {name} Zero-Shot Eval")
     logger.info("Building classifier")
     classifier, padding_mask = filip_zero_shot(pl_module, device, num_max_bpe_tokens)
@@ -78,7 +80,7 @@ def run_filip_zero_shot(pl_module,
         target = target.to(device)
         if pl_module.dtype == torch.float16: # when using deep speed
             images = images.half()
-        image_features = pl_module.model.encode_image(image=images)['encoder_out'] # (bsz, 197, embed_dim)
+        image_features = pl_module.model.encode_image(image=images)['x'] # (bsz, 197, embed_dim)
         logits = infer_cmli_logits(
             q_features=image_features,
             k_features=classifier,
@@ -417,7 +419,7 @@ class MultimodalZeroShotRetrievalCallback(ZeroShotCallback):
     def validate(self, trainer, pl_module) -> None:
         for name_key in self.datamodules.keys():
             
-            metrics = run_multimodal_zero_shot(
+            metrics = run_filip_zero_shot(
                 pl_module=pl_module,
                 dataloader=self.datamodules[name_key].val_dataloader(),
                 num_max_bpe_tokens=self.num_max_bpe_tokens,

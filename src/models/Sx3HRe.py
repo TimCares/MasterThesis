@@ -15,7 +15,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
-from modules import Block, ClipLoss
+from modules import Block, CMLILoss
 from utils import freeze_module, load_beit2_teacher
 
 logger = logging.getLogger(__name__)
@@ -41,10 +41,11 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
     def on_train_start(self):
         logger.info(f'World size: {self.trainer.world_size}')
         logger.info(f'Local rank: {self.trainer.local_rank}')
-        self.clip_loss = ClipLoss(
+        self.cmli_loss = CMLILoss(
             cache_labels=True,
             rank=self.trainer.local_rank,
-            world_size=self.trainer.world_size
+            world_size=self.trainer.world_size,
+            include_cls_token=self.cfg.include_cls_token,
         )
 
     def forward(self, input_dict):
@@ -85,14 +86,16 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.model.logit_scale_interm.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
         self.model.logit_scale_out.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
 
-        itc_out1 = self.clip_loss(
+        itc_out1 = self.cmli_loss(
             image_features=output_dict['x_interm_image'],
             text_features=output_dict['x_interm_text'],
+            padding_mask=output_dict['padding_mask_text'],
             logit_scale=self.model.logit_scale_interm.exp(),
         )
-        itc_out2 = self.clip_loss(
+        itc_out2 = self.cmli_loss(
             image_features=output_dict['x_image'],
             text_features=output_dict['x_text'],
+            padding_mask=output_dict['padding_mask_text'],
             logit_scale=self.model.logit_scale_out.exp(),
         )
         
@@ -209,9 +212,6 @@ class Sx3HRe(nn.Module):
         self.cfg = cfg
         make_layer_norm = partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
 
-        self.proj_norm = make_layer_norm(self.cfg.embed_dim)
-        self.proj_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim)
-
         self.shared = Block(
             dim=self.cfg.embed_dim,
             num_heads=self.cfg.num_heads,
@@ -265,20 +265,17 @@ class Sx3HRe(nn.Module):
             padding_mask=padding_mask,
             remove_extra_tokens=False,
         )
-        
-        return self.encode_shared(encoder_out)
+        out_dict = self.encode_shared(encoder_out)
+        out_dict['padding_mask'] = padding_mask
+        return out_dict
     
     def encode_shared(self, encoder_out):
         out_dict = dict()
         x = encoder_out['x']
         mask = encoder_out['padding_mask'] if 'padding_mask' in encoder_out else None
         x_interm, x = self.shared(x=x, mask=mask)
-        x_interm = x_interm[:, 0]
-        x = x[:, 0]
 
-        encoder_out = self.proj_head(self.proj_norm(x))
-
-        out_dict["encoder_out"] = encoder_out
+        out_dict["encoder_out"] = x[:, 0]
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
         x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)

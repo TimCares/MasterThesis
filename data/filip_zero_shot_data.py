@@ -1,4 +1,4 @@
-from imagenet_zeroshot_data import imagenet_classnames
+from data.imagenet_zeroshot_data import imagenet_classnames
 
 prefixes = [
     "a photo of a", 
