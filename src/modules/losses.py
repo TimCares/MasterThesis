@@ -14,7 +14,7 @@ def infer_cmli_logits(
     pad_fill_value:float,
     logit_scale:float|torch.Tensor=1.0,
 ) -> Dict[str, torch.Tensor]:
-    sim = logit_scale * q_features.unsqueeze(1) @ k_features.unsqueeze(0).transpose(-1, -2)
+    sim = logit_scale * torch.einsum('x t d, y i d -> x y t i', q_features, k_features)
 
     sim = sim.masked_fill(expanded_padding_mask, pad_fill_value)
 
@@ -325,7 +325,7 @@ class SparseCMLILoss(CMLILoss):
         k_features:torch.Tensor,
         logit_scale:float|torch.Tensor=1.0,
     ) -> torch.Tensor:
-        sim = logit_scale * q_features.unsqueeze(1) @ k_features.unsqueeze(0).transpose(-1, -2)
+        sim = logit_scale * torch.einsum('x t d, y i d -> x y t i', q_features, k_features)
 
         logits = sim.max(dim=-1).values.mean(dim=-1)
 
