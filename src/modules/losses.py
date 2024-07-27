@@ -237,7 +237,7 @@ class CMLILoss(CachedLabelContrastiveLoss):
             all_padding_mask = padding_mask
         return all_image_features, all_text_features, all_padding_mask
     
-    def _mask_eos(padding_masks):
+    def _mask_eos(self, padding_masks):
         last_zero_indices = (padding_masks == 0).cumsum(dim=1).argmax(dim=1)
         padding_masks[torch.arange(padding_masks.size(0)), last_zero_indices] = 1
         return padding_masks
