@@ -305,8 +305,8 @@ class CMLILoss(CachedLabelContrastiveLoss):
         return out_dict
     
 class SparseCMLILoss(CMLILoss):
-    def __init__(self, cache_labels=False, rank=0, world_size=1, include_cls_token=False, token_fraction=0.25):
-        super().__init__(cache_labels, rank, world_size, include_cls_token)
+    def __init__(self, cache_labels=False, rank=0, world_size=1, token_fraction=0.25):
+        super().__init__(cache_labels, rank, world_size)
         self.token_fraction = token_fraction
     
     def gather_top_tokens(self, input, attn, padding_mask=None):
@@ -326,15 +326,20 @@ class SparseCMLILoss(CMLILoss):
     
     def infer_cmli_logits(
         self,
-        q_features:torch.Tensor,
-        k_features:torch.Tensor,
+        text_features:torch.Tensor,
+        image_features:torch.Tensor,
         logit_scale:float|torch.Tensor=1.0,
     ) -> torch.Tensor:
-        sim = logit_scale * opt_einsum.contract('x t d, y i d -> x y t i', q_features, k_features)
+    
+        text_features = text_features[:, 1:]
+        image_features = image_features[:, 1:]
+        sim = logit_scale * opt_einsum.contract('x t d, y i d -> x y t i', text_features, image_features)
 
-        logits = sim.max(dim=-1).values.mean(dim=-1)
+        text_to_image = einops.reduce(einops.reduce(sim, '... t i -> ... t', 'max'), '... i -> ...', 'mean')
 
-        return logits
+        image_to_text = einops.reduce(einops.reduce(sim, '... t i -> ... i', 'max'), '... i -> ...', 'mean')
+
+        return {"it2": image_to_text, "t2i": text_to_image}
     
     def forward(self, image_features, text_features, padding_mask, image_attn, text_attn, logit_scale=1.0):
         # following FILIP, we cast to half precision (fp16)
@@ -344,20 +349,19 @@ class SparseCMLILoss(CMLILoss):
         image_features = self.gather_top_tokens(image_features, image_attn)
         text_features = self.gather_top_tokens(text_features, text_attn, padding_mask)
 
-        all_image_features, all_text_features = self._gather(
+        image_features, text_features = self._gather(
             image_features, text_features
         )
 
-        logits_per_image = self.infer_cmli_logits(
-            q_features=image_features,
-            k_features=all_text_features,
+        cmli_logits = infer_cmli_logits(
+            text_features=text_features,
+            image_features=image_features,
             logit_scale=logit_scale
         )
-        logits_per_text = self.infer_cmli_logits(
-            q_features=text_features,
-            k_features=all_image_features,
-            logit_scale=logit_scale
-        )
+
+        logits_per_image = cmli_logits['i2t']
+        
+        logits_per_text = cmli_logits['t2i']
 
         labels = self.get_labels(logits_per_image.shape[0], logits_per_image.device)
 
