@@ -45,7 +45,6 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             cache_labels=True,
             rank=self.trainer.local_rank,
             world_size=self.trainer.world_size,
-            include_cls_token=self.cfg.model.cmli_include_cls_token,
         )
 
     def forward(self, input_dict):
@@ -190,7 +189,6 @@ class Sx3HReConfig():
 
     embed_dim: int = 768
     cmli_dim: int = 256
-    cmli_include_cls_token: bool = False
 
     depth: int = 6
     num_heads: int = 12

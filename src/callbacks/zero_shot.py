@@ -82,12 +82,11 @@ def run_filip_zero_shot(
             images = images.half()
         image_features = pl_module.model.encode_image(image=images)['x'] # (bsz, 197, embed_dim)
         logits = infer_cmli_logits(
-            q_features=image_features,
-            k_features=classifier,
-            expanded_padding_mask=padding_mask[None, :, None, :].bool(),
-            pad_fill_value=float('-inf'),
+            text_features=classifier,
+            image_features=image_features,
+            padding_mask=padding_mask,
             logit_scale=100.0,
-        )['logits'] # (bsz, 30*1000)
+        )['i2t'].t() # (bsz, 30*1000)
         logits = logits.view(-1, 1000, 30).mean(dim=-1) # (bsz, 1000)
 
         # measure accuracy

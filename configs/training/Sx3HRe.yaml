@@ -43,7 +43,6 @@ model:
   embed_dim: 768
 
   cmli_dim: 256 # following FILIP
-  cmli_include_cls_token: False
 
   depth: 6
   num_heads: 12

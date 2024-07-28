@@ -16,28 +16,29 @@ def max_neg_value(dtype):
     return -torch.finfo(dtype).max
 
 def masked_mean(t, mask, dim = 1, eps = 1e-6):
-    t = t.masked_fill(~mask, 0.)
+    t = t.masked_fill(mask.bool(), 0.)
     numer = t.sum(dim = dim)
     denom = mask.sum(dim = dim).clamp(min = eps)
     return numer / denom
 
 def infer_cmli_logits(
-    q_features:torch.Tensor,
-    k_features:torch.Tensor,
+    text_features:torch.Tensor,
+    image_features:torch.Tensor,
     padding_mask:torch.Tensor,
     logit_scale:float|torch.Tensor=1.0,
 ) -> Dict[str, torch.Tensor]:
     
-    q_features = q_features[:, 1:]
-    k_features = k_features[:, 1:]
-    sim = logit_scale * opt_einsum.contract('x t d, y i d -> x y t i', q_features, k_features)
+    text_features = text_features[:, 1:]
+    image_features = image_features[:, 1:]
+    padding_mask = padding_mask[:, 1:]
+    sim = logit_scale * opt_einsum.contract('x t d, y i d -> x y t i', text_features, image_features)
 
     text_to_image = einops.reduce(sim, '... t i -> ... t', 'max')
     text_to_image_mask = einops.rearrange(padding_mask, 'b t -> 1 b 1 t')
     text_to_image = masked_mean(text_to_image, text_to_image_mask, dim = -1)
 
     image_to_text_mask = einops.rearrange(padding_mask, 'b t -> b 1 t 1')
-    masked_sim = sim.masked_fill(~image_to_text_mask, max_neg_value(sim.dtype))
+    masked_sim = sim.masked_fill(image_to_text_mask.bool(), max_neg_value(sim.dtype))
     image_to_text = einops.reduce(einops.reduce(masked_sim, '... t i -> ... i', 'max'), '... i -> ...', 'mean')
 
     return {"it2": image_to_text, "t2i": text_to_image}
@@ -237,9 +238,19 @@ class ITMLoss(nn.Module):
 
 # following FILIP -> https://arxiv.org/pdf/2111.07783
 class CMLILoss(CachedLabelContrastiveLoss):
-    def __init__(self, cache_labels=False, rank=0, world_size=1, include_cls_token=False):
+    def __init__(self, cache_labels=False, rank=0, world_size=1):
         super().__init__(cache_labels, rank, world_size)
-        self.include_cls_token = include_cls_token
+
+    def get_labels(self, num_logits, device):
+        # calculated ground-truth and cache if enabled
+        if self.prev_num_logits != num_logits or device not in self.labels:
+            labels = torch.arange(num_logits, device=device, dtype=torch.long)
+            if self.cache_labels:
+                self.labels[device] = labels
+                self.prev_num_logits = num_logits
+        else:
+            labels = self.labels[device]
+        return labels
      
     def _gather(self, image_features, text_features, padding_mask):
         if self.world_size > 1:
@@ -263,14 +274,14 @@ class CMLILoss(CachedLabelContrastiveLoss):
         text_features = text_features.half()
 
         padding_mask = self._mask_eos(padding_mask)
-        all_image_features, all_text_features, all_padding_mask = self._gather(
+        image_features, text_features, padding_mask = self._gather(
             image_features, text_features, padding_mask
         )
 
         cmli_logits = infer_cmli_logits(
-            q_features=all_image_features,
-            k_features=all_text_features,
-            padding_mask=all_padding_mask,
+            text_features=text_features,
+            image_features=image_features,
+            padding_mask=padding_mask,
             logit_scale=logit_scale
         )
 
