@@ -152,38 +152,38 @@ which is the disadvantage of this variant.
   width: 50%,
   "../figures/mm_momentum_encoder.png"),
   caption: [A momentum encoder generates negative examples for ITC, which are also stored in a memory bank that
-  discards the representations of the oldest batch when new ones are added after every step. Figure inspired by MoCo v2 @mocov2
+  discards the representations of the oldest batch when new ones are added after every step. Figure inspired by MoCo v2 @mocov2.
   ],
 ) <mm_momentum_encoder>
 
 ===== Resolution
 
-- we can't use the memory bank style of @memory_bank, since we have 3,264,868 training examples
-  - each embedding has a size of 768, considering storing them at full precision, so float32, we would need $3,264,868 * 768 * 4 B > 10e^9 B = 10 "GB"$ of additional GPU memory
+We can't use the memory bank style of @memory_bank since we have 3,264,868 training examples (see TODO: cite table of dataset size). Each embedding has a size of 768, and considering storing them at full precision (float32), we would need $3,264,868 * 768 * 4 "bytes" > 10 "GB"$
+of additional GPU memory. However, with our current setting we only have around 1.2 GB of GPU memory remaining.
 
-- we suspect that using a proximal regularization term, as in @proximal_regularization, might help to stabilize our memory bank approach
-- however, we cannot use it -> the term is based on the representation of the same training example at the previous time step
-- but our memory bank is significantly smaller than the training dataset, and older samples are dequeued, so the same training example will never be in the memory bank and at the same time in the current batch
+We suspect that using a proximal regularization term, as in @proximal_regularization, could also stabilize our memory bank approach. However, we cannot apply it since the term is based on the difference (MSE) between the representation of an individual training example when it was last updated in the memory bank, and its current representation in the batch. This requires the exact approach of @memory_bank, which we just recently deemed as infeasible. Our memory bank is significantly smaller than the training dataset, and older samples are dequeued, so the same training example will never be in the memory bank and the current batch simultaneously.
 
-- in conclusion:
-1. can't use FIFO queue based memory bank, as representations of negative examples are inconsistent
-2. can't use memory bank that maps all training examples, as it would require too much additional GPU memory
-3. proximal regularization not applicable to a memory bank that is smaller than the training dataset
+In conclusion:
 
-- only alternative is to use a momentum encoder as in MoCo
-- therefore, we opt for this approach
+	1.	We cannot use a FIFO queue-based memory bank, as representations of negative examples are inconsistent.
+	2.	We cannot use a memory bank that maps all training examples, as it would require too much additional GPU memory.
+	3.	Proximal regularization is not applicable to a memory bank that is smaller than the training dataset.
 
-- experimental setup remains the same, but we add a momentum encoder, which is a copy of our (student) model that is trained
-- oriented on ALBEF @albef, we use a memory bank of size 65,536 and a momentum factor of 0.995
-  - both are hyperparameters that also lead to good results in MoCo, where this approach was first introduced @moco
+The only alternative is to use a momentum encoder as in MoCo @moco, which is why we opt for this approach in the next experiment.
+Our experimental setup remains the same, but we add a momentum encoder, which is a copy of our (student) model that is trained (as described
+in @mm_momentum_encoder). Oriented on ALBEF @albef, we use a memory bank of size 65,536 and a momentum factor of 0.995. Both hyperparameters
+also lead to good results in MoCo, where this approach was first introduced @moco.
 
-- however, we get an OOM error
-- this is not surprising, as we have a very large memory bank of size 65,536
-- as seen in @mm_momentum_encoder, we can't just have one memory bank, as done in unimodal models like MoCo @moco,
-  because we need one memory bank for storing negative text examples and one for storing negative image examples
-- also recall that we do contrastive loss on both FFN layers of the shared Transformer layer
-- so we need two memory banks for each FFN layer
-- so we need four memory banks of size 65,536 each
+However, we encounter an OOM error, which is not surprising, considering the large memory bank size of 65k, and that we need to maintain four
+of those in total (see @number_of_mbs_required). Considering that the size of the memory bank is crucial for performance (illustrated by MoCo @moco in @moco_vs_mb), we would like to keep it as large as possible.
+
+#figure(
+  image(
+  width: 50%,
+  "../figures/moco_vs_mb.png"),
+  caption: [@moco
+  ],
+) <moco_vs_mb>
 
 - we would like to keep the size of the memory bank, as this is important for performance
 - therefore, we perform two optimizations:
@@ -197,18 +197,10 @@ which is the disadvantage of this variant.
   - for one memory bank, this means $12,288 * 65,536 = 805,8 "MB"$ of GPU memory is required
   - for two memory banks, this means $805,8 "MB" * 2 approx 1.6 "GB"$ of GPU memory is required
 
-- this is still not enought to prevent OOM errors, and we identify a further optimization
-- usually, forward pass of momentum encoder is done after the forward pass of the model that is trained
-- this approach is used in MoCo @moco and ALBEF @albef
-- that means that during the forward pass of the momentum encoder, where GPU memory is required to store the results, all activations of the actual model are also stored on the GPU, as they are needed for the backward pass later
-- because we did not encoder OOM errors before using the momentum encoder, and we observed that the GPU memory in previous experiments was almost fully utilized, even without a momentum encoder, we suspect that the forward pass of the momentum encoder is the reason
+We also identify a further optimization: Usually, the forward pass of the momentum encoder is done after the forward pass of the model that is trained, which is an approach MoCo @moco and ALBEF @albef follow. It follows that during the forward pass of the momentum encoder, GPU memory is already allocated to store all activations of the actual model, as they are needed for the backward pass later. Because we did not encounter an OOM error before using the momentum encoder, and we observed that the GPU memory in previous experiments was almost fully utilized (up to 98%) even without a momentum encoder, we suspect that the forward pass of the momentum encoder is the reason for the overflow.
 
-- we therefore perform the forward pass of the momentum encoder before any work is done in one step of the training loop
-- so momentum update and forward pass of the momentum encoder is done first
-- this way, activations of momentum encoder are freed before the forward pass of the model that is trained
-- performance stays the same, as the work that is done remains the same
-- with this strategy, we avoid OOM errors
-- time per step remains the same, as the work that is done remains the same
+For each step in the training loop, we therefore perform the update and forward pass of the momentum encoder before any work other work is done
+(i.e. forward pass of the teacher or student). This way, the activations of intermediate layers of the momentum encoder are freed before the forward pass of the actual model that is trained. This way, we avoid OOM errors while keeping the performance the same, as the work that is done per step remains the same, but is merely reordered. This is illustrated in @me_forward_comparison.
 
 #figure(
   image(
@@ -254,9 +246,6 @@ which is the disadvantage of this variant.
     caption: [Comparison of the Standard ITC approach with momentum encoder and a memory bank of size 65,536. The momentum encoder approach does not exceed the performance of the standard ITC approach (right), even though it shows a promising trend towards the end of training (left).]
 ) <zs_imagenet_itc_vs_mb>
 
-...
-- best approach would be to use no contrastive loss -> all the work we did before was because contrastive learning requires
-  large number of negative examples
-- BEiT-3 give good reason to discard it
+...?
 
 #bibliography("../references.bib")
