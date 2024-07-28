@@ -34,11 +34,6 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         )
         freeze_module(self.teacher)
 
-        bsz = self.cfg.data.dataloader.batch_size
-        # no mask
-        self.bool_masked_pos = torch.zeros((bsz, self.teacher.patch_embed.num_patches),
-                                            dtype=torch.bool).to(self.device)
-
         self.save_hyperparameters()
 
     def forward(self, input_dict):
@@ -56,10 +51,14 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
 
         image_teacher = batch.pop('image_teacher')
 
+        # no mask
+        bool_masked_pos = torch.zeros((image_teacher.shape[0], self.teacher.patch_embed.num_patches), 
+                                      dtype=torch.bool).to(image_teacher.device)
+
         with torch.no_grad():
             target = self.teacher.forward_features(
                 x=image_teacher,
-                bool_masked_pos=self.bool_masked_pos,
+                bool_masked_pos=bool_masked_pos,
             )[:, 0]
         
         output_dict = self(batch) # call "forward"
