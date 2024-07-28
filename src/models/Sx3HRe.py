@@ -3,7 +3,6 @@ from torch import nn
 import torch.nn.functional as F
 from functools import partial
 from typing import Dict, Any
-import numpy as np
 import os
 from utils import load_pretrained_d2v_model
 import logging
@@ -14,7 +13,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
-from modules import Block, ClipLoss
+from modules import Block
 from utils import freeze_module, load_beit2_teacher
 
 logger = logging.getLogger(__name__)
@@ -36,15 +35,6 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         freeze_module(self.teacher)
 
         self.save_hyperparameters()
-
-    def on_train_start(self):
-        logger.info(f'World size: {self.trainer.world_size}')
-        logger.info(f'Local rank: {self.trainer.local_rank}')
-        self.clip_loss = ClipLoss(
-            cache_labels=True,
-            rank=self.trainer.local_rank,
-            world_size=self.trainer.world_size,
-        )
 
     def forward(self, input_dict):
         return self.model(**input_dict)
@@ -81,27 +71,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         kd_loss = (kd_loss1 + kd_loss2) / 2
         self.log(f"{stage}/kd_loss", kd_loss)
 
-        self.model.logit_scale_interm.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
-        self.model.logit_scale_out.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
-
-        itc_out1 = self.clip_loss(
-            image_features=output_dict['x_interm_image'],
-            text_features=output_dict['x_interm_text'],
-            logit_scale=self.model.logit_scale_interm.exp(),
-        )
-        itc_out2 = self.clip_loss(
-            image_features=output_dict['x_image'],
-            text_features=output_dict['x_text'],
-            logit_scale=self.model.logit_scale_out.exp(),
-        )
-        
-        self.log_itc_acc(itc_out1['logits_per_image'], itc_out1['logits_per_text'], itc_out1['targets'], stage, key_prefix="interm")
-        self.log_itc_acc(itc_out2['logits_per_image'], itc_out2['logits_per_text'], itc_out2['targets'], stage)
-            
-        itc_loss = (itc_out1['loss'] + itc_out2['loss']) / 2
-        self.log(f"{stage}/itc_loss", itc_loss)
-        
-        loss = kd_loss + itc_loss
+        loss = kd_loss
 
         self.log(f"{stage}/loss", loss, prog_bar=True)
         
@@ -220,9 +190,6 @@ class Sx3HRe(nn.Module):
         )
 
         self.apply(init_bert_params)
-
-        self.logit_scale_interm = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
-        self.logit_scale_out = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
         self.text_model = load_pretrained_d2v_model(state_dict_path=os.path.join(self.cfg.pretrained_path, self.cfg.pretrained.text))
         self.text_model.blocks = self.text_model.blocks[:self.cfg.depth]
