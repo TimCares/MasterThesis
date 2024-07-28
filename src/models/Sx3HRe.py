@@ -34,9 +34,10 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         )
         freeze_module(self.teacher)
 
+        bsz = self.cfg.data.dataloader.batch_size
         # no mask
-        self.bool_masked_pos = torch.zeros((self.teacher.shape[0], self.teacher.patch_embed.num_patches),
-                                            dtype=torch.bool).to(self.teacher.device)
+        self.bool_masked_pos = torch.zeros((bsz, self.teacher.patch_embed.num_patches),
+                                            dtype=torch.bool).to(self.device)
 
         self.save_hyperparameters()
 
