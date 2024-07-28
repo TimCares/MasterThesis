@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-import torch.distributed
 import torch.nn.functional as F
 from functools import partial
 from typing import Dict, Any
@@ -15,7 +14,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
-from modules import Block, CMLILoss
+from modules import Block, ClipLoss
 from utils import freeze_module, load_beit2_teacher
 
 logger = logging.getLogger(__name__)
@@ -41,7 +40,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
     def on_train_start(self):
         logger.info(f'World size: {self.trainer.world_size}')
         logger.info(f'Local rank: {self.trainer.local_rank}')
-        self.cmli_loss = CMLILoss(
+        self.clip_loss = ClipLoss(
             cache_labels=True,
             rank=self.trainer.local_rank,
             world_size=self.trainer.world_size,
@@ -85,18 +84,23 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.model.logit_scale_interm.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
         self.model.logit_scale_out.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
 
-        itc_out = self.cmli_loss(
+        itc_out1 = self.clip_loss(
+            image_features=output_dict['x_interm_image'],
+            text_features=output_dict['x_interm_text'],
+            logit_scale=self.model.logit_scale_interm.exp(),
+        )
+        itc_out2 = self.clip_loss(
             image_features=output_dict['x_image'],
             text_features=output_dict['x_text'],
-            padding_mask=output_dict['padding_mask_text'],
             logit_scale=self.model.logit_scale_out.exp(),
         )
         
-        self.log_itc_acc(itc_out['logits_per_image'], itc_out['logits_per_text'], itc_out['targets'], stage)
+        self.log_itc_acc(itc_out1['logits_per_image'], itc_out1['logits_per_text'], itc_out1['targets'], stage, key_prefix="interm")
+        self.log_itc_acc(itc_out2['logits_per_image'], itc_out2['logits_per_text'], itc_out2['targets'], stage)
             
-        itc_loss = itc_out['loss']
+        itc_loss = (itc_out1['loss'] + itc_out2['loss']) / 2
         self.log(f"{stage}/itc_loss", itc_loss)
-
+        
         loss = kd_loss + itc_loss
 
         self.log(f"{stage}/loss", loss, prog_bar=True)
@@ -188,7 +192,6 @@ class Sx3HReConfig():
     pretrained: PretrainedStateDictsConfig = field(default_factory=PretrainedStateDictsConfig)
 
     embed_dim: int = 768
-    cmli_dim: int = 256
 
     depth: int = 6
     num_heads: int = 12
@@ -204,9 +207,6 @@ class Sx3HRe(nn.Module):
         super(Sx3HRe, self).__init__()
         self.cfg = cfg
         make_layer_norm = partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
-
-        self.text_embed_proj = nn.Linear(self.cfg.embed_dim, self.cfg.cmli_dim)
-        self.image_embed_proj = nn.Linear(self.cfg.embed_dim, self.cfg.cmli_dim)
 
         self.shared = Block(
             dim=self.cfg.embed_dim,
@@ -253,7 +253,7 @@ class Sx3HRe(nn.Module):
             remove_extra_tokens=False,
         )
         
-        return self.encode_shared(encoder_out, self.image_embed_proj)
+        return self.encode_shared(encoder_out)
 
     def encode_text(self, text, padding_mask):
         encoder_out = self.text_model.extract_features(
@@ -261,31 +261,23 @@ class Sx3HRe(nn.Module):
             padding_mask=padding_mask,
             remove_extra_tokens=False,
         )
-        out_dict = self.encode_shared(encoder_out, self.text_embed_proj)
-        out_dict['padding_mask'] = padding_mask
-        return out_dict
+        
+        return self.encode_shared(encoder_out)
     
-    def encode_shared(self, encoder_out, cmli_proj):
+    def encode_shared(self, encoder_out):
         out_dict = dict()
         x = encoder_out['x']
         mask = encoder_out['padding_mask'] if 'padding_mask' in encoder_out else None
-        _, x = self.shared(x=x, mask=mask)
+        x_interm, x = self.shared(x=x, mask=mask)
+        x_interm = x_interm[:, 0]
+        x = x[:, 0]
 
-        out_dict["encoder_out"] = x[:, 0]
-        x = cmli_proj(x)
+        out_dict["encoder_out"] = x
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
+        x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
+        out_dict["x_interm"] = x_interm
         return out_dict
-    
-    def prepare_for_inference(self, keep_modality:Modality=None, retrieval:bool=False):
-        if keep_modality == Modality.IMAGE:
-            self.text_model = None
-        elif keep_modality == Modality.TEXT:
-            self.image_model = None
-        if retrieval:
-            self.proj_norm = None
-            self.proj_head = None
-        
 
 MODEL_REGISTRY['Sx3HRe'] = {
     'cfg': Sx3HReConfig,
