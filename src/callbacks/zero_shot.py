@@ -418,7 +418,7 @@ class MultimodalZeroShotRetrievalCallback(ZeroShotCallback):
     def validate(self, trainer, pl_module) -> None:
         for name_key in self.datamodules.keys():
             
-            metrics = run_filip_zero_shot(
+            metrics = run_multimodal_zero_shot(
                 pl_module=pl_module,
                 dataloader=self.datamodules[name_key].val_dataloader(),
                 num_max_bpe_tokens=self.num_max_bpe_tokens,
