@@ -211,15 +211,7 @@ For each step in the training loop, we therefore perform the update and forward 
 ) <me_forward_comparison>
 
 
-- compared to normal DDP, the memory bank approach with momentum encoder adds on average 5 minutes per epoch, so the overhead is marginal
-
-- in @zs_imagenet_itc_vs_mb we show the results of this approach
-- we see that the performance does not exceed that of the the standard gathering from all devices with just 511 negative examples (effective batch size of 512)
-- while we can observe that the zero-shot accuracy on ImageNet-1K exceeds that of the vanilla ITC approach towards the end of training, we consider such small improvement as worthwile, considering the amount of additional complexity required to achieve it
-- even though the memory bank approach looks more promising to achieve a higher accuracy than the previous approach, as the latter appears to saturate towards the end of training, but this would require longer training times
-- with a batch size of 256, the model is already trained for almost a combined 90k steps, and we consider longer training times as both out of scope for this work, and too long to consider our approach as efficient
-  - (the actual step size in training is around 45k (@zs_imagenet_itc_vs_mb left), as we divide the whole dataset between both GPUs, meaning the batch size is doubled to 512)
-- another reason is that we are going to introduce a new definition of similarity between image and text, which will be infeasible in combination with a memory bank
+The result is shown in @zs_imagenet_itc_vs_mb. The additional forward pass of the momentum encoder adds approximately 5 minutes per epoch, which we cosider as marginal. However, the performance does not exceed that of the the standard gathering from all devices with just 511 negative examples (effective batch size of 512). The experiment seems more promising to achieve a higher accuracy with more epochs, compared to the previous approach, as the latter appears to saturate towards the end of training, but a longer training is both financially unsustainable for us, and lacks efficiency, which we cosider as a key aspect of our work.
 
 #let st(r) = text(8pt)[#r]
 #figure(
@@ -243,9 +235,7 @@ For each step in the training loop, we therefore perform the update and forward 
           table.hline(),
         )),
     ),
-    caption: [Comparison of the Standard ITC approach with momentum encoder and a memory bank of size 65,536. The momentum encoder approach does not exceed the performance of the standard ITC approach (right), even though it shows a promising trend towards the end of training (left).]
+    caption: [Comparison of the Standard ITC approach with momentum encoder and a memory bank of size 65,536. The momentum encoder approach does not exceed the performance of the standard ITC approach (right), even though it shows a promising trend towards the end of training (left, validation accuracy on ImageNet-1K).]
 ) <zs_imagenet_itc_vs_mb>
-
-...?
 
 #bibliography("../references.bib")

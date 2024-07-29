@@ -36,11 +36,11 @@ and text to form an image-text representation. This combined representation is t
 to predict whether the image-text pair matches.
 
 $
-bold(u)&=[bold(w)_L^mono(["I_CLS"]);bold(v)_L^mono(["T_CLS"])]\
+bold(u)&=bold(w)_L^mono(["I_CLS"]) || bold(v)_L^mono(["T_CLS"]) \
 bold(p)&=[p_0, p_1]=op("Head")_op("ITM")(bold(u))
 $ <itm_feature_fusion>
 
-Here, $bold(w)_L^mono(["T_CLS"])$ and $bold(v)_L^mono(["I_CLS"])$ together form the input $bold(u)$ to the image-text matching head $op("Head")_op("ITM")$, where $bold(u) in RR^(2 times D)$. The output $bold(p) in RR^2$ contains the logits indicating whether the image and text match ($p_1$) or not ($p_0$). 
+Here, $bold(w)_L^mono(["T_CLS"])$ and $bold(v)_L^mono(["I_CLS"])$ together form the input $bold(u)$ to the image-text matching head $op("Head")_op("ITM")$, where $bold(u) in RR^(2 times D)$. The output $bold(p) in RR^2$ contains the logits indicating whether the image and text match ($p_1$) or not ($p_0$), they are normalized using softmax to obtain probabilities before computing the loss. 
 
 Because the contrastive loss is applied on the $mono(["I_CLS"])$/$mono(["T_CLS"])$ token (depending which modality was the input) of both the first and last MLP layer of the shared Transformer block, we also introduce ITM for both layers. This means that we have two classification heads, $op("Interm-Head")_op("ITM")$ and $op("Head")_op("ITM")$, one for the first and one for the last layer, respectively.
 

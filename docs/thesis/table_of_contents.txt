@@ -42,10 +42,10 @@ Experiments
 				Feature whitening
 				Dino Loss
 				Masked Vision-Language Modeling (same everything, just tokens randomly removed)
-				Target CMLI (lin transform of teacher cls token and student cls token needed?) (-log(1-x) for phony target?)
+				Target CMLI Loss (lin transform of teacher cls token and student cls token needed?) (-log(1-x) for phony target?)
 				Dimensionality Reduction (PCA or one learnable conv1d layer/network (cnv1d inspred by paper about feature whitening to align embedding dims))
 				Feature Clusters
-				(Importance of the right Teacher (why BEiT-2? etc...))
+				(Importance of the right Teacher (why BEiT-2? etc...)) (D2V2 Image, BEiT-3, Dino, )
 				(Biased VL Initialization (init from text))
 				Fair Comparison with Supervised Teacher (bigger supervised teacher -> approx. 85 mill params)
 			Architectural Studies
