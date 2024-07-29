@@ -143,7 +143,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
     
     def state_dict(self, *args, **kwargs):
         sd = super().state_dict(*args, **kwargs)
-        for k in sd.keys():
+        for k in list(sd.keys()):
             if k.startswith('teacher.'):
                 del sd[k]
         return sd
