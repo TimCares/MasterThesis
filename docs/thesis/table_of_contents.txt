@@ -41,7 +41,8 @@ Experiments
 			Research-Specific Experiments
 				Feature whitening
 				Dino Loss
-				CMLI on Teacher Features (lin transform of teacher cls token and student cls token needed?)
+				Masked Vision-Language Modeling (same everything, just tokens randomly removed)
+				Target CMLI (lin transform of teacher cls token and student cls token needed?) (-log(1-x) for phony target?)
 				Dimensionality Reduction (PCA or one learnable conv1d layer/network (cnv1d inspred by paper about feature whitening to align embedding dims))
 				Feature Clusters
 				(Importance of the right Teacher (why BEiT-2? etc...))
