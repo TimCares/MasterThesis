@@ -464,6 +464,8 @@ class CosineCMLILoss(nn.Module):
         return loss.mean()
 
     def forward(self, image_features, text_features, padding_mask, target):
+        image_features = image_features.half()
+        text_features = text_features.half()
         padding_mask = self._mask_eos(padding_mask)
 
         cmli_logits = self.infer_cmli_logits(
