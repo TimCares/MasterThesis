@@ -460,6 +460,8 @@ class CosineCMLILoss(nn.Module):
         image_features:torch.Tensor,
         padding_mask:torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
+        image_features = image_features.half()
+        text_features = text_features.half()
         
         text_features = text_features[:, 1:]
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
@@ -484,8 +486,6 @@ class CosineCMLILoss(nn.Module):
         return loss.mean()
 
     def forward(self, image_features, text_features, padding_mask):
-        image_features = image_features.half()
-        text_features = text_features.half()
 
         image_features, text_features, padding_mask, target = self.make_features(
             image_features=image_features,
