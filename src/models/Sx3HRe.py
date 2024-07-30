@@ -83,28 +83,12 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             perm=perm,
         )
         
-        align_loss1 = self.c_cmli_loss(
+        align_loss = self.c_cmli_loss(
             image_features=image_features,
             text_features=text_features,
             padding_mask=padding_mask,
             target=target,
         )['loss']
-
-        image_features, text_features, padding_mask, target = self.make_features(
-            image_features=output_dict['x_interm_raw_image'],
-            text_features=output_dict['x_interm_raw_text'],
-            padding_mask=output_dict['padding_mask_text'],
-            perm=perm,
-        )
-        
-        align_loss2 = self.c_cmli_loss(
-            image_features=image_features,
-            text_features=text_features,
-            padding_mask=padding_mask,
-            target=target,
-        )['loss']
-        
-        align_loss = (align_loss1 + align_loss2) / 2
 
         self.log(f"{stage}/align_loss", align_loss, prog_bar=True)
 
@@ -217,6 +201,7 @@ class Sx3HReConfig():
     pretrained: PretrainedStateDictsConfig = field(default_factory=PretrainedStateDictsConfig)
 
     embed_dim: int = 768
+    cmli_dim: int = 256
 
     depth: int = 6
     num_heads: int = 12
@@ -232,6 +217,8 @@ class Sx3HRe(nn.Module):
         super(Sx3HRe, self).__init__()
         self.cfg = cfg
         make_layer_norm = partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
+
+        self.cmli_down_proj = nn.Linear(self.cfg.embed_dim, self.cfg.cmli_dim)
 
         self.norm = make_layer_norm(self.cfg.embed_dim)
 
@@ -294,8 +281,7 @@ class Sx3HRe(nn.Module):
         x = encoder_out['x']
         mask = encoder_out['padding_mask'] if 'padding_mask' in encoder_out else None
         x_interm, x = self.shared(x=x, mask=mask)
-        out_dict['x_raw'] = x
-        out_dict['x_interm_raw'] = x_interm
+        out_dict['x_raw'] = self.cmli_down_proj(x)
         x_interm = x_interm[:, 0]
         x = x[:, 0]
 

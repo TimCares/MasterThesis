@@ -1,8 +1,14 @@
 #set math.equation(numbering: "(1)")
 ===== Ablation Study: Removing ITC
-In the previous chapters, we made efforts to improve and extend the architecture and training of the model to achieve better alignment of the modalities, which should go hand in hand with better retrieval performance. However, we had severe difficulties with the length of captions (TODO: cite), increasing the number of negative examples (TODO: cite), and the granularity of alignment (TODO: cite). This shows that the approach is very much dependent on high-quality data, and the right hardware, which is why we identify Image-Text Contrastive Learning (ITC) as a weak point of the approach. The best approach would therfore be to not use contrastive learning at all, which is why we will investigate the effects of an absence of ITC in this ablation study.
+In the previous chapters, we made efforts to improve and extend the architecture and training of the model to achieve
+better alignment of the modalities, which should go hand in hand with better retrieval performance.
+However, we observed that contrastive learning is highly dependent on the granularity of the data (TODO: cite),
+e.g. the quality of captions, and the number of negative examples (TODO: cite). While there are viable options to
+overcome the latter, they are not always feasible, nor efficient, and the right hardware is required.
+Therefore, we identify Image-Text Contrastive Learning (ITC) as a weak point of our approach.
+The best approach would be to not use contrastive learning at all, which is why we will investigate the effects of an absence of ITC in this ablation study.
 
-At the point of writing, the state-of-the-art (SOTA) vision-language model, BEiT-3, gives us a good reason to discard ITC. BEiT-3 pre-training is performed without contrastive learning, and the authors report SOTA results after fine-tuning on retrieval tasks MSCOCO @coco and Flickr30K @flickr30k. Even without fine-tuning, BEiT-3 achives competitive results on Flickr30K, and even outperforms models that where trained using contrastive learning (see @beit3_zero_shot). 
+As an intersting side note, at the point of writing, the state-of-the-art (SOTA) vision-language model, BEiT-3, gives us a good reason to discard ITC. BEiT-3 pre-training is performed without contrastive learning, and the authors report SOTA results after fine-tuning on retrieval tasks MSCOCO @coco and Flickr30K @flickr30k. Even without fine-tuning, BEiT-3 achives competitive results on Flickr30K, and even outperforms models that where trained using contrastive learning (see @beit3_zero_shot). 
 
 #figure(
   image(

@@ -44,6 +44,7 @@ model:
     text: nlp_base.pt
 
   embed_dim: 768
+  cmli_dim: 256
 
   depth: 6
   num_heads: 12
