@@ -57,6 +57,18 @@ The process in illustrated in @cmli.
   ],
 ) <cmli>
 
+While this approach allows for a fine-grained alignment of image and text, its practical implementation is very computationally
+and memory intensive. For standard constrastive learning, is is sufficient to compute the cosine similarity of the global representation
+(cls token) between every possible image-text pair in a batch. If negative examples are gathered from all devices, then
+the number of dot products to compute is defined as $(B*P)^2$, with $B$ being the batch size per device, 
+and $P$ being the number of devices (in our case GPUs). As we use a batch size of $B=256$ per device, and use $P=2$ GPUs,
+the number of dot products to compute is $(256*2)^2=262,144$. Considering that we perform this efficiently using matrix multiplication,
+and the embedding size is 768, with float32 precision, we already need $262,144 * 768 * 4 "bytes" = 805.31 "MB" $ of GPU memory, which
+is still manageable, since we have around 2 GB of GPU memory remaining for a step.
+
+However, with CMLI we need to compute the cosine similarity between all possible image-text pairs, where the cosine similarity
+for one pair requires the computation of the cosine similarity between all image patches and text tokens of the image-text pair.
+
 - fine-grained alignment offers the opportunity to test image-language reasoning, an application non-referecing model previously were deemed unsuited for
 
 - we identify the option to combine CMLI with vanilla ITC, and test the mean of both as a similarity measure
