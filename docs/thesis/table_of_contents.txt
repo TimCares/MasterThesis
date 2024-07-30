@@ -42,9 +42,9 @@ Experiments
 					Target-CMLI (lin transform of teacher cls token and student cls token needed?) (-log(1-x) for phony target? or use eos?)
 				
 			Research-Specific Experiments
-				Feature whitening
+				Token-Type Embedding
 				Dino Loss
-				Masked Vision-Language Modeling (same everything, just tokens randomly removed)
+				Masked Vision-Language Modeling (same everything, just tokens randomly removed -> we can reuse teacher activations)
 				Dimensionality Reduction (PCA or one learnable conv1d layer/network (cnv1d inspred by paper about feature whitening to align embedding dims))
 				Feature Clusters
 				(Importance of the right Teacher (why BEiT-2? etc...)) (D2V2 Image, BEiT-3, Dino, )
@@ -57,6 +57,7 @@ Experiments
 		
 		Aligned Referencing Representations
 			Relevance (regarding: unimodal model as teacher no possible)
+			Pretrain-CoCa (image encoder is beit2, maybe tune only upper two layers, unimodal text decoder is 6 layer d2v2 text, multimodal text decoder is 2 from scratch)
 			Masked Vision-Language Modeling
 			Additional Contribution: DistilBEiT-3
 
@@ -66,3 +67,6 @@ Outlook
 Conclusion
 Lessons Learned
 Appendix (plots, money spend etc.)
+	Hyperparameters
+	Additional Visualizations
+	Technical Details

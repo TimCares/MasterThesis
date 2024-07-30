@@ -1,36 +1,54 @@
 #set math.equation(numbering: "(1)")
 ===== Cross-Modal Late Interaction (CMLI)
-- currently $mono(["T_CLS"])$ and $mono(["I_CLS"])$ are used for global text and image features respectively in contrastive learning
-- has the disadvantage that only global information are used for contrastive learning, and fine-grained, timestep specific, information is not considered
-- can be a problem, if the real-world concepts described by image and text differ in small, yet important, details
-- makes it difficult for the model to differentiate between similar concepts
-- to address this, authors of FILIP introduces Cross-Modal Late Interaction (CMLI) for fine-grained interaction between text and image in contrastive learning @filip
+Until now, we used the global text and image representations $mono(["T_CLS"])$ and $mono(["I_CLS"])$, respectively, for
+contrastive learning and the alignment loss of (TODO: cite removing itc).
+This has the disadvantage that only global information is utilized, and fine-grained, token/patch-specific, information is not considered.
+This can make retrieval, and alignment in general, difficult, especially if real-world concepts described by and image and text differ
+in small, yet important, details.
+To address this, the authors of FILIP @filip introduce Cross-Modal Late Interaction (CMLI) for a fine-grained comparison of text and image in contrastive learning.
 
-- as shown in @cmli, there is no cosine similarity between $mono(["T_CLS"])$ and $mono(["I_CLS"])$ computed, but instead the cosine similarity between all image patches $[bold(v)_l^k]_(1 lt.eq k lt.eq N)$ and text tokens $[bold(w)_l^j]_(1 lt.eq j lt.eq M)$
-- other special tokens such as the end-of-sequence token $mono(["EOS"])$ and padding token $mono(["PAD"])$ are also excluded, as they do not carry any semantic information, so cosine similarity is only computed between the actual text tokens and image patches
-- for each image patch $[bold(v)_l^k]_(1 lt.eq k lt.eq N)$ we now have the cosine similarity with all text tokens $[bold(w)_l^j]_(1 lt.eq j lt.eq M)$, and vice versa
-- for an image patch $k$, we now get the text token with the maximum cosine similarity to this image patch
+As shown in @cmli, no cosine similarity between $mono(["T_CLS"])$ and $mono(["I_CLS"])$ is computed, but instead the cosine 
+similarity between all image patches $[bold(v)_l^k]_(1 lt.eq k lt.eq N)$ and text tokens $[bold(w)_l^j]_(1 lt.eq j lt.eq M)$, 
+with $N$ being the number of image patches, and $M$ being the number of text tokens. 
+Specifically, $N$ and $M$ denote the number of patches/tokens in a sequence that are not the cls token
+($mono(["I_CLS"])$/$mono(["T_CLS"])$) or padding token ($mono(["PAD"])$) @filip. The choice to exclude
+padding tokens is obvious, as they do not carry any semantic information. The cls token is excluded, as it contains
+"just" global information. The result is that we now have the cosine similarity between all image patches and text tokens of an image-text pair.
+
+The next step is to find for each image patch $k$, the text token with the maximum cosine similarity to this image patch.
 
 $
 m_k^("i2t") = op("argmax", limits: #true)_(1 lt.eq j lt.eq M) [bold(v)^k] [bold(w)^j]^T
 $
-and for each text token $j$, we get the image patch with the maximum cosine similarity to this text token
+
+Likewise, for each text token $j$, we get the image patch with the maximum cosine similarity to this text token
 $
 m_j^("t2i") = op("argmax", limits: #true)_(1 lt.eq k lt.eq N) [bold(v)^k] [bold(w)^j]^T
 $
 
-- the result can be seen in (2) of @cmli 
-- with this approach, we achive an association between individual image patches and text tokens, which allows the model to find, fine-grained, matching patterns
-- the actual similarity between an image and text is then the average of the maximum cosine similarity between the associated tokens, which can be used for image-text contrastive learning and image-text retrieval
+This has an intersting effect: For each image patch, the semantically most similar text token is found, and vice versa 
+for each text token - the result of this operation can be seen in (2) of @cmli.
+Consequently, the model will be able to associate small details of an image with individual text tokens, and vise versa. 
+The actual cosine similarity between an image-text pair is then the average of all associations between an image patch and a text token.
 
 $
-s^("i2t")_(v,w) = 1/N sum_(k=1)^N [bold(v)_l^k] [bold(w)_l^(m_k^("i2t"))]^T
+s^("i2t")_(bold(H)^v_(l),bold(H)^w_(l)) = 1/N sum_(k=1)^N [bold(v)_l^k] [bold(w)_l^(m_k^("i2t"))]^T
 $
 
 $
-s^("t2i")_(v,w) = 1/M sum_(j=1)^M [bold(v)_l^(m_j^("t2i"))] [bold(w)_l^j]^T
+s^("t2i")_(bold(H)^v_(l),bold(H)^w_(l)) = 1/M sum_(j=1)^M [bold(v)_l^(m_j^("t2i"))] [bold(w)_l^j]^T
 $
 
+Here, for one image-text pair, $m_k^("i2t")$ denotes the index of the text token with the highest cosine similarity to image patch $k$,
+and $m_j^("t2i")$ the index of the image patch with the highest cosine similarity to text token $j$. $s^("i2t")_(bold(H)^v_(l),bold(H)^w_(l))$
+denotes the the similarity score between an image representation $bold(H)^v_(l)$ and text representation $bold(H)^w_(l)$.
+Vice versa, $s^("t2i")_(bold(H)^v_(l),bold(H)^w_(l))$ denotes the similarity score between a text representation $bold(H)^w_(l)$ and an image representation $bold(H)^v_(l)$. $l$ can denote any layer of the model, but we will use, as done in FILIP @filip, the last layer of the model,
+so if a model has $L$ layers, then $l=L$.
+
+In contrast to the standard contrastive learning, this similarity measure is not necessarily symmetric,
+as e.g. a text token might have a maximum cosine similarity to another image patch, than a image patch to the text token @filip.
+The process in illustrated in @cmli.
+ 
 #figure(
   image(
   width: 50%,
