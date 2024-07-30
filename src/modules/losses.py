@@ -434,6 +434,26 @@ class CosineCMLILoss(nn.Module):
         padding_masks[torch.arange(padding_masks.size(0)), last_zero_indices] = 1
         return padding_masks
     
+    def get_perm(self, B):
+        true_order = torch.arange(B)
+        perm = torch.randperm(B)
+
+        while (true_order==perm).any().item():
+            perm = torch.randperm(B)
+        return perm
+
+    def make_features(self, image_features, text_features, padding_mask):
+        B = text_features.shape[0]
+        perm = self.get_perm(B).to(image_features.device)
+
+        image_features = image_features.repeat(2, 1, 1)
+        text_features = torch.concat([text_features, text_features[perm]], dim=0)
+        padding_mask = torch.concat([padding_mask, padding_mask[perm]], dim=0)
+
+        target = torch.full((B*2, ), 1).to(text_features.device)
+        target[B:] = -1
+        return image_features, text_features, padding_mask, target
+    
     def infer_cmli_logits(
         self,
         text_features:torch.Tensor,
@@ -463,9 +483,16 @@ class CosineCMLILoss(nn.Module):
         loss = torch.where(target == 1, pos_loss, neg_loss)
         return loss.mean()
 
-    def forward(self, image_features, text_features, padding_mask, target):
+    def forward(self, image_features, text_features, padding_mask):
         image_features = image_features.half()
         text_features = text_features.half()
+
+        image_features, text_features, padding_mask, target = self.make_features(
+            image_features=image_features,
+            text_features=text_features,
+            padding_mask=padding_mask,
+        )
+
         padding_mask = self._mask_eos(padding_mask)
 
         cmli_logits = self.infer_cmli_logits(

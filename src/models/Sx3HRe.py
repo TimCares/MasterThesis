@@ -73,21 +73,11 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.log(f"{stage}/kd_image_loss", kd_loss2)
         kd_loss = (kd_loss1 + kd_loss2) / 2
         self.log(f"{stage}/kd_loss", kd_loss)
-
-        perm = self.get_perm(input_text.shape[0]).to(input_text.device)
-
-        image_features, text_features, padding_mask, target = self.make_features(
+        
+        align_loss = self.c_cmli_loss(
             image_features=output_dict['x_raw_image'],
             text_features=output_dict['x_raw_text'],
             padding_mask=output_dict['padding_mask_text'],
-            perm=perm,
-        )
-        
-        align_loss = self.c_cmli_loss(
-            image_features=image_features,
-            text_features=text_features,
-            padding_mask=padding_mask,
-            target=target,
         )['loss']
 
         self.log(f"{stage}/align_loss", align_loss, prog_bar=True)
@@ -97,24 +87,6 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.log(f"{stage}/loss", loss, prog_bar=True)
         
         return loss
-    
-    def get_perm(self, B):
-        true_order = torch.arange(B)
-        perm = torch.randperm(B)
-
-        while (true_order==perm).any().item():
-            perm = torch.randperm(B)
-        return perm
-
-    def make_features(self, image_features, text_features, padding_mask, perm):
-        image_features = image_features.repeat(2, 1, 1)
-        B = text_features.shape[0]
-        text_features = torch.concat([text_features, text_features[perm]], dim=0)
-        padding_mask = torch.concat([padding_mask, padding_mask[perm]], dim=0)
-
-        target = torch.full((B*2, ), 1).to(text_features.device)
-        target[B:] = -1
-        return image_features, text_features, padding_mask, target
     
     def log_itc_acc(self, logits_per_image, logits_per_text, target, stage, key_prefix=""):
         img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
