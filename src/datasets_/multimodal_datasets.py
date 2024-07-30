@@ -176,7 +176,8 @@ class Flickr30Dataset(BaseImageText):
 
         captions = captions["images"]
         index = []
-        n_images = 0
+
+        all_images = set()
 
         for each_item in captions:
             image_path = os.path.join(self.path_to_data, "flickr30k-images", each_item["filename"])
@@ -189,11 +190,13 @@ class Flickr30Dataset(BaseImageText):
                 index.append({
                     "image_path": image_path, 
                     "text": bpe_encoder.encode(text_segment["raw"]), 
-                    "id": len(index), 
+                    "id": len(all_images),
                 })
-            n_images = 0
 
-        self.log(f"{n_images} images and {len(index)} image-text pairs!")
+            assert each_item["filename"] not in all_images
+            all_images.add(each_item["filename"])
+
+        self.log(f"{len(all_images)} images and {len(index)} image-text pairs!")
         write_data_into_jsonl(index, os.path.join(self.path_to_data, f"flickr30k.{self.split}.jsonl"))
 
 
