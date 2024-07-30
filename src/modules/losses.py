@@ -18,7 +18,7 @@ def max_neg_value(dtype):
 def masked_mean(t, mask, dim = 1, eps = 1e-6):
     t = t.masked_fill(mask.bool(), 0.)
     numer = t.sum(dim = dim)
-    denom = mask.sum(dim = dim).clamp(min = eps)
+    denom = (~mask.bool()).sum(dim = dim).clamp(min = eps)
     return numer / denom
 
 def infer_cmli_logits(
@@ -378,7 +378,7 @@ class SparseCMLILoss(CMLILoss):
         }
         return out_dict
 
-class CMLITargetLoss(nn.Module):
+class TargetCMLILoss(nn.Module):
     def forward(self, image, text, target, padding_mask):
         embed_dim = image.size(-1)
 
@@ -421,4 +421,60 @@ class CMLITargetLoss(nn.Module):
             'token2patch_idx': token2patch_idx,
         }
         
+        return out_dict
+
+
+class CosineCMLILoss(nn.Module):
+    def __init__(self, align_margin=0.5):
+        super().__init__()
+        self.align_margin = align_margin
+    
+    def _mask_eos(self, padding_masks):
+        last_zero_indices = (padding_masks == 0).cumsum(dim=1).argmax(dim=1)
+        padding_masks[torch.arange(padding_masks.size(0)), last_zero_indices] = 1
+        return padding_masks
+    
+    def infer_cmli_logits(
+        self,
+        text_features:torch.Tensor,
+        image_features:torch.Tensor,
+        padding_mask:torch.Tensor,
+    ) -> Dict[str, torch.Tensor]:
+        
+        text_features = text_features[:, 1:]
+        image_features = image_features[:, 1:]
+        padding_mask = padding_mask[:, 1:]
+        sim = opt_einsum.contract('b i d, b j d -> b i j', text_features, image_features)
+
+        text_to_image = einops.reduce(sim, '... t i -> ... t', 'max')
+        text_to_image = masked_mean(text_to_image, padding_mask, dim = -1)
+
+        image_to_text_mask = einops.rearrange(padding_mask, 'b t -> b t 1')
+        masked_sim = sim.masked_fill(image_to_text_mask.bool(), max_neg_value(sim.dtype))
+        image_to_text = einops.reduce(einops.reduce(masked_sim, '... t i -> ... i', 'max'), '... i -> ...', 'mean')
+
+        return {"it2": image_to_text, "t2i": text_to_image}
+    
+    def _loss(self, cosine_similarity, target):
+        pos_loss = 1 - cosine_similarity
+        neg_loss = torch.clamp(cosine_similarity - self.align_margin, min=0)
+        loss = torch.where(target == 1, pos_loss, neg_loss)
+        return loss.mean()
+
+    def forward(self, image_features, text_features, padding_mask, target):
+        padding_mask = self._mask_eos(padding_mask)
+
+        cmli_logits = infer_cmli_logits(
+            text_features=text_features,
+            image_features=image_features,
+            padding_mask=padding_mask,
+        )
+
+        cos_cmli_it2 = self._loss(cmli_logits['it2'], target)
+        cos_cmli_t2i = self._loss(cmli_logits['t2i'], target)
+        total_loss = (cos_cmli_it2 + cos_cmli_t2i) / 2
+        
+        out_dict = {
+            'loss': total_loss
+        }
         return out_dict
