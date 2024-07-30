@@ -442,7 +442,9 @@ class CosineCMLILoss(nn.Module):
     ) -> Dict[str, torch.Tensor]:
         
         text_features = text_features[:, 1:]
+        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         image_features = image_features[:, 1:]
+        image_features = image_features / image_features.norm(dim=-1, keepdim=True)
         padding_mask = padding_mask[:, 1:]
         sim = opt_einsum.contract('b i d, b j d -> b i j', text_features, image_features)
 

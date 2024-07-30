@@ -13,7 +13,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
-from modules import Block
+from modules import Block, CosineCMLILoss
 from utils import freeze_module, load_beit2_teacher
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,8 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             **beit2_kwargs,
         )
         freeze_module(self.teacher)
+
+        self.c_cmli_loss = CosineCMLILoss(align_margin=self.cfg.align_margin)
 
         self.save_hyperparameters()
 
@@ -72,11 +74,60 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         kd_loss = (kd_loss1 + kd_loss2) / 2
         self.log(f"{stage}/kd_loss", kd_loss)
 
-        loss = kd_loss
+        perm = self.get_perm(input_text.shape[0]).to(input_text.device)
+
+        image_features, text_features, target = self.make_features(
+            image_features=output_dict['x_raw_image'],
+            text_features=output_dict['x_raw_text'],
+            perm=perm,
+        )
+        
+        align_loss1 = self.c_cmli_loss(
+            image_features=image_features,
+            text_features=text_features,
+            padding_mask=output_dict['padding_mask_text'],
+            target=target,
+        )['loss']
+
+        image_features, text_features, target = self.make_features(
+            image_features=output_dict['x_interm_raw_image'],
+            text_features=output_dict['x_interm_raw_text'],
+            perm=perm,
+        )
+        
+        align_loss2 = self.c_cmli_loss(
+            image_features=image_features,
+            text_features=text_features,
+            padding_mask=output_dict['padding_mask_text'],
+            target=target,
+        )['loss']
+        
+        align_loss = (align_loss1 + align_loss2) / 2
+
+        self.log(f"{stage}/align_loss", align_loss, prog_bar=True)
+
+        loss = kd_loss + align_loss * self.cfg.align_loss_weight
 
         self.log(f"{stage}/loss", loss, prog_bar=True)
         
         return loss
+    
+    def get_perm(self, B):
+        true_order = torch.arange(B)
+        perm = torch.randperm(B)
+
+        while (true_order==perm).any().item():
+            perm = torch.randperm(B)
+        return perm
+
+    def make_features(self, image_features, text_features, perm):
+        image_features = image_features.repeat(2, 1, 1)
+        B = text_features.shape[0]
+        text_features = torch.concat([text_features, text_features[perm]], dim=0)
+
+        target = torch.full((B*2, ), 1).to(text_features.device)
+        target[B:] = -1
+        return image_features, text_features, target
     
     def log_itc_acc(self, logits_per_image, logits_per_text, target, stage, key_prefix=""):
         img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
@@ -231,14 +282,17 @@ class Sx3HRe(nn.Module):
             padding_mask=padding_mask,
             remove_extra_tokens=False,
         )
-        
-        return self.encode_shared(encoder_out)
+        out_dict = self.encode_shared(encoder_out)
+        out_dict['padding_mask'] = padding_mask
+        return out_dict
     
     def encode_shared(self, encoder_out):
         out_dict = dict()
         x = encoder_out['x']
         mask = encoder_out['padding_mask'] if 'padding_mask' in encoder_out else None
         x_interm, x = self.shared(x=x, mask=mask)
+        out_dict['x_raw'] = x
+        out_dict['x_interm_raw'] = x_interm
         x_interm = x_interm[:, 0]
         x = x[:, 0]
 

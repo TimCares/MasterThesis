@@ -17,13 +17,16 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: Sx3HRe_no_itc
+run_name: Sx3HRe_cosine_cmli
 id:
 model_name: Sx3HRe
 
 load_checkpoint:
 
 nlp_context_length: 64 # inspired by BEiT3
+
+align_margin: 0.5
+align_loss_weight: 1.0
 
 beit2:
   pretrained_path: ${model_path}/beitv2_base_patch16_224_pt1k.pth
