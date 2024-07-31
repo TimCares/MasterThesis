@@ -21,6 +21,11 @@ def masked_mean(t, mask, dim = 1, eps = 1e-6):
     denom = (~mask.bool()).sum(dim = dim).clamp(min = eps)
     return numer / denom
 
+def mask_eos(padding_masks):
+    last_zero_indices = (padding_masks == 0).cumsum(dim=1).argmax(dim=1)
+    padding_masks[torch.arange(padding_masks.size(0)), last_zero_indices] = 1
+    return padding_masks
+
 def infer_cmli_logits(
     text_features:torch.Tensor,
     image_features:torch.Tensor,
@@ -263,17 +268,12 @@ class CMLILoss(CachedLabelContrastiveLoss):
             all_padding_mask = padding_mask
         return all_image_features, all_text_features, all_padding_mask
     
-    def _mask_eos(self, padding_masks):
-        last_zero_indices = (padding_masks == 0).cumsum(dim=1).argmax(dim=1)
-        padding_masks[torch.arange(padding_masks.size(0)), last_zero_indices] = 1
-        return padding_masks
-    
     def forward(self, image_features, text_features, padding_mask, logit_scale=1.0):
         # following FILIP, we cast to half precision (fp16)
         image_features = image_features.half()
         text_features = text_features.half()
 
-        padding_mask = self._mask_eos(padding_mask)
+        padding_mask = mask_eos(padding_mask)
         image_features, text_features, padding_mask = self._gather(
             image_features, text_features, padding_mask
         )
@@ -429,11 +429,6 @@ class CosineCMLILoss(nn.Module):
         super().__init__()
         self.align_margin = align_margin
     
-    def _mask_eos(self, padding_masks):
-        last_zero_indices = (padding_masks == 0).cumsum(dim=1).argmax(dim=1)
-        padding_masks[torch.arange(padding_masks.size(0)), last_zero_indices] = 1
-        return padding_masks
-    
     def get_perm(self, B):
         true_order = torch.arange(B)
         perm = torch.randperm(B)
@@ -493,7 +488,7 @@ class CosineCMLILoss(nn.Module):
             padding_mask=padding_mask,
         )
 
-        padding_mask = self._mask_eos(padding_mask)
+        padding_mask = mask_eos(padding_mask)
 
         cmli_logits = self.infer_cmli_logits(
             text_features=text_features,
