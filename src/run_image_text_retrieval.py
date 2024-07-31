@@ -72,9 +72,9 @@ def compute_scores(img_embeds, text_embeds, img_ids, cmli, padding_masks):
     topk10 = scores_t2i.topk(10, dim=1)
     topk5 = scores_t2i.topk(5, dim=1)
     topk1 = scores_t2i.topk(1, dim=1)
-    topk10_iids = iids[topk10.indices]
-    topk5_iids = iids[topk5.indices]
-    topk1_iids = iids[topk1.indices]
+    topk10_iids = iids[topk10.indices.t()]
+    topk5_iids = iids[topk5.indices.t()]
+    topk1_iids = iids[topk1.indices.t()]
 
     ir_r10 = (tiids.unsqueeze(0) == topk10_iids).float().max(dim=0)[0].mean()
     ir_r5 = (tiids.unsqueeze(0) == topk5_iids).float().max(dim=0)[0].mean()
