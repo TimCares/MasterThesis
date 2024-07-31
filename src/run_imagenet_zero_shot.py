@@ -31,11 +31,13 @@ def main(cfg: DictConfig) -> None:
     model.requires_grad_(False)
     model.eval()
 
-    PLModuleDummyWrapper = namedtuple('PLModuleDummyWrapper', 'model')
-    pl_module = PLModuleDummyWrapper(model=model)
+    # simple wrapper in order to not use the whole PyTorch Lightning module,
+    # as we only need the model and the dtype -> we same some memory
+    PLModuleDummyWrapper = namedtuple('PLModuleDummyWrapper', ['model', 'dtype'])
+    pl_module = PLModuleDummyWrapper(model=model, dtype=torch.float32)
 
     imagenet.prepare_data()
-    imagenet.setup('train')
+    imagenet.setup('fit')
     benchmark_func = run_filip_zero_shot if cfg.filip_zero_shot else run_multimodal_zero_shot
     zero_shot_args = {
         'pl_module': pl_module,
