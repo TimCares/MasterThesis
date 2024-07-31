@@ -63,17 +63,13 @@ def pad_text_sequence(tokens:List[int],
                       pad_idx:int,
                       bos_idx:int,
                       eos_idx:int) -> Tuple[List[int], List[int]]:
-    """
-    Pads a list of language tokens to num_max_bpe_tokens and inserts bos token at front.
-    Also inserts eos token if provided.
-    """
     
     if len(tokens) > num_max_bpe_tokens - 2:
         tokens = tokens[:num_max_bpe_tokens - 2]
     tokens = ([bos_idx] if tokens[0]!=bos_idx else []) + tokens + ([eos_idx] if tokens[-1]!=eos_idx else [])
     num_tokens = len(tokens)
     padding_mask = [0] * num_tokens + [1] * (num_max_bpe_tokens - num_tokens)
-    language_tokens =  tokens + [pad_idx] * (num_max_bpe_tokens - num_tokens)
+    language_tokens = tokens + [pad_idx] * (num_max_bpe_tokens - num_tokens)
 
     return language_tokens, padding_mask
 

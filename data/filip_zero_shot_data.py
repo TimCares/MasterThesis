@@ -23,3 +23,8 @@ filip_prompt_templates = [
     for prefix in prefixes
     for suffix in suffixes
 ]
+
+filip_prompt_templates_short = [
+    f"a photo of a {classname}. I like it."
+    for classname in imagenet_classnames
+]
