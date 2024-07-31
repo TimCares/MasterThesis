@@ -20,6 +20,7 @@ from data.imagenet_zeroshot_data import (
 )
 from data.filip_zero_shot_data import filip_prompt_templates
 from modules.cmli import max_neg_value
+from modules import mask_eos
 from rich.progress import track
 from fairseq.data import Dictionary
 from utils import pad_text_sequence # src/utils.py
@@ -61,12 +62,15 @@ def filip_zero_shot(
     for i in track(range(0, texts.shape[0], 256), description="Building FILIP classifier"):
         text_chunk = texts[i:i+256].to(device)
         padding_mask_chunk = padding_masks[i:i+256].to(device)
-        result_chunk = pl_module.model.encode_text(text=text_chunk, padding_mask=padding_mask_chunk)['x_raw']
-        # result_chunk ->  (256, num_max_bpe_tokens, embed_dim)
+        result_chunk = pl_module.model.encode_text(text=text_chunk, padding_mask=padding_mask_chunk)['x_raw'][:, 1:]
+        # result_chunk ->  (256, num_max_bpe_tokens - 1, embed_dim)
         result_chunk = result_chunk / result_chunk.norm(dim=-1, keepdim=True)
         stacked_classifier.append(result_chunk)
-    stacked_classifier = torch.cat(stacked_classifier, dim=0) # (30000, num_max_bpe_tokens, embed_dim)
+    stacked_classifier = torch.cat(stacked_classifier, dim=0) # (30000, num_max_bpe_tokens - 1, embed_dim)
     assert stacked_classifier.shape[0] == 30_000
+
+    padding_masks = mask_eos(padding_masks)[:, 1:]
+
     return stacked_classifier, padding_masks.to(device)
 
 @rank_zero_only
@@ -91,7 +95,7 @@ def run_filip_zero_shot(
         target = target.to(device)
         if pl_module.dtype == torch.float16: # when using deep speed
             images = images.half()
-        image_features = pl_module.model.encode_image(image=images)['x_raw'] # (bsz, 197, embed_dim)
+        image_features = pl_module.model.encode_image(image=images)['x_raw'][:, 1:] # (bsz, 197 - 1, embed_dim)
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
 
         for image_input in image_features.split(n_images_for_cmli):
@@ -104,6 +108,7 @@ def run_filip_zero_shot(
             logits.append(image_to_text)
         
         logits = torch.cat(logits, dim=0)
+        assert logits.shape[0] == n_images_for_cmli and logits.shape[1] == 1000
 
         # measure accuracy
         acc1, acc5 = _n_correct(logits, target, topk=(1, 5))
