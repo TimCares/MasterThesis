@@ -40,9 +40,13 @@ def compute_scores(img_embeds, text_embeds, img_ids, cmli, padding_masks):
     if cmli:
         padding_masks = torch.cat(padding_masks, dim=0)
         padding_masks = mask_eos(padding_masks)
+
+        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+        image_features = image_features / image_features.norm(dim=-1, keepdim=True)
+
         scores_dict = infer_cmli_logits(
-            text_features=text_embeds, 
-            image_features=img_embeds, 
+            text_features=text_embeds,
+            image_features=img_embeds,
             padding_mask=padding_masks,
         )
         scores_i2t = scores_dict['i2t']
