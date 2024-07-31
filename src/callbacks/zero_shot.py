@@ -108,7 +108,8 @@ def run_filip_zero_shot(
             logits.append(image_to_text)
         
         logits = torch.cat(logits, dim=0)
-        assert logits.shape[0] == n_images_for_cmli and logits.shape[1] == 1000
+        assert logits.shape[0] == image_features.shape[0]
+        assert logits.shape[1] == 1000
 
         # measure accuracy
         acc1, acc5 = _n_correct(logits, target, topk=(1, 5))
