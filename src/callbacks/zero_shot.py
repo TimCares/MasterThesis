@@ -17,7 +17,7 @@ from data.imagenet_zeroshot_data import (
     openai_imagenet_template,
 )
 from data.filip_zero_shot_data import filip_prompt_templates
-from modules import infer_cmli_logits
+from modules import infer_chunked_cmli_logits
 from rich.progress import track
 from fairseq.data import Dictionary
 from utils import pad_text_sequence # src/utils.py
@@ -55,9 +55,16 @@ def filip_zero_shot(
     assert texts.size(1) == num_max_bpe_tokens
     assert padding_masks.size(1) == num_max_bpe_tokens
 
-    texts = texts.to(device)
-    padding_masks = padding_masks.to(device)
-    stacked_classifier = pl_module.model.encode_text(text=texts, padding_mask=padding_masks)['x'] # (30000, num_max_bpe_tokens, embed_dim)
+    stacked_classifier = []
+    for i in track(range(0, texts.shape[0], 256), description="Building FILIP classifier"):
+        text_chunk = texts[i:i+256].to(device)
+        padding_mask_chunk = padding_masks[i:i+256].to(device)
+        result_chunk = pl_module.model.encode_text(text=text_chunk, padding_mask=padding_mask_chunk)['x_raw']
+        # result_chunk ->  (256, num_max_bpe_tokens, embed_dim)
+        result_chunk = result_chunk / result_chunk.norm(dim=-1, keepdim=True)
+        stacked_classifier.append(result_chunk)
+    stacked_classifier = torch.cat(stacked_classifier, dim=0) # (30000, num_max_bpe_tokens, embed_dim)
+    assert stacked_classifier.shape[0] == 30_000
     return stacked_classifier, padding_masks
 
 @rank_zero_only
@@ -80,11 +87,16 @@ def run_filip_zero_shot(
         target = target.to(device)
         if pl_module.dtype == torch.float16: # when using deep speed
             images = images.half()
-        image_features = pl_module.model.encode_image(image=images)['x'] # (bsz, 197, embed_dim)
-        logits = infer_cmli_logits(
+        image_features = pl_module.model.encode_image(image=images)['x_raw'] # (bsz, 197, embed_dim)
+        image_features = image_features / image_features.norm(dim=-1, keepdim=True)
+        
+        logits = infer_chunked_cmli_logits(
             text_features=classifier,
             image_features=image_features,
             padding_mask=padding_mask,
+            text_chunk_size=256,
+            image_chunk_size=-1, # no chunking
+            display_progress=True,
             logit_scale=100.0,
         )['i2t'].t() # (bsz, 30*1000)
         logits = logits.view(-1, 1000, 30).mean(dim=-1) # (bsz, 1000)

@@ -10,7 +10,7 @@ from models import MODEL_REGISTRY
 from datamodules import DATAMODULE_REGISTRY
 from utils import load_pretrained_d2v_model
 from omegaconf import DictConfig, open_dict
-from modules.losses import infer_cmli_logits, mask_eos
+from modules import infer_chunked_cmli_logits, mask_eos
 import hydra
 import json
 
@@ -44,16 +44,19 @@ def compute_scores(img_embeds, text_embeds, img_ids, cmli, padding_masks):
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
 
-        scores_dict = infer_cmli_logits(
+        scores_dict = infer_chunked_cmli_logits(
             text_features=text_embeds,
             image_features=img_embeds,
             padding_mask=padding_masks,
+            text_chunk_size=256,
+            image_chunk_size=256,
+            display_progress=True,
         )
-        scores_i2t = scores_dict['i2t']
-        scores_t2i = scores_dict['t2i']
+        scores_i2t = scores_dict['i2t'].t()
+        scores_t2i = scores_dict['t2i'].t()
     else:
         scores_i2t = img_embeds @ text_embeds.t()
-        scores_t2i = scores_i2t.t()
+        scores_t2i = scores_i2t
 
     iids = torch.LongTensor(iids).to(scores_i2t.device)
 
@@ -69,12 +72,12 @@ def compute_scores(img_embeds, text_embeds, img_ids, cmli, padding_masks):
     tr_r5 = (iids.unsqueeze(1) == topk5_iids).float().max(dim=1)[0].mean()
     tr_r1 = (iids.unsqueeze(1) == topk1_iids).float().max(dim=1)[0].mean()
 
-    topk10 = scores_t2i.topk(10, dim=1)
-    topk5 = scores_t2i.topk(5, dim=1)
-    topk1 = scores_t2i.topk(1, dim=1)
-    topk10_iids = iids[topk10.indices.t()]
-    topk5_iids = iids[topk5.indices.t()]
-    topk1_iids = iids[topk1.indices.t()]
+    topk10 = scores_t2i.topk(10, dim=0)
+    topk5 = scores_t2i.topk(5, dim=0)
+    topk1 = scores_t2i.topk(1, dim=0)
+    topk10_iids = iids[topk10.indices]
+    topk5_iids = iids[topk5.indices]
+    topk1_iids = iids[topk1.indices]
 
     ir_r10 = (tiids.unsqueeze(0) == topk10_iids).float().max(dim=0)[0].mean()
     ir_r5 = (tiids.unsqueeze(0) == topk5_iids).float().max(dim=0)[0].mean()

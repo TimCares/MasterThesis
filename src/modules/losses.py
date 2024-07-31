@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import einops
 import opt_einsum
 from .layers import gather_features
+from .cmli import infer_cmli_logits, masked_mean, max_neg_value, to_half, remove_cls
 from typing import Dict
 import logging
 
@@ -12,41 +13,10 @@ logger = logging.getLogger(__name__)
 # code for cmli logits heavily borrowed from x-clip -> https://github.com/lucidrains/x-clip
 # (https://github.com/lucidrains/x-clip/blob/main/x_clip/x_clip.py)
 
-def max_neg_value(dtype):
-    return -torch.finfo(dtype).max
-
-def masked_mean(t, mask, dim = 1, eps = 1e-6):
-    t = t.masked_fill(mask.bool(), 0.)
-    numer = t.sum(dim = dim)
-    denom = (~mask.bool()).sum(dim = dim).clamp(min = eps)
-    return numer / denom
-
 def mask_eos(padding_masks):
     last_zero_indices = (padding_masks == 0).cumsum(dim=1).argmax(dim=1)
     padding_masks[torch.arange(padding_masks.size(0)), last_zero_indices] = 1
     return padding_masks
-
-def infer_cmli_logits(
-    text_features:torch.Tensor,
-    image_features:torch.Tensor,
-    padding_mask:torch.Tensor,
-    logit_scale:float|torch.Tensor=1.0,
-) -> Dict[str, torch.Tensor]:
-    
-    text_features = text_features[:, 1:]
-    image_features = image_features[:, 1:]
-    padding_mask = padding_mask[:, 1:]
-    sim = logit_scale * opt_einsum.contract('x t d, y i d -> x y t i', text_features, image_features)
-
-    text_to_image = einops.reduce(sim, '... t i -> ... t', 'max')
-    text_to_image_mask = einops.rearrange(padding_mask, 'b t -> 1 b 1 t')
-    text_to_image = masked_mean(text_to_image, text_to_image_mask, dim = -1)
-
-    image_to_text_mask = einops.rearrange(padding_mask, 'b t -> b 1 t 1')
-    masked_sim = sim.masked_fill(image_to_text_mask.bool(), max_neg_value(sim.dtype))
-    image_to_text = einops.reduce(einops.reduce(masked_sim, '... t i -> ... i', 'max'), '... i -> ...', 'mean')
-
-    return {"it2": image_to_text, "t2i": text_to_image}
 
 class CachedLabelContrastiveLoss(nn.Module):
     def __init__(
@@ -269,9 +239,6 @@ class CMLILoss(CachedLabelContrastiveLoss):
         return all_image_features, all_text_features, all_padding_mask
     
     def forward(self, image_features, text_features, padding_mask, logit_scale=1.0):
-        # following FILIP, we cast to half precision (fp16)
-        image_features = image_features.half()
-        text_features = text_features.half()
 
         padding_mask = mask_eos(padding_mask)
         image_features, text_features, padding_mask = self._gather(
@@ -339,12 +306,10 @@ class SparseCMLILoss(CMLILoss):
 
         image_to_text = einops.reduce(einops.reduce(sim, '... t i -> ... i', 'max'), '... i -> ...', 'mean')
 
-        return {"it2": image_to_text, "t2i": text_to_image}
+        return {"i2t": image_to_text, "t2i": text_to_image}
     
     def forward(self, image_features, text_features, padding_mask, image_attn, text_attn, logit_scale=1.0):
-        # following FILIP, we cast to half precision (fp16)
-        image_features = image_features.half()
-        text_features = text_features.half()
+        text_features, image_features = to_half(text_features, image_features)
 
         image_features = self.gather_top_tokens(image_features, image_attn)
         text_features = self.gather_top_tokens(text_features, text_attn, padding_mask)
@@ -455,14 +420,12 @@ class CosineCMLILoss(nn.Module):
         image_features:torch.Tensor,
         padding_mask:torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
-        image_features = image_features.half()
-        text_features = text_features.half()
+        text_features, image_features = to_half(text_features, image_features)
+        text_features, image_features, padding_mask = remove_cls(text_features, image_features, padding_mask)
         
-        text_features = text_features[:, 1:]
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-        image_features = image_features[:, 1:]
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-        padding_mask = padding_mask[:, 1:]
+        
         sim = opt_einsum.contract('b i d, b j d -> b i j', text_features, image_features)
 
         text_to_image = einops.reduce(sim, '... t i -> ... t', 'max')
@@ -472,7 +435,7 @@ class CosineCMLILoss(nn.Module):
         masked_sim = sim.masked_fill(image_to_text_mask.bool(), max_neg_value(sim.dtype))
         image_to_text = einops.reduce(einops.reduce(masked_sim, '... t i -> ... i', 'max'), '... i -> ...', 'mean')
 
-        return {"it2": image_to_text, "t2i": text_to_image}
+        return {"i2t": image_to_text, "t2i": text_to_image}
     
     def _loss(self, cosine_similarity, target):
         pos_loss = 1 - cosine_similarity
@@ -496,9 +459,9 @@ class CosineCMLILoss(nn.Module):
             padding_mask=padding_mask,
         )
 
-        cos_cmli_it2 = self._loss(cmli_logits['it2'], target)
+        cos_cmli_i2t = self._loss(cmli_logits['i2t'], target)
         cos_cmli_t2i = self._loss(cmli_logits['t2i'], target)
-        total_loss = (cos_cmli_it2 + cos_cmli_t2i) / 2
+        total_loss = (cos_cmli_i2t + cos_cmli_t2i) / 2
         
         out_dict = {
             'loss': total_loss

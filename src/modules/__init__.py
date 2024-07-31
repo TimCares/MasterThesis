@@ -8,5 +8,9 @@ from .losses import (
     SparseCMLILoss,
     CosineCMLILoss,
     TargetCMLILoss,
-    infer_cmli_logits
+    mask_eos,
+)
+from .cmli import (
+    infer_cmli_logits,
+    infer_chunked_cmli_logits,
 )
