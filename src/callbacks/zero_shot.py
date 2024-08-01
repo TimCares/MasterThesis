@@ -8,8 +8,6 @@ from models.mm_data2vec_beit import AMMData2Vec, AMMData2VecPreTrainingLightning
 from torch.utils.data import DataLoader
 from pytorch_lightning import Callback, LightningDataModule
 from pytorch_lightning.utilities import rank_zero_only
-import opt_einsum
-import einops
 from typing import Dict
 import os
 import sys
@@ -19,7 +17,7 @@ from data.imagenet_zeroshot_data import (
     openai_imagenet_template,
 )
 from data.filip_zero_shot_data import filip_prompt_templates
-from modules.cmli import max_neg_value
+from modules.cmli import infer_cmli_logits
 from modules import mask_eos
 from rich.progress import track
 from fairseq.data import Dictionary
@@ -62,14 +60,14 @@ def filip_zero_shot(
     for i in track(range(0, texts.shape[0], 256), description="Building FILIP classifier"):
         text_chunk = texts[i:i+256].to(device)
         padding_mask_chunk = padding_masks[i:i+256].to(device)
-        result_chunk = pl_module.model.encode_text(text=text_chunk, padding_mask=padding_mask_chunk)['x_raw'][:, 1:]
-        # result_chunk ->  (256, num_max_bpe_tokens - 1, embed_dim)
+        result_chunk = pl_module.model.encode_text(text=text_chunk, padding_mask=padding_mask_chunk)['x_raw']
+        # result_chunk ->  (256, num_max_bpe_tokens, embed_dim)
         result_chunk = result_chunk / result_chunk.norm(dim=-1, keepdim=True)
         stacked_classifier.append(result_chunk)
-    stacked_classifier = torch.cat(stacked_classifier, dim=0) # (30000, num_max_bpe_tokens - 1, embed_dim)
+    stacked_classifier = torch.cat(stacked_classifier, dim=0) # (30000, num_max_bpe_tokens, embed_dim)
     assert stacked_classifier.shape[0] == 30_000
 
-    padding_masks = mask_eos(padding_masks)[:, 1:]
+    padding_masks = mask_eos(padding_masks)
 
     return stacked_classifier, padding_masks.to(device)
 
@@ -95,20 +93,20 @@ def run_filip_zero_shot(
         target = target.to(device)
         if pl_module.dtype == torch.float16: # when using deep speed
             images = images.half()
-        image_features = pl_module.model.encode_image(image=images)['x_raw'][:, 1:] # (bsz, 197 - 1, embed_dim)
+        image_features = pl_module.model.encode_image(image=images)['x_raw'] # (bsz, 197, embed_dim)
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
 
         for image_input in image_features.split(n_images_for_cmli):
-            sim = 100.0 * opt_einsum.contract('x t d, y i d -> x y t i', classifier, image_input)
-
-            image_to_text_mask = einops.rearrange(padding_mask, 'b t -> b 1 t 1')
-            masked_sim = sim.masked_fill(image_to_text_mask.bool(), max_neg_value(sim.dtype))
-            image_to_text = einops.reduce(einops.reduce(masked_sim, '... t i -> ... i', 'max'), '... i -> ...', 'mean')
-            image_to_text = image_to_text.t().view(-1, 1000, 30).mean(dim=-1) # (n_images_for_cmli, 1000)
+            image_to_text = infer_cmli_logits(
+                text_features=classifier,
+                image_features=image_input,
+                padding_mask=padding_mask,
+                logit_scale=100.0,
+            )['i2t'].t().view(-1, 1000, 30).mean(dim=-1) # (n_images_for_cmli, 1000)
             logits.append(image_to_text)
         
         logits = torch.cat(logits, dim=0)
-        assert logits.shape[0] == image_features.shape[0]
+        assert logits.shape[0] == images.size(0)
         assert logits.shape[1] == 1000
 
         # measure accuracy
