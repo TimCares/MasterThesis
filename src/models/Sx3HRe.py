@@ -269,7 +269,7 @@ class Sx3HRe(nn.Module):
         image_embed = torch.cat([self.img_cls_token.expand(image_embed.size(0), -1, -1), image_embed], dim=1)
 
         image_embed = image_embed + self.token_type_embeddings(
-                torch.ones_like(image_embed[:, :, 0])
+                torch.ones_like(image_embed[:, :, 0], dtype=torch.long)
         )
 
         for blk in self.image_model.blocks:
