@@ -210,6 +210,8 @@ class Sx3HRe(nn.Module):
         self.cfg = cfg
         make_layer_norm = partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
 
+        self.token_type_embeddings = nn.Embedding(2, self.cfg.embed_dim)
+
         self.norm = make_layer_norm(self.cfg.embed_dim)
 
         self.shared = Block(
@@ -230,6 +232,12 @@ class Sx3HRe(nn.Module):
         self.text_model.blocks = self.text_model.blocks[:self.cfg.depth]
         self.image_model = load_pretrained_d2v_model(state_dict_path=os.path.join(self.cfg.pretrained_path, self.cfg.pretrained.image))
         self.image_model.blocks = self.image_model.blocks[:self.cfg.depth]
+
+        self.text_embedding = self.text_model.modality_encoders['text'].local_encoder # contains both token and positional embeddings
+
+        self.patch_embedding = self.image_model.modality_encoders['image'].local_encoder
+        self.img_pos_enc = self.image_model.modality_encoders['image'].fixed_positional_encoder
+        self.img_cls_token = self.image_model.modality_encoders['image'].extra_tokens
 
     def forward(
         self,
@@ -252,27 +260,38 @@ class Sx3HRe(nn.Module):
         return out
     
     def encode_image(self, image):
-        encoder_out = self.image_model.extract_features(
-            source=image,
-            remove_extra_tokens=False,
-        )
         
-        return self.encode_shared(encoder_out)
+        image_embed = self.patch_embedding(image)
+
+        image_embed = image_embed + self.img_pos_enc(image_embed)
+
+        image_embed = torch.cat([self.img_cls_token.expand(image_embed.size(0), -1, -1), image_embed], dim=1)
+
+        image_embed = image_embed + self.token_type_embeddings(
+                torch.ones_like(image_embed[:, :, 0])
+        )
+
+        for blk in self.image_model.blocks:
+            image_embed, _ = blk(image_embed)
+        
+        return self.encode_shared(image_embed)
 
     def encode_text(self, text, padding_mask):
-        encoder_out = self.text_model.extract_features(
-            source=text,
-            padding_mask=padding_mask,
-            remove_extra_tokens=False,
+
+        text_embed = self.text_embedding(text)
+
+        text_embed = text_embed + self.token_type_embeddings(
+                torch.zeros_like(padding_mask)
         )
+
+        for blk in self.text_model.blocks:
+            text_embed, _ = blk(text_embed, padding_mask=padding_mask)
         
-        return self.encode_shared(encoder_out)
+        return self.encode_shared(text_embed, padding_mask=padding_mask)
     
-    def encode_shared(self, encoder_out):
+    def encode_shared(self, x, padding_mask=None):
         out_dict = dict()
-        x = encoder_out['x']
-        mask = encoder_out['padding_mask'] if 'padding_mask' in encoder_out else None
-        x_interm, x = self.shared(x=x, mask=mask)
+        x_interm, x = self.shared(x=x, mask=padding_mask)
         x_interm = x_interm[:, 0]
         x = x[:, 0]
 

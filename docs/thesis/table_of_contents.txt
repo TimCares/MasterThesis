@@ -24,24 +24,20 @@ Experiments
 	Multimodal Knowledge Distillation
 		Reproducing: “See, Hear, Read: Deep Aligned Representations"
 		Aligned Representations
-			Research-Independent Experiments
+			Supervised Teacher
 				Larger Batch Sizes with DDP
 				Multimodal Transformer Block
-				Self-Supervised Teacher
-					Implications of Feature-Based Distillation
-				Contrastive Learning
-					On Zero-Shot Retrieval
-					Short Captions (Region Descriptions)
-					Projections for Task-Seperation
-					Image-Text Matching with Feature-Fusion
-					Increasing Negative Examples for ITC
-					Cross-Modal Late Interaction
-					Ablation Study: Removing ITC
-				Cross-Modal Late Interaction (CMLI)
-					Cosine-CMLI
-					Target-CMLI (lin transform of teacher cls token and student cls token needed?) (-log(1-x) for phony target? or use eos?)
+			Self-Supervised Teacher
+			Contrastive Learning
+				On Zero-Shot Retrieval
+				Short Captions (Region Descriptions)
+				Projections for Task-Seperation
+				Image-Text Matching with Feature-Fusion
+				Increasing Negative Examples for ITC
+				Ablation Study: Removing ITC
 				
-			Research-Specific Experiments
+			Knowledge-Distillation Specific
+				Target-CMLI (lin transform of teacher cls token and student cls token needed?) (-log(1-x) for phony target? or use eos?)
 				Token-Type Embedding
 				Dino Loss
 				Masked Vision-Language Modeling (same everything, just tokens randomly removed -> we can reuse teacher activations)
@@ -50,6 +46,7 @@ Experiments
 				(Importance of the right Teacher (why BEiT-2? etc...)) (D2V2 Image, BEiT-3, Dino, )
 				(Biased VL Initialization (init from text))
 				Fair Comparison with Supervised Teacher (bigger supervised teacher -> approx. 85 mill params)
+			Non-Knowledge-Distaillation
 			Architectural Studies
 				Mixed Positional Encodings (defaults with pretrained D2V modules, include Token-Type Embeddings!)
 				Shared Positional Encodings
@@ -61,7 +58,7 @@ Experiments
 			Masked Vision-Language Modeling
 			Additional Contribution: DistilBEiT-3
 
-		Ablation Study: Reduction of Data
+		Ablation Study: Reduction of Data (Mulitple reductions and plot retrieval and zero shot)
 		
 Outlook
 Conclusion
