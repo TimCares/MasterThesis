@@ -212,7 +212,8 @@ class Sx3HRe(nn.Module):
 
         self.token_type_embeddings = nn.Embedding(2, self.cfg.embed_dim)
 
-        self.norm = make_layer_norm(self.cfg.embed_dim)
+        self.proj_norm = make_layer_norm(self.cfg.embed_dim)
+        self.proj_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim)
 
         self.shared = Block(
             dim=self.cfg.embed_dim,
@@ -295,7 +296,7 @@ class Sx3HRe(nn.Module):
         x_interm = x_interm[:, 0]
         x = x[:, 0]
 
-        out_dict["encoder_out"] = self.norm(x)
+        out_dict["encoder_out"] = self.proj_head(self.proj_norm(x))
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
         x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
