@@ -36,12 +36,12 @@ Experiments
 				Increasing Negative Examples for ITC
 				Ablation Study: Removing ITC
 				
+			Token-Type Embedding
 			Knowledge-Distillation Specific
 				Target-CMLI (lin transform of teacher cls token and student cls token needed?) (-log(1-x) for phony target? or use eos?)
-				Token-Type Embedding
 				Dino Loss
 				Masked Vision-Language Modeling (same everything, just tokens randomly removed -> we can reuse teacher activations)
-				Dimensionality Reduction (PCA or one learnable conv1d layer/network (cnv1d inspred by paper about feature whitening to align embedding dims))
+				Dimensionality Reduction (lin projection on both, teacher proj in ema of student proj)
 				Feature Clusters
 				(Importance of the right Teacher (why BEiT-2? etc...)) (D2V2 Image, BEiT-3, Dino, )
 				(Biased VL Initialization (init from text))

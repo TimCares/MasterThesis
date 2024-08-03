@@ -347,17 +347,20 @@ class TargetCMLILoss(nn.Module):
     def forward(self, image, text, target, padding_mask):
         embed_dim = image.size(-1)
 
-        # image_cls = image[:, :1]
-        # target_cls = target[:, :1]
-        # text_cls = text[:, :1]
+        target_cls = target[:, :1]
+        text_cls = text[:, :1]
 
-        text = text[:, 1:]
+        text_tokens = text[:, 1:]
         target_for_text = target[:, 1:]
-        padding_mask = padding_mask[:, 1:]
+        padding_mask = mask_eos(padding_mask)[:, 1:]
 
-        text_norm = text / text.norm(dim=-1, keepdim=True)
+
+        text_tokens = text_tokens / text_tokens.norm(dim=-1, keepdim=True)
         target_for_text_norm = target_for_text / target_for_text.norm(dim=-1, keepdim=True)
-        similarity = opt_einsum.contract('b i d, b j d -> b i j', text_norm, target_for_text_norm)
+        
+        text_tokens = text_tokens.half()
+        target_for_text_norm = target_for_text_norm.half()
+        similarity = opt_einsum.contract('b i d, b j d -> b i j', text_tokens, target_for_text_norm)
 
         token2patch_idx = similarity.argmax(dim=-1).unsqueeze(-1).expand(-1, -1, embed_dim)
 
@@ -367,10 +370,10 @@ class TargetCMLILoss(nn.Module):
 
         tokens = text.view(-1, embed_dim)[padding_mask]
 
-        # all_tokens = torch.cat([text_cls, tokens], dim=0)
-        # all_patches = torch.cat([target_cls, token_aliged_patches], dim=0)
+        all_tokens = torch.cat([text_cls, tokens], dim=0)
+        all_patches = torch.cat([target_cls, token_aliged_patches], dim=0)
 
-        kd_text_loss = F.mse_loss(input=tokens.float(), target=token_aliged_patches.float())
+        kd_text_loss = F.mse_loss(input=all_tokens.float(), target=all_patches.float())
 
         image_all = image.view(-1, embed_dim).float() # (B, D, C) -> (B*D, C)
         target_all = target.view(-1, embed_dim).float() # (B, D, C) -> (B*D, C)
