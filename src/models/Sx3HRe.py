@@ -234,11 +234,11 @@ class Sx3HRe(nn.Module):
         self.image_model = load_pretrained_d2v_model(state_dict_path=os.path.join(self.cfg.pretrained_path, self.cfg.pretrained.image))
         self.image_model.blocks = self.image_model.blocks[:self.cfg.depth]
 
-        self.text_embedding = self.text_model.modality_encoders['text'].local_encoder # contains both token and positional embeddings
+        self.text_embedding = self.text_model.modality_encoders['TEXT'].local_encoder # contains both token and positional embeddings
 
-        self.patch_embedding = self.image_model.modality_encoders['image'].local_encoder
-        self.img_pos_enc = self.image_model.modality_encoders['image'].fixed_positional_encoder
-        self.img_cls_token = self.image_model.modality_encoders['image'].extra_tokens
+        self.patch_embedding = self.image_model.modality_encoders['IMAGE'].local_encoder
+        self.img_pos_enc = self.image_model.modality_encoders['IMAGE'].fixed_positional_encoder
+        self.img_cls_token = self.image_model.modality_encoders['IMAGE'].extra_tokens
 
     def forward(
         self,
