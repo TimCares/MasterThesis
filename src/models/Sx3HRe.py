@@ -264,7 +264,7 @@ class Sx3HRe(nn.Module):
         
         image_embed = self.patch_embedding(image)
 
-        image_embed = image_embed + self.img_pos_enc(image_embed)
+        image_embed = image_embed + self.img_pos_enc(image_embed, None)
 
         image_embed = torch.cat([self.img_cls_token.expand(image_embed.size(0), -1, -1), image_embed], dim=1)
 
