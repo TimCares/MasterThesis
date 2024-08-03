@@ -10,7 +10,6 @@ from models import MODEL_REGISTRY
 from datamodules import DATAMODULE_REGISTRY
 from utils import load_pretrained_d2v_model
 from omegaconf import DictConfig, open_dict
-from modules import infer_chunked_cmli_logits, mask_eos
 import hydra
 import json
 
@@ -19,7 +18,7 @@ logger = logging.getLogger()
 
 
 # following stems from the BEiT3 repo: https://github.com/microsoft/unilm/blob/master/beit3/engine_for_finetuning.py
-def compute_scores(img_embeds, text_embeds, img_ids, cmli, padding_masks):
+def compute_scores(img_embeds, text_embeds, img_ids):
     image_feats = {} # collect all unique image features, and create mapping based on id
     for feats, ids in zip(img_embeds, img_ids):
         for i, _idx in enumerate(ids):
@@ -37,32 +36,12 @@ def compute_scores(img_embeds, text_embeds, img_ids, cmli, padding_masks):
     img_embeds = torch.cat(sorted_tensors, dim=0)
     text_embeds = torch.cat(text_embeds, dim=0)
 
-    if cmli:
-        padding_masks = torch.cat(padding_masks, dim=0)
-        padding_masks = mask_eos(padding_masks)
+    scores = img_embeds @ text_embeds.t()
+    iids = torch.LongTensor(iids).to(scores.device)
 
-        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-        image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-
-        scores_dict = infer_chunked_cmli_logits(
-            text_features=text_embeds,
-            image_features=img_embeds,
-            padding_mask=padding_masks,
-            text_chunk_size=256,
-            image_chunk_size=256,
-            display_progress=True,
-        )
-        scores_i2t = scores_dict['i2t'].t()
-        scores_t2i = scores_dict['t2i'].t()
-    else:
-        scores_i2t = img_embeds @ text_embeds.t()
-        scores_t2i = scores_i2t
-
-    iids = torch.LongTensor(iids).to(scores_i2t.device)
-
-    topk10 = scores_i2t.topk(10, dim=1)
-    topk5 = scores_i2t.topk(5, dim=1)
-    topk1 = scores_i2t.topk(1, dim=1)
+    topk10 = scores.topk(10, dim=1)
+    topk5 = scores.topk(5, dim=1)
+    topk1 = scores.topk(1, dim=1)
     
     topk10_iids = tiids[topk10.indices]
     topk5_iids = tiids[topk5.indices]
@@ -72,9 +51,9 @@ def compute_scores(img_embeds, text_embeds, img_ids, cmli, padding_masks):
     tr_r5 = (iids.unsqueeze(1) == topk5_iids).float().max(dim=1)[0].mean()
     tr_r1 = (iids.unsqueeze(1) == topk1_iids).float().max(dim=1)[0].mean()
 
-    topk10 = scores_t2i.topk(10, dim=0)
-    topk5 = scores_t2i.topk(5, dim=0)
-    topk1 = scores_t2i.topk(1, dim=0)
+    topk10 = scores.topk(10, dim=0)
+    topk5 = scores.topk(5, dim=0)
+    topk1 = scores.topk(1, dim=0)
     topk10_iids = iids[topk10.indices]
     topk5_iids = iids[topk5.indices]
     topk1_iids = iids[topk1.indices]
@@ -97,32 +76,23 @@ def compute_scores(img_embeds, text_embeds, img_ids, cmli, padding_masks):
 
 
 @torch.no_grad()
-def zero_shot_retrieval(model, dataloader, device, cmli):
+def zero_shot_retrieval(model, dataloader, device):
     img_embeds = []
     text_embeds = []
     img_ids = []
-    if cmli:
-        output_key = 'x_raw'
-        padding_masks = []
-    else:
-        output_key = 'x'
-        padding_masks = None
 
     for batch in track(dataloader):
         image = batch['image'].to(device)
         text = batch['text'].to(device)
         padding_mask = batch['padding_mask'].to(device) if 'padding_mask' in batch else None
         # encoding also normalizes the output
-        img_emb = model.encode_image(image=image)[output_key]
-        text_emb = model.encode_text(text=text, padding_mask=padding_mask)[output_key]
+        img_emb = model.encode_image(image=image)['x']
+        text_emb = model.encode_text(text=text, padding_mask=padding_mask)['x']
         img_embeds.append(img_emb)
         text_embeds.append(text_emb)
         img_ids.append(batch['id'].to(device))
-        if cmli:
-            padding_masks.append(padding_mask)
 
-    compute_scores(img_embeds=img_embeds, text_embeds=text_embeds, img_ids=img_ids,
-                   cmli=cmli, padding_masks=padding_masks)
+    compute_scores(img_embeds=img_embeds, text_embeds=text_embeds, img_ids=img_ids)
 
 
 @torch.no_grad()
@@ -204,7 +174,7 @@ def main(cfg: DictConfig) -> None:
             dm.prepare_data()
             dm.setup('test')
             logger.info(f"Zero-shot retrieval on: {name}")
-            zero_shot_retrieval(model, dm.test_dataloader(), device, cfg.cmli)
+            zero_shot_retrieval(model, dm.test_dataloader(), device)
 
 if __name__ == "__main__":
     main()

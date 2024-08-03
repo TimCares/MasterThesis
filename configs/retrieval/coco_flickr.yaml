@@ -4,12 +4,10 @@ pretrained_path: /workspace/models/
 d2v_image_path: ${pretrained_path}base_imagenet.pt
 d2v_text_path: ${pretrained_path}workspace/models/nlp_base.pt
 
-model_version:
-model_name: SHRe
+model_version: Sx3HRe_cosine_cmli/model-44632-0.9749-val.ckpt
+model_name: Sx3HRe
 
 eval_d2v: False
-
-cmli: True
 
 data:
   shared_args:
