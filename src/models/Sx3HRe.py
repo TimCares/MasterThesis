@@ -233,12 +233,8 @@ class Sx3HRe(nn.Module):
 
         self.text_model = load_pretrained_d2v_model(state_dict_path=os.path.join(self.cfg.pretrained_path, self.cfg.pretrained.text))
         self.text_model.blocks = self.text_model.blocks[:self.cfg.depth]
-        for i in range(self.cfg.depth, len(self.text_model.blocks)):
-            del self.text_model.blocks[i]
         self.image_model = load_pretrained_d2v_model(state_dict_path=os.path.join(self.cfg.pretrained_path, self.cfg.pretrained.image))
         self.image_model.blocks = self.image_model.blocks[:self.cfg.depth]
-        for i in range(self.cfg.depth, len(self.image_model.blocks)):
-            del self.image_model.blocks[i]
 
     def forward(
         self,
