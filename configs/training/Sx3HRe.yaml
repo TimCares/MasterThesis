@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: Sx3HRe_cosine_cmli
+run_name: Sx3HRe_tte
 id:
 model_name: Sx3HRe
 

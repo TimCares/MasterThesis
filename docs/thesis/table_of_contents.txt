@@ -37,6 +37,7 @@ Experiments
 				Ablation Study: Removing ITC
 				
 			Token-Type Embedding
+			Different Learning Rates
 			Knowledge-Distillation Specific
 				Target-CMLI (lin transform of teacher cls token and student cls token needed?) (-log(1-x) for phony target? or use eos?)
 				Dino Loss

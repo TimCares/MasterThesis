@@ -15,6 +15,7 @@ from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
 from modules import Block, ClipLoss
+from timm.models.vision_transformer import LayerScale
 from utils import freeze_module, load_beit2_teacher
 
 logger = logging.getLogger(__name__)
@@ -211,6 +212,7 @@ class Sx3HRe(nn.Module):
         make_layer_norm = partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
 
         self.token_type_embeddings = nn.Embedding(2, self.cfg.embed_dim)
+        self.tte_scale = LayerScale(self.cfg.embed_dim, init_values=1e-5)
 
         self.proj_norm = make_layer_norm(self.cfg.embed_dim)
         self.proj_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim)
@@ -231,14 +233,12 @@ class Sx3HRe(nn.Module):
 
         self.text_model = load_pretrained_d2v_model(state_dict_path=os.path.join(self.cfg.pretrained_path, self.cfg.pretrained.text))
         self.text_model.blocks = self.text_model.blocks[:self.cfg.depth]
+        for i in range(self.cfg.depth, len(self.text_model.blocks)):
+            del self.text_model.blocks[i]
         self.image_model = load_pretrained_d2v_model(state_dict_path=os.path.join(self.cfg.pretrained_path, self.cfg.pretrained.image))
         self.image_model.blocks = self.image_model.blocks[:self.cfg.depth]
-
-        self.text_embedding = self.text_model.modality_encoders['TEXT'].local_encoder # contains both token and positional embeddings
-
-        self.patch_embedding = self.image_model.modality_encoders['IMAGE'].local_encoder
-        self.img_pos_enc = self.image_model.modality_encoders['IMAGE'].fixed_positional_encoder
-        self.img_cls_token = self.image_model.modality_encoders['IMAGE'].extra_tokens
+        for i in range(self.cfg.depth, len(self.image_model.blocks)):
+            del self.image_model.blocks[i]
 
     def forward(
         self,
@@ -261,38 +261,37 @@ class Sx3HRe(nn.Module):
         return out
     
     def encode_image(self, image):
-        
-        image_embed = self.patch_embedding(image)
-
-        image_embed = image_embed + self.img_pos_enc(image_embed, None)
-
-        image_embed = torch.cat([self.img_cls_token.expand(image_embed.size(0), -1, -1), image_embed], dim=1)
-
-        image_embed = image_embed + self.token_type_embeddings(
-                torch.ones_like(image_embed[:, :, 0], dtype=torch.long)
+        encoder_out = self.image_model.extract_features(
+            source=image,
+            remove_extra_tokens=False,
         )
-
-        for blk in self.image_model.blocks:
-            image_embed, _ = blk(image_embed)
+        img_tte = self.token_type_embeddings(
+            torch.ones_like(encoder_out['x'][:, :, 0], dtype=torch.long)
+        )
+        img_tte = self.tte_scale(img_tte)
+        encoder_out['x'] = encoder_out['x'] + img_tte
         
-        return self.encode_shared(image_embed)
+        return self.encode_shared(encoder_out)
 
     def encode_text(self, text, padding_mask):
-
-        text_embed = self.text_embedding(text)
-
-        text_embed = text_embed + self.token_type_embeddings(
-                torch.zeros_like(padding_mask)
+        encoder_out = self.text_model.extract_features(
+            source=text,
+            padding_mask=padding_mask,
+            remove_extra_tokens=False,
         )
-
-        for blk in self.text_model.blocks:
-            text_embed, _ = blk(text_embed, padding_mask=padding_mask)
+        text_tte = self.token_type_embeddings(
+            torch.zeros_like(padding_mask)
+        )
+        text_tte = self.tte_scale(text_tte)
+        encoder_out['x'] = encoder_out['x'] + text_tte
         
-        return self.encode_shared(text_embed, padding_mask=padding_mask)
+        return self.encode_shared(encoder_out)
     
-    def encode_shared(self, x, padding_mask=None):
+    def encode_shared(self, encoder_out):
         out_dict = dict()
-        x_interm, x = self.shared(x=x, mask=padding_mask)
+        x = encoder_out['x']
+        mask = encoder_out['padding_mask'] if 'padding_mask' in encoder_out else None
+        x_interm, x = self.shared(x=x, mask=mask)
         x_interm = x_interm[:, 0]
         x = x[:, 0]
 
