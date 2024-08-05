@@ -150,11 +150,15 @@ We use the same LayerScale for both image and text type embeddings, as the contr
     table.hline(stroke: .6pt),
     [EMKUM], [26.1], [50.4], [66.3], [77.83], 
     [EMKUM#sub[TTE]], [25.6], [49.5], [66.0], [77.36],
-    [EMKUM#sub[TTE']], [25.6], [49.5], [66.0], [77.36],
+    [EMKUM#sub[TTE']], [26.7], [50.9], [66.6], [78.09],
     table.hline(),
   ),
   caption: [Moving the TTE after the modality-specific encoders and using LayerScale with a low contribution weight of 1e-5, we denote this
   model variant as EMKUM#sub[TTE'].],
 )<image_text_retrieval_tte_second>
+
+< Check average value of LayerScale weights -> should not be close to 0 >
+Mean: 0.0007224410073831677 (initial 0.00001)
+Standard Deviation: 0.016118625178933144
 
 #bibliography("../references.bib")
