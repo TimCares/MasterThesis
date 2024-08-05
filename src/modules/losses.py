@@ -344,7 +344,7 @@ class SparseCMLILoss(CMLILoss):
         return out_dict
 
 class TargetCMLILoss(nn.Module):
-    def forward(self, image, text, target, padding_mask):
+    def forward(self, image, text, target, padding_mask, target_down_proj, text_down_proj):
         embed_dim = image.size(-1)
 
         target_cls = target[:, :1]
@@ -354,9 +354,10 @@ class TargetCMLILoss(nn.Module):
         target_for_text = target[:, 1:]
         padding_mask = mask_eos(padding_mask)[:, 1:]
 
-
-        text_tokens = text_tokens / text_tokens.norm(dim=-1, keepdim=True)
-        target_for_text_norm = target_for_text / target_for_text.norm(dim=-1, keepdim=True)
+        text_tokens_proj = text_down_proj(text_tokens)
+        target_for_text_norm = target_down_proj(target_for_text)
+        text_tokens = text_tokens_proj / text_tokens_proj.norm(dim=-1, keepdim=True)
+        target_for_text_norm = target_for_text_norm / target_for_text_norm.norm(dim=-1, keepdim=True)
         
         text_tokens = text_tokens.half()
         target_for_text_norm = target_for_text_norm.half()
