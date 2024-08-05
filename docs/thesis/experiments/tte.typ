@@ -133,7 +133,7 @@ bold(H')^v_(L)&=bold(H)^v_(L) + op("diag")(lambda_(L, 1), ..., lambda_(L, D)) * 
 bold(H')^v_(L)&=bold(H)^v_(L) + op("LayerScale")(bold(T)^v_"type")
 $
 
-We use the same LayerScale for both image and text type embeddings, as the contribution of the type embeddings should be the same for both modalities. We do not want to bias the model towards one modality.
+We use the same LayerScale for both image and text type embeddings, as the contribution of the type embeddings should be the same for both modalities. We do not want to bias the model towards one modality. @image_text_retrieval_tte_second shows that this approach is able to slightly improve the performance of the model, and we achieve a gain of at least 0.3% in all tasks. While this is not a significant improvement, it shows that the TTE @vlmo, together with LayerScale @layer_scale, can be beneficial, which is why we keep this approach.
 
 #figure(
   table(
@@ -154,11 +154,15 @@ We use the same LayerScale for both image and text type embeddings, as the contr
     table.hline(),
   ),
   caption: [Moving the TTE after the modality-specific encoders and using LayerScale with a low contribution weight of 1e-5, we denote this
-  model variant as EMKUM#sub[TTE'].],
+  model variant as EMKUM#sub[TTE']. EMKUM#sub[TTE'] is able to achieve a slightly better performance than the model without TTE, and the version
+  with TTE added before the modality-specific encoders.],
 )<image_text_retrieval_tte_second>
 
-< Check average value of LayerScale weights -> should not be close to 0 >
-Mean: 0.0007224410073831677 (initial 0.00001)
-Standard Deviation: 0.016118625178933144
+After training, to validate whether the TTE is actually utilized, we check the average value of the LayerScale weights. If they show
+a value lower or equal to the initial value of 1e-5, then we can conclude that even though the model performance improves, the relative
+importance of TTE is low. We measure a mean of 7.2e-4, with a standard deviation of 1.6e-2, and we observe the maximum weight for a channel
+to be 0.3. This shows that the actual features extracted by the image and text encoder are significantly more important than the TTE, which
+is not surprising, but also that the model utilizes the TTE to some extent.
+
 
 #bibliography("../references.bib")
