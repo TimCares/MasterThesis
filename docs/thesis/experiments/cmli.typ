@@ -132,5 +132,15 @@ cal(L)_("KD") = 1/2 * (cal(L)_("KD")^("i2t") + cal(L)_("KD")^("t2i"))
 $
 
 We use the mean instead of the sum, as we also use the contrastive loss, and we want both losses to have the same weight.
+As in FILIP @filip, we find $m_j^("t2i")$ using an embedding dimension of 256. The hidden size of the model stays at 768,
+and we use a linear projection to reduce the dimensionality of the image representation from the teacher, and the text representation
+from the student, to 256. The loss is still computed using the raw outputs, with 768 dimensions, so only CMLI is performed
+in the lower-dimensional space.
+
+What makes the implementation of Target-CMLI feasible is that we only need to compute the similarity between the positive pairs,
+and not all possible image-text pairs in a batch. This is because we only need to find the most similar image patch for each text token
+of a positive pair. For a per-device batch size of 256, Target-CMLI requires $12,544*256=3,211,264$ dot products to compute.
+With an embedding dimension of 256 and half-precision float16, just $3,211,264*256*2 "bytes" = 1.64 "GB"$ of additional GPU memory
+is required. This is feasible in our setup.
 
 #bibliography("../references.bib")
