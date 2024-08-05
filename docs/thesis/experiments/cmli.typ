@@ -68,10 +68,13 @@ is still manageable, since we have around 2 GB of GPU memory remaining for a ste
 
 However, with CMLI we need to compute the cosine similarity between all possible image-text pairs, where the cosine similarity
 for one pair requires the computation of the cosine similarity between all image patches and text tokens of the image-text pair.
+With a maximum text sequence length of 64 tokens @beit3, two of which are ignored as they are the cls and eos token,
+and an image sequence length of 196 (without cls token), the number of dot products to compute for just
+one image-text pair is $(196*64)=12,544$. With a batch size of 256 per device, and 2 GPUs, the number of dot products
+increases from $262,144$ to $256*12,544=6,422,528$. Even if the embedding dimension is reduced to 256, which is an simplification
+done in FILIP @filip, we need $6,422,528 * 256 * 4 "bytes" = 6.58 "GB"$ of additional GPU memory, just to store the result.
+Consequently, this approach is not feasible in our setup.
 
-- fine-grained alignment offers the opportunity to test image-language reasoning, an application non-referecing model previously were deemed unsuited for
-
-- we identify the option to combine CMLI with vanilla ITC, and test the mean of both as a similarity measure
 
 
 #bibliography("../references.bib")
