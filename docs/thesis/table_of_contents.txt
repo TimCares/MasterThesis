@@ -4,9 +4,10 @@ BYOML: Bootstrap your own multimodal latent
 Introduction
 Background
 	Self-Supervised Learning
-		Masked Modality (Image/Text) Modeling
-		Contrastive Learning and Retrieval
-		Knowledge-Distillation
+	Multimodal Models
+	(Masked Modality (Image/Text) Modeling)
+	Contrastive Learning and Retrieval
+	Knowledge-Distillation
 	Related Work
 		Data2Vec
 		Deep Aligned Representations
