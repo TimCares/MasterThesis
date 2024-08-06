@@ -352,9 +352,6 @@ class TargetCMLILoss(L.LightningModule):
     
     def forward(self, image, text, target, padding_mask, down_proj):
 
-        target_cls = target[:, 0]
-        text_cls = text[:, 0]
-
         text_tokens = text[:, 1:]
         target_patches = target[:, 1:]
         padding_mask = mask_eos(padding_mask)[:, 1:]
@@ -386,36 +383,32 @@ class TargetCMLILoss(L.LightningModule):
 
         tokens = text_tokens.contiguous().view(-1, self.embed_dim)[include_mask]
 
-        all_tokens = torch.cat([text_cls, tokens], dim=0)
-        all_patches = torch.cat([target_cls, token_aliged_patches], dim=0)
-
-        kd_text_loss = F.mse_loss(input=all_tokens.float(), target=all_patches.float(), reduction='none').mean(dim=-1)
-        kd_text_other_loss = kd_text_loss[1:].mean()
-        kd_text_cls_loss = kd_text_loss[0]
-        kd_text_loss = kd_text_loss.mean()
-
         frac_not_paired_w_empty_token = not_paired_with_empty_token.float().mean()
         # reg_loss = -torch.log(frac_not_paired_w_empty_token)
 
-        # following code weights cls loss the same as all other tokens combined
-        # kd_text_other_loss = F.mse_loss(input=tokens.float(), target=token_aliged_patches.float())
-        # kd_text_cls_loss = F.mse_loss(input=text_cls.float(), target=target_cls.float())
+        # weight cls loss the same as all other tokens combined
+        kd_text_other_loss = F.mse_loss(input=tokens.float(), target=token_aliged_patches.float())
+        kd_text_cls_loss = F.mse_loss(input=text[:, 0].float(), target=target[:, 0].float())
 
-        # kd_text_loss = (kd_text_other_loss + kd_text_cls_loss) / 2
+        kd_text_loss = (kd_text_other_loss + kd_text_cls_loss) / 2
 
-        image_all = image.view(-1, self.embed_dim).float() # (B, D, C) -> (B*D, C)
-        target_all = target.view(-1, self.embed_dim).float() # (B, D, C) -> (B*D, C)
+        image_all = image[:, 1:].view(-1, self.embed_dim).float() # (B, D, C) -> (B*D, C)
+        target_all = target[:, 1:].view(-1, self.embed_dim).float() # (B, D, C) -> (B*D, C)
 
-        kd_image_loss = F.mse_loss(input=image_all, target=target_all)
+        kd_image_other_loss = F.mse_loss(input=image_all, target=target_all)
+        kd_image_cls_loss = F.mse_loss(input=image[:, 0].float(), target=target[:, 0].float())
+        kd_image_loss = (kd_image_other_loss + kd_image_cls_loss) / 2
 
         total_loss = (kd_text_loss + kd_image_loss) / 2
 
         out_dict = {
-            'loss': total_loss,
+            'kd_loss': total_loss,
             'kd_text_loss': kd_text_loss,
             'kd_image_loss': kd_image_loss,
             'kd_text_other_loss': kd_text_other_loss,
             'kd_text_cls_loss': kd_text_cls_loss,
+            'kd_image_other_loss': kd_image_other_loss,
+            'kd_image_cls_loss': kd_image_cls_loss,
             'token2patch_idx': token2patch_idx,
             'frac_not_empty_token': frac_not_paired_w_empty_token,
         }

@@ -79,7 +79,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         input_text = output_dict['encoder_out_text']
         input_image = output_dict['encoder_out_image']
 
-        kd_loss = self.t_cmli_loss(
+        t_cmli_out = self.t_cmli_loss(
             image=input_image,
             text=input_text,
             target=target,
@@ -87,12 +87,13 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             down_proj=self.model.down_proj,
         )
 
-        self.log(f"{stage}/kd_text_loss", kd_loss['kd_text_loss'])
-        self.log(f"{stage}/kd_text_other_loss", kd_loss['kd_text_other_loss'])
-        self.log(f"{stage}/kd_text_cls_loss", kd_loss['kd_text_cls_loss'])
-        self.log(f"{stage}/kd_image_loss", kd_loss['kd_image_loss'])
-        kd_loss = kd_loss['loss']
-        self.log(f"{stage}/kd_loss", kd_loss)
+        for key in t_cmli_out.keys():
+            if 'loss' in key:
+                self.log(f"{stage}/{key}", t_cmli_out[key])
+
+        self.log(f"{stage}/frac_not_empty_token", t_cmli_out['frac_not_empty_token'])
+        
+        kd_loss = t_cmli_out['kd_loss']
 
         self.model.logit_scale_interm.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
         self.model.logit_scale_out.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
