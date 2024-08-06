@@ -344,40 +344,44 @@ class SparseCMLILoss(CMLILoss):
         return out_dict
 
 class TargetCMLILoss(nn.Module):
-    def forward(self, image, text, target, padding_mask, target_down_proj, text_down_proj):
-        embed_dim = image.size(-1)
+    def __init__(self, embed_dim):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.down_proj = nn.Linear(embed_dim, embed_dim)
+    
+    def forward(self, image, text, target, padding_mask):
 
         target_cls = target[:, :1]
         text_cls = text[:, :1]
 
         text_tokens = text[:, 1:]
-        target_for_text = target[:, 1:]
+        target_patches = target[:, 1:]
         padding_mask = mask_eos(padding_mask)[:, 1:]
 
-        text_tokens_proj = text_down_proj(text_tokens)
-        target_for_text_norm = target_down_proj(target_for_text)
-        text_tokens = text_tokens_proj / text_tokens_proj.norm(dim=-1, keepdim=True)
-        target_for_text_norm = target_for_text_norm / target_for_text_norm.norm(dim=-1, keepdim=True)
+        text_tokens_proj = self.down_proj(text_tokens)
+        target_patches_proj = self.down_proj(target_patches)
+        text_tokens_proj = text_tokens_proj / text_tokens_proj.norm(dim=-1, keepdim=True)
+        target_patches_proj = target_patches_proj / target_patches_proj.norm(dim=-1, keepdim=True)
         
-        text_tokens = text_tokens.half()
-        target_for_text_norm = target_for_text_norm.half()
-        similarity = opt_einsum.contract('b i d, b j d -> b i j', text_tokens, target_for_text_norm)
+        text_tokens_proj = text_tokens_proj.half()
+        target_patches_proj = target_patches_proj.half()
+        similarity = opt_einsum.contract('b i d, b j d -> b i j', text_tokens_proj, target_patches_proj)
 
-        token2patch_idx = similarity.argmax(dim=-1).unsqueeze(-1).expand(-1, -1, embed_dim)
+        token2patch_idx = similarity.argmax(dim=-1).unsqueeze(-1).expand(-1, -1, self.embed_dim)
 
         padding_mask = ~padding_mask.view(-1).bool()
 
-        token_aliged_patches = torch.gather(target_for_text, 1, token2patch_idx).view(-1, embed_dim)[padding_mask]
+        token_aliged_patches = torch.gather(target_patches, 1, token2patch_idx).view(-1, self.embed_dim)[padding_mask]
 
-        tokens = text.view(-1, embed_dim)[padding_mask]
+        tokens = text_tokens.view(-1, self.embed_dim)[padding_mask]
 
         all_tokens = torch.cat([text_cls, tokens], dim=0)
         all_patches = torch.cat([target_cls, token_aliged_patches], dim=0)
 
         kd_text_loss = F.mse_loss(input=all_tokens.float(), target=all_patches.float())
 
-        image_all = image.view(-1, embed_dim).float() # (B, D, C) -> (B*D, C)
-        target_all = target.view(-1, embed_dim).float() # (B, D, C) -> (B*D, C)
+        image_all = image.view(-1, self.embed_dim).float() # (B, D, C) -> (B*D, C)
+        target_all = target.view(-1, self.embed_dim).float() # (B, D, C) -> (B*D, C)
 
         kd_image_loss = F.mse_loss(input=image_all, target=target_all)
 

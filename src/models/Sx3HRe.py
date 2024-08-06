@@ -14,7 +14,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
-from modules import Block, ClipLoss
+from modules import Block, ClipLoss, TargetCMLILoss
 from timm.models.vision_transformer import LayerScale
 from utils import freeze_module, load_beit2_teacher
 
@@ -46,6 +46,9 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             rank=self.trainer.local_rank,
             world_size=self.trainer.world_size
         )
+        self.t_cmli_loss = TargetCMLILoss(
+            embed_dim=self.cfg.model.embed_dim,
+        )
 
     def forward(self, input_dict):
         return self.model(**input_dict)
@@ -70,17 +73,22 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             target = self.teacher.forward_features(
                 x=image_teacher,
                 bool_masked_pos=bool_masked_pos,
-            )[:, 0]
+            )
         
         output_dict = self(batch) # call "forward"
         input_text = output_dict['encoder_out_text']
         input_image = output_dict['encoder_out_image']
 
-        kd_loss1 = F.mse_loss(input=input_text, target=target)
-        self.log(f"{stage}/kd_text_loss", kd_loss1)
-        kd_loss2 = F.mse_loss(input=input_image, target=target)
-        self.log(f"{stage}/kd_image_loss", kd_loss2)
-        kd_loss = (kd_loss1 + kd_loss2) / 2
+        kd_loss = self.t_cmli_loss(
+            image=input_image,
+            text=input_text,
+            target=target,
+            padding_mask=batch['padding_mask'],
+        )
+
+        self.log(f"{stage}/kd_text_loss", kd_loss['kd_text_loss'])
+        self.log(f"{stage}/kd_image_loss", kd_loss['kd_image_loss'])
+        kd_loss = kd_loss['loss']
         self.log(f"{stage}/kd_loss", kd_loss)
 
         self.model.logit_scale_interm.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
@@ -288,10 +296,11 @@ class Sx3HRe(nn.Module):
         x = encoder_out['x']
         mask = encoder_out['padding_mask'] if 'padding_mask' in encoder_out else None
         x_interm, x = self.shared(x=x, mask=mask)
-        x_interm = x_interm[:, 0]
-        x = x[:, 0]
 
         out_dict["encoder_out"] = self.proj_head(self.proj_norm(x))
+
+        x_interm = x_interm[:, 0]
+        x = x[:, 0]
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
         x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
