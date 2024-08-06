@@ -347,19 +347,18 @@ class TargetCMLILoss(nn.Module):
     def __init__(self, embed_dim):
         super().__init__()
         self.embed_dim = embed_dim
-        self.down_proj = nn.Linear(embed_dim, embed_dim)
     
-    def forward(self, image, text, target, padding_mask):
+    def forward(self, image, text, target, padding_mask, down_proj):
 
-        target_cls = target[:, :1]
-        text_cls = text[:, :1]
+        target_cls = target[:, 0]
+        text_cls = text[:, 0]
 
         text_tokens = text[:, 1:]
         target_patches = target[:, 1:]
         padding_mask = mask_eos(padding_mask)[:, 1:]
 
-        text_tokens_proj = self.down_proj(text_tokens)
-        target_patches_proj = self.down_proj(target_patches)
+        text_tokens_proj = down_proj(text_tokens)
+        target_patches_proj = down_proj(target_patches)
         text_tokens_proj = text_tokens_proj / text_tokens_proj.norm(dim=-1, keepdim=True)
         target_patches_proj = target_patches_proj / target_patches_proj.norm(dim=-1, keepdim=True)
         
@@ -369,11 +368,11 @@ class TargetCMLILoss(nn.Module):
 
         token2patch_idx = similarity.argmax(dim=-1).unsqueeze(-1).expand(-1, -1, self.embed_dim)
 
-        padding_mask = ~padding_mask.view(-1).bool()
+        padding_mask = ~padding_mask.contiguous().view(-1).bool()
 
         token_aliged_patches = torch.gather(target_patches, 1, token2patch_idx).view(-1, self.embed_dim)[padding_mask]
 
-        tokens = text_tokens.view(-1, self.embed_dim)[padding_mask]
+        tokens = text_tokens.contiguous().view(-1, self.embed_dim)[padding_mask]
 
         all_tokens = torch.cat([text_cls, tokens], dim=0)
         all_patches = torch.cat([target_cls, token_aliged_patches], dim=0)

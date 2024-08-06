@@ -84,6 +84,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             text=input_text,
             target=target,
             padding_mask=batch['padding_mask'],
+            down_proj=self.model.down_proj,
         )
 
         self.log(f"{stage}/kd_text_loss", kd_loss['kd_text_loss'])
@@ -224,6 +225,8 @@ class Sx3HRe(nn.Module):
 
         self.proj_norm = make_layer_norm(self.cfg.embed_dim)
         self.proj_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim)
+
+        self.down_proj = nn.Linear(self.cfg.embed_dim, 256)
 
         self.shared = Block(
             dim=self.cfg.embed_dim,
