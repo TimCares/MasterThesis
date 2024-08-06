@@ -1,5 +1,6 @@
 #set math.equation(numbering: "(1)")
-===== Cross-Modal Late Interaction (CMLI) <cross_modal_late_interaction>
+===== Target Cross-Modal Late Interaction (CMLI) <target_cross_modal_late_interaction>
+==== Cross-Modal Late Interaction (CMLI) <cross_modal_late_interaction>
 Until now, we used the global text and image representations $mono(["T_CLS"])$ and $mono(["I_CLS"])$, respectively, for
 contrastive learning and the alignment loss of (TODO: cite removing itc).
 This has the disadvantage that only global information is utilized, and fine-grained, token/patch-specific, information is not considered.
@@ -75,7 +76,7 @@ increases from $262,144$ to $256*12,544=6,422,528$. Even if the embedding dimens
 done in FILIP @filip, we need $6,422,528 * 256 * 4 "bytes" = 6.58 "GB"$ of additional GPU memory, just to store the result.
 Consequently, this approach is not feasible in our setup.
 
-===== Target-CMLI <target_cmli>
+===== Method <target_cmli_method>
 
 What is feasible though, is to apply CMLI to a setting where the computation is more lightweight.
 As in Contrastive Learning, the driving factor behind the memory requirements is that the similarity between all
@@ -112,19 +113,42 @@ $
 of the teacher, the loss is defined as:
 
 $
-cal(L)_("KD")^("i2t") = op("MSE")(bold(H)^s_(v, L), bold(H)^t_(v, L)) = 1/N sum_(k=1)^N ||bold(h)^s_(v, L, k) - bold(h)^t_(v, L, k)||^2
+cal(L)_("KD")^("i2t") = 
+op("MSE")(bold(H)^s_(v, L), bold(H)^t_(v, L)) = \
+1/(N+1) (||bold(h)^s_(v, L, mono(["I_CLS"])) - bold(h)^t_(v, L, mono(["I_CLS"]))||^2 + 
+sum_(k=1)^N ||bold(h)^s_(v, L, k) - bold(h)^t_(v, L, k)||^2)
 $
 
 For a given text representation
 $
 bold(H)^s_(w, L)=[bold(h)^s_(w, L, mono(["T_CLS"])), bold(h)^s_(w, L, 1), ..., bold(h)^s_(w, L, M), bold(h)^s_(w, L, mono(["T_SEP"]))]
 $
-of the student, we first need to find $m_j^("t2i")$ for each text token $j$, and then define the loss as:
+of the student, we first need to find $m_k^("t2i")$ for each text token $k$, and then define the loss as:
 
 $
-cal(L)_("KD")^("t2i") = op("MSE")(bold(H)^s_(w, L), bold(H)^t_(v, L)) = 1/N sum_(k=1)^N ||bold(h)^s_(w, L, k) - bold(h)^t_(v, L, m_k^("t2i"))||^2
+cal(L)_("KD")^("t2i") =
+op("MSE")(bold(H)^s_(w, L), bold(H)^t_(v, L)) = \
+1/(M+1) (||bold(h)^s_(w, L, mono(["T_CLS"])) - bold(h)^t_(v, L, mono(["I_CLS"]))||^2 + 
+sum_(k=1)^M ||bold(h)^s_(w, L, k) - bold(h)^t_(v, L, m_k^("t2i"))||^2)
+
 $
 
+// $
+// cal(L)_("KD")^("t2i") &= 
+// 1/2 * (
+//   op("MSE")(bold(h)^s_(w, L, mono(["T_CLS"])), bold(h)^t_(v, L, mono(["I_CLS"])))
+//   op("MSE")(bold(H)^s_(w, L), bold(H)^t_(v, L))
+// ) \
+// &= 
+// 1/2 * (
+//   ||bold(h)^s_(w, L, mono(["T_CLS"])) - bold(h)^t_(v, L, mono(["I_CLS"]))||^2 +
+//   1/N sum_(k=1)^N ||bold(h)^s_(w, L, k) - bold(h)^t_(v, L, m_k^("t2i"))||^2
+// )
+// $
+
+Notice how in both cases we also regress the global representation of the teacher $bold(h)^t_(v, L, mono(["I_CLS"]))$
+for the given image. So the first term (the one before the sum-operator) is the loss we used before. In both cases,
+we weight the loss of the global representation the same as the loss on the patch-level representations.
 The total Knowledge-Distillation loss remains the same, and is the mean of the two losses:
 
 $
@@ -132,9 +156,12 @@ cal(L)_("KD") = 1/2 * (cal(L)_("KD")^("i2t") + cal(L)_("KD")^("t2i"))
 $
 
 We use the mean instead of the sum, as we also use the contrastive loss, and we want both losses to have the same weight.
-As in FILIP @filip, we find $m_j^("t2i")$ using an embedding dimension of 256. The hidden size of the model stays at 768,
+As in FILIP @filip, we find $m_k^("t2i")$ using an embedding dimension of 256. The hidden size of the model stays at 768,
 and we use a linear projection to reduce the dimensionality of the image representation from the teacher, and the text representation
-from the student, to 256. The loss is still computed using the raw outputs, with 768 dimensions, so only CMLI is performed
+from the student, to 256.
+As the goal is to bring the representations of the student as close as possible to the teacher, we use the same linear projection
+for both the student and the teacher representations.
+The loss is still computed using the raw outputs, with 768 dimensions. Only CMLI is performed
 in the lower-dimensional space.
 
 What makes the implementation of Target-CMLI feasible is that we only need to compute the similarity between the positive pairs,
@@ -143,4 +170,35 @@ of a positive pair. For a per-device batch size of 256, Target-CMLI requires $12
 With an embedding dimension of 256 and half-precision float16, just $3,211,264*256*2 "bytes" = 1.64 "GB"$ of additional GPU memory
 is required. This is feasible in our setup.
 
+===== Empty Target <target_cmli_empty_target>
+
+A weakness of the aforementioned approach is that some not all text tokens carry semantic information that can be mapped
+to image patches. An example of this can be seen in @cmli, where the tokens "A", "his", "to", and "some"
+do not contains any information that can be related to an image patch, because they are merely fill words in a sentence.
+However, with Target-CMLI there will be an image patch that is most similar to these tokens, even if the similarity is very low.
+Consequently, the model will try to minimize the MSE between the representation of these tokens and the corresponding image
+patches, which is not meaningful.
+
+To address this, we propose the introduction of an empty target, which is a learnable token to which all text tokens are,
+next to the image patches, compared to using cosine similarity. If the maximum similarity for a text token is the empty target,
+then the loss for this token is set to zero, i.e. is ignored.
+
+However, this approach will inevitably lead to a model collapse. This is because the model will try to find the easiest way
+to minimize the loss ($cal(L)_("KD")$), and the easiest way to do that is to simply have all text tokens have the
+highest similarity to the empty target. This will result in a loss of zero, as the loss for all text token is now ignored,
+i.e. zero. Consequently, the model will not learn any meaningful representations. A potential solution to this is to
+add another loss term that encourages the model minimize the number of text tokens that have the highest similarity to the empty target,
+which will strike a balance between utilizing the empty target for meaningless tokens, and using actual image patches for meaningful tokens.
+We define the loss $cal(L)_("Reg")$ as follows:
+
+$
+cal(L)_("Reg") = -log(1-p)
+$
+
+We denote $p$ as the percentage of tokens that have the highest similarity to the empty target, and not an actual image patch.
+The more text tokens have the highest similarity to an image patch, the closer $cal(L)_("Reg")$ will be to zero, and vice versa.
+This forces the model to utilize the empty target for as few tokens as possible.
+
+
+===== Increasing CLS Weight <target_cmli_increasing_cls_weight>
 #bibliography("../references.bib")

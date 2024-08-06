@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import einops
 import opt_einsum
+import pytorch_lightning as L
 from .layers import gather_features
 from .cmli import infer_cmli_logits, masked_mean, max_neg_value, to_half, remove_cls
 from typing import Dict
@@ -343,10 +344,11 @@ class SparseCMLILoss(CMLILoss):
         }
         return out_dict
 
-class TargetCMLILoss(nn.Module):
+class TargetCMLILoss(L.LightningModule):
     def __init__(self, embed_dim):
         super().__init__()
         self.embed_dim = embed_dim
+        self.empty_token = nn.Parameter(torch.zeros(1, 1, 256))
     
     def forward(self, image, text, target, padding_mask, down_proj):
 
@@ -360,19 +362,29 @@ class TargetCMLILoss(nn.Module):
         text_tokens_proj = down_proj(text_tokens)
         target_patches_proj = down_proj(target_patches)
         text_tokens_proj = text_tokens_proj / text_tokens_proj.norm(dim=-1, keepdim=True)
+
+        empty_token_ = self.empty_token.expand(target_patches_proj.shape[0], -1, -1)
+        target_patches_proj = torch.cat([empty_token_, target_patches_proj], dim=1)
+
         target_patches_proj = target_patches_proj / target_patches_proj.norm(dim=-1, keepdim=True)
         
         text_tokens_proj = text_tokens_proj.half()
         target_patches_proj = target_patches_proj.half()
         similarity = opt_einsum.contract('b i d, b j d -> b i j', text_tokens_proj, target_patches_proj)
 
-        token2patch_idx = similarity.argmax(dim=-1).unsqueeze(-1).expand(-1, -1, self.embed_dim)
+        similarity = similarity.argmax(dim=-1)
+        not_paired_with_empty_token = (similarity!=0).view(-1)
 
-        padding_mask = ~padding_mask.contiguous().view(-1).bool()
+        token2patch_idx = similarity.unsqueeze(-1).expand(-1, -1, self.embed_dim)
 
-        token_aliged_patches = torch.gather(target_patches, 1, token2patch_idx).view(-1, self.embed_dim)[padding_mask]
+        include_mask = ~padding_mask.contiguous().view(-1).bool() & not_paired_with_empty_token
 
-        tokens = text_tokens.contiguous().view(-1, self.embed_dim)[padding_mask]
+        # gathered from "target", not from "target_patches" -> cls token is at index 0, which is the same
+        # index used for the empty token -> will be excluded using "include_mask" -> cls token is just a placeholder
+        # to allows correct gathering -> "target_patches_proj" has one more element than "target_patches"
+        token_aliged_patches = torch.gather(target, 1, token2patch_idx).view(-1, self.embed_dim)[include_mask]
+
+        tokens = text_tokens.contiguous().view(-1, self.embed_dim)[include_mask]
 
         all_tokens = torch.cat([text_cls, tokens], dim=0)
         all_patches = torch.cat([target_cls, token_aliged_patches], dim=0)
@@ -381,6 +393,9 @@ class TargetCMLILoss(nn.Module):
         kd_text_other_loss = kd_text_loss[1:].mean()
         kd_text_cls_loss = kd_text_loss[0]
         kd_text_loss = kd_text_loss.mean()
+
+        frac_not_paired_w_empty_token = not_paired_with_empty_token.float().mean()
+        # reg_loss = -torch.log(frac_not_paired_w_empty_token)
 
         # following code weights cls loss the same as all other tokens combined
         # kd_text_other_loss = F.mse_loss(input=tokens.float(), target=token_aliged_patches.float())
@@ -402,6 +417,7 @@ class TargetCMLILoss(nn.Module):
             'kd_text_other_loss': kd_text_other_loss,
             'kd_text_cls_loss': kd_text_cls_loss,
             'token2patch_idx': token2patch_idx,
+            'frac_not_empty_token': frac_not_paired_w_empty_token,
         }
         
         return out_dict

@@ -40,7 +40,7 @@ Experiments
 			Token-Type Embedding
 			Retaining Pretrained Knowledge
 			Knowledge-Distillation Specific
-				Target-CMLI (lin transform of teacher cls token and student cls token needed?) (-log(1-x) for phony target? or use eos?)
+				Target-CMLI (-log(1-x) for phony target? or use eos?)
 				Dino Loss
 				Dimensionality Reduction (lin projection on both, teacher proj in ema of student proj)
 				Feature Clusters
