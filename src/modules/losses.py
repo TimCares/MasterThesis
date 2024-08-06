@@ -51,9 +51,9 @@ class CachedLabelContrastiveLoss(nn.Module):
 
 # The implementation code is modified from open_clip (https://github.com/mlfoundations/open_clip.git)
 class ClipLoss(CachedLabelContrastiveLoss):
-    def forward(self, image_features, text_features, logit_scale):
+    def forward(self, image_features, text_features, logit_scale, gather=True):
         device = image_features.device
-        if self.world_size > 1:
+        if self.world_size > 1 and gather:
             all_image_features, all_text_features = gather_features(
                 image_features, text_features
             )
