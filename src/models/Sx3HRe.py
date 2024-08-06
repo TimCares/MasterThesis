@@ -36,6 +36,10 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         )
         freeze_module(self.teacher)
 
+        self.t_cmli_loss = TargetCMLILoss(
+            embed_dim=self.cfg.model.embed_dim,
+        )
+
         self.save_hyperparameters()
 
     def on_train_start(self):
@@ -45,9 +49,6 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             cache_labels=True,
             rank=self.trainer.local_rank,
             world_size=self.trainer.world_size
-        )
-        self.t_cmli_loss = TargetCMLILoss(
-            embed_dim=self.cfg.model.embed_dim,
         )
 
     def forward(self, input_dict):
