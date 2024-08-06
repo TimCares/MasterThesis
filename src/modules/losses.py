@@ -377,7 +377,16 @@ class TargetCMLILoss(nn.Module):
         all_tokens = torch.cat([text_cls, tokens], dim=0)
         all_patches = torch.cat([target_cls, token_aliged_patches], dim=0)
 
-        kd_text_loss = F.mse_loss(input=all_tokens.float(), target=all_patches.float())
+        kd_text_loss = F.mse_loss(input=all_tokens.float(), target=all_patches.float(), reduction='none').mean(dim=-1)
+        kd_text_other_loss = kd_text_loss[1:].mean()
+        kd_text_cls_loss = kd_text_loss[0]
+        kd_text_loss = kd_text_loss.mean()
+
+        # following code weights cls loss the same as all other tokens combined
+        # kd_text_other_loss = F.mse_loss(input=tokens.float(), target=token_aliged_patches.float())
+        # kd_text_cls_loss = F.mse_loss(input=text_cls.float(), target=target_cls.float())
+
+        # kd_text_loss = (kd_text_other_loss + kd_text_cls_loss) / 2
 
         image_all = image.view(-1, self.embed_dim).float() # (B, D, C) -> (B*D, C)
         target_all = target.view(-1, self.embed_dim).float() # (B, D, C) -> (B*D, C)
@@ -390,6 +399,8 @@ class TargetCMLILoss(nn.Module):
             'loss': total_loss,
             'kd_text_loss': kd_text_loss,
             'kd_image_loss': kd_image_loss,
+            'kd_text_other_loss': kd_text_other_loss,
+            'kd_text_cls_loss': kd_text_cls_loss,
             'token2patch_idx': token2patch_idx,
         }
         

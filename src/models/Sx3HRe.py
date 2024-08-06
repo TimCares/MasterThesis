@@ -88,6 +88,8 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         )
 
         self.log(f"{stage}/kd_text_loss", kd_loss['kd_text_loss'])
+        self.log(f"{stage}/kd_text_other_loss", kd_loss['kd_text_other_loss'])
+        self.log(f"{stage}/kd_text_cls_loss", kd_loss['kd_text_cls_loss'])
         self.log(f"{stage}/kd_image_loss", kd_loss['kd_image_loss'])
         kd_loss = kd_loss['loss']
         self.log(f"{stage}/kd_loss", kd_loss)
