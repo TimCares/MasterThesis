@@ -127,15 +127,16 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         else:
             assert 'base_lr' in self.cfg.optimizer
             learning_rate = self.cfg.optimizer.base_lr * (self.cfg.data.dataloader.batch_size*ws) / 256
-            logger.info(f"[Optimizer]: Base learning rate is {self.cfg.optimizer.base_lr}")
-        logger.info(f"[Optimizer]: Pretrain learning rate is {self.cfg.optimizer.pretrain_lr}")
-        logger.info(f"[Optimizer]: Random init learning rate is {learning_rate}")
-
-        params = self._get_param_groups(pretrain_lr=self.cfg.optimizer.pretrain_lr, random_init_lr=learning_rate)
-        assert sum([len(p["params"]) for p in params]) == len(list(self.model.parameters()))
-
+            logger.info(f"[Optimizer]: Base Learning rate is {self.cfg.optimizer.base_lr}")
+        logger.info(f"[Optimizer]: Learning rate is {learning_rate}")
+        wd_params, non_wd_params = self._get_param_groups()
+        assert len(wd_params) + len(non_wd_params) == len(list(self.model.parameters()))
         optim_args = {
-            "params": params,
+            "params": [
+                {"params": wd_params, "weight_decay": self.cfg.optimizer.weight_decay},
+                {"params": non_wd_params, "weight_decay": 0}
+            ],
+            "lr": learning_rate,
             "betas": tuple(self.cfg.optimizer.betas),
             "eps": self.cfg.optimizer.eps,
         }
@@ -163,26 +164,14 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         )
         return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": 'cosine'}]
         
-    def _get_param_groups(self, pretrain_lr, random_init_lr):
-        params = {
-            'wd_pretrained': {"params": [], "weight_decay": self.cfg.optimizer.weight_decay, "lr": pretrain_lr},
-            'no_wd_pretrained': {"params": [], "weight_decay": 0, "lr": pretrain_lr},
-            'wd_random_init': {"params": [], "weight_decay": self.cfg.optimizer.weight_decay, "lr": random_init_lr},
-            'no_wd_random_init': {"params": [], "weight_decay": 0, "lr": random_init_lr},
-        }
+    def _get_param_groups(self):
+        wd_params, non_wd_params = [], []
         for name, param in self.model.named_parameters():
             if len(param.shape) == 1 or name.endswith(".bias") or "extra_tokens" in name or 'embed_tokens' in name:
-                if name.startswith("text_model.") or name.startswith("image_model."):
-                    params['no_wd_pretrained']["params"].append(param)
-                else:
-                    params['no_wd_random_init']["params"].append(param)
+                non_wd_params.append(param)
             else:
-                if name.startswith("text_model.") or name.startswith("image_model."):
-                    params['wd_pretrained']["params"].append(param)
-                else:
-                    params['wd_random_init']["params"].append(param)
-
-        return [v for _, v in params.items() if len(v["params"]) > 0]
+                wd_params.append(param)
+        return wd_params, non_wd_params
     
     def state_dict(self, *args, **kwargs):
         sd = super().state_dict(*args, **kwargs)

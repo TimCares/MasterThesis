@@ -1,3 +1,4 @@
+#set math.equation(numbering: "(1)")
 === VLMo
 - is a pretrained Vision-Language Model
 - first work to introduce the Mixture-of-Modality-Experts (MoME) architecture for Transformer models
@@ -50,3 +51,5 @@
   image("../../figures/vlmo_finetuning.png"),
   caption: [@vlmo.],
 ) <vlmo_finetuning>
+
+#bibliography("../../references.bib")
