@@ -140,8 +140,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
     def log_kd_acc(self, logits_per_image, logits_per_text, target, stage):
         img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
         text_itc_acc = (logits_per_text.argmax(dim=1) == target).float().mean()
-        if key_prefix != "":
-            key_prefix = key_prefix + "_"
+        
         self.log(f"{stage}/kd_text_acc", text_itc_acc)
         self.log(f"{stage}/kd_image_acc", img_itc_acc)
         self.log(f"{stage}/kd_acc", (img_itc_acc + text_itc_acc) / 2, prog_bar=True)
