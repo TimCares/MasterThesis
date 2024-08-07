@@ -38,16 +38,24 @@ Experiments
 				Ablation Study: Removing ITC
 				
 			Token-Type Embedding
-			Retaining Pretrained Knowledge
-			Knowledge-Distillation Specific
-				Target-CMLI (-log(1-x) for phony target? or use eos?)
-				Dino Loss
+			(Retaining Pretrained Knowledge)
+			Target Cross-Modal Late Interaction
+				Cross-Modal Late Interaction
+				Method
+				Empty Target
+			Object-Level Regression
+				Contrastive Target Loss (each teacher target is a class -> not 1000 classes, but 256 or 512, each being the cls token of one image passed to the teacher)
 				Dimensionality Reduction (lin projection on both, teacher proj in ema of student proj)
 				Feature Clusters
-				Masked Vision-Language Modeling (same everything, just tokens randomly removed -> we can reuse teacher activations)
+			Knowledge-Distillation Specific
+				Dino Loss
+				
+				(Masked Vision-Language Modeling (same everything, just tokens randomly removed -> we can reuse teacher activations))
 				(Biased VL Initialization (init from text))
 				Fair Comparison with Supervised Teacher (bigger supervised teacher -> approx. 85 mill params)
-			Non-Knowledge-Distaillation
+			Importance of the right Teacher (why BEiT-2? etc...) (D2V2 Image, BEiT-3, Dino, )
+			Non-Knowledge-Distaillation (motivation -> application of kd very limited, especially with unimodal model)
+				Remove ITC? and do finetuning?
 			Limitations (from trained models alone: No NRLV2, etc possible) -> mention https://arxiv.org/pdf/2102.03334 section 2.1 beginning page 3
 		
 		Aligned Referencing Representations
@@ -56,9 +64,8 @@ Experiments
 			Masked Vision-Language Modeling
 			Additional Contribution: DistilBEiT-3
 
-		Additional Ablation Studies
-		Importance of the right Teacher (why BEiT-2? etc...) (D2V2 Image, BEiT-3, Dino, )
-		Reduction of Data (Mulitple reductions and plot retrieval and zero shot)
+		Ablation Study: Reduction of Data (Mulitple reductions and plot retrieval and zero shot)
+		
 		
 Conclusion
 Outlook (Same vs. different pos encoding ^*)

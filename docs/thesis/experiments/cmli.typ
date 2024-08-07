@@ -1,6 +1,6 @@
 #set math.equation(numbering: "(1)")
-===== Target Cross-Modal Late Interaction (CMLI) <target_cross_modal_late_interaction>
-==== Cross-Modal Late Interaction (CMLI) <cross_modal_late_interaction>
+===== Target Cross-Modal Late Interaction <target_cross_modal_late_interaction>
+==== Cross-Modal Late Interaction <cross_modal_late_interaction>
 Until now, we used the global text and image representations $mono(["T_CLS"])$ and $mono(["I_CLS"])$, respectively, for
 contrastive learning and the alignment loss of (TODO: cite removing itc).
 This has the disadvantage that only global information is utilized, and fine-grained, token/patch-specific, information is not considered.
@@ -192,13 +192,12 @@ which will strike a balance between utilizing the empty target for meaningless t
 We define the loss $cal(L)_("Reg")$ as follows:
 
 $
-cal(L)_("Reg") = -log(1-p)
+cal(L)_("Reg") = -log(p)
 $
 
-We denote $p$ as the percentage of tokens that have the highest similarity to the empty target, and not an actual image patch.
+We denote $p$ as the percentage of tokens that have the highest similarity to an actual image patch, and not the empty target.
 The more text tokens have the highest similarity to an image patch, the closer $cal(L)_("Reg")$ will be to zero, and vice versa.
 This forces the model to utilize the empty target for as few tokens as possible.
 
 
-===== Increasing CLS Weight <target_cmli_increasing_cls_weight>
 #bibliography("../references.bib")

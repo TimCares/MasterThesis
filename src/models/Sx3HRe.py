@@ -14,7 +14,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
-from modules import Block, ClipLoss, TargetCMLILoss
+from modules import Block, ClipLoss, KDClipLoss
 from timm.models.vision_transformer import LayerScale
 from utils import freeze_module, load_beit2_teacher
 
@@ -36,9 +36,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         )
         freeze_module(self.teacher)
 
-        self.t_cmli_loss = TargetCMLILoss(
-            embed_dim=self.cfg.model.embed_dim,
-        )
+        self.logit_scale_target = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
         self.save_hyperparameters()
 
@@ -46,6 +44,11 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         logger.info(f'World size: {self.trainer.world_size}')
         logger.info(f'Local rank: {self.trainer.local_rank}')
         self.clip_loss = ClipLoss(
+            cache_labels=True,
+            rank=self.trainer.local_rank,
+            world_size=self.trainer.world_size
+        )
+        self.kd_loss = KDClipLoss(
             cache_labels=True,
             rank=self.trainer.local_rank,
             world_size=self.trainer.world_size
@@ -74,27 +77,27 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             target = self.teacher.forward_features(
                 x=image_teacher,
                 bool_masked_pos=bool_masked_pos,
-            )
+            )[:, 0]
         
         output_dict = self(batch) # call "forward"
         input_text = output_dict['encoder_out_text']
         input_image = output_dict['encoder_out_image']
 
-        t_cmli_out = self.t_cmli_loss(
-            image=input_image,
-            text=input_text,
+        input_text = input_text / input_text.norm(dim=-1, keepdim=True)
+        input_image = input_image / input_image.norm(dim=-1, keepdim=True)
+        target = target / target.norm(dim=-1, keepdim=True)
+
+        kd_out = self.kd_loss(
+            input_image=input_image,
+            input_text=input_text,
             target=target,
-            padding_mask=batch['padding_mask'],
-            down_proj=self.model.down_proj,
+            logit_scale=self.logit_scale_target.exp(),
         )
 
-        for key in t_cmli_out.keys():
-            if 'loss' in key:
-                self.log(f"{stage}/{key}", t_cmli_out[key])
-
-        self.log(f"{stage}/frac_not_empty_token", t_cmli_out['frac_not_empty_token'])
-        
-        kd_loss = t_cmli_out['kd_loss']
+        self.log(f"{stage}/kd_text_loss", kd_out['text_loss'])
+        self.log(f"{stage}/kd_image_loss", kd_out['image_loss'])
+        kd_loss = kd_out['loss']
+        self.log(f"{stage}/kd_loss", kd_loss)
 
         self.model.logit_scale_interm.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
         self.model.logit_scale_out.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
@@ -230,8 +233,6 @@ class Sx3HRe(nn.Module):
         self.proj_norm = make_layer_norm(self.cfg.embed_dim)
         self.proj_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim)
 
-        self.down_proj = nn.Linear(self.cfg.embed_dim, 256)
-
         self.shared = Block(
             dim=self.cfg.embed_dim,
             num_heads=self.cfg.num_heads,
@@ -303,11 +304,10 @@ class Sx3HRe(nn.Module):
         x = encoder_out['x']
         mask = encoder_out['padding_mask'] if 'padding_mask' in encoder_out else None
         x_interm, x = self.shared(x=x, mask=mask)
-
-        out_dict["encoder_out"] = self.proj_head(self.proj_norm(x))
-
         x_interm = x_interm[:, 0]
         x = x[:, 0]
+
+        out_dict["encoder_out"] = self.proj_head(self.proj_norm(x))
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
         x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)

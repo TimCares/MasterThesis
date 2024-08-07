@@ -1,9 +1,8 @@
-#set heading(numbering: "1.1")
 === Contrastive Learning <contrastive_learning_section>
-
+==== Method
 Contrastive Learning is a method to learn representations of data without the need for labels, and is therefore
-a popular method in self-supervised learning.
-Here, samples (e.g., images) are compared with each other in representation space, typically using some distance metric,
+a popular method in Self-Supervised learning.
+Here, samples (e.g., images) are compared with each other in representation space using some distance metric,
 with cosine similarity being the usual choice. The goal is to learn an abstract representation of the input modality, such as images.
 
 Originally used in computer vision models like MoCo @moco and SimCLR @simclr, the idea is that a representation of an
@@ -13,11 +12,11 @@ same after augmentation, even though pixel-level information do not.
 The goal of the image model is then to maximize the cosine similarity between the original image and its augmented versions.
 
 However, this alone is not sufficient, as the model will collapse to a trivial solution by simply returning 
-the same representation for all inputs, which is the simplest way to maximize the cosine similarity between the original image
+the same representation for all inputs. This is the simplest way to maximize the cosine similarity between the original image
 and its augmented versions, because the representation produced for an image would always be the same.
 To prevent this, negative samples are introduced. Negative samples are other images that do not contain the same
 content as the original image, and the cosine similarity between the original image and these negative samples should therefore be minimized
-(a cosine similarity of 0 indicates to similarity between the input vectors).
+(a cosine similarity of 0 indicates no similarity between the input vectors).
 This prevents the model from collapsing to a constant representation, as it would not minimize the cosine similarity
 and thus not minimize the loss. A simple yet expressive visualization can be found in @simclr_vis.
 
@@ -36,15 +35,15 @@ and dissimilar representations for an image and caption that are unrelated.
   of other samples. Multimodal Contrastive Learning (b) requires existing pairs, e.g. image-text, while for the unimodal case (a) pairs are synthetically created by augmenting the input. Image-Text pairs in the figure have been taken from the COCO train set @coco.],
 ) <contrastive_alignment>
 
-Implementation
+==== Implementation
 
-In the multimodal case, used in this thesis, contrastive learning and contrastive loss are computed at the batch level.
-The multimodal model creates representations for all images and captions within the batch. In most cases, the CLS token is used as the global representation of an image ($mono(["I_CLS"])$) and text ($mono(["T_CLS"])$), respectively.
+In the multimodal case, used in this thesis, the contrastive loss is computed at the batch level,
+where the multimodal model first creates representations for all images and captions within the batch. In most cases, the CLS token is used as the global representation of an image, denoted as $mono(["I_CLS"])$, and text, denoted as $mono(["T_CLS"])$, respectively.
 
 Then, the cosine similarity between the representations of all possible image-text pairs in the batch is computed.
-This can be done efficiently by first normalizing each embedding and then performing matrix multiplication on the normalized representations.
+This can be done efficiently by normalizing each embedding and then performing matrix multiplication on the normalized representations.
 For a batch size of 256, each image has 255 negative samples (i.e., captions of other images) and one positive
-sample (i.e., its own caption), and vice versa.
+sample (i.e., its own caption), the same holds vice versa.
 This can be interpreted as a classification problem with 256 classes, where the model has to predict the correct
 class (i.e., the positive sample) out of 256 classes/representations, where each class is one caption or image, respectively.
 The result of the matrix multiplication is a 256x256 matrix of logits, where the diagonal contains the cosine similarity
@@ -57,8 +56,6 @@ An illustration of multimodal contrastive learning can be found in @contrastive_
   image("../figures/itc.png"),
   caption: [Contrastive Learning is performed using Matrix-Multiplication of normalized representations (1), usually done using the cls token. The diagonal of the resulting matrix contains the cosine similarity between positive samples. The softmax operation along the rows yields a probabilty distribution for each image over all captions, and the softmax operation along the columns vice versa. The cross-entropy loss is then used to calculate the loss for the image scores and caption scores, respectively. The final loss is the mean of both losses. Image-Text pairs in the figure have been taken from the COCO train set @coco.],
 ) <contrastive_learning_fig>
-
-Problem
 
 The performance of contrastive learning is highly dependent on the number of negative samples available.
 For instance, with a batch size of two, the model only needs to differentiate between one caption that belongs
@@ -91,6 +88,10 @@ in order for the retrieval to be considered correct.
 
 In this thesis, we use the 5K test set of MSCOCO @coco, and the 1K test set of Flickr30k @flickr30k for benchmarking,
 which is the standard benchmarking dataset for multimodal models like FLAVA @flava, CLIP @clip, VLMo @vlmo, and BEiT-3 @beit3.
-This provides us with an easy and cheap way to compare our model to state-of-the-art (SOTA) models.
+MSCOCO contains 5K images with 5 captions each @coco, and Flickr30k contains 1K images with 5 captions each @flickr30k.
+For both datasets, the all images and all texts are embedded and normalized, so that each image and each text is represented by
+the cls token that was returned by the model. Then, matrix multiplication between the images and captions of a dataset
+is performed, resulting in a matrix of shape (N, M), where N is the number of images and M is the number of captions in the dataset.
+So for MSCOCO, the matrix is of shape (5K, 25K), and for Flickr30k, the matrix is of shape (1K, 5K).
 
 #bibliography("../references.bib")
