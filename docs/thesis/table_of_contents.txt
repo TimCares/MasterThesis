@@ -3,6 +3,7 @@ BYOML: Bootstrap your own multimodal latent
 
 Introduction
 Background
+	Notations and Definitions (... of image patches etc. -> if this changes for specific experiments, mention then and redefine)
 	Self-Supervised Learning
 	Multimodal Models
 	(Masked Modality (Image/Text) Modeling)
@@ -20,7 +21,6 @@ Methodology
     Experimental Approach
 	Data and Preparation (mention uncurated nature -> imporant for scaling)
 Experiments
-	Notations and Definitions (... of image patches etc. -> if this changes for specific experiments, mention then and redefine)
 	Unimodal Knowledge Distillation
 	Multimodal Knowledge Distillation
 		Reproducing: “See, Hear, Read: Deep Aligned Representations"
