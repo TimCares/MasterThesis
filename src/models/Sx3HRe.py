@@ -38,6 +38,11 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
 
         self.logit_scale_target = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
+        self.teacher_down_project = nn.Linear(self.model.cfg.embed_dim, 512)
+        self.teacher_down_project.apply(init_bert_params)
+        self.student_down_project = nn.Linear(self.model.cfg.embed_dim, 512)
+        self.student_down_project.apply(init_bert_params)
+
         self.save_hyperparameters()
 
     def on_train_start(self):
@@ -80,8 +85,9 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             )[:, 0]
         
         output_dict = self(batch) # call "forward"
-        input_text = output_dict['encoder_out_text']
-        input_image = output_dict['encoder_out_image']
+        input_text = self.student_down_project(output_dict['encoder_out_text'])
+        input_image = self.student_down_project(output_dict['encoder_out_image'])
+        target = self.teacher_down_project(target)
 
         input_text = input_text / input_text.norm(dim=-1, keepdim=True)
         input_image = input_image / input_image.norm(dim=-1, keepdim=True)
