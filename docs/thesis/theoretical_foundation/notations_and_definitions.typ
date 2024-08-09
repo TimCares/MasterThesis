@@ -11,9 +11,9 @@ ViT-B/16 @vit, the image is patchified into 14x14 patches, each being a square o
 sequence, and the number of patches $N$ is given by $N = H times W / P^2$, with $P$ being the number of patches per dimension, and $P=14$.
 Since we use an image size of 224x224 pixels, so $bold(v) in RR^(3 times 244 times 244)$, we will have $N=244 times 244 / 14^2 = 196$
 patches, or timesteps respectively. Each patch is flattened into a 256-dimensional vector, 
-and then projected into a 768-dimensional vector $bold(e)^v_i in RR^768$, using a fully connected layer. 
-The image sequence is prepended with a special 768-dimensional learnable $mono(["I_CLS"]) in RR^768$ token,
-which is used to aggregate the global information/content of the image, and, following @vit, also 768-dimensional.
+and then projected into a 768 dimensions $bold(e)^v_i in RR^768$, using a fully connected layer. 
+The image sequence is prepended with a special learnable $mono(["I_CLS"]) in RR^768$ token,
+which is used to aggregate the global information/content of the image, and following @vit.
 The result is a sequence of patch embeddings, which we define as $bold(E)_v$, where $v$ indicates an image:
 
 $
@@ -52,7 +52,7 @@ bold(H)^s_(v, L)=[bold(h)^s_(v, L, mono(["I_CLS"])), bold(h)^s_(v, L, 1), ..., b
 $ <image_representation_output>
 
 === Text Representation
-We define a text as a sequence of discrete tokens, which are, similiar to image patches, embedded into 768-dimensional vectors,
+We define a text as a sequence of discrete tokens, which are, similiar to image patches, embedded into 768-dimensional vectors
 using an embedding matrix.
 A single token $i$ is represented as $bold(e)^t_i in RR^768$, and the sequence of tokens, representing the text, is prepended
 with a start-of-sequence token $mono(["T_CLS"]) in RR^768$, and appended with an end-of-sequence token $mono(["T_SEP"]) in RR^768$.
@@ -64,7 +64,12 @@ $
 bold(E)_w = [bold(e)^w_mono(["T_CLS"]), bold(e)^w_1, bold(e)^w_2, ..., bold(e)^w_M, bold(e)^w_mono(["T_SEP"])]
 $
 
-As with the image, a positional encoding is added to the text embeddings, to give the Transformer a sense of order in the text sequence.
+The maximum text sequence length $M$ is not fixed, and will be defined when neccessary in the experimental part of this work.
+
+As mentioned (TODO: cite data preparation), to obtain discrete tokens, a sentence is tokenized into subwords using the GPT-2 byte-pair encoder,
+so one token does not necessarily represent a whole word.
+
+A positional encoding is also added to the text embeddings, to give the Transformer a sense of order in the text sequence.
 Since the special token $mono(["T_SEP"])$ denotes the end of the text sequence, it is part of the sequence, and therefore has a positional encoding.
 The latter does not hold for the $mono(["T_CLS"])$ token, as it is used to aggregate the global information/content of the text.
 
@@ -75,17 +80,37 @@ $
 A text representation is defined as:
 
 $
-
-$
-
-For the Transformer blocks, we use the same same structure for both image and text.
-As mentioned in (TODO: cite data preparation), text is tokenized into subwords using the GPT-2 byte-pair encoder also used in Data2Vec @data2vec @data2vec2. Before being passed into the Transformer, a start-of-sequence token $mono(["T_CLS"])$ is added to the beginning of the sequence, and an end-of-sequence token $mono(["T_SEP"])$ is added to the end of the sequence. Then, the sequence is embedded into 768-dimensional vectors, and a positional encoding is added
-to the embeddings. In this thesis, we define a text sequence as follows:
-
-$
 bold(H)^s_(w, l)=[bold(h)^s_(w, l, mono(["T_CLS"])), bold(h)^s_(w, l, 1), ..., bold(h)^s_(w, l, M), bold(h)^s_(w, l, mono(["T_SEP"]))]
+$ <text_representation>
+
+@text_representation denotes the representation denoted by a student model $s$, but it can also be a teacher representation $t$.
+
+The input to the Transformer for text is @text_representation with $l=0$, and the output of the Transformer is @text_representation with $l=L$.
+
+=== Transformer Block
+Unless we use pretrained architectures that follow a different architecture, which we will then specify, we follow the Pre-LayerNorm definition of the Transformer block as given in @pre_layer_norm. As the name suggests, it applies LayerNorm before the Multi-Head Attention, instead of after.
+
+#figure(
+  image("../figures/pre_layer_norm.png", width: 50%),
+  caption: [Comparison of a Post-Norm Transformer block/layer (a), and a Pre-Norm Transformer block/layer (b).
+  (a) is the architecture as defined in the original "Attention is all you need" paper @transformer. We follow the Pre-Norm architecture @pre_layer_norm.
+  ],
+) <pre_layer_norm_fig>
+
+One Transformer block performs the following operations:
+
+$
+bold(H)'_l = op("MHA")(op("LN")(bold(H)_(l-1))) + bold(H)_(l-1)
+$
+$
+bold(H)_l = op("FFN")(bold(H)_(l-1)) + bold(H)'_l
 $
 
-Because we use KD in some parts, representations will be superscripted with $s$ or $t$, for a student and teacher representation, respectively.
+We denote $op("LN")$ as LayerNorm, $op("MHA")$ as Multi-Head Attention, and $op("FFN")$ as a 2 layer MLP, all following the original Transformer
+of @transformer. As previously mentioned, the only difference is the order of
+operations @pre_layer_norm. $bold(H)^s_(v, l)$ and $bold(H)^s_(w, l)$ can be used as a drop-in replacement for image and text, respectively.
+Both equations are inspired by VLMo @vlmo.
+
+We define a Transformer as multiple Transformer blocks stacked on top of each other.
 
 #bibliography("../references.bib")
