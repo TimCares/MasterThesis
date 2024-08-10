@@ -201,6 +201,78 @@ class ClipMomentumMemoryBankLoss(nn.Module):
             'targets': labels,
         }
         return out_dict
+    
+
+class KDClipMomentumMemoryBankLoss(nn.Module):
+    def __init__(
+            self,
+            embed_size:int=768,
+            size:int=16384, # 2^14
+            device:str='cuda',
+            world_size:int=1,): 
+        super().__init__()
+        self.world_size = world_size
+        self.size = size
+        
+        target_mb_ = torch.rand((self.size, embed_size), device=device, requires_grad=False)
+        target_mb_ = target_mb_ / target_mb_.norm(dim=-1, keepdim=True)
+        self.register_buffer('target_memory_bank', target_mb_)
+        self.index_pointer = 0
+
+    def _update(self, target:torch.Tensor) -> None:
+        if self.world_size > 1:
+            all_target = GatherLayer.apply(target)
+            all_target = torch.cat(all_target)
+
+        bsz = all_target.shape[0]
+        assert self.size % bsz == 0
+
+        end_idx = self.index_pointer + bsz
+        self.target_memory_bank[self.index_pointer:end_idx] = all_target.detach()
+
+        self.index_pointer = end_idx % self.size
+    
+    def forward(
+            self,
+            input_image:torch.Tensor,
+            input_text:torch.Tensor,
+            target:torch.Tensor,
+            logit_scale:torch.Tensor,) -> Dict[str, torch.Tensor]:
+        return self.compute_loss(
+            logit_scale=logit_scale, 
+            input_image=input_image,
+            input_text=input_text,
+            target=target,
+        )
+
+    def compute_loss(
+            self,
+            input_image:torch.Tensor,
+            input_text:torch.Tensor,
+            target:torch.Tensor,
+            logit_scale:torch.Tensor,) -> Dict[str, torch.Tensor]:
+        device = input_image.device
+        
+        all_target = torch.cat([target, self.target_memory_bank], dim=0).t()
+        logits_per_image = logit_scale * input_image @ all_target
+        logits_per_text = logit_scale * input_text @ all_target
+
+        labels = torch.arange(logits_per_image.shape[0], device=device, dtype=torch.long)
+
+        image_loss = F.cross_entropy(logits_per_image, labels)
+        text_loss = F.cross_entropy(logits_per_text, labels)
+
+        total_loss = (image_loss + text_loss) / 2
+
+        out_dict = {
+            'loss': total_loss,
+            'image_loss': image_loss,
+            'text_loss': text_loss,
+            'logits_per_image': logits_per_image,
+            'logits_per_text': logits_per_text,
+            'targets': labels,
+        }
+        return out_dict
 
 # adapted from VLMo -> https://github.com/microsoft/unilm/blob/master/vlmo/vlmo/modules/objectives.py
 class ITMLoss(nn.Module):

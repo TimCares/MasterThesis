@@ -5,6 +5,7 @@ from .losses import (
     KDClipLoss,
     ITMLoss, 
     ClipMomentumMemoryBankLoss, 
+    KDClipMomentumMemoryBankLoss,
     CMLILoss, 
     SparseCMLILoss,
     CosineCMLILoss,

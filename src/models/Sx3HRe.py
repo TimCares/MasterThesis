@@ -14,7 +14,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
-from modules import Block, ClipLoss, KDClipLoss
+from modules import Block, ClipLoss, KDClipMomentumMemoryBankLoss
 from timm.models.vision_transformer import LayerScale
 from utils import freeze_module, load_beit2_teacher
 
@@ -38,11 +38,6 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
 
         self.logit_scale_target = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
-        self.teacher_down_project = nn.Linear(self.model.cfg.embed_dim, 512)
-        self.teacher_down_project.apply(init_bert_params)
-        self.student_down_project = nn.Linear(self.model.cfg.embed_dim, 512)
-        self.student_down_project.apply(init_bert_params)
-
         self.save_hyperparameters()
 
     def on_train_start(self):
@@ -53,9 +48,10 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             rank=self.trainer.local_rank,
             world_size=self.trainer.world_size
         )
-        self.kd_loss = KDClipLoss(
-            cache_labels=True,
-            rank=self.trainer.local_rank,
+        self.kd_loss = KDClipMomentumMemoryBankLoss(
+            embed_size=self.cfg.model.embed_dim,
+            size=768,
+            device=self.device,
             world_size=self.trainer.world_size
         )
 
@@ -85,9 +81,8 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             )[:, 0]
         
         output_dict = self(batch) # call "forward"
-        input_text = self.student_down_project(output_dict['encoder_out_text'])
-        input_image = self.student_down_project(output_dict['encoder_out_image'])
-        target = self.teacher_down_project(target)
+        input_text = output_dict['encoder_out_text']
+        input_image = output_dict['encoder_out_image']
 
         input_text = input_text / input_text.norm(dim=-1, keepdim=True)
         input_image = input_image / input_image.norm(dim=-1, keepdim=True)
@@ -131,6 +126,8 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         loss = kd_loss + itc_loss
 
         self.log(f"{stage}/loss", loss, prog_bar=True)
+
+        self.kd_loss._update(target=target)
         
         return loss
     
