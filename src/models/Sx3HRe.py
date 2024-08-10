@@ -14,7 +14,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
-from modules import Block, ClipLoss, KDClipMomentumMemoryBankLoss
+from modules import Block, ClipLoss, KDClipMomentumMemoryBankLoss, KDClipLoss
 from timm.models.vision_transformer import LayerScale
 from utils import freeze_module, load_beit2_teacher
 
@@ -48,9 +48,15 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             rank=self.trainer.local_rank,
             world_size=self.trainer.world_size
         )
-        self.kd_loss = KDClipMomentumMemoryBankLoss(
+        self.kd_loss_clip = KDClipLoss(
+            cache_labels=True,
+            rank=self.trainer.local_rank,
+            world_size=self.trainer.world_size
+        )
+
+        self.kd_loss_mb = KDClipMomentumMemoryBankLoss(
             embed_size=self.cfg.model.embed_dim,
-            size=768,
+            size=1024,
             device=self.device,
             world_size=self.trainer.world_size
         )
@@ -88,12 +94,22 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         input_image = input_image / input_image.norm(dim=-1, keepdim=True)
         target = target / target.norm(dim=-1, keepdim=True)
 
-        kd_out = self.kd_loss(
-            input_image=input_image,
-            input_text=input_text,
-            target=target,
-            logit_scale=self.logit_scale_target.exp(),
-        )
+        if stage == 'train':
+            kd_out = self.kd_loss_mb(
+                input_image=input_image,
+                input_text=input_text,
+                target=target,
+                logit_scale=self.logit_scale_target.exp(),
+            )
+            self.kd_loss_mb._update(target=target)
+        else:
+            kd_out = self.kd_loss_clip(
+                input_image=input_image,
+                input_text=input_text,
+                target=target,
+                logit_scale=self.logit_scale_target.exp(),
+            )
+
 
         self.log(f"{stage}/kd_text_loss", kd_out['text_loss'])
         self.log(f"{stage}/kd_image_loss", kd_out['image_loss'])
@@ -126,8 +142,6 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         loss = kd_loss + itc_loss
 
         self.log(f"{stage}/loss", loss, prog_bar=True)
-
-        self.kd_loss._update(target=target)
         
         return loss
     

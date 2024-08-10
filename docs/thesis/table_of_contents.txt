@@ -10,8 +10,8 @@ Background
 	Contrastive Learning and Retrieval
 	Knowledge-Distillation
 	Related Work
-		Data2Vec
 		Deep Aligned Representations
+		Data2Vec
 		CLIP
 		FLAVA
 		VLMo
@@ -68,7 +68,7 @@ Experiments
 		
 		
 Conclusion
-Outlook (Same vs. different pos encoding ^*)
+Outlook (Same vs. different pos encoding ^*, can architectures be mixed?, add other modalities, especially audio)
 Lessons Learned
 Appendix (plots, money spend etc.)
 	Hyperparameters
