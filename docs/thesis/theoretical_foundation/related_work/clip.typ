@@ -9,8 +9,9 @@ The architecture consists of a separate image encoder $f$ and text encoder $g$, 
 and a linear projection (linear layer without bias and activation function) on top of the modality-specific encoders.
 
 The forward pass works as follows:
-For a batch of image-text pairs, the images $bold(v)$ are passed through the image encoder, resulting in an image representation $f(bold(v))$.
-Similarly, the texts $bold(w)$ are passed through the text encoder, producing a text representation $g(bold(w))$.
+For a batch of image-text pairs, the images $bold(V)$ are passed through the image encoder, resulting in an image
+representation $bold(V)' = f(bold(V))$.
+Similarly, the texts $bold(W)$ are passed through the text encoder, producing a text representation $bold(W)' = g(bold(W))$.
 
 Both the image and text representations produced by the encoders are in separate embedding spaces — one for text and one for images -
 they are not related to each other initially.
@@ -22,15 +23,19 @@ and through a ranking loss @shre. CLIP maps the image and text representations i
 for image and text, respectively. These linear projections allow the model to map the image and text embeddings in a shared latent space, 
 which is ensured by the contrastive loss.
 
-The image representation in the shared embedding space is denoted as $bold(I) = ||O_v times f(bold(v))^T||_2$, and the text representation
-as is given by $bold(T) = ||O_t times g(bold(w))^T||_2$. Since cosine similarity is used as the similarity metric in the contrastive loss,
+The image representation in the shared embedding space is denoted as $bold(I) = ||O_v bold(V)'^T||_2$, and the text representation
+as is given by $bold(T) = ||O_t bold(W)'^T||_2$. Since cosine similarity is used as the similarity metric in the contrastive loss,
 the embeddings are normalized, which is indicated by the $||dot||_2$ around the result of the linear projections.
-It is important to note that the superscript $T$ denotes the transpose of a matrix, not the batch of text representations, and that
-$times$ denotes matrix multiplication.
+It is important to note that the superscript $T$ denotes the transpose of a matrix, not the batch of text representations.
 
 To compute the cosine similarity between all possible image-text pairs in the batch, it is sufficient to perform matrix multiplication
-of the normalized representations. The result is given by $bold(L) = exp(t) * (bold(I) times bold(T))$, with $bold(L) in RR^(B times B)$,
-where $B$ is the batch size.
+of the normalized representations. The result is given by:
+
+$
+bold(L) = exp(t) * bold(I) bold(T), bold(L) in RR^(B times B)
+$
+
+$B$ is the batch size.
 
 In the calculation, it is notable that the cosine similarities are scaled by $exp(t)$, where $t$ is a temperature parameter.
 This parameter is used to control the smoothness of the softmax function, which is applied to the cosine similarities.
@@ -79,6 +84,40 @@ The authors use a very large batch size of 32,768 @clip. An abstract illustratio
 (TODO: cite figure) in the Appendix.
 
 ==== Zero-Shot Image Classification
+
+What makes CLIP special is its method of zero-shot image classification using the trained model.
+This capability is achieved through prompt engineering on the text encoder.
+For each class in the dataset, where image classification is desired, the name of the class is injected into a prompt template.
+The prompt template follows a structure like this: "a photo of a {class name}.".
+
+CLIP uses 80 different prompts, so for each class in the dataset, 80 distinct prompts are generated (similar to the example shown above).
+These 80 prompts are passed through the text encoder and text projection, resulting in 80 different text embeddings for one class.
+These embeddings are then averaged and normalized, yielding a single embedding per class.
+This embedding captures the semantic meaning of the class name, which the model learned through contrastive pretraining.
+
+To classify an image, the image is passed through the image encoder and image projection, resulting in an image embedding.
+The cosine similarity between this image embedding and all class embeddings is calculated.
+The class corresponding to the text embedding with the highest similarity to the image representation is predicted as the class for the image,
+as demonstrated in @clip_zero_shot.
+
+#figure(
+  image("../../figures/clip_zero_shot.png"),
+  caption: [For zero-shot image classification, CLIP uses prompt engineering to create one classifier per image class to predict (2).
+  The class whose classifier has the highest similarity (cosine) with the image representation is the predicted class (3) for the image @clip.],
+) <clip_zero_shot>
+
+The approach reaches a zero-shot accuracy of 76.2% on the validation set of ImageNet-1K @imagenet, with a top-5 accuracy of 95% @clip.
+This is particularly impressive, given that the model has never seen any images from the ImageNet-1K dataset during training,
+nor has it been trained on any image classification task.
+It merely achieves this accuracy through its cross-modal understanding between text and image. The model effectively “knows”
+how the ImageNet-1K classes look visually.
+
+However, it is important to note that these results were based on a vision Transformer, following the ViT-L/14@336px architecture, for
+the image encoder. This architecture consists of 24 layers, 16 attention heads, a hidden size of 1024, and processes images
+at a resolution of 336x336 @clip. For the text encoder, a 12-layer Transformer was used, consisting of 12 attention heads
+and a hidden size of 768 @clip. According to HuggingFace, the model is 428 million parameters
+large #footnote[#link("https://huggingface.co/openai/clip-vit-large-patch14")].
+Additionally, the model was trained on a custom dataset specifically developed for CLIP, consisting of 400 million image-text pairs @clip.
 
 
 #bibliography("../../references.bib")
