@@ -56,7 +56,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
 
         self.kd_loss_mb = KDClipMomentumMemoryBankLoss(
             embed_size=self.cfg.model.embed_dim,
-            size=1024,
+            size=65536,
             device=self.device,
             world_size=self.trainer.world_size
         )

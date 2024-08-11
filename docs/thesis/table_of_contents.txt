@@ -1,21 +1,29 @@
 EMKUM: Extracting Multimodal Knowledge from Unimodal Models
 BYOML: Bootstrap your own multimodal latent
 
+<Abstract>
 Introduction
+	Motivation
+	Goals and Contributions
+	Content
 Background
 	Notations and Definitions (... of image patches etc. -> if this changes for specific experiments, mention then and redefine)
-	Self-Supervised Learning
-	Multimodal Models
-	(Masked Modality (Image/Text) Modeling)
-	Contrastive Learning and Retrieval
 	Knowledge-Distillation
+	Multimodal Models
+	Self-Supervised Learning
+		Motivation
+		Masked Data Modeling
+			Language
+			Vision
+		Self-Distillation
+		Contrastive Learning
+		Image-Text Retrieval
 	Related Work
 		Deep Aligned Representations
-		Data2Vec
 		CLIP
-		FLAVA
 		VLMo
-		BEiT
+		BEiT v3
+		(FLAVA)
 Methodology
 	Tools
     Experimental Approach
