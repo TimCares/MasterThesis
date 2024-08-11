@@ -73,7 +73,7 @@ Lessons Learned
 Appendix (plots, money spend etc.)
 	Hyperparameters
 	Pseudocode
-	Additional Visualizations
+	Figures and Visualizations
 	Technical Details
 
 
