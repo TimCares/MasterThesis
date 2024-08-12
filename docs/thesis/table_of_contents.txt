@@ -7,23 +7,22 @@ Introduction
 	Goals and Contributions
 	Content
 Background
+	(Transformers)
 	Notations and Definitions (... of image patches etc. -> if this changes for specific experiments, mention then and redefine)
-	Knowledge-Distillation
-	Multimodal Models
+	Knowledge-Distillation (eig eher nur unimodal (und supervised), deswegen hier)
 	Self-Supervised Learning
-		Motivation
-		Masked Data Modeling
-			Language
-			Vision
-		Self-Distillation
-		Contrastive Learning
-		Image-Text Retrieval
+	Self-Distillation (bezug auf SSL)
+	Multimodal Models
+		Alignment by Space
+		Alignment by Representation
+		Alignment by Loss
+	Contrastive Learning
+	Image-Text Retrieval
 	Related Work
-		Deep Aligned Representations
-		CLIP
-		VLMo
-		BEiT v3
-		(FLAVA)
+		Deep Aligned Representations (by Space (+ Loss))
+		CLIP (by Loss)
+		VLMo (by Representation & Loss)
+		BEiT v3 (by Representation)
 Methodology
 	Tools
     Experimental Approach
@@ -46,7 +45,6 @@ Experiments
 				Ablation Study: Removing ITC
 				
 			Token-Type Embedding
-			(Retaining Pretrained Knowledge)
 			Target Cross-Modal Late Interaction
 				Cross-Modal Late Interaction
 				Method
@@ -54,7 +52,10 @@ Experiments
 			Object-Level Regression
 				Contrastive Target Loss (each teacher target is a class -> not 1000 classes, but 256 or 512, each being the cls token of one image passed to the teacher)
 				Dimensionality Reduction (lin projection on both, teacher proj in ema of student proj)
-				Feature Clusters
+				Discussing Feature Clusters
+			Latent Space Mapping
+				Student2Teacher
+				Teacher2Student
 			Knowledge-Distillation Specific
 				Dino Loss
 				
@@ -76,7 +77,7 @@ Experiments
 		
 		
 Conclusion
-Outlook (Same vs. different pos encoding ^*, can architectures be mixed?, add other modalities, especially audio)
+Outlook (Same vs. different pos encoding ^*, can architectures be mixed?, add other modalities, especially audio + add audio)
 Lessons Learned
 Appendix (plots, money spend etc.)
 	Hyperparameters
