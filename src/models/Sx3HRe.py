@@ -118,25 +118,23 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
 
         self.log_kd_acc(kd_out['logits_per_image'], kd_out['logits_per_text'], kd_out['targets'], stage)
 
+        self.model.logit_scale_pre.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
         self.model.logit_scale_interm.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
         self.model.logit_scale_out.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
 
-        itc_out1 = self.clip_loss(
-            image_features=output_dict['x_interm_image'],
-            text_features=output_dict['x_interm_text'],
-            logit_scale=self.model.logit_scale_interm.exp(),
-        )
-
-        itc_out2 = self.clip_loss(
-            image_features=output_dict['x_image'],
-            text_features=output_dict['x_text'],
-            logit_scale=self.model.logit_scale_out.exp(),
-        )
-
-        self.log_itc_acc(itc_out1['logits_per_image'], itc_out1['logits_per_text'], itc_out1['targets'], stage, key_prefix="interm")
-        self.log_itc_acc(itc_out2['logits_per_image'], itc_out2['logits_per_text'], itc_out2['targets'], stage)
+        itc_losses = []
+        logit_scales = [self.model.logit_scale_pre, self.model.logit_scale_interm, self.model.logit_scale_out]
+        for key, scale in zip(['pre_', 'interm_', ''], logit_scales):
+            itc_out = self.clip_loss(
+                image_features=output_dict[f'x_{key}image'],
+                text_features=output_dict[f'x_{key}text'],
+                logit_scale=scale.exp(),
+            )
+            itc_losses.append(itc_out['loss'])
+            key_prefix = key if key == '' else key[:-1]
+            self.log_itc_acc(itc_out['logits_per_image'], itc_out['logits_per_text'], itc_out['targets'], stage, key_prefix=key_prefix)
             
-        itc_loss = (itc_out1['loss'] + itc_out2['loss']) / 2
+        itc_loss = (itc_losses[0] + itc_losses[1] + itc_losses[2]) / 3
         self.log(f"{stage}/itc_loss", itc_loss)
         
         loss = kd_loss + itc_loss
@@ -254,14 +252,11 @@ class Sx3HRe(nn.Module):
         self.cfg = cfg
         make_layer_norm = partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
 
-        self.token_type_embeddings = nn.Embedding(2, self.cfg.embed_dim)
-        self.tte_scale = LayerScale(self.cfg.embed_dim, init_values=1e-5)
+        self.img_to_mm_projection = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim)
+        self.text_to_mm_projection = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim)
 
-        self.proj_layer = nn.Sequential(
-            nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim),
-            nn.Tanh(),
-            nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim), # BEiT v2 VQ-VAE
-        )
+        self.proj_norm = make_layer_norm(self.cfg.embed_dim)
+        self.proj_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim)
 
         self.shared = Block(
             dim=self.cfg.embed_dim,
@@ -274,6 +269,7 @@ class Sx3HRe(nn.Module):
 
         self.apply(init_bert_params)
 
+        self.logit_scale_pre = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         self.logit_scale_interm = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         self.logit_scale_out = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
@@ -307,11 +303,7 @@ class Sx3HRe(nn.Module):
             source=image,
             remove_extra_tokens=False,
         )
-        img_tte = self.token_type_embeddings(
-            torch.ones_like(encoder_out['x'][:, :, 0], dtype=torch.long)
-        )
-        img_tte = self.tte_scale(img_tte)
-        encoder_out['x'] = encoder_out['x'] + img_tte
+        encoder_out['x'] = self.img_to_mm_projection(encoder_out['x'])
         
         return self.encode_shared(encoder_out)
 
@@ -321,23 +313,22 @@ class Sx3HRe(nn.Module):
             padding_mask=padding_mask,
             remove_extra_tokens=False,
         )
-        text_tte = self.token_type_embeddings(
-            torch.zeros_like(padding_mask)
-        )
-        text_tte = self.tte_scale(text_tte)
-        encoder_out['x'] = encoder_out['x'] + text_tte
+        encoder_out['x'] = self.text_to_mm_projection(encoder_out['x'])
         
         return self.encode_shared(encoder_out)
     
     def encode_shared(self, encoder_out):
         out_dict = dict()
         x = encoder_out['x']
+        x_pre = x[:, 0]
+        x_pre = x_pre / x_pre.norm(dim=-1, keepdim=True)
+        out_dict['x_pre'] = x_pre
         mask = encoder_out['padding_mask'] if 'padding_mask' in encoder_out else None
         x_interm, x = self.shared(x=x, mask=mask)
         x_interm = x_interm[:, 0]
         x = x[:, 0]
 
-        out_dict["encoder_out"] = self.proj_layer(x)
+        out_dict["encoder_out"] = self.proj_head(self.proj_norm(x))
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
         x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
