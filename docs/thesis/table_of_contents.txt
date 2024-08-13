@@ -13,9 +13,6 @@ Background
 	Self-Supervised Learning
 	Self-Distillation (bezug auf SSL)
 	Multimodal Models
-		Alignment by Space
-		Alignment by Representation
-		Alignment by Loss
 	Contrastive Learning
 	Image-Text Retrieval
 	Related Work
@@ -45,6 +42,7 @@ Experiments
 				Ablation Study: Removing ITC
 				
 			Token-Type Embedding
+			Unimodal-2-Multimodal Projection
 			Target Cross-Modal Late Interaction
 				Cross-Modal Late Interaction
 				Method
@@ -53,9 +51,9 @@ Experiments
 				Contrastive Target Loss (each teacher target is a class -> not 1000 classes, but 256 or 512, each being the cls token of one image passed to the teacher)
 				Dimensionality Reduction (lin projection on both, teacher proj in ema of student proj)
 				Discussing Feature Clusters
-			Latent Space Mapping
+			(Latent Space Mapping
 				Student2Teacher
-				Teacher2Student
+				Teacher2Student)
 			Knowledge-Distillation Specific
 				Dino Loss
 				

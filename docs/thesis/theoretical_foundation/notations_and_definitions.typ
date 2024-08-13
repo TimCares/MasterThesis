@@ -103,13 +103,13 @@ $
 bold(H)'_l = op("MHA")(op("LN")(bold(H)_(l-1))) + bold(H)_(l-1)
 $
 $
-bold(H)_l = op("FFN")(bold(H)_(l-1)) + bold(H)'_l
+bold(H)_l = op("FFN")(op("LN")(bold(H)'_l)) + bold(H)'_l
 $
 
 We denote $op("LN")$ as LayerNorm, $op("MHA")$ as Multi-Head Attention, and $op("FFN")$ as a 2 layer MLP, all following the original Transformer
 of @transformer. As previously mentioned, the only difference is the order of
 operations @pre_layer_norm. $bold(H)^s_(v, l)$ and $bold(H)^s_(w, l)$ can be used as a drop-in replacement for image and text, respectively.
-Both equations are inspired by VLMo @vlmo.
+Both equations are, with slight adjustment, taken from VLMo @vlmo.
 
 We define a Transformer as multiple Transformer blocks stacked on top of each other.
 

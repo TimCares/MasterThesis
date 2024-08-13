@@ -3,64 +3,61 @@
 
 == Multimodal Models
 
-- are characterized by their ability to process multiple modalities, such as text, images, audio, or video, in a single model
-- motivation is that models should be able to understand real-world concepts in a similar way to humans
-- we can express concepts in different modalities, e.g., "a cat" in text, image, or audio -> no matter how we express it,
-  the interpretation and the understanding of the concept remains the same
-- in the world of AI models, that means the representation of a concept should be the same, no matter if it is expressed in text, image, or audio
-- in most models, not the case -> are unimodal models, so just process one modality
-- if we have a caption of an image, feed the caption into a text model, and the image into an image model, the representations
-  of the same concept will be different
-- we need to teach one model to understand the same concept expressed in different modalities -> multimodal models
+Multimodal models are characterized by their ability to process multiple modalities, such as text, images,
+audio, or video, within a single model. The motivation behind these models lies in the idea that
+models should be able to understand real-world concepts in a way similar to humans. Humans can express the same concept
+across different modalities, for example, “a cat” can be represented in text, image, or audio, and regardless of how the concept
+is expressed, the interpretation and understanding remains the same.
+Please note that since our focus is on vision-language models, all further explanations will be
+based on the alignment of vision and language.
 
-- even though it is a multimodal model, so the same concept expressed in different modalities should have the same representation,
-  the model still first needs to process the different modalities separately -> they are still different, e.g. image 2d and
-  consisting of pixels, and text is 1d and consisting of words
-- seperate processing is, as mentioned before, done by modality-specific encoders -> they encode the input into a modality-specific
-  representation space -> just like normal unimodal models
-- especially for the modality-specific encoders, any architecture of unimodal models can be used, e.g. ResNet for images, or BERT for text
-- however, we will use Transformers
+In the context of Deep Learning, this means that the representations of a concept should be the same (or at least close to each other),
+no matter if is expressed through text or image, which is also called alignment.
+However, in most existing models, this is not the case. These models are typically unimodal, meaning they process only one modality,
+making alignment of multiple modalities impossible.
+A naive approach would be to pass an image into an image model, and its caption into a text model. Even though the generated representations
+describe the same concept, they will not be the same, as both models are not related to each other.
+Each model will have a seperate latent space, as there has been no incentive for the models to learn a representation that
+is aligned across modalities (@different_latent_spaces), resulting in different representations for the same concept.
+While it is possible to compare the representations of two unimodal models, e.g. through cosine similarity,
+a similarity close to 1 (the maximum) does not necessarily mean that the concepts expressed in the representations are the same.
+There simply is no semantic relationship between the representations of the same concept produced by two unimodal models.
+A proof will be shown in (TODO: cite section where d2v2 image+text is used with retrieval).
 
-- multimodal models need a component that enforces a common representation space of the different modalities
-- responsible for mapping the modality-specific representations into a common representation space
-- we classify the component for alignment into three categories: alignment by space, alignment by representation, and alignment by loss
-- introduced in the following sections
-- since we use vision-language models only, all further explanations will be based on the alignment of vision and language
+To overcome this limitation, we need to develop models that can understand the same concept across different modalities,
+or input types respectively. They map the input of different modalities into a common representation space, where the representations
+of the same concept are aligned, i.e. close to each other.
 
-=== Alignment by Space
+#figure(
+  image(
+  width: 75%,
+  "../figures/different_latent_spaces.png"),
+  caption: [A multimodal model maps multiple modalities into a common representation space, where the representations of the same concept are aligned. In contrast, unimodal models map the input of a single modality into a modality-specific representation space. There is no alignment
+  between the representations of the same concept produced by two unimodal models (indicated by the double slashed [\//] arrow).
+  While a comparison between the representations of two unimodal
+  models is numerically possible, e.g. through cosine similarity, the similarity cannot be interpreted in a meaningful way.],
+) <different_latent_spaces>
 
-- image and text representations, created by image encoder and text encoder respectively, are mapped into a common representation space
--> the same space for all modalities
-- this is enforced by a shared encoder, in which both the image and text representations are passed through, but seperately
-- different to representation space of image and text encoder => image and text representation space are not related to each other
-- shared encoder can be a normal Transformer layer
-- since image and text are encoded as a sequence of tokens, the cls token output of the shared encoder is used as the representation
--> captures global information of the input -> single time step not useful for alignment, as a single time step in images represents
-a patch of pixels, and in text a word or subword
-- however, just because the representations are in the same space, does not necessarily mean they are aligned -> need to enforce alignment
+Multimodal models consist of both unimodal encoders and multimodal components. Unimodal encoders are needed because of the
+inherent differences between modalities, e.g. image and text: Images are 2D and composed of pixels, while text is 1D and composed of words.
+Unimodal encoders encode the input into a modality-specific representation space, so they are normal
+unimodal models, e.g. a ResNet for images. In this work, all encoders will be based on the Transformer architecture.
 
-=== Alignment by Loss
+Multimodal models require components that enforce a common representation space for the different modalities.
+There are two main components, a multimodal (or shared) encoder and a loss function.
 
-- alignment is enforced explicitly by a loss function
-- pushes the representations of the same concept, expressed in positive image-text pairs (so an image and its caption), closer together,
-while pushing the representations of different concepts, expressed in negative image-text pairs (so an image and an unrelated caption
-or vice versa), further apart
-- needs a distance metric to quantify the similarity between the representations -> cosine similarity is usually used
-- loss function is usually contrastive loss, introduced in (TODO: cite contrastive loss section)
+The multimodal encoder is responsible for mapping the modality-specific representations into a unified/shared representation space,
+where representations should be independent of the modality. That means, the representations should not contain any modality-specific information,
+e.g. pixel information in images or single-word information in text. Only then representations of the same concept can be aligned, or close
+to each other under some distance metric, respectively.
 
-- often combined with alignment by space -> shared encoder maps the image and text representations into the same space, and the contrastive
-loss enforces the alignment in this space
-- but shared encoder not necessary for alignment if contrastive loss is used -> how is described in (TODO: cite clip section), where CLIP
-is introduced
+To actually ensure that the representations of the same concept are aligned, and not only in the same space,
+a training objective is needed that pushes the representations of the same concept closer together in representation space,
+while pushing the representations of different concepts further apart. For vision-language models this translates to
+pushing the representations of an image and its caption closer together, while pushing the representations of an image and an unrelated caption
+(or vice versa) further apart. To quantify the similarity between two representations,
+a distance metric is used, e.g. cosine similarity.
+The loss function is usually a contrastive loss, which will be introduced in the following section.
 
-=== Alignment by Representation
-
-- alignment is enforced implicitly by the representations themselves
-- image and text representations, created by image encoder and text encoder respectively, are combined into a single representation
-and passed through a shared encoder
-- embedding itself is shared -> a single image-text representation is created
-- in Transformers, text sequence and image sequence can simply be concatenated, and passed through a shared
-Transformer block (vision-language block)
-- Self-Attention captures cross-modal interactions, cls token of text can be used as image-text representation (shared representation)
 
 #bibliography("../references.bib")
