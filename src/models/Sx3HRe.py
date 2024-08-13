@@ -36,6 +36,8 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         )
         freeze_module(self.teacher)
 
+        self.logit_scale_target = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+
         self.save_hyperparameters()
 
     def on_train_start(self):
@@ -44,6 +46,18 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.clip_loss = ClipLoss(
             cache_labels=True,
             rank=self.trainer.local_rank,
+            world_size=self.trainer.world_size
+        )
+        self.kd_loss_clip = KDClipLoss(
+            cache_labels=True,
+            rank=self.trainer.local_rank,
+            world_size=self.trainer.world_size
+        )
+
+        self.kd_loss_mb = KDClipMomentumMemoryBankLoss(
+            embed_size=self.cfg.model.embed_dim,
+            size=65536,
+            device=self.device,
             world_size=self.trainer.world_size
         )
 
@@ -73,11 +87,36 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             )[:, 0]
         
         output_dict = self(batch) # call "forward"
+        input_text = output_dict['encoder_out_text']
         input_image = output_dict['encoder_out_image']
 
-        kd_loss = F.mse_loss(input=input_image, target=target)
-        self.log(f"{stage}/kd_image_loss", kd_loss)
+        input_text = input_text / input_text.norm(dim=-1, keepdim=True)
+        input_image = input_image / input_image.norm(dim=-1, keepdim=True)
+        target = target / target.norm(dim=-1, keepdim=True)
+
+        if stage == 'train':
+            kd_out = self.kd_loss_mb(
+                input_image=input_image,
+                input_text=input_text,
+                target=target,
+                logit_scale=self.logit_scale_target.exp(),
+            )
+            self.kd_loss_mb._update(target=target)
+        else:
+            kd_out = self.kd_loss_clip(
+                input_image=input_image,
+                input_text=input_text,
+                target=target,
+                logit_scale=self.logit_scale_target.exp(),
+            )
+
+
+        self.log(f"{stage}/kd_text_loss", kd_out['text_loss'])
+        self.log(f"{stage}/kd_image_loss", kd_out['image_loss'])
+        kd_loss = kd_out['loss']
         self.log(f"{stage}/kd_loss", kd_loss)
+
+        self.log_kd_acc(kd_out['logits_per_image'], kd_out['logits_per_text'], kd_out['targets'], stage)
 
         self.model.logit_scale_interm.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
         self.model.logit_scale_out.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
@@ -97,7 +136,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.log_itc_acc(itc_out1['logits_per_image'], itc_out1['logits_per_text'], itc_out1['targets'], stage, key_prefix="interm")
         self.log_itc_acc(itc_out2['logits_per_image'], itc_out2['logits_per_text'], itc_out2['targets'], stage)
             
-        itc_loss = (itc_out1['loss'] + itc_out2['loss']) / 2 # TODO: more weight to itc_out2?
+        itc_loss = (itc_out1['loss'] + itc_out2['loss']) / 2
         self.log(f"{stage}/itc_loss", itc_loss)
         
         loss = kd_loss + itc_loss
@@ -218,8 +257,11 @@ class Sx3HRe(nn.Module):
         self.token_type_embeddings = nn.Embedding(2, self.cfg.embed_dim)
         self.tte_scale = LayerScale(self.cfg.embed_dim, init_values=1e-5)
 
-        self.proj_norm = make_layer_norm(self.cfg.embed_dim)
-        self.proj_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim)
+        self.proj_layer = nn.Sequential(
+            nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim),
+            nn.Tanh(),
+            nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim), # BEiT v2 VQ-VAE
+        )
 
         self.shared = Block(
             dim=self.cfg.embed_dim,
@@ -271,7 +313,7 @@ class Sx3HRe(nn.Module):
         img_tte = self.tte_scale(img_tte)
         encoder_out['x'] = encoder_out['x'] + img_tte
         
-        return self.encode_shared(encoder_out, out_proj=True)
+        return self.encode_shared(encoder_out)
 
     def encode_text(self, text, padding_mask):
         encoder_out = self.text_model.extract_features(
@@ -287,7 +329,7 @@ class Sx3HRe(nn.Module):
         
         return self.encode_shared(encoder_out)
     
-    def encode_shared(self, encoder_out, out_proj=False):
+    def encode_shared(self, encoder_out):
         out_dict = dict()
         x = encoder_out['x']
         mask = encoder_out['padding_mask'] if 'padding_mask' in encoder_out else None
@@ -295,8 +337,7 @@ class Sx3HRe(nn.Module):
         x_interm = x_interm[:, 0]
         x = x[:, 0]
 
-        if out_proj:
-            out_dict["encoder_out"] = self.proj_head(self.proj_norm(x))
+        out_dict["encoder_out"] = self.proj_layer(x)
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
         x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
