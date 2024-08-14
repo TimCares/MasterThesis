@@ -6,10 +6,11 @@
 Multimodal models are characterized by their ability to process multiple modalities, such as text, images,
 audio, or video, within a single model. The motivation behind these models lies in the idea that
 models should be able to understand real-world concepts in a way similar to humans. Humans can express the same concept
-across different modalities, for example, “a cat” can be represented in text, image, or audio, and regardless of how the concept
+across different modalities, “a cat”, for example, can be represented in text, image, or audio, and regardless of how the concept
 is expressed, the interpretation and understanding remains the same.
+
 Please note that since our focus is on vision-language models, all further explanations will be
-based on the alignment of vision and language.
+based on the multimodality in the context of vision and language.
 
 In the context of Deep Learning, this means that the representations of a concept should be the same (or at least close to each other),
 no matter if is expressed through text or image, which is also called alignment.
@@ -25,7 +26,7 @@ There simply is no semantic relationship between the representations of the same
 A proof will be shown in (TODO: cite section where d2v2 image+text is used with retrieval).
 
 To overcome this limitation, we need to develop models that can understand the same concept across different modalities,
-or input types respectively. They map the input of different modalities into a common representation space, where the representations
+or input types respectively. They should map the input of different modalities into a common representation space, where the representations
 of the same concept are aligned, i.e. close to each other.
 
 #figure(
@@ -44,7 +45,7 @@ Unimodal encoders encode the input into a modality-specific representation space
 unimodal models, e.g. a ResNet for images. In this work, all encoders will be based on the Transformer architecture.
 
 Multimodal models require components that enforce a common representation space for the different modalities.
-There are two main components, a multimodal (or shared) encoder and a loss function.
+There are two options: A multimodal (or shared) encoder, or a loss function (training objective).
 
 The multimodal encoder is responsible for mapping the modality-specific representations into a unified/shared representation space,
 where representations should be independent of the modality. That means, the representations should not contain any modality-specific information,
@@ -58,6 +59,16 @@ pushing the representations of an image and its caption closer together, while p
 (or vice versa) further apart. To quantify the similarity between two representations,
 a distance metric is used, e.g. cosine similarity.
 The loss function is usually a contrastive loss, which will be introduced in the following section.
+An illustration of a multimodal model is provided in @multimodal_model_abstract, concrete examples will be introduced in (TODO: cite related work).
 
+#figure(
+  image(
+  width: 75%,
+  "../figures/multimodal_model_abstract.png"),
+  caption: [An abstract representation of a vision-language model. Image and text are first passed through unimodal, modality-specific,
+  models (encoders), and then through a multimodal encoder that maps the modality-specific representations into a common representation space.
+  A contrastive loss ensures the alignment and repulsion of similar and dissimilar concepts, respectively. We indicate this through
+  purple arrows.],
+) <multimodal_model_abstract>
 
 #bibliography("../references.bib")

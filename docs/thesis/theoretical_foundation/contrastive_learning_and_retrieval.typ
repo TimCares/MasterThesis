@@ -1,97 +1,159 @@
+#set heading(numbering: "1.1")
+#set math.equation(numbering: "(1)")
+
 === Contrastive Learning <contrastive_learning_section>
 ==== Method
-Contrastive Learning is a method to learn representations of data without the need for labels, and is therefore
-a popular method in Self-Supervised learning.
-Here, samples (e.g., images) are compared with each other in representation space using some distance metric,
-with cosine similarity being the usual choice. The goal is to learn an abstract representation of the input modality, such as images.
+Contrastive learning, or the contrastive loss, is not specific to multimodal models, but instead a general method
+to learn representations of data without the need for labels, and is therefore a popular method in self-supervised learning.
+Before large-scale vision-language models emerged, it was mainly used in computer vision models like MoCo @moco and SimCLR @simclr,
+which is why we will introduce it as a self-supervised method for image models first, and then extend it to multimodal models.
 
-Originally used in computer vision models like MoCo @moco and SimCLR @simclr, the idea is that a representation of an
-image should be similar, or very close, to the augmented versions of the same image.
-Provided the augmentation is not too drastic (e.g., crop size too large), the high-level semantics of the image will remain the
-same after augmentation, even though pixel-level information do not.
-The goal of the image model is then to maximize the cosine similarity between the original image and its augmented versions.
+In computer vision, contrastive learning exploits the fact that the high-level semantics of an image are invariant to
+small (or moderate) changes in pixel-level information. This is achieved by augmenting the input image, e.g., by cropping,
+rotating, or flipping it. Provided the augmentation is not too drastic (e.g., crop size too large),
+the high-level semantics of the image will remain the same after augmentation, even though pixel-level information do not.
+The goal of the image model is then to maximize the cosine similarity between the global representations of the original image
+and its augmented versions. The augmented version is often referred to as a different _view_ of the same image @simsiam.
 
 However, this alone is not sufficient, as the model will collapse to a trivial solution by simply returning 
-the same representation for all inputs. This is the simplest way to maximize the cosine similarity between the original image
-and its augmented versions, because the representation produced for an image would always be the same.
+the same representation for all inputs, as demonstrated in the papers MoCo @moco and SimSiam @simsiam.
+Producing the same representation for all inputs is the simplest way to maximize the cosine similarity between the original image
+and its augmented versions, because the representation produced for an image would always be the same, therefore maximizing the cosine
+similarity (a value of 1).
 To prevent this, negative samples are introduced. Negative samples are other images that do not contain the same
 content as the original image, and the cosine similarity between the original image and these negative samples should therefore be minimized
 (a cosine similarity of 0 indicates no similarity between the input vectors).
 This prevents the model from collapsing to a constant representation, as it would not minimize the cosine similarity
 and thus not minimize the loss. A simple yet expressive visualization can be found in @simclr_vis.
 
-This concept can be extended from unimodal to multimodal applications, such as image and text, which is used in this work.
-In this case, we aim to maximize the cosine similarity between an image and its corresponding text (i.e., caption) and vice versa.
+This concept can be extended from unimodal to multimodal applications, such as image and text.
+As mentioned in the previous section, we aim to maximize the cosine similarity between
+an image and its corresponding text (i.e., caption) and vice versa.
 Augmentation is not needed, as we always have pairs: one image and one text.
 Negative samples for images are captions of other images, and vice versa.
 In this setting, the model learns to produce similar representations for an image and its caption, describing the same real-world concept,
-and dissimilar representations for an image and caption that are unrelated.
+and dissimilar representations for an image and caption that are unrelated. An example for both vision and vision-langaue
+contrastive learning can be seen in @contrastive_alignment.
 
 #figure(
   image(
   width: 75%,
   "../figures/contrastive_alignment.png"),
-  caption: [Contrastive Learning aims to align the same (or similar) real-world concepts in representation space, while pushing different concepts apart. For each input, a global representation is generated, usually through the cls token, and compared with the representation
-  of other samples. Multimodal Contrastive Learning (b) requires existing pairs, e.g. image-text, while for the unimodal case (a) pairs are synthetically created by augmenting the input. Image-Text pairs in the figure have been taken from the COCO train set @coco.],
+  caption: [Contrastive learning aims to align the same (or similar) real-world concepts in representation space, while pushing different concepts apart. Multimodal contrastive learning (b) requires existing pairs, e.g. image-text, while for the unimodal case (a) pairs are synthetically created by augmenting the input. Image-Text pairs in the figure have been taken from the COCO train set @coco.],
 ) <contrastive_alignment>
 
-==== Implementation
+==== Implementation for Vision-Language Models
 
-In the multimodal case, used in this thesis, the contrastive loss is computed at the batch level,
-where the multimodal model first creates representations for all images and captions within the batch. In most cases, the CLS token is used as the global representation of an image, denoted as $mono(["I_CLS"])$, and text, denoted as $mono(["T_CLS"])$, respectively.
+Contrastive learning requires a (global) representation of the input, which is then used to compare it with other inputs.
+Since the introduction of the vision Transformer in 2020 by Dosovitskiy et al. @vit most vision-language models
+are exclusively based on the Transformer architecture, which is why the $mono("[CLS]")$ token is used as the global representation
+for both image ($mono(["I_CLS"])$) and text ($mono(["T_CLS"])$), respectively. There have been other approaches, such as
+Cross-Modal Late Interaction introduced in FLILP @filip, but they usally require significantly more compute @filip.
 
-Then, the cosine similarity between the representations of all possible image-text pairs in the batch is computed.
-This can be done efficiently by normalizing each embedding and then performing matrix multiplication on the normalized representations.
-For a batch size of 256, each image has 255 negative samples (i.e., captions of other images) and one positive
-sample (i.e., its own caption), the same holds vice versa.
-This can be interpreted as a classification problem with 256 classes, where the model has to predict the correct
-class (i.e., the positive sample) out of 256 classes/representations, where each class is one caption or image, respectively.
-The result of the matrix multiplication is a 256x256 matrix of logits, where the diagonal contains the cosine similarity
-between the positive samples (i.e., the correct class). Applying a row-wise softmax-normalization yields a probability
-distribution for each image, where each caption in the batch has a probability of being the correct caption for the image, and vice versa.
-The cross-entropy loss is then used to calculate the loss for the image scores and caption scores, respectively.
+The representations are generated by passing the image sequence $bold(H)_(v, 0)$ and text sequence $bold(H)_(w, 0)$
+through the vision-language model $f$,
+and extracting the representations for both tokens ($bold(h)_(v, L, mono(["I_CLS"]))$ and $bold(h)_(w, L, mono(["T_CLS"]))$)
+from the output of the final layer $bold(H)_(v, L)$ and $bold(H)_(w, L)$, which is the output of the Transformer.
+For the resulting batch of image and text representations
+${bold(h)_((v, L, mono(["I_CLS"])), k), bold(h)_((w, L, mono(["T_CLS"])), k)}_(k=1)^B$, where $B$ is the batch size,
+the cosine similarity between all possible image-text pairs is computed. The cosine similarity is given by:
+
+$
+cos(bold(a), bold(b)) = (bold(a) bold(b)^T) / (||bold(a)||_2 * ||bold(b)||_2) = bold(a)/(||bold(a)||_2) bold(b)^T/(||bold(b)||_2)
+$
+
+$bold(a) bold(b)^T$ denotes the simple dot product between both representations. $||bold(a)||_2$ and $||bold(b)||_2$
+denote the L2-norm of the representations.
+
+The cosine similarity between all possible image-text pairs can be computed efficiently by organizing all image and text representations
+in a matrix, which is already given in a batch-wise training, and normalizing every representation.
+
+$
+bold(h)' = bold(h) / (||bold(h)||_2)
+$
+
+$
+bold(I) = [bold(h)'_((v, L, mono(["I_CLS"])),1), bold(h)'_((v, L, mono(["I_CLS"])),2), ..., bold(h)'_((v, L, mono(["I_CLS"])),B)] in RR^(B times D)
+$
+
+$
+bold(T) = [bold(h)'_((w, L, mono(["T_CLS"])),1), bold(h)'_((w, L, mono(["T_CLS"])),2), ..., bold(h)'_((w, L, mono(["T_CLS"])),B)] in RR^(B times D)
+$
+
+$I$ denotes the batch/matrix of image representations, and $T$ contains the text representations. $D$ is the dimensionality of the representations,
+often referred to as the hidden size or hidden dimension in Transformers.
+
+A matrix multiplication of both batches of representations then computes the dot product between every image with every text, and vice versa.
+Since the representations are normalized, the result will be the cosine similarity between all possible image-text pairs in the batch.
+
+$
+bold(L) = bold(I) bold(T)^T, bold(L) in RR^(B times B)
+$ <contrastive_logits>
+
+$bold(L)_(i,j)$ then denotes the similarity between image $i$ and text $j$ in the batch. The diagonal of the matrix contains the similarity
+between positive pairs, i.e., the correct image-text pairs $(i,i)$, with $bold(L)_(i, i)$ describing their similarity.
+For an image, all other texts in the batch are considered as negative samples, and vice versa for text. The superscript $T$ denotes the transpose
+of a matrix, and is not to be confused with the batch of text representations $bold(T)$.
+
+For a batch size of 256 ($B=256$), each image has 255 negative samples (i.e., captions of other images)
+and one positive sample (i.e., its own caption), the same holds vice versa. This can be seen as a classification problem with 256 classes,
+where the model has to predict the correct class out of 256 classes, and each class representing one caption or image, respectively.
+For an image, the logit for the correct class is the similarity (cosine) to its own caption, and the logits for the negative classes
+are the similarities to the captions of other images. The same holds vice versa for text.
+
+To calculate the loss, the cross-entropy loss is used. For a batch, the loss for selecting the correct caption for each image is given by:
+
+$
+cal(L)_"CL"^("i2t") = 1/B sum_(i=1)^B -log exp(bold(L)_(i, i))/(sum_(k=1)^B exp(bold(L)_(i, k)))
+$
+
+$exp(bold(L)_(i, i))/(sum_(k=1)^B exp(bold(L)_(i, k)))$ denotes the softmax-normalized similarity between an image and its correct caption,
+which is the usual way for calculating the cross-entropy. The result of this normalization is a probability distribution for each image,
+where each caption in the batch has a probability of being the correct caption for the image, and vice versa. The probability that the correct
+caption belongs to the current image is then used to calculate the negative log-likelihood, which is the loss.
+
+Accordingly, the loss for selecting the correct image for each caption is given by:
+
+$
+cal(L)_"CL"^("t2i") = 1/B sum_(i=1)^B -log exp(bold(L)_(i, i))/(sum_(k=1)^B exp(bold(L)_(k, i)))
+$
+
+Here, the softmax-normalization is with respect to the similarity of a text with all other images in the batch. The final loss is the mean
+of the image-to-text and text-to-image loss:
+
+$
+cal(L)_"CL" = 1/2 * (cal(L)_"CL"^("i2t") + cal(L)_"CL"^("t2i"))
+$
+
+Returning to the concept of contrastive learning, this process ensures that the similarity between the representation of an image and its caption
+is maximized, i.e. close to each other, while the similarity between an image and an unrelated caption is minimized, i.e. far apart.
+Only this would appropriately minimize the loss, and thus the model learns to align the representations of the same concept across modalities.
 An illustration of multimodal contrastive learning can be found in @contrastive_learning_fig.
 
 #figure(
   image("../figures/itc.png"),
-  caption: [Contrastive Learning is performed using Matrix-Multiplication of normalized representations (1), usually done using the cls token. The diagonal of the resulting matrix contains the cosine similarity between positive samples. The softmax operation along the rows yields a probabilty distribution for each image over all captions, and the softmax operation along the columns vice versa. The cross-entropy loss is then used to calculate the loss for the image scores and caption scores, respectively. The final loss is the mean of both losses. Image-Text pairs in the figure have been taken from the COCO train set @coco.],
+  caption: [Contrastive Learning is performed using matrix multiplication of normalized representations (1), and the result
+  is matrix $bold(L)$ described in @contrastive_logits. The representations are
+  given by the $mono(["CLS"])$ token of the respective modality, but are represented as #text(font: "Times New Roman")[I]
+  and #text(font: "Times New Roman")[T] in the figure for simplicity. The diagonal of the resulting matrix contains
+  the cosine similarity between positive samples. The softmax operation along the rows yields a probabilty distribution for
+  each image over all captions, and the softmax operation along the columns vice versa (2). The cross-entropy loss is
+  then used to calculate the loss for the distributions. The final loss is the mean of both losses.
+  Image-Text pairs in the figure have been taken from the COCO train set @coco.],
 ) <contrastive_learning_fig>
 
-The performance of contrastive learning is highly dependent on the number of negative samples available.
+The performance of contrastive learning is highly dependent on the number of negative samples available, which directly
+translates to the batch size.
 For instance, with a batch size of two, the model only needs to differentiate between one caption that belongs
 to the image and one that does not (a negative sample), and vice versa. This task is significantly simpler than
 with 255 negative samples or more, where there might be captions
-that are semantically similar to the image, but do not belong to it.
+that are semantically similar to the image, but do not belong to it. So with increased negative samples,
+to probability of encountering hard-negative examples increases, forcing the model to aggregate as much information as possible
+in $mono(["I_CLS"])$ and $mono(["T_CLS"])$ to even differentiate between semantically similar concepts.
 
-The results improve with an increased number of negative examples @moco @beit3, as the task becomes more challenging.
+The results improve with an increased number of negative examples @moco @beit3, which 
+we will also show later, in the experiments section.
 More negative samples are usually achieved by using larger batch sizes @moco @clip @beit3.
 However, this typically requires higher VRAM GPUs, or multiple GPUs, which is costly.
-
-=== Image-Text Retrieval <image_text_retrieval>
-
-The goal of image-text retrieval (ITR) is to find the matching (most similar) caption for a given image, and vice versa.
-The process begins with embedding and normalizing a set of samples, such as images or captions, which become a set of keys.
-For some candidate image or text, called the query, the most similar key is retrieved, after the query is also embedded and normalized.
-Similar to contrastive learning, cosine similarity is used to compute the similarity between the query and all keys, which is, again,
-computed by matrix multiplication of the normalized embeddings.
-The similarities between the query and keys are then ranked, and the key with the highest similarity to the query is the retrieved sample.
-This method can be viewed as a form of semantic search, which has significant practical relevance in areas like recommendation systems,
-e.g. to find images based on a given text query. This is precisely what is learned through multimodal contrastive learning.
-
-Image-Text Retrieval is a cheap and efficient way to benchmark the quality of the learned representations of a vision-language model,
-as it does not require any finetuning, just the embeddings produced by the model.
-The metric used for benchmarking is Rank\@K (R\@K), where K determines at which rank the paired/correct sample has to be in the
-ranking in order to be considered as a correct retrieval.
-We use R@1, R@5, and R@10, where R@1 is the normal accuracy, i.e., the paired sample has to be the most similar one.
-R@5 means that the paired sample has to be in the top 5 most similar samples, and for R@10, it has to be in the top 10 most similar samples,
-in order for the retrieval to be considered correct.
-
-In this thesis, we use the 5K test set of MSCOCO @coco, and the 1K test set of Flickr30k @flickr30k for benchmarking,
-which is the standard benchmarking dataset for multimodal models like FLAVA @flava, CLIP @clip, VLMo @vlmo, and BEiT-3 @beit3.
-MSCOCO contains 5K images with 5 captions each @coco, and Flickr30k contains 1K images with 5 captions each @flickr30k.
-For both datasets, the all images and all texts are embedded and normalized, so that each image and each text is represented by
-the cls token that was returned by the model. Then, matrix multiplication between the images and captions of a dataset
-is performed, resulting in a matrix of shape (N, M), where N is the number of images and M is the number of captions in the dataset.
-So for MSCOCO, the matrix is of shape (5K, 25K), and for Flickr30k, the matrix is of shape (1K, 5K).
 
 #bibliography("../references.bib")
