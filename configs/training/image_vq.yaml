@@ -24,7 +24,8 @@ load_checkpoint:
 
 model:
   beitv2:
-    pretrained_path: ${model_path}/beitv2_base_patch16_224_pt1k.pth
+    model_path: ${model_path}
+    model_name: beitv2_base_patch16_224_pt1k.pth
     drop_path_rate: 0.1
     use_shared_rel_pos_bias: True
     use_abs_pos_emb: False
