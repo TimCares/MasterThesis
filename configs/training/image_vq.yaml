@@ -1,0 +1,98 @@
+# @package _global_
+
+hydra:
+  run:
+    dir: .
+
+defaults:
+  - _self_ # this first, so that the base config can be overridden by others
+  
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+
+base_dir: "/workspace"
+model_path: ${base_dir}/models
+data_path: ${base_dir}
+log_dir: ${base_dir}/logs
+seed: 42
+
+run_name: image_vq
+id:
+model_name: image_vq
+
+load_checkpoint:
+
+model:
+  beitv2:
+    pretrained_path: ${model_path}/beitv2_base_patch16_224_pt1k.pth
+    drop_path_rate: 0.1
+    use_shared_rel_pos_bias: True
+    use_abs_pos_emb: False
+    vocab_size: 8192
+    init_values: 0.1
+
+  decoder_depth: 3
+  pass_through_layer_idx: 2
+  n_classes: 1000
+  vq_dim: 32
+  vq_decay: 0.95 # 0.99
+
+data:
+  dataloader:
+    batch_size: 256
+    num_workers: 8
+    shuffle: True
+    drop_last: True
+
+  common: # keys used for all datasets
+    data_path: ${data_path}
+    num_max_bpe_tokens: ${nlp_context_length}
+    color_jitter: # None
+    beit_transforms: False
+    crop_scale: [0.9, 1.0]
+
+  datamodules:
+    coco_captions:
+      task: captioning
+
+    conceptual_captions_3m: {}
+
+    conceptual_captions_12m: {}
+
+checkpoint:
+  common:
+    dirpath: ${model_path}/${run_name}
+    enable_version_counter: False
+    every_n_epochs: 1
+    save_on_train_epoch_end: False # False -> run at end of validation
+    verbose: True
+    auto_insert_metric_name: False
+
+  checkpoints:
+    - monitor: val/loss
+      mode: min
+      filename: model-{step}-{${.monitor}:.4f}-val
+
+    - monitor: train/loss
+      mode: min
+      filename: model-{step}-{${.monitor}:.4f}-train
+
+optimizer:
+  base_lr: 0.0001
+  betas: [ 0.9,0.98 ]
+  eps: 1e-06
+  weight_decay: 0.01
+  max_steps: 127532
+
+lightning_trainer:
+  default_root_dir: ${log_dir}
+  accelerator: gpu
+  devices: -1
+  max_epochs: 10
+  num_sanity_val_steps: 0 # would run zero shot at the beginning if > 0
+  precision: 16-mixed
+  log_every_n_steps: 50
+
+  ddp:
+    gradient_as_bucket_view: True # optimizes memory usage
+    static_graph: True # optimizes memory usage
