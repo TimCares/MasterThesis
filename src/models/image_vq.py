@@ -37,11 +37,9 @@ class ImageVQLightningModule(L.LightningModule):
         return self._step(batch, batch_idx, stage='val')
 
     def _step(self, batch:Dict[str, Any], batch_idx, stage:str='train'):
-        if 'target' in batch:
-            batch.pop('target') # unused, layer activations are the targets
-
-        if 'image_teacher' in batch:
-            batch.pop('image_teacher')
+        for key in list(batch.keys()):
+            if key != 'image':
+                del batch[key]
 
         output_dict = self(batch) # call "forward"
 
@@ -54,9 +52,9 @@ class ImageVQLightningModule(L.LightningModule):
 
         loss = output_dict['vq_loss'] + rec_loss
 
-        self.log(f"{stage}/vq_loss", output_dict['vq_loss'])
-        self.log(f"{stage}/rec_loss", rec_loss)
-        self.log(f"{stage}/loss", loss)
+        self.log(f"{stage}/vq_loss", output_dict['vq_loss'], prog_bar=True)
+        self.log(f"{stage}/rec_loss", rec_loss, prog_bar=True)
+        self.log(f"{stage}/loss", loss, prog_bar=True)
         
         return loss
 
@@ -122,7 +120,7 @@ class ImageVQLightningModule(L.LightningModule):
 
 @dataclass
 class BEiTv2Config():
-    model_path:str
+    model_path:str = "/workspace/models"
     model_name:str = "beitv2_base_patch16_224_pt1k.pth"
     drop_path_rate: float = 0.1
     use_shared_rel_pos_bias:bool = True
@@ -151,9 +149,15 @@ class ImageVQ(nn.Module):
         sd_name = beit2_kwargs.pop("model_name")
         beit_path = os.path.join(sd_path, sd_name)
 
+        self.beitv2:VisionTransformerForMaskedImageModeling = load_beit2_teacher(
+            sd_path=beit_path,
+            **beit2_kwargs,
+        )
+        freeze_module(self.beitv2)
+
         self.decoder = nn.ModuleList([
             Block(
-                dim=self.cfg.vq_dim,
+                dim=self.beitv2.embed_dim,
                 num_heads=self.beitv2.num_heads,
                 mlp_ratio=4.0,
                 qkv_bias=True, qk_scale=None,
@@ -179,13 +183,9 @@ class ImageVQ(nn.Module):
             nn.Linear(dim, dim),
         )
 
-        self.apply(self.beitv2._init_weights)
-
-        self.beitv2:VisionTransformerForMaskedImageModeling = load_beit2_teacher(
-            sd_path=beit_path,
-            **beit2_kwargs,
-        )
-        freeze_module(self.beitv2)
+        self.decoder.apply(self.beitv2._init_weights)
+        self.embed_to_vq_proj.apply(self.beitv2._init_weights)
+        self.embed_to_vq_proj.apply(self.beitv2._init_weights)
 
         self.quantize = NormEMAVectorQuantizer(
             n_embed=self.cfg.n_classes, embedding_dim=self.cfg.vq_dim, beta=1.0, kmeans_init=True, decay=self.cfg.vq_decay,
@@ -205,12 +205,11 @@ class ImageVQ(nn.Module):
 
         quantize, loss, embed_ind = self.quantize(to_quantizer_features)
 
+        quantize = self.vq_to_embed_proj(quantize)
         x = torch.cat((quantize.unsqueeze(1), x_cache), dim=1)
 
         for blk in self.decoder:
             x = blk(x, rel_pos_bias=beitv2_out['rel_pos_bias'])
-        
-        x = self.vq_to_embed_proj(x)
 
         out_dict = {
             'x': x,

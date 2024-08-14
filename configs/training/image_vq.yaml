@@ -22,6 +22,8 @@ model_name: image_vq
 
 load_checkpoint:
 
+nlp_context_length: 64 # inspired by BEiT3
+
 model:
   beitv2:
     model_path: ${model_path}
