@@ -38,7 +38,7 @@ class ImageVQLightningModule(L.LightningModule):
 
     def _step(self, batch:Dict[str, Any], batch_idx, stage:str='train'):
         for key in list(batch.keys()):
-            if key != 'image':
+            if key != 'image_teacher':
                 del batch[key]
 
         output_dict = self(batch) # call "forward"
@@ -213,6 +213,22 @@ class ImageVQ(nn.Module):
 
         out_dict = {
             'x': x,
+            'x_beitv2': beitv2_out['x'],
+            'embed_ind': embed_ind,
+            'vq_loss': loss,
+        }
+        return out_dict
+    
+    def quantize_image(self, image:torch.Tensor):
+        with torch.no_grad():
+            beitv2_out = self.forward_beitv2(image)
+
+        x = beitv2_out['x']
+        to_quantizer_features = self.embed_to_vq_proj(x[:, 0]) # cls token
+        quantize, loss, embed_ind = self.quantize(to_quantizer_features)
+
+        out_dict = {
+            'x': quantize,
             'x_beitv2': beitv2_out['x'],
             'embed_ind': embed_ind,
             'vq_loss': loss,
