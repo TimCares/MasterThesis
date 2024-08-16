@@ -1,54 +1,32 @@
 #set heading(numbering: "1.1")
 #set math.equation(numbering: "(1)")
 
-=== Contrastive Learning <contrastive_learning_section>
-==== Method
-Contrastive learning, or the contrastive loss, is not specific to multimodal models, but instead a general method
-to learn representations of data without the need for labels, and is therefore a popular method in self-supervised learning.
-Before large-scale vision-language models emerged, it was mainly used in computer vision models like MoCo @moco and SimCLR @simclr,
-which is why we will introduce it as a self-supervised method for image models first, and then extend it to multimodal models.
+== Vision-Language Contrast <vision_language_contrast>
 
-In computer vision, contrastive learning exploits the fact that the high-level semantics of an image are invariant to
-small (or moderate) changes in pixel-level information. This is achieved by augmenting the input image, e.g., by cropping,
-rotating, or flipping it. Provided the augmentation is not too drastic (e.g., crop size too large),
-the high-level semantics of the image will remain the same after augmentation, even though pixel-level information do not.
-The goal of the image model is then to maximize the cosine similarity between the global representations of the original image
-and its augmented versions. The augmented version is often referred to as a different _view_ of the same image @simsiam.
-
-However, this alone is not sufficient, as the model will collapse to a trivial solution by simply returning 
-the same representation for all inputs, as demonstrated in the papers MoCo @moco and SimSiam @simsiam.
-Producing the same representation for all inputs is the simplest way to maximize the cosine similarity between the original image
-and its augmented versions, because the representation produced for an image would always be the same, therefore maximizing the cosine
-similarity (a value of 1).
-To prevent this, negative samples are introduced. Negative samples are other images that do not contain the same
-content as the original image, and the cosine similarity between the original image and these negative samples should therefore be minimized
-(a cosine similarity of 0 indicates no similarity between the input vectors).
-This prevents the model from collapsing to a constant representation, as it would not minimize the cosine similarity
-and thus not minimize the loss. A simple yet expressive visualization can be found in @simclr_vis.
-
-This concept can be extended from unimodal to multimodal applications, such as image and text.
+Introduced as a method for self-supervised learning of image models ((TODO: cite contrastive learning section)), contrastive learning
+can be extended from unimodal (image) to multimodal applications, such as image and text.
 As mentioned in the previous section, we aim to maximize the cosine similarity between
-an image and its corresponding text (i.e., caption) and vice versa.
+an image and its corresponding text (i.e., caption), and vice versa.
 Augmentation is not needed, as we always have pairs: one image and one text.
 Negative samples for images are captions of other images, and vice versa.
 In this setting, the model learns to produce similar representations for an image and its caption, describing the same real-world concept,
-and dissimilar representations for an image and caption that are unrelated. An example for both vision and vision-langaue
+and dissimilar representations for an image and caption that are unrelated. A conceptual example for both vision and vision-language
 contrastive learning can be seen in @contrastive_alignment.
 
 #figure(
   image(
   width: 75%,
   "../figures/contrastive_alignment.png"),
-  caption: [Contrastive learning aims to align the same (or similar) real-world concepts in representation space, while pushing different concepts apart. Multimodal contrastive learning (b) requires existing pairs, e.g. image-text, while for the unimodal case (a) pairs are synthetically created by augmenting the input. Image-Text pairs in the figure have been taken from the COCO train set @coco.],
+  caption: [Contrastive learning aims to align the same (or similar) real-world concepts in representation space, while pushing different concepts apart. Multimodal contrastive learning (b) requires existing pairs, e.g. image-text, while for the unimodal case (a) pairs are synthetically created by augmenting the input. Images and text in the figure have been taken from the COCO train set @coco.],
 ) <contrastive_alignment>
 
-==== Implementation for Vision-Language Models
 
 Contrastive learning requires a (global) representation of the input, which is then used to compare it with other inputs.
-Since the introduction of the vision Transformer in 2020 by Dosovitskiy et al. @vit most vision-language models
+Since the introduction of the vision Transformer in 2020 by Dosovitskiy et al. @vit, most vision-language models
 are exclusively based on the Transformer architecture, which is why the $mono("[CLS]")$ token is used as the global representation
 for both image ($mono(["I_CLS"])$) and text ($mono(["T_CLS"])$), respectively. There have been other approaches, such as
-Cross-Modal Late Interaction introduced in FLILP @filip, but they usally require significantly more compute @filip.
+Cross-Modal Late Interaction introduced in FLILP @filip, but they usually require significantly more compute @filip and
+do not outperform global contrastive learning @beit3, which is what we use here.
 
 The representations are generated by passing the image sequence $bold(H)_(v, 0)$ and text sequence $bold(H)_(w, 0)$
 through the vision-language model $f$,

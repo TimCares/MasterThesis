@@ -58,7 +58,8 @@ while pushing the representations of different concepts further apart. For visio
 pushing the representations of an image and its caption closer together, while pushing the representations of an image and an unrelated caption
 (or vice versa) further apart. To quantify the similarity between two representations,
 a distance metric is used, e.g. cosine similarity.
-The loss function is usually a contrastive loss, which will be introduced in the following section.
+The loss function is usually the contrastive loss, and its implementation for vision-language models will be introduced in
+the next section.
 An illustration of a multimodal model is provided in @multimodal_model_abstract, concrete examples will be introduced in (TODO: cite related work).
 
 #figure(

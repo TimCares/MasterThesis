@@ -39,6 +39,15 @@ Through this process of predicting masked words, the model learns about the conc
   masked parts using the visible data (green) @self_supervised_learning_dark_matter.],
 ) <self_supervised_learning_dark_matter_fig>
 
+// While self-supervised models are still predictive models, they are trained to e.g. predict the masked tokens in a sentence,
+// they differ from supervised models in that they do not provide a probability distribution over a set of abstract classes,
+// which describe real-world concepts and objects. So a self-supervised text model can only provide a probability distribution
+// over the vocabulary for a masked token, which consists of all possible words in the language, are layer activations
+// resulting from the input (text).
+
+// This is important in the context of knowledge distillation. If a teacher model is trained using self-supervised learning,
+// then response-based knowledge distillation.
+
 // === Masked Data Modeling <masked_data_modeling>
 
 // ==== Language <mdm_language>
