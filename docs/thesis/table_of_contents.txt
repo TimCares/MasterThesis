@@ -9,25 +9,27 @@ Introduction
 Background
 	(Transformers)
 	Notations and Definitions (... of image patches etc. -> if this changes for specific experiments, mention then and redefine)
-	Knowledge-Distillation (eig eher nur unimodal (und supervised), deswegen hier)
+	Knowledge-Distillation
 	Self-Supervised Learning
-	Self-Distillation (bezug auf SSL)
-	Multimodal Models
 	Contrastive Learning
+	Multimodal Models
+	Vision-Language Contrast
 	Image-Text Retrieval
 	Related Work
-		Deep Aligned Representations (by Space (+ Loss))
-		CLIP (by Loss)
-		VLMo (by Representation & Loss)
-		BEiT v3 (by Representation)
+		Deep Aligned Representations
+		CLIP
+		VLMo
+		BEiT v3
 Methodology
 	Tools
     Experimental Approach
 	Data and Preparation (mention uncurated nature -> imporant for scaling)
 Experiments
 	Unimodal Knowledge Distillation
+		Vision
+		Language
 	Multimodal Knowledge Distillation
-		Reproducing: “See, Hear, Read: Deep Aligned Representations"
+		Reproducing SHRe
 		Aligned Representations
 			Supervised Teacher
 				Larger Batch Sizes with DDP

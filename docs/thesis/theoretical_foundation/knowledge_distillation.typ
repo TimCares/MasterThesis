@@ -1,26 +1,26 @@
 #set math.equation(numbering: "(1)")
 === Knowledge Distillation
 
-Training large vision-language model is computationally expensive, and therefore finanically infeasible for researchers outside
+Training large Deep Learning models is computationally expensive, and therefore finanically infeasible for researchers outside
 of large corporations. Models often need more than 100 million parameters to achieve state-of-the-art (SOTA) performance, and training
-those models requires a lot of computational resources, e.g. GPUs, time and data. For example, VLMo, one of the
-best models across vision-langauge tasks as of this writing, has 562 Million parameters, was trained on 14 million images @vlmo and cost
-over 28 thousand USD to train
-#footnote[Calculation done based on the price per GPU hour of the NVIDIA V100 16GB GPUs on AWS for instance p3.2xlarge, as of August 2024.
-VLMo was trained using NVIDIA V100 32GB GPUs @vlmo, so the actual cost is likely higher.].
+those models requires a lot of computational resources, e.g. GPUs, time and data. For example, CoCa, a vision model
+reaching SOTA performance of 91% validation accuracy on ImageNet-1K @imagenet @coca, has 2.1 billion parameters, was trained on more than
+3 billion images @vlmo and, based on our approximation, should have cost over 350 thousand USD to train. 
+#footnote[Calculation done based on the price per TPU hour of the CloudTPUv4 on Google Cloud Platform with a three year commitment.
+CoCa was trained for 5 days using 2048 CloudTPUv4s. At a price of 1.449 USD per TPU hour (as of August 2024), the total cost is
+$1.449 "USD/h" * 24 "h/day" * 5 "days" * 2048 "TPUs" = 356,106.24 "USD"$.].
 
 One strategy to avoid high computational costs is transfer learning. Here, a, potentially large, pretrained model is used as a starting point,
-and finetuned on a specific task, for a potential different use case. The disadvantage of this approach is that the model size does not change,
+and finetuned on a specific task, for a potentially different use case. The disadvantage of this approach is that the model size does not change,
 so finetuning is still computationally expensive, especially for large models. A viable strategy would be to use few layers from the pretrained model, but since the environment in which those layers were trained is different from the one in which they are used during finetuning, this
 approach requires longer training times.
 
-Another option is Knowledge Distillation (KD). Here, a smaller model, the student model, is trained to replicate, or rather predict
-the outputs of a larger model, the teacher model, for a given sample. KD can be applied for both supervised and
-self-supervised settings, meaning the teacher model can be trained in a supervised or self-supervised manner, respectively.
-The former is referred to as response-based KD, the latter as feature-based KD @kd_survey. Both will be used in this work.
+Another option is knowledge distillation (KD). Here, a smaller model, the student model, is trained to replicate, or rather predict
+the outputs of a larger model, the teacher model, for a given sample.
+There are two strategies of KD usually used in practice: Response-based KD and feature-based KD @kd_survey. Both will be used in this work.
 
-Knowledge-Distillation has the advantage that the student model can be much smaller, and have a different architecture, compared
-to the teacher model. Since the teacher is running in inference mode, no backpropagation is needed, and thus no gradients have to be computed.
+Knowledge distillation has the advantage that the student model can be much smaller, and have a different architecture, compared
+to the teacher model. Since the teacher is running in inference mode no backpropagation is needed, and thus no gradients have to be computed.
 This makes KD faster and requires less memory compared to finetuning.
 Most importantly, it has been empirically shown that student models much smaller than their teachers can achieve similar performance.
 For example, the distilled model of BERT, DistilBERT, reduced the model size by 40%, while maintaining 97% of the
@@ -29,30 +29,49 @@ performance of the original model @distilbert.
 
 ==== Response-based Knowledge Distillation
 
-In response-based KD, the teacher was trained in a supervised manner, and provides a probability distribution, or just logits, for a given sample,
+In response-based KD, the teacher must provide a probability distribution over a set of classes for a given sample,
 which is the prediction of the teacher.
 The student model tries to replicate this probability distribution. This is also called soft targets, because the probability distribution
-is, unless the teacher is 100% sure, not one-hot encoded, but rather a smooth distribution over the classes. This smooth distribution is
-further smoothed by dividing the logits by a temperature parameter before applying the softmax function.
+is, unless the teacher is 100% sure, not one-hot encoded, but rather a smooth distribution over the classes.
 This increases the relative importance of logits with lower values, e.g. the classes with the second and third highest logits, and
 Hinton et al. @kd argue that this makes the model learn hidden encoded information the teacher model has learned, which are not
 represented when focusing on just the class with the highest logit/probability. This helps the student model to generalize better, especially
-on less data, compared to a model trained from scratch @kd @kd_survey. The temperature parameter is usually a tuneable hyperparameter,
-but research has shown that it can also be learned parameter, especially in other settings such as contrastive learning @vlmo.
+on less data, compared to a model trained from scratch @kd @kd_survey.
 
-The loss function used in response-based KD is the Kullback-Leibler divergence (KL), which measures the difference between
+The loss function typically used in response-based KD is the Kullback-Leibler divergence (KL), which measures the difference between
 two probability distributions. The mathematical formulation is as follows:
-Let $f$ be the teacher model, $g$ the student model, and $x$ the input sample, for example an image.
+Let $f$ be the teacher model, $g$ the student model, and $bold(x)$ the input sample of any modalitiy, e.g. an image or a text.
+We do not use the notation $bold(H)_(v, 0)$ and $bold(H)_(w, 0)$ for the input, as defined in (TODO: cite notation section),
+as knowledge distillation is independent of the modality and model architecture. Therefore, the input can be imagined as
+e.g. an image or text.
+
 We define $bold(u)=g(bold(x))$ and $bold(z)=f(bold(x))$ as the output of the teacher and student model, respectively.
 Those are the logits, and for a classification task of e.g. 1000 classes, vectores of length 1000.
-Logits are, optionally, divided by a temperature $T$, and normalized using softmax.
+A best practice is to divide the logits by a temperature parameter $tau$, before applying the softmax function @kd @kd_survey, which
+smooothes the probability distribution further, as illustrated in @prob_dist_kd.
+
+#figure(
+  image("../figures/prob_dist_kd.png"),
+  caption: [
+    Comparison between the distribution for a classification task of 10 classes. The target distribution is used to train a model
+    from scratch, while the model prediction over the classes can be used for knowledge distillation. The temperature parameter
+    $tau$ further smoothens the distribution, and increases the relative importance of classes with lower scores. Especially in
+    distributions with large number of classes, e.g. ImageNet-1K @imagenet, some classes will have semantic similarities, like
+    "German Shorthaired Pointer" and "Labrador Retriever" @imagenet, which are both dog breeds. The temperature parameter brings the scores
+    for those classes closer together, which helps the student model to learn the hidden encoded information the teacher model has
+    learned. In the setting of the dog breeds, given above, that means: Both classes are related/similar.
+  ],
+) <prob_dist_kd>
+
+The temperature $tau$ is usually a tuneable hyperparameter,
+but research has shown that it can also be a learned parameter, especially in other settings such as contrastive learning (introduced later) @vlmo.
 
 $
-p_i = exp(u_i/T) / (sum_(j) exp(u_j/T))
+p_i = exp(u_i/tau) / (sum_(j) exp(u_j/tau))
 $ <kd_teacher_softmax>
 
 $
-q_i = exp(z_i/T) / (sum_(j) exp(z_j/T))
+q_i = exp(z_i/tau) / (sum_(j) exp(z_j/tau))
 $ <kd_student_softmax>
 
 $i$ and $j$ denote indices of the classes, and $p_i$ and $q_i$ the probabilities of class $i$ according to the teacher $g$ and
@@ -67,30 +86,31 @@ As in @kd_teacher_softmax and @kd_student_softmax, $j$ is the index of a class, 
 
 ==== Feature-based Knowledge Distillation
 
-In feature-based KD, the teacher model could either be trained in a supervised or self-supervised manner.
-The student model tries to replicate the (intermediate) activations of the teacher model, so not necessarily only the output
-of the teacher model, although this is also possible.
-If the teacher model has been trained in a self-supervised manner, feature-based KD is needed, as the teacher model does not provide a
-probability distribution to regress. This fact is important for the experiments in this work, as we will build work on an 
-end-to-end self-supervised approach for distilling vision-language models.
+In feature-based KD, the teacher model does not need to provide a probability distribution over classes.
+Instead, the student model tries to replicate the (intermediate) activations of the teacher model, so
+the student model does not necessarily have to only predict the final output of the teacher model.
 
-For regressing the activations of the teacher model, the Mean Squared Error (MSE) is used as loss function, as well as the
-Mean Absolute Error (MAE) can be used as a criterion, although the latter is less common @kd_survey @data2vec @data2vec2.
+The activations of the teacher model are usually regressed, using the Mean Squared Error (MSE) as the loss function. The
+Mean Absolute Error (MAE) can also be used as a criterion, although it is less common @kd_survey @data2vec @data2vec2.
 We define the MSE as follows:
 
 $
-cal(L)_(K D) = op("MSE")(bold(p), bold(q)) = ||bold(p) - bold(q)||_2 = frac(1, k) sum_(j=0)^k (p_j-q_j)^2
+cal(L)_(K D) = op("MSE")(bold(p), bold(q)) = ||bold(p) - bold(q)||_2 = frac(1, K) sum_(j=1)^K (p_j-q_j)^2
 $ <mean_squared_error>
 
-It is important to note that for feature-based KD in Transformer models this approach requires the student model to have the same
-hidden size as the teacher model. Otherwise, additional postprocessing steps are required, e.g. a linear projection layer, to align
-the student hidden size with the teacher hidden size.
 An illustration of response-based vs. feature-based KD is shown in @kd_fig.
 
 #figure(
   image("../figures/kd.png"),
   caption: [
-    Response-Based Knowledge Distillation (a) requires a supervised teacher to provide logits, from which the probability distribution can be regressed. Feature-Based Knowledge Distillation (b) can be used with when the teacher model has been trained self-supervised. Which teacher activations are regressed by which part of the student model is not fixed, and can be adjusted to the specific use case. An intuitive choice is to regress the activations of the teacher's last layer with the student's last layer. Feature-Based Knowledge Distillation can also be applied on a supervised teacher. In both cases the weights of the teacher are frozen and the teacher is running in evaluation mode. Figure adapted and inspired by @kd_survey, image is taken from COCO train set @coco.
+    Response-based knowledge distillation (a) requires a teacher to provide logits,
+    from which a probability distribution can be created, which is predicted by the student. Feature-based knowledge distillation (b)
+    is used for predicting the actual activations of the teacher layer(s). Which teacher activations
+    are regressed by which part of the student model is not fixed, and can be adjusted to the specific
+    use case. An intuitive choice is to regress the activations of the teacher's last layer with the
+    student's last layer.
+    In both cases the weights of the teacher are frozen and the teacher is running in evaluation/inference mode.
+    Figure adapted and inspired by @kd_survey, image is taken from COCO train set @coco.
   ],
 ) <kd_fig>
 
