@@ -27,6 +27,7 @@ class COCOCaptionsDataModule(BaseImageTextDataModule):
                 color_jitter=None,
                 beit_transforms=False,
                 crop_scale=(0.6, 1.0),
+                text_token_mask_prob=0.0,
                 *args,
                 **kwargs):
         super().__init__(data_path, *args, **kwargs)
@@ -35,6 +36,7 @@ class COCOCaptionsDataModule(BaseImageTextDataModule):
         self.color_jitter = color_jitter
         self.beit_transforms = beit_transforms
         self.crop_scale = crop_scale
+        self.text_token_mask_prob = text_token_mask_prob
 
     def set_train_dataset(self):
         self.train_dataset = COCOCaptions(data_path=self.data_path,
@@ -43,7 +45,8 @@ class COCOCaptionsDataModule(BaseImageTextDataModule):
                                           task=self.task,
                                           color_jitter=self.color_jitter,
                                           beit_transforms=self.beit_transforms,
-                                          crop_scale=self.crop_scale,)
+                                          crop_scale=self.crop_scale,
+                                          text_token_mask_prob=self.text_token_mask_prob,)
 
     def set_val_dataset(self):
         self.val_dataset = COCOCaptions(data_path=self.data_path,
@@ -52,7 +55,8 @@ class COCOCaptionsDataModule(BaseImageTextDataModule):
                                         task=self.task,
                                         color_jitter=False,
                                         beit_transforms=False,
-                                        crop_scale=(1.0, 1.0),)
+                                        crop_scale=(1.0, 1.0),
+                                        text_token_mask_prob=0.0,)
 
     def set_test_dataset(self):
         self.test_dataset = COCOCaptions(data_path=self.data_path,
@@ -61,7 +65,8 @@ class COCOCaptionsDataModule(BaseImageTextDataModule):
                                          task=self.task,
                                          color_jitter=False,
                                          beit_transforms=False,
-                                         crop_scale=(1.0, 1.0),)
+                                         crop_scale=(1.0, 1.0),
+                                         text_token_mask_prob=0.0,)
         
 
 class VisualGenomeDataModule(BaseImageTextDataModule):
@@ -108,6 +113,7 @@ class ConceptualCaptionsDataModule(BaseImageTextDataModule):
                 color_jitter=None,
                 beit_transforms=False,
                 crop_scale=(0.6, 1.0),
+                text_token_mask_prob=0.0,
                 *args,
                 **kwargs):
         super().__init__(data_path, *args, **kwargs)
@@ -116,6 +122,7 @@ class ConceptualCaptionsDataModule(BaseImageTextDataModule):
         self.color_jitter = color_jitter
         self.beit_transforms = beit_transforms
         self.crop_scale = crop_scale
+        self.text_token_mask_prob = text_token_mask_prob
 
     def prepare_data(self):
         if not hasattr(self, 'train_dataset'):
@@ -133,7 +140,8 @@ class ConceptualCaptionsDataModule(BaseImageTextDataModule):
             num_max_bpe_tokens=self.num_max_bpe_tokens,
             color_jitter=self.color_jitter,
             beit_transforms=self.beit_transforms,
-            crop_scale=self.crop_scale,)
+            crop_scale=self.crop_scale,
+            text_token_mask_prob=self.text_token_mask_prob,)
         
 
 class SBUCaptionsDataModule(BaseImageTextDataModule):
@@ -286,7 +294,8 @@ class Flickr30DataModule(BaseImageTextDataModule):
     def set_test_dataset(self): # to be used for zero-shot retrieval
         self.test_dataset = Flickr30Dataset(data_path=self.data_path,
                                             split='test',
-                                            num_max_bpe_tokens=self.num_max_bpe_tokens,)
+                                            num_max_bpe_tokens=self.num_max_bpe_tokens,
+                                            text_token_mask_prob=0.0,)
         
 
 class Flickr8AudioDataModule(BaseImageAudioDataModule):

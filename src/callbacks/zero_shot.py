@@ -24,6 +24,7 @@ from fairseq.data import Dictionary
 from utils import pad_text_sequence # src/utils.py
 from bpe_encoder import get_bpe_encoder
 from data2vec_fairseq.data.modality import Modality
+from transformers import BertTokenizer
 
 
 logger = logging.getLogger(__name__)
@@ -124,22 +125,17 @@ def run_filip_zero_shot(
 
 
 def _zero_shot_classifier(pl_module:AMMData2VecPreTrainingLightningModule, device, num_max_bpe_tokens):
-    data_path = '/workspace'
-    bpe_encoder:BPEEncoder = get_bpe_encoder(data_path)
-    dictionary = Dictionary.load(os.path.join(data_path, "dict.txt"))
+    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     
     zeroshot_weights = []
     for classname in track(imagenet_classnames, description="Building classifier"):
-        texts = bpe_encoder.encode_lines(
-            [template(classname) for template in openai_imagenet_template],
-            tokens_per_sample=num_max_bpe_tokens,
-            to_tensor=False,
-        )
+        texts = [tokenizer.convert_tokens_to_ids(tokenizer.tokenize(template(classname)))
+                 for template in openai_imagenet_template]
         padding_masks = []
         for i in range(len(texts)):
             language_tokens, padding_mask = pad_text_sequence(tokens=texts[i], num_max_bpe_tokens=num_max_bpe_tokens,
-                                                              pad_idx=dictionary.pad(), bos_idx=dictionary.bos(),
-                                                              eos_idx=dictionary.eos(),)
+                                                              pad_idx=tokenizer.pad_token_id, bos_idx=tokenizer.cls_token_id,
+                                                              eos_idx=tokenizer.sep_token_id,)
             
             texts[i] = language_tokens
             padding_masks.append(padding_mask)

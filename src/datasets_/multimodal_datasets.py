@@ -31,6 +31,7 @@ class COCOCaptions(BaseImageText):
         color_jitter=None,
         beit_transforms=False,
         crop_scale=(0.6, 1.0),
+        text_token_mask_prob=0.0,
     ):
         assert task in ["captioning", "retrieval"]
         self.task = task
@@ -44,7 +45,8 @@ class COCOCaptions(BaseImageText):
             num_max_bpe_tokens=num_max_bpe_tokens,
             color_jitter=color_jitter,
             beit_transforms=beit_transforms,
-            crop_scale=crop_scale
+            crop_scale=crop_scale,
+            text_token_mask_prob=text_token_mask_prob
         )
 
         self.path_to_data = os.path.join(self.data_path, "coco")        
@@ -89,8 +91,6 @@ class COCOCaptions(BaseImageText):
         else:
             raise RuntimeError("split %s is not found!" % self.split)
         
-        bpe_encoder = self.get_bpe_encoder()
-        
         coco_karpathy_split_json_file = os.path.join(self.path_to_data, "dataset_coco.json")
         items = []
         image_counter = set()
@@ -101,7 +101,7 @@ class COCOCaptions(BaseImageText):
             for item in data["images"]:
                 if item["split"] in karpathy_split:
                     image_path = os.path.join(self.path_to_data, item["filepath"], item["filename"])
-                    items += self._encode_all(item, image_path, bpe_encoder)
+                    items += self._encode_all(item, image_path)
                     if image_path not in image_counter:
                         image_counter.add(image_path)
         self.log("Find %d images and %d image-text pairs for karpathy dataset %s split !" % \
@@ -109,11 +109,11 @@ class COCOCaptions(BaseImageText):
         index_file = os.path.join(self.path_to_data, self.get_index_files()[0])
         write_data_into_jsonl(items, index_file)
 
-    def _encode_all(self, item, image_path, bpe_encoder):
+    def _encode_all(self, item, image_path):
         return [
             {
                 "image_path": image_path,
-                "text": bpe_encoder.encode(sent["raw"]),
+                "text": self.tokenizer.tokenize(sent["raw"]),
                 "id": item["cocoid"],
             }
             for sent in item["sentences"]
@@ -125,6 +125,7 @@ class Flickr30Dataset(BaseImageText):
                  data_path,
                  split,
                  num_max_bpe_tokens,
+                 text_token_mask_prob=0.0,
                  ):
         super().__init__(
             data_path=data_path,
@@ -133,6 +134,7 @@ class Flickr30Dataset(BaseImageText):
             color_jitter=None,
             beit_transforms=False,
             crop_scale=(1.0, 1.0),
+            text_token_mask_prob=text_token_mask_prob
         )
 
         self.path_to_data = os.path.join(self.data_path, "flickr30k")
@@ -172,8 +174,6 @@ class Flickr30Dataset(BaseImageText):
         with open(os.path.join(self.path_to_data, "dataset_flickr30k.json"), "r") as reader:
             captions = json.loads(reader.read())
 
-        bpe_encoder = self.get_bpe_encoder()
-
         captions = captions["images"]
         index = []
 
@@ -190,7 +190,7 @@ class Flickr30Dataset(BaseImageText):
             for text_segment in each_item["sentences"]: 
                 index.append({
                     "image_path": image_path, 
-                    "text": bpe_encoder.encode(text_segment["raw"]), 
+                    "text": self.tokenizer.tokenize(text_segment["raw"]), 
                     "id": len(all_images),
                 })
 
@@ -384,7 +384,6 @@ class VisualGenome(BaseImageText):
 
     def _make_index_with_single_caption(self, region_descriptions):
         items = []
-        encoder = self.get_bpe_encoder()
         for image_meta in tqdm(region_descriptions, total=len(region_descriptions)):
             image_path = os.path.join(self.path_to_data, "VG_100K", f"{image_meta['id']}.jpg")
 
@@ -392,7 +391,7 @@ class VisualGenome(BaseImageText):
                 caption = region['phrase'].strip().lower()
                 items.append({
                     "image_path": image_path, 
-                    "text": encoder.encode(caption), 
+                    "text": self.tokenizer.encode(caption), 
                     "id": image_meta["id"], 
                 })
             
@@ -400,7 +399,7 @@ class VisualGenome(BaseImageText):
     
     def _make_index_with_concat_caption(self, region_descriptions):
         items = []
-        encoder = self.get_bpe_encoder()
+        encoder = self.get_encoder()
         for image_meta in tqdm(region_descriptions, total=len(region_descriptions)):
             image_path = os.path.join(self.path_to_data, "VG_100K", f"{image_meta['id']}.jpg")
             
@@ -443,6 +442,7 @@ class ConceptualCaptions(BaseImageText):
         color_jitter=None,
         beit_transforms=False,
         crop_scale=(0.6, 1.0),
+        text_token_mask_prob=0.0,
     ):
         super().__init__(
             data_path=data_path,
@@ -450,7 +450,8 @@ class ConceptualCaptions(BaseImageText):
             num_max_bpe_tokens=num_max_bpe_tokens,
             color_jitter=color_jitter,
             beit_transforms=beit_transforms,
-            crop_scale=crop_scale
+            crop_scale=crop_scale,
+            text_token_mask_prob=text_token_mask_prob
         )
         self.type = type
         assert type in ["cc3m", "cc12m"]
@@ -478,12 +479,11 @@ class ConceptualCaptions(BaseImageText):
         index = pd.read_csv(index_path, sep='\t', header=None).reset_index(drop=True)
         index.columns = col_names
         
-        encoder = self.get_bpe_encoder()
         for img in tqdm(os.listdir(self.img_path), desc="Making index"):
             idx = int(os.path.splitext(img)[0])
             items.append({
                 'image_path': os.path.join(self.img_path, img),
-                'text': encoder.encode(index.at[idx, 'caption'].strip()),
+                'text': self.tokenizer.tokenize(index.at[idx, 'caption'].strip()),
                 'id': idx,
             })
         self.log(f"Collected {len(items)} image-text pairs!")
@@ -542,7 +542,7 @@ class SBUCaptions(BaseImageText):
         index.name = 'id'
         sbu.set_index(index, inplace=True)
         
-        encoder = self.get_bpe_encoder()
+        encoder = self.get_encoder()
         for idx, img in tqdm(enumerate(os.listdir(self.img_path)), desc="Making index"):
             sbu_idx = os.path.splitext(img)[0]
             items.append({
@@ -662,7 +662,7 @@ class VQAv2(BaseImageText):
 
         annotations = dict()
 
-        bpe_encoder = self.get_bpe_encoder()
+        bpe_encoder = self.get_encoder()
 
         for split, questions in zip(
             ["train", "val", "test", "test-dev"],
@@ -848,7 +848,7 @@ class NLVR2(BaseImageText):
 
     def _preprocess_json(self, prefix, json_file, index_file):
         items = []
-        bpe_encoder = self.get_bpe_encoder()
+        bpe_encoder = self.get_encoder()
         with open(json_file, mode="r", encoding="utf-8") as reader:
             for line in reader:
                 data = json.loads(line)
@@ -941,7 +941,7 @@ class CommonVoice(BaseTextAudio):
             os.remove(file)
         self.log(f'Removed {len(files)} unused mp3 files.')
 
-        bpe_encoder = self.get_bpe_encoder()
+        bpe_encoder = self.get_encoder()
 
         items = []
         n_skipped = 0
