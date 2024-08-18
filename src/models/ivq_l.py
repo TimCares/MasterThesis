@@ -50,12 +50,12 @@ class ImageVQLLightningModule(L.LightningModule):
 
         vq_loss = output_dict['vq_loss']
 
-        input = output_dict['x']
-        target = batch['targets']
+        input = output_dict['x'].view(-1, 30522)
+        target = batch['targets'].view(-1)
         
         mlm_loss = F.cross_entropy(
-            input=input.view(-1, 30522),
-            target=target.view(-1),
+            input=input,
+            target=target,
             ignore_index=-100,
         )
 
@@ -64,6 +64,9 @@ class ImageVQLLightningModule(L.LightningModule):
         self.log(f"{stage}/vq_loss", vq_loss, prog_bar=True)
         self.log(f"{stage}/mlm_loss", mlm_loss, prog_bar=True)
         self.log(f"{stage}/loss", loss, prog_bar=True)
+
+        mlm_acc = (input.argmax(dim=-1) == target).float().mean()
+        self.log(f"{stage}/mlm_acc", mlm_acc)
 
         unique_indices, counts = output_dict['embed_ind'].unique(return_counts=True)
         self.embedding_usage[unique_indices] += counts
