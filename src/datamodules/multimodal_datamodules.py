@@ -56,7 +56,7 @@ class COCOCaptionsDataModule(BaseImageTextDataModule):
                                         color_jitter=False,
                                         beit_transforms=False,
                                         crop_scale=(1.0, 1.0),
-                                        text_token_mask_prob=0.0,)
+                                        text_token_mask_prob=self.text_token_mask_prob,)
 
     def set_test_dataset(self):
         self.test_dataset = COCOCaptions(data_path=self.data_path,
