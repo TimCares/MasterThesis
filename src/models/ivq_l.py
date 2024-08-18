@@ -65,7 +65,9 @@ class ImageVQLLightningModule(L.LightningModule):
         self.log(f"{stage}/mlm_loss", mlm_loss, prog_bar=True)
         self.log(f"{stage}/loss", loss, prog_bar=True)
 
-        mlm_acc = (input.argmax(dim=-1) == target).float().mean()
+        input_ = input.argmax(dim=-1)[target != -100]
+        target_ = target[target != -100]
+        mlm_acc = (input_ == target_).float().mean()
         self.log(f"{stage}/mlm_acc", mlm_acc)
 
         unique_indices, counts = output_dict['embed_ind'].unique(return_counts=True)
@@ -254,8 +256,8 @@ class ImageVQL(nn.Module):
         result_dict = self.quantize_image(image)
 
         cls_token = self.vq_to_embed_proj(result_dict['x'])
-        text_tokens = self.text_embeddings(input_ids=text)
-        text_tokens[:, 0] = cls_token
+        x = self.text_embeddings(input_ids=text)
+        x[:, 0] = cls_token
 
         for blk in self.decoder:
             x = blk(x, mask=padding_mask)
