@@ -14,7 +14,7 @@ import sys
 sys.path.append("beit2")
 from models import MODEL_REGISTRY
 from datamodules import DATAMODULE_REGISTRY, MultiDataModule
-from callbacks import WallClockCallback, GracefulStoppingCallback, ResumeCheckModelCheckpoint
+from callbacks import WallClockCallback, GracefulStoppingCallback, ResumeCheckModelCheckpoint, CodebookUsageCallback
 from fairseq.dataclass.utils import merge_with_parent
 
 
@@ -62,6 +62,7 @@ def main(cfg: DictConfig) -> None:
         ModelSummary(),
         LearningRateMonitor(logging_interval="step"),
         WallClockCallback(),
+        CodebookUsageCallback(n_codebook_embed=cfg.model.n_codebook_embed),
     ]
     
     common_checkpoint_args = OmegaConf.to_container(cfg.checkpoint.common, resolve=True)

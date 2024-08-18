@@ -3,7 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 import torch.distributed as distributed
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import os
 import logging
 import pytorch_lightning as L
@@ -13,9 +13,6 @@ from beit2.modeling_pretrain import VisionTransformerForMaskedImageModeling
 from beit2.norm_ema_quantizer import norm_ema_inplace, ema_inplace, l2norm, EmbeddingEMA
 from transformers.models.bert.modeling_bert import BertModel
 from omegaconf import OmegaConf
-from modules.layers import Attention
-from timm.models.vision_transformer import LayerScale
-from timm.layers import Mlp, DropPath
 from modules import ClipLoss
 from . import MODEL_REGISTRY
 from utils import freeze_module, load_beit2_teacher
@@ -29,8 +26,6 @@ class ImageVQLContrastLightningModule(L.LightningModule):
         self.cfg = cfg
 
         self.model = ImageVQLContrast(cfg=self.cfg.model)
-
-        self.register_buffer("embedding_usage", torch.zeros(self.cfg.model.n_codebook_embed))
 
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
@@ -79,13 +74,8 @@ class ImageVQLContrastLightningModule(L.LightningModule):
 
         loss = itc_loss + vq_loss
         self.log(f"{stage}/loss", loss)
-
-        unique_indices, counts = output_dict['embed_ind'].unique(return_counts=True)
-        self.embedding_usage[unique_indices] += counts
-
-        self.log_codebook_usage(output_dict, stage=stage)
         
-        return loss
+        return {'loss': loss, 'embed_ind': output_dict['embed_ind']}
     
     def log_itc_acc(self, logits_per_image, logits_per_text, target, stage, key_prefix=""):
         img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
@@ -95,26 +85,6 @@ class ImageVQLContrastLightningModule(L.LightningModule):
         self.log(f"{stage}/{key_prefix}itc_text_acc", text_itc_acc)
         self.log(f"{stage}/{key_prefix}itc_image_acc", img_itc_acc)
         self.log(f"{stage}/{key_prefix}itc_acc", (img_itc_acc + text_itc_acc) / 2, prog_bar=True)
-    
-    def log_codebook_usage(self, output_dict:Dict[str, Any], stage:str='train'):
-        embeds_utilized = output_dict['embed_ind'].unique().numel()
-        utilization_percentage = (embeds_utilized / output_dict['x'].shape[0]) * 100
-        self.log(f"{stage}/codebook_utilization", utilization_percentage)
-
-    def on_validation_start(self):
-        mean_usage = torch.mean(self.embedding_usage.float())
-        std_dev_usage = torch.std(self.embedding_usage.float())
-        cv_usage = std_dev_usage / mean_usage
-        min_usage = torch.min(self.embedding_usage.float())
-        no_usage = torch.sum(self.embedding_usage == 0).float() / self.embedding_usage.numel()
-
-        self.log("mean_codebook_usage", mean_usage)
-        self.log("std_dev_codebook_usage", std_dev_usage)
-        self.log("cv_codebook_usage", cv_usage)
-        self.log("min_codebook_usage", min_usage)
-        self.log("no_usage_pct", no_usage)
-
-        self.embedding_usage.zero_()
 
     def configure_optimizers(self):
         ws = torch.cuda.device_count()
