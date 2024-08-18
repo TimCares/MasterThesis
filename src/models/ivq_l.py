@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from transformers.optimization import get_cosine_schedule_with_warmup
 from beit2.modeling_pretrain import VisionTransformerForMaskedImageModeling
 from beit2.norm_ema_quantizer import norm_ema_inplace, ema_inplace, l2norm, EmbeddingEMA
-from transformers.models.bert.modeling_bert import BertConfig, BertEmbeddings, BertLMPredictionHead
+from transformers.models.bert.modeling_bert import BertConfig, BertEmbeddings, BertLMPredictionHead, BertModel
 from timm.models.vision_transformer import Block
 from omegaconf import OmegaConf
 from modules.layers import Attention
@@ -87,14 +87,12 @@ class ImageVQLLightningModule(L.LightningModule):
         std_dev_usage = torch.std(self.embedding_usage.float())
         cv_usage = std_dev_usage / mean_usage
         min_usage = torch.min(self.embedding_usage.float())
-        max_usage = torch.max(self.embedding_usage.float())
         no_usage = torch.sum(self.embedding_usage == 0).float() / self.embedding_usage.numel()
 
         self.log("mean_codebook_usage", mean_usage)
         self.log("std_dev_codebook_usage", std_dev_usage)
         self.log("cv_codebook_usage", cv_usage)
         self.log("min_codebook_usage", min_usage)
-        self.log("max_codebook_usage", max_usage)
         self.log("no_usage_pct", no_usage)
 
         self.embedding_usage.zero_()
@@ -226,6 +224,8 @@ class ImageVQL(nn.Module):
         )
 
         self.text_embeddings = BertEmbeddings(bert_config)
+        # self.text_embeddings = BertModel.from_pretrained('bert-base-uncased').embeddings
+        # freeze_module(self.text_embeddings)
 
         self.decoder = nn.ModuleList([
             Block(
