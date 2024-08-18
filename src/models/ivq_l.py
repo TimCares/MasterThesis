@@ -44,7 +44,7 @@ class ImageVQLLightningModule(L.LightningModule):
         return self._step(batch, batch_idx, stage='val')
 
     def _step(self, batch:Dict[str, Any], batch_idx, stage:str='train'):
-        input_dict = {'image': batch['image_teacher']}
+        input_dict = {key:batch[key] for key in ['image', 'text', 'padding_mask']}
 
         output_dict = self(input_dict) # call "forward"
 
