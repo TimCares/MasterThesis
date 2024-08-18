@@ -3,3 +3,4 @@ from .SHRe import SHRePreTrainingLightningModule, SHReConfig
 from .Sx3HRe import Sx3HRePreTrainingLightningModule, Sx3HReConfig
 from .image_vq import ImageVQLightningModule, ImageVQConfig
 from .ivq_l import ImageVQLLightningModule, ImageVQLConfig
+from .ivq_l_contrast import ImageVQLContrastLightningModule, ImageVQLContrastConfig
