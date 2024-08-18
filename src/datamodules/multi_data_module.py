@@ -46,15 +46,7 @@ class MultiDataModule(LightningDataModule):
                           drop_last=self.drop_last,)
     
     def collater(self, samples):
-        batch_tensors = {}
-        for tensor_key in samples[0]:
-            if isinstance(samples[0][tensor_key], torch.Tensor):
-                batch_tensors[tensor_key] = torch.stack([d[tensor_key] for d in samples])
-            else:
-                batch_tensors[tensor_key] = torch.tensor([d[tensor_key] for d in samples], dtype=torch.long)
-
-        batch_tensors['modality'] = self.modality
-        return batch_tensors
+        return self.datamodules[0].train_dataset.collater(samples)
 
     def teardown(self, stage: str) -> None:
         if stage == 'fit' or stage is None:
