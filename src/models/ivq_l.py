@@ -30,6 +30,8 @@ class ImageVQLLightningModule(L.LightningModule):
 
         self.model = ImageVQL(cfg=self.cfg.model)
 
+        self.register_buffer("embedding_usage", torch.zeros(self.cfg.model.n_classes))
+
         self.save_hyperparameters()
 
     def forward(self, input_dict):
@@ -46,31 +48,51 @@ class ImageVQLLightningModule(L.LightningModule):
 
         output_dict = self(input_dict) # call "forward"
 
-        target = output_dict['x']
-        rec = output_dict['x_rec']
+        vq_loss = output_dict['vq_loss']
+
+        input = output_dict['x']
+        target = batch['targets']
         
-        target = target / target.norm(dim=-1, keepdim=True)
-        rec = rec / rec.norm(dim=-1, keepdim=True)
-        rec_loss = (1 - (target * rec).sum(-1)).mean()
+        mlm_loss = F.cross_entropy(
+            input=input.view(-1, 30522),
+            target=target.view(-1),
+            ignore_index=-100,
+        )
 
-        loss = output_dict['vq_loss'] + rec_loss
+        loss = vq_loss + mlm_loss
 
-        self.log(f"{stage}/vq_loss", output_dict['vq_loss'], prog_bar=True)
-        self.log(f"{stage}/rec_loss", rec_loss, prog_bar=True)
+        self.log(f"{stage}/vq_loss", vq_loss, prog_bar=True)
+        self.log(f"{stage}/mlm_loss", mlm_loss, prog_bar=True)
         self.log(f"{stage}/loss", loss, prog_bar=True)
 
-        value_counts = torch.bincount(output_dict['embed_ind'])
+        unique_indices, counts = output_dict['embed_ind'].unique(return_counts=True)
+        self.embedding_usage[unique_indices] += counts
 
-        mean_count = torch.mean(value_counts.float())
-
-        std_dev = torch.std(value_counts.float())
-
-        cv = std_dev / mean_count
-
-        self.log(f"{stage}/cv", cv)
-        self.log(f"{stage}/n_codes", value_counts.shape[0])
+        self.log_codebook_usage(output_dict, stage=stage)
         
         return loss
+    
+    def log_codebook_usage(self, output_dict:Dict[str, Any], stage:str='train'):
+        embeds_utilized = output_dict['embed_ind'].unique().numel()
+        utilization_percentage = (embeds_utilized / output_dict['x'].shape[0]) * 100
+        self.log(f"{stage}/codebook_utilization", utilization_percentage)
+
+    def on_validation_start(self):
+        mean_usage = torch.mean(self.embedding_usage.float())
+        std_dev_usage = torch.std(self.embedding_usage.float())
+        cv_usage = std_dev_usage / mean_usage
+        min_usage = torch.min(self.embedding_usage.float())
+        max_usage = torch.max(self.embedding_usage.float())
+        no_usage = torch.sum(self.embedding_usage == 0).float() / self.embedding_usage.numel()
+
+        self.log("mean_codebook_usage", mean_usage)
+        self.log("std_dev_codebook_usage", std_dev_usage)
+        self.log("cv_codebook_usage", cv_usage)
+        self.log("min_codebook_usage", min_usage)
+        self.log("max_codebook_usage", max_usage)
+        self.log("no_usage_pct", no_usage)
+
+        self.embedding_usage.zero_()
 
     def configure_optimizers(self):
         ws = torch.cuda.device_count()
@@ -118,8 +140,7 @@ class ImageVQLLightningModule(L.LightningModule):
         return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": 'cosine'}]
         
     def _get_param_groups(self):
-        no_wd_keys = {'quantize.embedding.weight', 'decoder.cls_token',
-                      'decoder.pos_embed', 'encoder.cls_token', 'encoder.pos_embed'}
+        no_wd_keys = {'quantize.embedding.weight', 'text_embeddings', 'beitv2.cls_token'}
         
         wd_params, non_wd_params = [], []
         for name, param in self.model.named_parameters():
@@ -146,7 +167,6 @@ class BEiTv2Config():
 class ImageVQLConfig(): 
     beitv2: BEiTv2Config = field(default_factory=BEiTv2Config)
     decoder_depth: int = 3
-    pass_through_layer_idx: int = 2
     n_classes: int = 1000
     vq_dim: int = 32
     vq_decay: float = 0.95 # 0.99
@@ -191,12 +211,12 @@ class ImageVQL(nn.Module):
         )
 
         bert_config = BertConfig(
-            vocab_size=50264,
+            vocab_size=30522,
             hidden_size=dim,
             max_position_embeddings=64,
             hidden_dropout_prob=0.0,
             position_embedding_type="absolute",
-            pad_token_id=1,
+            pad_token_id=0,
             layer_norm_eps=1e-6,
         )
 
