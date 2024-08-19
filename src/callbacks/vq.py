@@ -2,6 +2,7 @@ import logging
 from pytorch_lightning import Callback
 from typing import *
 import torch
+import torch.distributed as dist
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ class CodebookUsageCallback(Callback):
         embed_ind = outputs['embed_ind']
         if trainer.world_size > 1:
             outputs_gather_list = [torch.zeros_like(embed_ind) for _ in range(trainer.world_size)]
-            torch.distributed.all_gather(outputs_gather_list, embed_ind)
+            dist.all_gather(outputs_gather_list, embed_ind)
             embed_ind = torch.cat(outputs_gather_list, dim=0).view(-1) # [B * N * Ngpu, ]
 
         self.codebook_cnt += torch.bincount(embed_ind, minlength=self.n_codebook_embed)
