@@ -18,7 +18,7 @@ class CodebookUsageCallback(Callback):
         self.calculate_codebook_usage(pl_module)
         del self.codebook_cnt
 
-    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
         embed_ind = outputs['embed_ind']
         if trainer.world_size > 1:
             outputs_gather_list = [torch.zeros_like(embed_ind) for _ in range(trainer.world_size)]

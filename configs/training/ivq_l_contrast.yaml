@@ -16,7 +16,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: iqv-l-contrast_2048
+run_name: iqv-l-contrast_8192
 id:
 model_name: iqv-l-contrast
 
@@ -34,7 +34,7 @@ model:
     vocab_size: 8192
     init_values: 0.1
 
-  n_codebook_embed: 2048
+  n_codebook_embed: 8192
   vq_dim: 32
   vq_decay: 0.95
 
