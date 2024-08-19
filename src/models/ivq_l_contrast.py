@@ -67,13 +67,13 @@ class ImageVQLContrastLightningModule(L.LightningModule):
 
         self.log_itc_acc(itc_out['logits_per_image'], itc_out['logits_per_text'], itc_out['targets'], stage)
         itc_loss = itc_out['loss']
-        self.log(f"{stage}/itc_loss", itc_loss)
+        self.log(f"{stage}/itc_loss", itc_loss, prog_bar=True)
 
         vq_loss = output_dict['vq_loss']
-        self.log(f"{stage}/vq_loss", vq_loss)
+        self.log(f"{stage}/vq_loss", vq_loss, prog_bar=True)
 
         loss = itc_loss + vq_loss
-        self.log(f"{stage}/loss", loss)
+        self.log(f"{stage}/loss", loss, prog_bar=True)
         
         return {'loss': loss, 'embed_ind': output_dict['embed_ind']}
     
