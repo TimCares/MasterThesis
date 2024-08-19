@@ -35,7 +35,7 @@ model:
     init_values: 0.1
 
   decoder_depth: 3
-  n_classes: 1000
+  n_codebook_embed: 1000
   vq_dim: 32
   vq_decay: 0.96 # 0.99
 

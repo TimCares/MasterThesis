@@ -30,8 +30,6 @@ class ImageVQLLightningModule(L.LightningModule):
 
         self.model = ImageVQL(cfg=self.cfg.model)
 
-        self.register_buffer("embedding_usage", torch.zeros(self.cfg.model.n_classes))
-
         self.save_hyperparameters()
 
     def forward(self, input_dict):
@@ -145,7 +143,7 @@ class BEiTv2Config():
 class ImageVQLConfig(): 
     beitv2: BEiTv2Config = field(default_factory=BEiTv2Config)
     decoder_depth: int = 3
-    n_classes: int = 1000
+    n_codebook_embed: int = 1000
     vq_dim: int = 32
     vq_decay: float = 0.96 # 0.99
 
@@ -178,7 +176,7 @@ class ImageVQL(nn.Module):
         self.vq_to_embed_proj.apply(self.beitv2._init_weights)
 
         self.quantize = NormEMAVectorQuantizer(
-            n_embed=self.cfg.n_classes, embedding_dim=self.cfg.vq_dim, beta=1.0, kmeans_init=True, decay=self.cfg.vq_decay,
+            n_embed=self.cfg.n_codebook_embed, embedding_dim=self.cfg.vq_dim, beta=1.0, kmeans_init=True, decay=self.cfg.vq_decay,
         )
 
         bert_config = BertConfig(
