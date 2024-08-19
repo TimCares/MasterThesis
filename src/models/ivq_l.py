@@ -69,33 +69,8 @@ class ImageVQLLightningModule(L.LightningModule):
         target_ = target[target != -100]
         mlm_acc = (input_ == target_).float().mean()
         self.log(f"{stage}/mlm_acc", mlm_acc)
-
-        unique_indices, counts = output_dict['embed_ind'].unique(return_counts=True)
-        self.embedding_usage[unique_indices] += counts
-
-        self.log_codebook_usage(output_dict, stage=stage)
         
-        return loss
-    
-    def log_codebook_usage(self, output_dict:Dict[str, Any], stage:str='train'):
-        embeds_utilized = output_dict['embed_ind'].unique().numel()
-        utilization_percentage = (embeds_utilized / output_dict['x'].shape[0]) * 100
-        self.log(f"{stage}/codebook_utilization", utilization_percentage)
-
-    def on_validation_start(self):
-        mean_usage = torch.mean(self.embedding_usage.float())
-        std_dev_usage = torch.std(self.embedding_usage.float())
-        cv_usage = std_dev_usage / mean_usage
-        min_usage = torch.min(self.embedding_usage.float())
-        no_usage = torch.sum(self.embedding_usage == 0).float() / self.embedding_usage.numel()
-
-        self.log("mean_codebook_usage", mean_usage)
-        self.log("std_dev_codebook_usage", std_dev_usage)
-        self.log("cv_codebook_usage", cv_usage)
-        self.log("min_codebook_usage", min_usage)
-        self.log("no_usage_pct", no_usage)
-
-        self.embedding_usage.zero_()
+        return {'loss': loss, 'embed_ind': output_dict['embed_ind']}
 
     def configure_optimizers(self):
         ws = torch.cuda.device_count()
@@ -107,29 +82,17 @@ class ImageVQLLightningModule(L.LightningModule):
             learning_rate = self.cfg.optimizer.base_lr * (self.cfg.data.dataloader.batch_size*ws) / 256
             logger.info(f"[Optimizer]: Base Learning rate is {self.cfg.optimizer.base_lr}")
         logger.info(f"[Optimizer]: Learning rate is {learning_rate}")
-        wd_params, non_wd_params = self._get_param_groups()
-        assert len(wd_params) + len(non_wd_params) == len(list(self.model.parameters()))
+
+        params = self._get_param_groups(pretrain_lr=self.cfg.optimizer.pretrain_lr, random_init_lr=learning_rate)
+        assert sum([len(p["params"]) for p in params]) == len(list(self.model.parameters()))
+
         optim_args = {
-            "params": [
-                {"params": wd_params, "weight_decay": self.cfg.optimizer.weight_decay},
-                {"params": non_wd_params, "weight_decay": 0}
-            ],
-            "lr": learning_rate,
+            "params": params,
             "betas": tuple(self.cfg.optimizer.betas),
             "eps": self.cfg.optimizer.eps,
         }
-        if 'deepspeed' in self.cfg.lightning_trainer:
-            if self.cfg.lightning_trainer.deepspeed.offload_optimizer:
-                from deepspeed.ops.adam import DeepSpeedCPUAdam
-                opt_cls = DeepSpeedCPUAdam
-                optim_args['model_params'] = optim_args.pop("params")
-            else:
-                from deepspeed.ops.adam import FusedAdam
-                opt_cls = FusedAdam
-        else:
-            opt_cls = torch.optim.AdamW
             
-        optimizer = opt_cls(**optim_args)
+        optimizer = torch.optim.AdamW(**optim_args)
         
         max_steps = int(self.cfg.optimizer.max_steps / ws)
         warmup_steps = int(max_steps * 0.1)
@@ -141,17 +104,29 @@ class ImageVQLLightningModule(L.LightningModule):
             num_training_steps=max_steps,
         )
         return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": 'cosine'}]
-        
-    def _get_param_groups(self):
+    
+    def _get_param_groups(self, pretrain_lr, random_init_lr):
         no_wd_keys = {'quantize.embedding.weight', 'text_embeddings', 'beitv2.cls_token'}
         
-        wd_params, non_wd_params = [], []
+        params = {
+            'wd_pretrained': {"params": [], "weight_decay": self.cfg.optimizer.weight_decay, "lr": pretrain_lr},
+            'no_wd_pretrained': {"params": [], "weight_decay": 0, "lr": pretrain_lr},
+            'wd_random_init': {"params": [], "weight_decay": self.cfg.optimizer.weight_decay, "lr": random_init_lr},
+            'no_wd_random_init': {"params": [], "weight_decay": 0, "lr": random_init_lr},
+        }
         for name, param in self.model.named_parameters():
             if any(no_wd_key in name for no_wd_key in no_wd_keys):
-                non_wd_params.append(param)
+                if name.startswith("beitv2."):
+                    params['no_wd_pretrained']["params"].append(param)
+                else:
+                    params['no_wd_random_init']["params"].append(param)
             else:
-                wd_params.append(param)
-        return wd_params, non_wd_params
+                if name.startswith("beitv2."):
+                    params['wd_pretrained']["params"].append(param)
+                else:
+                    params['wd_random_init']["params"].append(param)
+
+        return [v for _, v in params.items() if len(v["params"]) > 0]
         
     def log(self, *args, **kwargs):
         super().log(batch_size=self.cfg.data.dataloader.batch_size, sync_dist=True, *args, **kwargs)
@@ -172,7 +147,7 @@ class ImageVQLConfig():
     decoder_depth: int = 3
     n_classes: int = 1000
     vq_dim: int = 32
-    vq_decay: float = 0.95 # 0.99
+    vq_decay: float = 0.96 # 0.99
 
 class ImageVQL(nn.Module):
     def __init__(self,
@@ -190,7 +165,6 @@ class ImageVQL(nn.Module):
             sd_path=beit_path,
             **beit2_kwargs,
         )
-        freeze_module(self.beitv2)
 
         dim = self.beitv2.embed_dim
         self.embed_to_vq_proj = nn.Sequential(
@@ -198,16 +172,10 @@ class ImageVQL(nn.Module):
             nn.Tanh(),
             nn.Linear(dim, self.cfg.vq_dim),
         )
-        self.vq_to_embed_proj = nn.Sequential(
-            nn.Linear(self.cfg.vq_dim, dim),
-            nn.Tanh(),
-            nn.Linear(dim, dim),
-        )
-        self.norm = nn.LayerNorm(dim, eps=1e-6)
+        self.embed_to_vq_proj.apply(self.beitv2._init_weights)
 
-        self.embed_to_vq_proj.apply(self.beitv2._init_weights)
-        self.embed_to_vq_proj.apply(self.beitv2._init_weights)
-        self.norm.apply(self.beitv2._init_weights)
+        self.vq_to_embed_proj = nn.Linear(dim, dim)
+        self.vq_to_embed_proj.apply(self.beitv2._init_weights)
 
         self.quantize = NormEMAVectorQuantizer(
             n_embed=self.cfg.n_classes, embedding_dim=self.cfg.vq_dim, beta=1.0, kmeans_init=True, decay=self.cfg.vq_decay,
@@ -223,13 +191,12 @@ class ImageVQL(nn.Module):
             layer_norm_eps=1e-6,
         )
 
-        self.text_embeddings = BertEmbeddings(bert_config)
-        # self.text_embeddings = BertModel.from_pretrained('bert-base-uncased').embeddings
-        # freeze_module(self.text_embeddings)
+        self.text_embeddings = BertModel.from_pretrained('bert-base-uncased').embeddings
+        freeze_module(self.text_embeddings)
 
         self.decoder = nn.ModuleList([
             Block(
-                dim=dim,
+                dim=self.cfg.vq_dim,
                 num_heads=self.beitv2.num_heads,
                 mlp_ratio=4.0,
                 qkv_bias=True,
@@ -241,10 +208,9 @@ class ImageVQL(nn.Module):
             )
             for _ in range(self.cfg.decoder_depth)]
         )
+        self.decoder.apply(self.beitv2._init_weights)
 
         self.lm_head = BertLMPredictionHead(bert_config)
-        self.text_embeddings.apply(self.beitv2._init_weights)
-        self.decoder.apply(self.beitv2._init_weights)
         self.lm_head.apply(self.beitv2._init_weights)
 
     def forward(
@@ -255,14 +221,16 @@ class ImageVQL(nn.Module):
     ):
         result_dict = self.quantize_image(image)
 
-        cls_token = self.vq_to_embed_proj(result_dict['x'])
-        x = self.text_embeddings(input_ids=text)
-        x[:, 0] = cls_token
+        with torch.no_grad():
+            x = self.text_embeddings(input_ids=text)
+        
+        x = self.embed_to_vq_proj(x)
+        x[:, 0] = result_dict['x']
 
         for blk in self.decoder:
             x = blk(x, mask=padding_mask)
 
-        x = self.lm_head(x)
+        x = self.lm_head(self.vq_to_embed_proj(x))
 
         out_dict = {
             'x': x,
@@ -272,9 +240,8 @@ class ImageVQL(nn.Module):
         return out_dict
     
     def quantize_image(self, image:torch.Tensor):
-        with torch.no_grad():
-            bool_masked_pos = torch.zeros((image.shape[0], self.beitv2.patch_embed.num_patches), dtype=torch.bool).to(image.device)
-            x = self.beitv2.forward_features(x=image, bool_masked_pos=bool_masked_pos)[:, 0] # cls token
+        bool_masked_pos = torch.zeros((image.shape[0], self.beitv2.patch_embed.num_patches), dtype=torch.bool).to(image.device)
+        x = self.beitv2.forward_features(x=image, bool_masked_pos=bool_masked_pos)[:, 0] # cls token
 
         to_quantizer_features = self.embed_to_vq_proj(x)
         quantize, loss, embed_ind = self.quantize(to_quantizer_features)

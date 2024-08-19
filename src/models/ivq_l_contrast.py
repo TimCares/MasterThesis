@@ -205,7 +205,7 @@ class ImageVQLContrast(nn.Module):
         )
 
         self.embed_to_vq_proj.apply(self.beitv2._init_weights)
-        self.embed_to_vq_proj.apply(self.beitv2._init_weights)
+        self.vq_to_embed_proj.apply(self.beitv2._init_weights)
         self.bert_proj.apply(self.beitv2._init_weights)
 
         self.quantize = NormEMAVectorQuantizer(
