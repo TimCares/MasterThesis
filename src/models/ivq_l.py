@@ -80,12 +80,14 @@ class ImageVQLLightningModule(L.LightningModule):
             learning_rate = self.cfg.optimizer.base_lr * (self.cfg.data.dataloader.batch_size*ws) / 256
             logger.info(f"[Optimizer]: Base Learning rate is {self.cfg.optimizer.base_lr}")
         logger.info(f"[Optimizer]: Learning rate is {learning_rate}")
-
-        params = self._get_param_groups(pretrain_lr=self.cfg.optimizer.pretrain_lr, random_init_lr=learning_rate)
-        assert sum([len(p["params"]) for p in params]) == len(list(self.model.parameters()))
-
+        wd_params, non_wd_params = self._get_param_groups()
+        assert len(wd_params) + len(non_wd_params) == len(list(self.model.parameters()))
         optim_args = {
-            "params": params,
+            "params": [
+                {"params": wd_params, "weight_decay": self.cfg.optimizer.weight_decay},
+                {"params": non_wd_params, "weight_decay": 0}
+            ],
+            "lr": learning_rate,
             "betas": tuple(self.cfg.optimizer.betas),
             "eps": self.cfg.optimizer.eps,
         }
@@ -103,28 +105,16 @@ class ImageVQLLightningModule(L.LightningModule):
         )
         return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": 'cosine'}]
     
-    def _get_param_groups(self, pretrain_lr, random_init_lr):
+    def _get_param_groups(self):
         no_wd_keys = {'quantize.embedding.weight', 'text_embeddings', 'beitv2.cls_token'}
         
-        params = {
-            'wd_pretrained': {"params": [], "weight_decay": self.cfg.optimizer.weight_decay, "lr": pretrain_lr},
-            'no_wd_pretrained': {"params": [], "weight_decay": 0, "lr": pretrain_lr},
-            'wd_random_init': {"params": [], "weight_decay": self.cfg.optimizer.weight_decay, "lr": random_init_lr},
-            'no_wd_random_init': {"params": [], "weight_decay": 0, "lr": random_init_lr},
-        }
+        wd_params, non_wd_params = [], []
         for name, param in self.model.named_parameters():
             if any(no_wd_key in name for no_wd_key in no_wd_keys):
-                if name.startswith("beitv2."):
-                    params['no_wd_pretrained']["params"].append(param)
-                else:
-                    params['no_wd_random_init']["params"].append(param)
+                non_wd_params.append(param)
             else:
-                if name.startswith("beitv2."):
-                    params['wd_pretrained']["params"].append(param)
-                else:
-                    params['wd_random_init']["params"].append(param)
-
-        return [v for _, v in params.items() if len(v["params"]) > 0]
+                wd_params.append(param)
+        return wd_params, non_wd_params
         
     def log(self, *args, **kwargs):
         super().log(batch_size=self.cfg.data.dataloader.batch_size, sync_dist=True, *args, **kwargs)
@@ -163,6 +153,7 @@ class ImageVQL(nn.Module):
             sd_path=beit_path,
             **beit2_kwargs,
         )
+        freeze_module(self.beitv2)
 
         dim = self.beitv2.embed_dim
         self.embed_to_vq_proj = nn.Sequential(
@@ -171,6 +162,13 @@ class ImageVQL(nn.Module):
             nn.Linear(dim, self.cfg.vq_dim),
         )
         self.embed_to_vq_proj.apply(self.beitv2._init_weights)
+
+        self.bert_to_vq_proj = nn.Sequential(
+            nn.Linear(dim, dim),
+            nn.Tanh(),
+            nn.Linear(dim, self.cfg.vq_dim),
+        )
+        self.bert_to_vq_proj.apply(self.beitv2._init_weights)
 
         self.vq_to_embed_proj = nn.Linear(dim, dim)
         self.vq_to_embed_proj.apply(self.beitv2._init_weights)
@@ -222,7 +220,7 @@ class ImageVQL(nn.Module):
         with torch.no_grad():
             x = self.text_embeddings(input_ids=text)
         
-        x = self.embed_to_vq_proj(x)
+        x = self.bert_to_vq_proj(x)
         x[:, 0] = result_dict['x']
 
         for blk in self.decoder:
@@ -238,8 +236,9 @@ class ImageVQL(nn.Module):
         return out_dict
     
     def quantize_image(self, image:torch.Tensor):
-        bool_masked_pos = torch.zeros((image.shape[0], self.beitv2.patch_embed.num_patches), dtype=torch.bool).to(image.device)
-        x = self.beitv2.forward_features(x=image, bool_masked_pos=bool_masked_pos)[:, 0] # cls token
+        with torch.no_grad():
+            bool_masked_pos = torch.zeros((image.shape[0], self.beitv2.patch_embed.num_patches), dtype=torch.bool).to(image.device)
+            x = self.beitv2.forward_features(x=image, bool_masked_pos=bool_masked_pos)[:, 0] # cls token
 
         to_quantizer_features = self.embed_to_vq_proj(x)
         quantize, loss, embed_ind = self.quantize(to_quantizer_features)
