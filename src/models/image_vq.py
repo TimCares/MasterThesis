@@ -58,7 +58,7 @@ class ImageVQLightningModule(L.LightningModule):
 
         me_max_loss = 0
         for scores in [embedding_scores1, embedding_scores2]:
-            scores = F.softmax(scores, dim=-1).mean(dim=0)
+            scores = AllReduce.apply(F.softmax(scores, dim=-1).mean(dim=0))
             me_max_ = - torch.sum(torch.log(scores**(-scores)))
             me_max_loss += me_max_
         me_max_loss /= 2
@@ -239,6 +239,18 @@ class ImageVQ(nn.Module):
         )[:, 0]
         
         return target
+    
+class AllReduce(torch.autograd.Function):
+
+    @staticmethod
+    def forward(ctx, x):
+        x = x.contiguous() / distributed.get_world_size()
+        distributed.all_reduce(x)
+        return x
+
+    @staticmethod
+    def backward(ctx, grads):
+        return grads
 
 
 MODEL_REGISTRY['image_vq'] = {

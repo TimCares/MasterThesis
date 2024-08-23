@@ -53,6 +53,7 @@ data:
     color_jitter: # None
     beit_transforms: False
     crop_scale: [0.9, 1.0]
+    text_token_mask_prob: 0.0
 
   datamodules:
     coco_captions:

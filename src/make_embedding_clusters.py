@@ -1,111 +1,93 @@
 import hydra
 import os
-import json
 import torch
-from torch.utils.data.dataset import ConcatDataset
-from torch.utils.data import DataLoader
-from beit2.datasets import DataAugmentationForBEiT
-from collections import namedtuple
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, open_dict
 from pytorch_lightning import seed_everything
-from datasets_ import UngroupedImageFolder
-from utils import freeze_module, load_beit2_teacher
-import cupy as cp
-from cuml.cluster import KMeans
+from models import ImageCluster
+from datamodules import DATAMODULE_REGISTRY, MultiDataModule
+from typing import List
+from pytorch_lightning import LightningDataModule
+from beit2.norm_ema_quantizer import kmeans, l2norm
+from einops import repeat
 from tqdm import tqdm
 import logging
 
 logger = logging.getLogger(__name__)
 
-@hydra.main(version_base=None, config_path=os.path.join("..", "configs", "cluster"), config_name='k-means')
+@hydra.main(version_base=None, config_path=os.path.join("..", "configs", "cluster"), config_name='cluster')
 def main(cfg: DictConfig) -> None:
     if 'seed' in cfg and cfg.seed is not None:
         seed_everything(seed=cfg.seed, workers=True)
     else:
         logger.info('No seed set.')
 
-    if not os.path.exists(cfg.output_dir, 'beit2_embeddings.npy'):
-        logger.info("Generating BEiT2 embeddings.")
-        dataset, idx2file_mapper = generate_beit2_embeddings(cfg)
-        cp.save(os.path.join(cfg.output_dir, 'beit2_embeddings.npy'), dataset)
-        with open(os.path.join(cfg.output_dir, 'idx2file_mapper.json'), "w") as f:
-            json.dump(idx2file_mapper, f)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    dataloader_args = cfg.data.dataloader
+    common_args = cfg.data.common
+
+    datamodules:List[LightningDataModule] = []
+    for datamodule_key in cfg.data.datamodules.keys():
+        dataset_args = cfg.data.datamodules[datamodule_key]
+        with open_dict(dataset_args):
+            dataset_args.update(dataloader_args)
+            dataset_args.update(common_args)
+        datamodules.append(DATAMODULE_REGISTRY[datamodule_key](**dataset_args))
+        logger.info(f"Train datamodule {datamodule_key}: {dataset_args}")
+    
+    multi_datamodule = MultiDataModule(datamodules=datamodules, **dataloader_args)
+
+    model = ImageCluster(cfg.model)
+    model.to(device)
+
+    for i in range(cfg.n_epochs):
+        for batch in tqdm(multi_datamodule.train_dataloader(), desc=f"Epoch {i+1}, Train: Iterating over batches"):
+            image = batch['image_teacher'].to(device)
+            batch_kmeans(model, image)
+        
+        torch.save(model.state_dict(), cfg.save_path)
+
+        codebook_cnt = torch.zeros(model.cfg.num_clusters, dtype=torch.float64).to(model.device)
+        for batch in tqdm(multi_datamodule.val_dataloader(), desc=f"Epoch {i+1}, Val: Iterating over batches"):
+            image = batch['image_teacher'].to(device)
+            cluster_idx = model.get_cluster(image)['cluster_idx']
+            codebook_cnt += torch.bincount(cluster_idx, minlength=model.cfg.num_clusters)
+        
+        zero_cnt = (codebook_cnt == 0).sum()
+        logger.info(f"Zero count: {zero_cnt}")
+        logger.info(f"Standard deviation: {codebook_cnt.std()}")
+        del codebook_cnt
+
+
+def batch_kmeans(model, image):
+    if not model.initted:
+        means, bins = kmeans(image, model.cfg.num_clusters, use_cosine_sim=True)
+        model.cluster_prototypes = means
+        model.initted = True
+        return
     else:
-        logger.info("BEiT2 embeddings already exist, loading...")
-        dataset = cp.load(os.path.join(cfg.output_dir, 'beit2_embeddings.npy'))
-        with open(os.path.join(cfg.output_dir, 'idx2file_mapper.json'), "r") as f:
-            idx2file_mapper = json.load(f)
+        means = model.cluster_prototypes
+
+    dists = model.get_cluster(image)['cluster_dist']
     
-    if not os.path.exists(cfg.output_dir, f'cluster2file_{cfg.kmeans.n_clusters}.json'):
-        kmeans = KMeans(**cfg.kmeans)
-        logger.info("Fitting KMeans.")
-        kmeans.fit(dataset)
-        del dataset
-        cluster_assignments = kmeans.labels_.to_pandas()
-        logger.info("Clustering done.")
+    dim, dtype = image.shape[-1], image.dtype
 
-        img2cluster = {idx2file_mapper[idx]: cluster for idx, cluster in cluster_assignments.items()}
-        with open(os.path.join(cfg.output_dir, f"file2cluster_{cfg.kmeans.n_clusters}.json"), "w") as f:
-            json.dump(img2cluster, f)
-        logger.info("Finished embedding clustering.")
-    else:
-        logger.info(f"Cluster assignments already exist for {cfg.kmeans.n_clusters} clusters.")
+    buckets = dists.max(dim = -1).indices
+    bins = torch.bincount(buckets, minlength = model.cfg.num_clusters)
+    zero_mask = bins == 0
+    bins_min_clamped = bins.masked_fill(zero_mask, 1)
+
+    new_means = buckets.new_zeros(model.cfg.num_clusters, dim, dtype = dtype)
+    new_means.scatter_add_(0, repeat(buckets, 'n -> n d', d = dim), image)
+    new_means = new_means / bins_min_clamped[..., None]
+
+    means = torch.where(zero_mask[..., None], means, new_means)
+
+    model.cluster_prototypes = model.cluster_prototypes * model.cfg.decay + means * (1 - model.cfg.decay)
+
+    model.cluster_prototypes = l2norm(model.cluster_prototypes)
 
 
-def generate_beit2_embeddings(cfg):
-    BeitTransformsArgs = namedtuple('BeitTransformsArgs', 
-                                    ['imagenet_default_mean_and_std', 'input_size',
-                                     'second_input_size', 'min_crop_scale', 'train_interpolation',
-                                     'second_interpolation',],)
-    
-    transforms_args = BeitTransformsArgs(imagenet_default_mean_and_std=True, input_size=224, second_input_size=None,
-                                         min_crop_scale=0.9, train_interpolation='bicubic', second_interpolation='bicubic')
-    
-    beit2_transforms = DataAugmentationForBEiT(transforms_args)
-
-    datasets = []
-    for path in cfg.data.datasets.keys():
-        ds = UngroupedImageFolder(img_dir=path, transform=beit2_transforms)
-        datasets.append(ds)
-    dataset = ConcatDataset(datasets)
-
-    dataloader = DataLoader(
-        dataset,
-        collate_fn=datasets[0].collater,
-        batch_size=cfg.data.dataloader.batch_size,
-        num_workers=cfg.data.dataloader.num_workers,
-        sampler=None,
-        shuffle=False,
-        drop_last=False,)
-
-    beit2_kwargs = OmegaConf.to_container(cfg.beit2, resolve=True)
-    sd_path = beit2_kwargs.pop("pretrained_path")
-
-    beit2 = load_beit2_teacher(
-        sd_path=sd_path,
-        **beit2_kwargs,
-    ).to('cuda')
-    freeze_module(beit2)
-
-    bsz = cfg.data.dataloader.batch_size
-    n_samples = len(dataloader)*bsz
-
-    bool_masked_pos = torch.zeros((images.shape[0], beit2.patch_embed.num_patches), 
-                                  dtype=torch.bool).to('cuda')
-    dataset = cp.empty((n_samples, beit2.embed_dim), dtype=cp.float32)
-    idx2file_mapper = {}
-    with torch.no_grad():
-        for idx, batch in tqdm(enumerate(dataloader), desc="Iterating over batches"):
-            images = batch['image'].to('cuda')
-            
-            target = beit2.forward_features(
-                x=images,
-                bool_masked_pos=bool_masked_pos,
-            )[:, 0]
-            start_idx = idx*bsz
-            dataset[start_idx:start_idx+bsz] = cp.asarray(target)
-            idx2file_mapper.update({k:v for k, v in zip(range(start_idx, start_idx+bsz), batch['file_id'].tolist())})
-    return dataset, idx2file_mapper
 
 if __name__ == "__main__":
     main()
