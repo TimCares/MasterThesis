@@ -1,3 +1,5 @@
+import sys
+sys.path.append('beit2')
 import hydra
 import os
 import torch
@@ -37,6 +39,9 @@ def main(cfg: DictConfig) -> None:
     
     multi_datamodule = MultiDataModule(datamodules=datamodules, **dataloader_args)
 
+    multi_datamodule.prepare_data()
+    multi_datamodule.setup("fit")
+
     model = ImageCluster(cfg.model)
     model.to(device)
 
@@ -61,16 +66,19 @@ def main(cfg: DictConfig) -> None:
 
 def batch_kmeans(model, image):
     if not model.initted:
-        means, bins = kmeans(image, model.cfg.num_clusters, use_cosine_sim=True)
+        cls_token = model(image)
+        means, bins = kmeans(cls_token, model.cfg.num_clusters, use_cosine_sim=True)
         model.cluster_prototypes = means
         model.initted = True
         return
     else:
         means = model.cluster_prototypes
 
-    dists = model.get_cluster(image)['cluster_dist']
+    out_dict = model.get_cluster(image)
+    dists = out_dict['cluster_dist']
+    cls_token = out_dict['cls_token']
     
-    dim, dtype = image.shape[-1], image.dtype
+    dim, dtype = cls_token.shape[-1], cls_token.dtype
 
     buckets = dists.max(dim = -1).indices
     bins = torch.bincount(buckets, minlength = model.cfg.num_clusters)
@@ -78,7 +86,7 @@ def batch_kmeans(model, image):
     bins_min_clamped = bins.masked_fill(zero_mask, 1)
 
     new_means = buckets.new_zeros(model.cfg.num_clusters, dim, dtype = dtype)
-    new_means.scatter_add_(0, repeat(buckets, 'n -> n d', d = dim), image)
+    new_means.scatter_add_(0, repeat(buckets, 'n -> n d', d = dim), cls_token)
     new_means = new_means / bins_min_clamped[..., None]
 
     means = torch.where(zero_mask[..., None], means, new_means)

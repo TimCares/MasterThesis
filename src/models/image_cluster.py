@@ -68,5 +68,6 @@ class ImageCluster(nn.Module):
         out_dict = {
             'cluster_idx': cluster_scores.argmax(dim=-1),
             'cluster_dist': cluster_scores,
+            'cls_token': cls_token,
         }
         return out_dict

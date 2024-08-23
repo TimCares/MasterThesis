@@ -16,7 +16,7 @@ save_path: /workspace/models/cluster.pt
 
 model:
   beitv2:
-    model_path: ${model_path}
+    model_path: /workspace/models
     model_name: beitv2_base_patch16_224_pt1k.pth
     drop_path_rate: 0.1
     use_shared_rel_pos_bias: True
@@ -35,11 +35,11 @@ data:
     drop_last: True
 
   common: # keys used for all datasets
-    data_path: ${data_path}
-    num_max_bpe_tokens: ${nlp_context_length}
+    data_path: /workspace
+    num_max_bpe_tokens: 64
     color_jitter: # None
     beit_transforms: False
-    crop_scale: [0.9, 1.0]
+    crop_scale: [0.7, 1.0]
     text_token_mask_prob: 0.0
 
   datamodules:
