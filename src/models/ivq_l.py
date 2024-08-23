@@ -163,13 +163,6 @@ class ImageVQL(nn.Module):
         )
         self.embed_to_vq_proj.apply(self.beitv2._init_weights)
 
-        self.bert_to_vq_proj = nn.Sequential(
-            nn.Linear(dim, dim),
-            nn.Tanh(),
-            nn.Linear(dim, self.cfg.vq_dim),
-        )
-        self.bert_to_vq_proj.apply(self.beitv2._init_weights)
-
         self.vq_to_embed_proj = nn.Linear(dim, dim)
         self.vq_to_embed_proj.apply(self.beitv2._init_weights)
 
@@ -192,7 +185,7 @@ class ImageVQL(nn.Module):
 
         self.decoder = nn.ModuleList([
             Block(
-                dim=self.cfg.vq_dim,
+                dim=dim,
                 num_heads=self.beitv2.num_heads,
                 mlp_ratio=4.0,
                 qkv_bias=True,
@@ -220,13 +213,12 @@ class ImageVQL(nn.Module):
         with torch.no_grad():
             x = self.text_embeddings(input_ids=text)
         
-        x = self.bert_to_vq_proj(x)
         x[:, 0] = result_dict['x']
 
         for blk in self.decoder:
             x = blk(x, mask=padding_mask)
 
-        x = self.lm_head(self.vq_to_embed_proj(x))
+        x = self.lm_head(x)
 
         out_dict = {
             'x': x,
@@ -242,6 +234,7 @@ class ImageVQL(nn.Module):
 
         to_quantizer_features = self.embed_to_vq_proj(x)
         quantize, loss, embed_ind = self.quantize(to_quantizer_features)
+        quantize = self.vq_to_embed_proj(quantize)
 
         out_dict = {
             'x': quantize,

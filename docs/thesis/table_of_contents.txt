@@ -41,27 +41,25 @@ Experiments
 				Projections for Task-Seperation
 				Image-Text Matching with Feature-Fusion
 				Increasing Negative Examples for ITC
-				Ablation Study: Removing ITC
 				
-			Token-Type Embedding
+			Token-Type Embedding (Also try without layerscale)
 			Unimodal-2-Multimodal Projection
 			Target Cross-Modal Late Interaction
 				Cross-Modal Late Interaction
 				Method
-				Empty Target
+				(Empty Target)
 			Object-Level Regression
 				Contrastive Target Loss (each teacher target is a class -> not 1000 classes, but 256 or 512, each being the cls token of one image passed to the teacher)
 				Dimensionality Reduction (lin projection on both, teacher proj in ema of student proj)
 				Discussing Feature Clusters
-			(Latent Space Mapping
-				Student2Teacher
-				Teacher2Student)
-			Knowledge-Distillation Specific
-				Dino Loss
+				Quantizing Visual Features
+			Loss Ablation Studies
+				Removing ITC
+				Removing Teacher
+			Self-Distillation (Dino Loss)
 				
-				(Masked Vision-Language Modeling (same everything, just tokens randomly removed -> we can reuse teacher activations))
-				(Biased VL Initialization (init from text))
-				Fair Comparison with Supervised Teacher (bigger supervised teacher -> approx. 85 mill params)
+			Biased VL Initialization (init from text)
+			Fair Comparison with Supervised Teacher (bigger supervised teacher -> approx. 85 mill params)
 			Importance of the right Teacher (why BEiT-2? etc...) (D2V2 Image, BEiT-3, Dino, )
 			Non-Knowledge-Distaillation (motivation -> application of kd very limited, especially with unimodal model)
 				Remove ITC? and do finetuning?
@@ -69,7 +67,6 @@ Experiments
 		
 		Aligned Referencing Representations
 			Relevance (regarding: unimodal model as teacher no possible)
-			Pretrain-CoCa (image encoder is beit2, maybe tune only upper two layers, unimodal text decoder is 6 layer d2v2 text, multimodal text decoder is 2 from scratch)
 			Masked Vision-Language Modeling
 			Additional Contribution: DistilBEiT-3
 

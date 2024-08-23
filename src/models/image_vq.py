@@ -10,8 +10,7 @@ import pytorch_lightning as L
 from dataclasses import dataclass, field
 from transformers.optimization import get_cosine_schedule_with_warmup
 from beit2.modeling_pretrain import VisionTransformerForMaskedImageModeling
-from beit2.norm_ema_quantizer import norm_ema_inplace, ema_inplace, l2norm, EmbeddingEMA
-from beit2.modeling_finetune import Block
+from .vq import NormEMAVectorQuantizer
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
 from utils import freeze_module, load_beit2_teacher
@@ -37,26 +36,43 @@ class ImageVQLightningModule(L.LightningModule):
         return self._step(batch, batch_idx, stage='val')
 
     def _step(self, batch:Dict[str, Any], batch_idx, stage:str='train'):
-        for key in list(batch.keys()):
-            if key != 'image_teacher':
-                del batch[key]
-
-        output_dict = self(batch) # call "forward"
-
-        target = output_dict['x_beitv2']
-        rec = output_dict['x']
         
-        target = target / target.norm(dim=-1, keepdim=True)
-        rec = rec / rec.norm(dim=-1, keepdim=True)
-        rec_loss = (1 - (target * rec).sum(-1)).mean()
+        image1 = batch['image1']
+        image2 = batch['image2']
+        input_dict = {
+            'image1': image1,
+            'image2': image2,
+        }
 
-        loss = output_dict['vq_loss'] + rec_loss
+        output_dict = self(input_dict)
+        
+        embedding_scores1 = output_dict['encoding_scores'][:image1.shape[0]]
+        embedding_scores2 = output_dict['encoding_scores'][image1.shape[0]:]
 
-        self.log(f"{stage}/vq_loss", output_dict['vq_loss'], prog_bar=True)
-        self.log(f"{stage}/rec_loss", rec_loss, prog_bar=True)
+        kl_loss = F.kl_div(
+            input=F.log_softmax(embedding_scores1, dim=-1),
+            target=F.log_softmax(embedding_scores2, dim=-1),
+            log_target=True,
+            reduction='batchmean'
+        )
+
+        me_max_loss = 0
+        for scores in [embedding_scores1, embedding_scores2]:
+            scores = F.softmax(scores, dim=-1).mean(dim=0)
+            me_max_ = - torch.sum(torch.log(scores**(-scores)))
+            me_max_loss += me_max_
+        me_max_loss /= 2
+
+        vq_loss = output_dict['vq_loss']
+
+        loss = vq_loss + kl_loss + me_max_loss * self.cfg.model.me_max_weight
+
+        self.log(f"{stage}/vq_loss", vq_loss, prog_bar=True)
+        self.log(f"{stage}/kl_loss", kl_loss, prog_bar=True)
+        self.log(f"{stage}/me_max_loss", me_max_loss, prog_bar=True)
         self.log(f"{stage}/loss", loss, prog_bar=True)
         
-        return loss
+        return {'loss': loss, 'embed_ind': output_dict['embed_ind']}
 
     def configure_optimizers(self):
         ws = torch.cuda.device_count()
@@ -131,11 +147,11 @@ class BEiTv2Config():
 @dataclass
 class ImageVQConfig(): 
     beitv2: BEiTv2Config = field(default_factory=BEiTv2Config)
-    decoder_depth: int = 3
-    pass_through_layer_idx: int = 2
-    n_classes: int = 1000
+    n_codebook_embed: int = 1024
     vq_dim: int = 32
     vq_decay: float = 0.95 # 0.99
+    temperature: float = 0.1
+    me_max_weight: float = 2.0
 
 class ImageVQ(nn.Module):
     def __init__(self,
@@ -154,200 +170,76 @@ class ImageVQ(nn.Module):
             **beit2_kwargs,
         )
         freeze_module(self.beitv2)
-
-        self.decoder = nn.ModuleList([
-            Block(
-                dim=self.beitv2.embed_dim,
-                num_heads=self.beitv2.num_heads,
-                mlp_ratio=4.0,
-                qkv_bias=True, qk_scale=None,
-                drop=0.0,
-                attn_drop=0.0,
-                drop_path=0.0,
-                norm_layer=partial(nn.LayerNorm, eps=1e-6),
-                init_values=0.0,
-                window_size=self.beitv2.patch_embed.patch_shape,
-            )
-            for _ in range(self.cfg.decoder_depth)]
-        )
-
-        dim = self.beitv2.embed_dim
-        self.embed_to_vq_proj = nn.Sequential(
-            nn.Linear(dim, dim),
-            nn.Tanh(),
-            nn.Linear(dim, self.cfg.vq_dim),
-        )
-        self.vq_to_embed_proj = nn.Sequential(
-            nn.Linear(self.cfg.vq_dim, dim),
-            nn.Tanh(),
-            nn.Linear(dim, dim),
-        )
-
-        self.decoder.apply(self.beitv2._init_weights)
-        self.embed_to_vq_proj.apply(self.beitv2._init_weights)
-        self.embed_to_vq_proj.apply(self.beitv2._init_weights)
+        embed_dim = self.beitv2.embed_dim
 
         self.quantize = NormEMAVectorQuantizer(
-            n_embed=self.cfg.n_classes, embedding_dim=self.cfg.vq_dim, beta=1.0, kmeans_init=True, decay=self.cfg.vq_decay,
+            n_embed=self.cfg.n_codebook_embed, embedding_dim=self.cfg.vq_dim, beta=1.0,
+            kmeans_init=True, decay=self.cfg.vq_decay,
         )
+
+        self.embed_to_vq_proj = nn.Sequential(
+            nn.Linear(embed_dim, embed_dim),
+            nn.Tanh(),
+            nn.Linear(embed_dim, self.cfg.vq_dim),
+        )
+        self.embed_to_vq_proj.apply(self.beitv2._init_weights)
 
     def forward(
         self,
+        image1:torch.Tensor,
+        image2:torch.Tensor,
+    ):
+        result = []
+        for batch in [image1, image2]:
+            cls_token = self.forward_beitv2(batch)
+            to_quantizer_features = self.embed_to_vq_proj(cls_token)
+            result.append(to_quantizer_features)
+        features = torch.cat(result, dim=0)
+
+        quantize_result_dict = self.quantize(features, return_scores=True)
+
+        d = quantize_result_dict['encoding_scores']
+        encoding_scores = d*self.cfg.temperature
+
+        out_dict = {
+            'x': quantize_result_dict['z_q'],
+            'embed_ind': quantize_result_dict['encoding_indices'],
+            'vq_loss': quantize_result_dict['loss'],
+            'encoding_scores': encoding_scores,
+        }
+        return out_dict
+    
+    def quantize_image(
+        self,
         image:torch.Tensor,
     ):
-        with torch.no_grad():
-            beitv2_out = self.forward_beitv2(image)
+        cls_token = self.forward_beitv2(image)
 
-        x = beitv2_out['x']
-        x_cache = beitv2_out['x_cache']
-                
-        to_quantizer_features = self.embed_to_vq_proj(x[:, 0]) # cls token
+        to_quantizer_features = self.embed_to_vq_proj(cls_token)
 
-        quantize, loss, embed_ind = self.quantize(to_quantizer_features)
+        quantize_result_dict = self.quantize(to_quantizer_features, return_scores=True)
 
-        quantize = self.vq_to_embed_proj(quantize)
-        x = torch.cat((quantize.unsqueeze(1), x_cache), dim=1)
-
-        for blk in self.decoder:
-            x = blk(x, rel_pos_bias=beitv2_out['rel_pos_bias'])
+        d = quantize_result_dict['encoding_scores']
+        encoding_scores = d*self.cfg.temperature
 
         out_dict = {
-            'x': x,
-            'x_beitv2': beitv2_out['x'],
-            'embed_ind': embed_ind,
-            'vq_loss': loss,
+            'embed_ind': quantize_result_dict['encoding_indices'],
+            'encoding_scores': encoding_scores,
         }
         return out_dict
     
-    def quantize_image(self, image:torch.Tensor):
-        with torch.no_grad():
-            beitv2_out = self.forward_beitv2(image)
-
-        x = beitv2_out['x']
-        to_quantizer_features = self.embed_to_vq_proj(x[:, 0]) # cls token
-        quantize, loss, embed_ind = self.quantize(to_quantizer_features)
-
-        out_dict = {
-            'x': quantize,
-            'x_beitv2': beitv2_out['x'],
-            'embed_ind': embed_ind,
-            'vq_loss': loss,
-        }
-        return out_dict
-    
+    @torch.no_grad()
     def forward_beitv2(self, image:torch.Tensor):
-        x = self.visual_embed(image)
+        bool_masked_pos = torch.zeros((image.shape[0], self.beitv2.patch_embed.num_patches),
+                                      dtype=torch.bool).to(image.device)
         
-        rel_pos_bias = self.beitv2.rel_pos_bias() if self.beitv2.rel_pos_bias is not None else None
-        for l, blk in enumerate(self.beitv2.blocks):
-            x = blk(x, rel_pos_bias=rel_pos_bias)
-            if l == self.cfg.pass_through_layer_idx:
-                x_cache = x[:, 1:] # blk.norm1(x)[:, 1:]
-
-        return {
-            'x': x,
-            'x_cache': x_cache,
-            'rel_pos_bias': rel_pos_bias,
-        }
-
-    def visual_embed(self, x:torch.Tensor):
-        bool_masked_pos = torch.zeros((x.shape[0], self.beitv2.patch_embed.num_patches), dtype=torch.bool).to(x.device)
-
-        x = self.beitv2.patch_embed(x, bool_masked_pos=bool_masked_pos)
-        batch_size, seq_len, _ = x.size()
-
-        cls_tokens = self.beitv2.cls_token.expand(batch_size, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
-        mask_token = self.beitv2.mask_token.expand(batch_size, seq_len, -1)
-
-        # replace the masked visual tokens by mask_token
-        w = bool_masked_pos.unsqueeze(-1).type_as(mask_token)
-        x = x * (1 - w) + mask_token * w
-
-        x = torch.cat((cls_tokens, x), dim=1)
-        if self.beitv2.pos_embed is not None:
-            x = x + self.beitv2.pos_embed
-        x = self.beitv2.pos_drop(x)
+        target = self.beitv2.forward_features(
+            x=image,
+            bool_masked_pos=bool_masked_pos,
+        )[:, 0]
         
-        return x
-    
-class NormEMAVectorQuantizer(nn.Module):
-    def __init__(self, n_embed, embedding_dim, beta, decay=0.99, eps=1e-5, 
-                statistic_code_usage=True, kmeans_init=False, codebook_init_path=''):
-        super().__init__()
-        self.codebook_dim = embedding_dim
-        self.num_tokens = n_embed
-        self.beta = beta
-        self.decay = decay
-        
-        # learnable = True if orthogonal_reg_weight > 0 else False
-        self.embedding = EmbeddingEMA(self.num_tokens, self.codebook_dim, decay, eps, kmeans_init, codebook_init_path)
-        
-        self.statistic_code_usage = statistic_code_usage
-        if statistic_code_usage:
-            self.register_buffer('cluster_size', torch.zeros(n_embed))
-        if distributed.is_available() and distributed.is_initialized():
-            print("ddp is enable, so use ddp_reduce to sync the statistic_code_usage for each gpu!")
-            self.all_reduce_fn = distributed.all_reduce
-        else:
-            self.all_reduce_fn = nn.Identity()
-    
-    def reset_cluster_size(self, device):
-        if self.statistic_code_usage:
-            self.register_buffer('cluster_size', torch.zeros(self.num_tokens))
-            self.cluster_size = self.cluster_size.to(device)
+        return target
 
-    def forward(self, z):
-        z = l2norm(z)
-        z_flattened = z
-        
-        self.embedding.init_embed_(z_flattened)
-        
-        d = z_flattened.pow(2).sum(dim=1, keepdim=True) + \
-            self.embedding.weight.pow(2).sum(dim=1) - 2 * \
-            torch.einsum('bd,nd->bn', z_flattened, self.embedding.weight) # 'n d -> d n'
-        
-        encoding_indices = torch.argmin(d, dim=1)
-
-        z_q = self.embedding(encoding_indices)#.view(z.shape)
-        
-        encodings = F.one_hot(encoding_indices, self.num_tokens).type(z.dtype)     
-        
-        if not self.training:
-            with torch.no_grad():
-                cluster_size = encodings.sum(0)
-                self.all_reduce_fn(cluster_size)
-                ema_inplace(self.cluster_size, cluster_size, self.decay)
-        
-        if self.training and self.embedding.update:
-            #EMA cluster size
-
-            bins = encodings.sum(0)
-            self.all_reduce_fn(bins)
-
-            # self.embedding.cluster_size_ema_update(bins)
-            ema_inplace(self.cluster_size, bins, self.decay)
-
-            zero_mask = (bins == 0)
-            bins = bins.masked_fill(zero_mask, 1.)
-
-            embed_sum = z_flattened.t() @ encodings
-            self.all_reduce_fn(embed_sum)
-                        
-            embed_normalized = (embed_sum / bins.unsqueeze(0)).t()
-            embed_normalized = l2norm(embed_normalized)
-            
-            embed_normalized = torch.where(zero_mask[..., None], self.embedding.weight,
-                                           embed_normalized)
-            norm_ema_inplace(self.embedding.weight, embed_normalized, self.decay)
-
-        # compute loss for embedding
-        loss = self.beta * F.mse_loss(z_q.detach(), z) 
-        
-        # preserve gradients
-        z_q = z + (z_q - z).detach()
-
-        return z_q, loss, encoding_indices
-    
 
 MODEL_REGISTRY['image_vq'] = {
     'cfg': ImageVQConfig,

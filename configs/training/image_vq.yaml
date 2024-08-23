@@ -34,11 +34,11 @@ model:
     vocab_size: 8192
     init_values: 0.1
 
-  decoder_depth: 3
-  pass_through_layer_idx: 2
-  n_classes: 1000
+  n_codebook_embed: 1024
   vq_dim: 32
-  vq_decay: 0.95 # 0.99
+  vq_decay: 0.95 
+  temperature: 0.1
+  me_max_weight: 2.0
 
 data:
   dataloader:
