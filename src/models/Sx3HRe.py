@@ -1,11 +1,10 @@
 import torch
 from torch import nn
-import torch.nn.functional as F
 from functools import partial
 from typing import Dict, Any
 import os
 import numpy as np
-from utils import load_pretrained_d2v_model
+from transformers import BertModel
 import logging
 import pytorch_lightning as L
 from dataclasses import dataclass, field
@@ -17,6 +16,7 @@ from . import MODEL_REGISTRY
 from modules import Block, ClipLoss, KDClipMomentumMemoryBankLoss, KDClipLoss
 from timm.models.vision_transformer import LayerScale
 from utils import freeze_module, load_beit2_teacher
+from beit2.modeling_pretrain import VisionTransformerForMaskedImageModeling
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +27,13 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
 
         self.model = Sx3HRe(cfg=self.cfg.model)
 
-        beit2_kwargs = OmegaConf.to_container(self.cfg.beit2, resolve=True)
-        sd_path = beit2_kwargs.pop("pretrained_path")
+        beit2_kwargs = OmegaConf.to_container(self.cfg.model.beitv2, resolve=True)
+        sd_path = beit2_kwargs.pop("model_path")
+        sd_name = beit2_kwargs.pop("model_name")
+        beit_path = os.path.join(sd_path, sd_name)
 
-        self.teacher = load_beit2_teacher(
-            sd_path=sd_path,
+        self.teacher:VisionTransformerForMaskedImageModeling = load_beit2_teacher(
+            sd_path=beit_path,
             **beit2_kwargs,
         )
         freeze_module(self.teacher)
@@ -227,15 +229,18 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         super().log(batch_size=self.cfg.data.dataloader.batch_size, sync_dist=True, *args, **kwargs)
 
 @dataclass
-class PretrainedStateDictsConfig():
-    audio:str = 'base_libri.pt'
-    image:str = 'base_imagenet.pt'
-    text:str = 'nlp_base.pt'
+class BEiTv2Config():
+    model_path:str = "/workspace/models"
+    model_name:str = "beitv2_base_patch16_224_pt1k.pth"
+    drop_path_rate: float = 0.1
+    use_shared_rel_pos_bias:bool = True
+    use_abs_pos_emb: bool = False
+    vocab_size: int = 8192
+    init_values: float =  0.1
 
 @dataclass
 class Sx3HReConfig():
-    pretrained_path:str = '../models'
-    pretrained: PretrainedStateDictsConfig = field(default_factory=PretrainedStateDictsConfig)
+    beitv2: BEiTv2Config = field(default_factory=BEiTv2Config)
 
     embed_dim: int = 768
 
@@ -274,10 +279,21 @@ class Sx3HRe(nn.Module):
         self.logit_scale_interm = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         self.logit_scale_out = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
-        self.text_model = load_pretrained_d2v_model(state_dict_path=os.path.join(self.cfg.pretrained_path, self.cfg.pretrained.text))
-        self.text_model.blocks = self.text_model.blocks[:self.cfg.depth]
-        self.image_model = load_pretrained_d2v_model(state_dict_path=os.path.join(self.cfg.pretrained_path, self.cfg.pretrained.image))
+        self.text_model = BertModel.from_pretrained("bert-base-uncased")
+        self.text_model.encoder.layer = self.text_model.encoder.layer[:self.cfg.depth]
+        self.text_model.pooler = None # remove pooler
+
+        beit2_kwargs = OmegaConf.to_container(self.cfg.beitv2, resolve=True)
+        sd_path = beit2_kwargs.pop("model_path")
+        sd_name = beit2_kwargs.pop("model_name")
+        beit_path = os.path.join(sd_path, sd_name)
+
+        self.image_model:VisionTransformerForMaskedImageModeling = load_beit2_teacher(
+            sd_path=beit_path,
+            **beit2_kwargs,
+        )
         self.image_model.blocks = self.image_model.blocks[:self.cfg.depth]
+        self.image_model.norm = nn.Identity()
 
     def forward(
         self,
@@ -300,36 +316,38 @@ class Sx3HRe(nn.Module):
         return out
     
     def encode_image(self, image):
-        encoder_out = self.image_model.extract_features(
-            source=image,
-            remove_extra_tokens=False,
+        # no mask
+        bool_masked_pos = torch.zeros((image.shape[0], self.image_model.patch_embed.num_patches), 
+                                      dtype=torch.bool).to(image.device)
+        x = self.image_model.forward_features(
+            x=image,
+            bool_masked_pos=bool_masked_pos,
         )
+
         img_tte = self.token_type_embeddings(
-            torch.ones_like(encoder_out['x'][:, :, 0], dtype=torch.long)
+            torch.ones_like(x[:, :, 0], dtype=torch.long)
         )
         img_tte = self.tte_scale(img_tte)
-        encoder_out['x'] = encoder_out['x'] + img_tte
+        x = x + img_tte
         
-        return self.encode_shared(encoder_out)
+        return self.encode_shared(x)
 
     def encode_text(self, text, padding_mask):
-        encoder_out = self.text_model.extract_features(
-            source=text,
-            padding_mask=padding_mask,
-            remove_extra_tokens=False,
-        )
+        x = self.text_model(
+            input_ids=text,
+            attention_mask=1-padding_mask,
+        ).last_hidden_state
+
         text_tte = self.token_type_embeddings(
             torch.zeros_like(padding_mask)
         )
         text_tte = self.tte_scale(text_tte)
-        encoder_out['x'] = encoder_out['x'] + text_tte
+        x = x + text_tte
         
-        return self.encode_shared(encoder_out)
+        return self.encode_shared(x, mask=padding_mask)
     
-    def encode_shared(self, encoder_out):
+    def encode_shared(self, x, mask=None):
         out_dict = dict()
-        x = encoder_out['x']
-        mask = encoder_out['padding_mask'] if 'padding_mask' in encoder_out else None
         x_interm, x = self.shared(x=x, mask=mask)
         x_interm = x_interm[:, 0]
         x = x[:, 0]
