@@ -42,6 +42,8 @@ def main(cfg: DictConfig) -> None:
     multi_datamodule.prepare_data()
     multi_datamodule.setup("fit")
 
+    val_dataloader = [m.val_dataloader() for m in datamodules if hasattr(m, 'val_dataset')][0]
+
     model = ImageCluster(cfg.model)
     model.to(device)
 
@@ -52,8 +54,8 @@ def main(cfg: DictConfig) -> None:
         
         torch.save(model.state_dict(), cfg.save_path)
 
-        codebook_cnt = torch.zeros(model.cfg.num_clusters, dtype=torch.float64).to(model.device)
-        for batch in tqdm(multi_datamodule.val_dataloader(), desc=f"Epoch {i+1}, Val: Iterating over batches"):
+        codebook_cnt = torch.zeros(model.cfg.num_clusters, dtype=torch.float64).to(device)
+        for batch in tqdm(val_dataloader, desc=f"Epoch {i+1}, Val: Iterating over batches"):
             image = batch['image_teacher'].to(device)
             cluster_idx = model.get_cluster(image)['cluster_idx']
             codebook_cnt += torch.bincount(cluster_idx, minlength=model.cfg.num_clusters)
