@@ -36,6 +36,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             sd_path=beit_path,
             **beit2_kwargs,
         )
+        self.teacher.norm = nn.Identity()
         freeze_module(self.teacher)
 
         self.logit_scale_target = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
@@ -76,15 +77,15 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         if 'target' in batch:
             batch.pop('target') # unused, layer activations are the targets
 
-        image_teacher = batch.pop('image_teacher')
+        image = batch['image']
 
         # no mask
-        bool_masked_pos = torch.zeros((image_teacher.shape[0], self.teacher.patch_embed.num_patches), 
-                                      dtype=torch.bool).to(image_teacher.device)
+        bool_masked_pos = torch.zeros((image.shape[0], self.teacher.patch_embed.num_patches), 
+                                      dtype=torch.bool).to(image.device)
 
         with torch.no_grad():
             target = self.teacher.forward_features(
-                x=image_teacher,
+                x=image,
                 bool_masked_pos=bool_masked_pos,
             )[:, 0]
         
