@@ -185,18 +185,8 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             "betas": tuple(self.cfg.optimizer.betas),
             "eps": self.cfg.optimizer.eps,
         }
-        if 'deepspeed' in self.cfg.lightning_trainer:
-            if self.cfg.lightning_trainer.deepspeed.offload_optimizer:
-                from deepspeed.ops.adam import DeepSpeedCPUAdam
-                opt_cls = DeepSpeedCPUAdam
-                optim_args['model_params'] = optim_args.pop("params")
-            else:
-                from deepspeed.ops.adam import FusedAdam
-                opt_cls = FusedAdam
-        else:
-            opt_cls = torch.optim.AdamW
             
-        optimizer = opt_cls(**optim_args)
+        optimizer = torch.optim.AdamW(**optim_args)
         
         max_steps = int(self.cfg.optimizer.max_steps / ws)
         warmup_steps = int(max_steps * 0.1)
@@ -212,7 +202,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
     def _get_param_groups(self):
         wd_params, non_wd_params = [], []
         for name, param in self.model.named_parameters():
-            if len(param.shape) == 1 or name.endswith(".bias") or "extra_tokens" in name or 'embed_tokens' in name:
+            if len(param.shape) == 1 or name.endswith(".bias") or "pos_embed" in name or "cls_token" in name or 'embeddings' in name:
                 non_wd_params.append(param)
             else:
                 wd_params.append(param)
