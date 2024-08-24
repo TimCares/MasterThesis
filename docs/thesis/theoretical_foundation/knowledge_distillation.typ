@@ -41,7 +41,7 @@ on less data, compared to a model trained from scratch @kd @kd_survey.
 The loss function typically used in response-based KD is the Kullback-Leibler divergence (KL), which measures the difference between
 two probability distributions. The mathematical formulation is as follows:
 Let $f$ be the teacher model, $g$ the student model, and $bold(x)$ the input sample of any modalitiy, e.g. an image or a text.
-We do not use the notation $bold(H)_(v, 0)$ and $bold(H)_(w, 0)$ for the input, as defined in (TODO: cite notation section),
+We omit the notation $bold(H)_(v, 0)$ and $bold(H)_(w, 0)$ for the input, as defined in (TODO: cite notation section),
 as knowledge distillation is independent of the modality and model architecture. Therefore, the input can be imagined as
 e.g. an image or text.
 
@@ -79,10 +79,28 @@ student model $f$, respectively. The goal is to minimize the difference between 
 computed by the KL divergence:
 
 $
-cal(L)_("KD") = D_("KL")(bold(p) || bold(q))=sum_(j)p_j log(frac(p_j, q_j))
+cal(L)_("KD") = D_("KL")(bold(p) || bold(q)) = sum_(j)p_j log(frac(p_j, q_j))
 $ <kl_divergence>
 
 As in @kd_teacher_softmax and @kd_student_softmax, $j$ is the index of a class, and $p_j$ and $q_j$ the probabilities of class $j$ according to the teacher and student model, respectively @shre.
+
+The KL-Divergence is a closely realted to the cross-entropy loss, which is typically used in classification tasks, and defined as follows:
+
+$
+cal(L)_("CE") = H(bold(p)) + D_("KL")(bold(p) || bold(q)) = -sum_(j)p_j log(p_j) + sum_(j)p_j log(frac(p_j, q_j))
+$ <cross_entropy>
+
+The difference between both is the target distribution $bold(p)$.
+For classification tasks $bold(p)$ is the one-hot encoded ground truth, where the probability of the correct class is 1, and 0 for all
+others (@prob_dist_kd).
+Since $bold(p)$ is constant, minimizing the cross-entropy loss simplifies to
+
+$
+min log(frac(1, q_k))
+$ <cross_entropy>
+
+In knowledge distillation, the target distribution is the probability distribution of the teacher model, which is not one-hot encoded,
+but rather a smooth distribution over the classes, as explained above.
 
 ==== Feature-based Knowledge Distillation
 

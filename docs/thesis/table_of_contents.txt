@@ -29,7 +29,7 @@ Experiments
 		Vision
 		Language
 	Multimodal Knowledge Distillation
-		Reproducing SHRe
+		Transformer SHRe
 		Aligned Representations
 			Supervised Teacher
 				Larger Batch Sizes with DDP
@@ -51,12 +51,14 @@ Experiments
 			Object-Level Regression
 				Contrastive Target Loss (each teacher target is a class -> not 1000 classes, but 256 or 512, each being the cls token of one image passed to the teacher)
 				Dimensionality Reduction (lin projection on both, teacher proj in ema of student proj)
-				Discussing Feature Clusters
+				Feature Clusters
 				Quantizing Visual Features
 			Loss Ablation Studies
 				Removing ITC
-				Removing Teacher
+				Removing KD (Teacher)
 			Self-Distillation (Dino Loss)
+			Masked Data Modeling
+			Multimodal Teacher
 				
 			Biased VL Initialization (init from text)
 			Fair Comparison with Supervised Teacher (bigger supervised teacher -> approx. 85 mill params)
