@@ -300,22 +300,15 @@ class LibriSpeechDataset(AudioDataset):
             normalize:bool,
             pad:bool,
             types:Tuple[str],
-            precompute_mask_config:Dict[str, Any]=None,
             return_path:bool=False,
             ):
-        compute_mask = precompute_mask_config is not None
-        mask_args = {}
-        if compute_mask:
-            mask_args = precompute_mask_config 
         super().__init__(data_path=data_path, 
                          split=split, 
                          sample_rate=sample_rate, 
                          max_sample_size=max_sample_size, 
                          min_sample_size=min_sample_size, 
                          normalize=normalize, 
-                         pad=pad,
-                         **mask_args)
-        self.precompute_mask_config = precompute_mask_config
+                         pad=pad,)
         self.return_path = return_path
 
         os.makedirs(self.data_path, exist_ok=True)
@@ -341,11 +334,6 @@ class LibriSpeechDataset(AudioDataset):
         for manifest_path in self.manifest_paths:
             manifest_path = os.path.join(manifest_path, "{}.tsv".format('train')) # TODO: change to self.split?
 
-            compute_mask = self.precompute_mask_config is not None
-            mask_args = {}
-            if compute_mask:
-                mask_args = self.precompute_mask_config    
-
             dataset = FileAudioDataset(
                 manifest_path=manifest_path,
                 sample_rate=self.sample_rate,
@@ -353,8 +341,6 @@ class LibriSpeechDataset(AudioDataset):
                 min_sample_size=self.min_sample_size,
                 pad=self.pad,
                 normalize=self.normalize,
-                compute_mask=compute_mask,
-                **mask_args,
             )
             datasets.append(dataset)
 
@@ -446,7 +432,6 @@ class ImageNetDataset(ImageDataset):
             recount=1,
             beit_transforms:bool=False,
             crop_scale:Tuple[float, float]=(0.08, 1.0),
-            precompute_mask_config=None,
     ):
         super().__init__(
             data_path=data_path, 
@@ -458,8 +443,7 @@ class ImageNetDataset(ImageDataset):
             remode=remode,
             recount=recount,
             beit_transforms=beit_transforms,
-            crop_scale=crop_scale,
-            precompute_mask_config=precompute_mask_config)
+            crop_scale=crop_scale,)
         self.path_to_data = os.path.join(self.data_path, 'imagenet')
         if not os.path.exists(self.path_to_data):
             raise FileNotFoundError(f"Directory {self.path_to_data} does not exists, "
@@ -488,7 +472,7 @@ class ImageNetDataset(ImageDataset):
         item = self.items[index]
         image = self._get_image(image_path=item['image_path'])
         data = {
-            'x': image,
+            'image': image,
             'id': index,
             'target': item['target']
         }

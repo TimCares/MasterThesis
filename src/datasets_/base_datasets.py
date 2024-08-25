@@ -31,10 +31,9 @@ from beit2.datasets import DataAugmentationForBEiT
 logger = logging.getLogger(__name__)
 
 class BaseDataset(torch.utils.data.Dataset):
-    def __init__(self, data_path:str, split:str, precompute_mask_config:Dict[str, Any]=None):
+    def __init__(self, data_path:str, split:str):
         self.data_path = data_path
         self.split = split
-        self.precompute_mask_config = precompute_mask_config
 
         self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
         self.pad_token_id = self.tokenizer.pad_token_id
@@ -318,11 +317,9 @@ class ImageDataset(BaseDataset):
             remode="pixel",
             recount=1,
             beit_transforms:bool=False,
-            crop_scale:Tuple[float, float]=(0.08, 1.0),
-            precompute_mask_config=None,):
+            crop_scale:Tuple[float, float]=(0.08, 1.0),):
         super().__init__(data_path=data_path,
-                         split=split,
-                         precompute_mask_config=precompute_mask_config)
+                         split=split,)
         self.pretraining = pretraining
         self.color_jitter = color_jitter
         self.aa = aa
@@ -486,20 +483,14 @@ class BaseImageAudio(AudioDataset):
         min_sample_size:int=32_000,
         normalize:bool=True,
         pad:bool=True,
-        precompute_mask_config:Dict[str, Any]={},
     ):
-        compute_mask = precompute_mask_config is not None
-        mask_args = {}
-        if compute_mask:
-            mask_args = precompute_mask_config 
         super().__init__(data_path=data_path, 
                          split=split, 
                          sample_rate=sample_rate, 
                          max_sample_size=max_sample_size, 
                          min_sample_size=min_sample_size, 
                          normalize=normalize, 
-                         pad=pad,
-                         **mask_args)
+                         pad=pad,)
         self.transform_jitter = transform_jitter
         self.beit_transforms = beit_transforms
         self.no_transform = no_transform
@@ -582,20 +573,14 @@ class BaseTextAudio(AudioDataset):
         min_sample_size:int=32_000,
         normalize:bool=True,
         pad:bool=True,
-        precompute_mask_config:Dict[str, Any]={},
     ):
-        compute_mask = precompute_mask_config is not None
-        mask_args = {}
-        if compute_mask:
-            mask_args = precompute_mask_config 
         super().__init__(data_path=data_path, 
                          split=split, 
                          sample_rate=sample_rate, 
                          max_sample_size=max_sample_size, 
                          min_sample_size=min_sample_size, 
                          normalize=normalize, 
-                         pad=pad,
-                         **mask_args)
+                         pad=pad,)
         self.num_max_bpe_tokens = num_max_bpe_tokens
         self.path_to_data = None
 
