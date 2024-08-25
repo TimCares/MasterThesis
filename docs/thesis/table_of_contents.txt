@@ -49,6 +49,7 @@ Experiments
 				Method
 				(Empty Target)
 			Object-Level Regression
+				Image MSE only
 				Contrastive Target Loss (each teacher target is a class -> not 1000 classes, but 256 or 512, each being the cls token of one image passed to the teacher)
 				Dimensionality Reduction (lin projection on both, teacher proj in ema of student proj)
 				Feature Clusters
@@ -57,7 +58,8 @@ Experiments
 				Removing ITC
 				Removing KD (Teacher)
 			Self-Distillation (Dino Loss)
-			Masked Data Modeling
+			Masked Data Modeling as additional Loss (might make other task difficlut though)
+			Distillation-less approach (Teacher stays for IBN of MIM)
 			Multimodal Teacher
 				
 			Biased VL Initialization (init from text)

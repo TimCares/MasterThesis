@@ -1,7 +1,5 @@
 import torch
 from torch import nn
-import torch.nn.functional as F
-import torch.distributed as distributed
 from functools import partial
 from typing import Dict, Any
 import os
@@ -10,6 +8,7 @@ import pytorch_lightning as L
 from dataclasses import dataclass, field
 from transformers.optimization import get_cosine_schedule_with_warmup
 from beit2.modeling_pretrain import VisionTransformerForMaskedImageModeling
+from beit2.modeling_finetune import Block
 from .vq import NormEMAVectorQuantizer
 from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
@@ -37,39 +36,32 @@ class ImageVQLightningModule(L.LightningModule):
 
     def _step(self, batch:Dict[str, Any], batch_idx, stage:str='train'):
         
-        image1 = batch['image1']
-        image2 = batch['image2']
+        image = batch['image']
         input_dict = {
-            'image1': image1,
-            'image2': image2,
+            'image': image,
         }
 
         output_dict = self(input_dict)
-        
-        embedding_scores1 = output_dict['encoding_scores'][:image1.shape[0]]
-        embedding_scores2 = output_dict['encoding_scores'][image1.shape[0]:]
+        pred = output_dict['x'][:, 1:]  # remove cls token
+        mask = output_dict['mask']
 
-        kl_loss = F.kl_div(
-            input=F.log_softmax(embedding_scores1, dim=-1),
-            target=F.log_softmax(embedding_scores2, dim=-1),
-            log_target=True,
-            reduction='batchmean'
-        )
+        target = self.model.patchify(image)
 
-        me_max_loss = 0
-        for scores in [embedding_scores1, embedding_scores2]:
-            scores = AllReduce.apply(F.softmax(scores, dim=-1).mean(dim=0))
-            me_max_ = - torch.sum(torch.log(scores**(-scores)))
-            me_max_loss += me_max_
-        me_max_loss /= 2
+        mean = target.mean(dim=-1, keepdim=True)
+        var = target.var(dim=-1, keepdim=True)
+        target = (target - mean) / (var + 1.e-6)**.5
+
+        loss = (pred - target) ** 2
+        loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
+
+        rec_loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
 
         vq_loss = output_dict['vq_loss']
 
-        loss = vq_loss + kl_loss + me_max_loss * self.cfg.model.me_max_weight
+        loss = vq_loss + rec_loss
 
         self.log(f"{stage}/vq_loss", vq_loss, prog_bar=True)
-        self.log(f"{stage}/kl_loss", kl_loss, prog_bar=True)
-        self.log(f"{stage}/me_max_loss", me_max_loss, prog_bar=True)
+        self.log(f"{stage}/rec_loss", rec_loss, prog_bar=True)
         self.log(f"{stage}/loss", loss, prog_bar=True)
         
         return {'loss': loss, 'embed_ind': output_dict['embed_ind']}
@@ -95,18 +87,8 @@ class ImageVQLightningModule(L.LightningModule):
             "betas": tuple(self.cfg.optimizer.betas),
             "eps": self.cfg.optimizer.eps,
         }
-        if 'deepspeed' in self.cfg.lightning_trainer:
-            if self.cfg.lightning_trainer.deepspeed.offload_optimizer:
-                from deepspeed.ops.adam import DeepSpeedCPUAdam
-                opt_cls = DeepSpeedCPUAdam
-                optim_args['model_params'] = optim_args.pop("params")
-            else:
-                from deepspeed.ops.adam import FusedAdam
-                opt_cls = FusedAdam
-        else:
-            opt_cls = torch.optim.AdamW
             
-        optimizer = opt_cls(**optim_args)
+        optimizer = torch.optim.AdamW(**optim_args)
         
         max_steps = int(self.cfg.optimizer.max_steps / ws)
         warmup_steps = int(max_steps * 0.1)
@@ -145,13 +127,13 @@ class BEiTv2Config():
     init_values: float =  0.1
 
 @dataclass
-class ImageVQConfig(): 
+class ImageVQConfig():
     beitv2: BEiTv2Config = field(default_factory=BEiTv2Config)
+    decoder_depth: int = 3
     n_codebook_embed: int = 1024
     vq_dim: int = 32
     vq_decay: float = 0.95 # 0.99
-    temperature: float = 0.1
-    me_max_weight: float = 2.0
+    mask_ratio: float = 0.85
 
 class ImageVQ(nn.Module):
     def __init__(self,
@@ -172,6 +154,23 @@ class ImageVQ(nn.Module):
         freeze_module(self.beitv2)
         embed_dim = self.beitv2.embed_dim
 
+        self.decoder = nn.ModuleList([
+            Block(
+                dim=self.beitv2.embed_dim,
+                num_heads=self.beitv2.num_heads,
+                mlp_ratio=4.0,
+                qkv_bias=True,
+                qk_scale=None,
+                drop=0.0,
+                attn_drop=0.0,
+                drop_path=0.0,
+                norm_layer=partial(nn.LayerNorm, eps=1e-6),
+                init_values=0.0,
+                window_size=self.beitv2.patch_embed.patch_shape,
+            )
+            for _ in range(self.cfg.decoder_depth)]
+        )
+
         self.quantize = NormEMAVectorQuantizer(
             n_embed=self.cfg.n_codebook_embed, embedding_dim=self.cfg.vq_dim, beta=1.0,
             kmeans_init=True, decay=self.cfg.vq_decay,
@@ -183,29 +182,47 @@ class ImageVQ(nn.Module):
             nn.Linear(embed_dim, self.cfg.vq_dim),
         )
         self.embed_to_vq_proj.apply(self.beitv2._init_weights)
+        self.vq_to_embed_proj = nn.Sequential(
+            nn.Linear(self.cfg.vq_dim, embed_dim),
+            nn.Tanh(),
+            nn.Linear(embed_dim, embed_dim),
+        )
+        self.vq_to_embed_proj.apply(self.beitv2._init_weights)
+
+        self.decoder_norm = nn.LayerNorm(embed_dim, eps=1e-6)
+        self.decoder_pred = nn.Linear(embed_dim, self.beitv2.patch_embed.patch_size**2 * 3, bias=True) # decoder to patch
 
     def forward(
         self,
-        image1:torch.Tensor,
-        image2:torch.Tensor,
+        image:torch.Tensor,
     ):
-        result = []
-        for batch in [image1, image2]:
-            cls_token = self.forward_beitv2(batch)
-            to_quantizer_features = self.embed_to_vq_proj(cls_token)
-            result.append(to_quantizer_features)
-        features = torch.cat(result, dim=0)
+        cls_token = self.forward_beitv2(image)
+        to_quantizer_features = self.embed_to_vq_proj(cls_token)
 
-        quantize_result_dict = self.quantize(features, return_scores=True)
+        quantize_result_dict = self.quantize(to_quantizer_features)
+        quantize = quantize_result_dict['z_q']
+        quantize = self.vq_to_embed_proj(quantize)
 
-        d = quantize_result_dict['encoding_scores']
-        encoding_scores = d*self.cfg.temperature
+        mask = self.random_masking(image, self.cfg.mask_ratio)
+        
+        patch_embeds = self.visual_embed(image, bool_masked_pos=mask)
+
+        x = torch.cat([quantize, patch_embeds], dim=1)
+
+        rel_pos_bias = self.beitv2.rel_pos_bias()
+        for blk in self.decoder:
+            x = blk(x, rel_pos_bias=rel_pos_bias)
+
+        x = self.decoder_norm(x)
+        x = self.decoder_pred(x)
 
         out_dict = {
-            'x': quantize_result_dict['z_q'],
-            'embed_ind': quantize_result_dict['encoding_indices'],
+            'x': x,
             'vq_loss': quantize_result_dict['loss'],
-            'encoding_scores': encoding_scores,
+            'beitv2_cls_token': cls_token,
+            'mask': mask,
+            'embed_ind': quantize_result_dict['encoding_indices'],
+            'encoding_scores': quantize_result_dict['encoding_scores'],
         }
         return out_dict
     
@@ -219,12 +236,9 @@ class ImageVQ(nn.Module):
 
         quantize_result_dict = self.quantize(to_quantizer_features, return_scores=True)
 
-        d = quantize_result_dict['encoding_scores']
-        encoding_scores = d*self.cfg.temperature
-
         out_dict = {
             'embed_ind': quantize_result_dict['encoding_indices'],
-            'encoding_scores': encoding_scores,
+            'encoding_scores': quantize_result_dict['encoding_scores'],
         }
         return out_dict
     
@@ -239,19 +253,56 @@ class ImageVQ(nn.Module):
         )[:, 0]
         
         return target
-    
-class AllReduce(torch.autograd.Function):
 
-    @staticmethod
-    def forward(ctx, x):
-        x = x.contiguous() / distributed.get_world_size()
-        distributed.all_reduce(x)
+    @torch.no_grad()    
+    def visual_embed(self, x:torch.Tensor, bool_masked_pos:torch.Tensor):
+        x = self.beitv2.patch_embed(x, bool_masked_pos=bool_masked_pos)
+        batch_size, seq_len, _ = x.size()
+
+        mask_token = self.beitv2.mask_token.expand(batch_size, seq_len, -1)
+
+        # replace the masked visual tokens by mask_token
+        w = bool_masked_pos.unsqueeze(-1).type_as(mask_token)
+        x = x * (1 - w) + mask_token * w
+        
         return x
 
-    @staticmethod
-    def backward(ctx, grads):
-        return grads
+    def random_masking(self, x, mask_ratio):
+        """
+        Perform per-sample random masking by per-sample shuffling.
+        Per-sample shuffling is done by argsort random noise.
+        x: [N, L, D], sequence
+        """
+        N, L, _ = x.shape  # batch, length, dim
+        len_keep = int(L * (1 - mask_ratio))
+        
+        noise = torch.rand(N, L, device=x.device)  # noise in [0, 1]
+        
+        # sort noise for each sample
+        ids_shuffle = torch.argsort(noise, dim=1)  # ascend: small is keep, large is remove
+        ids_restore = torch.argsort(ids_shuffle, dim=1)
 
+        # generate the binary mask: 0 is keep, 1 is remove
+        mask = torch.ones([N, L], device=x.device)
+        mask[:, :len_keep] = 0
+        # unshuffle to get the binary mask
+        mask = torch.gather(mask, dim=1, index=ids_restore)
+
+        return mask
+    
+    def patchify(self, imgs):
+        """
+        imgs: (N, 3, H, W)
+        x: (N, L, patch_size**2 *3)
+        """
+        p = self.beitv2.patch_embed.patch_size[0]
+        assert imgs.shape[2] == imgs.shape[3] and imgs.shape[2] % p == 0
+
+        h = w = imgs.shape[2] // p
+        x = imgs.reshape(shape=(imgs.shape[0], 3, h, p, w, p))
+        x = torch.einsum('nchpwq->nhwpqc', x)
+        x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * 3))
+        return x
 
 MODEL_REGISTRY['image_vq'] = {
     'cfg': ImageVQConfig,
