@@ -93,7 +93,7 @@ def zero_shot_retrieval(model, dataloader, device):
         text_embeds.append(text_emb)
         img_ids.append(batch['id'].to(device))
 
-    compute_scores(img_embeds=img_embeds, text_embeds=text_embeds, img_ids=img_ids)
+    return compute_scores(img_embeds=img_embeds, text_embeds=text_embeds, img_ids=img_ids)
 
 
 @torch.no_grad()
