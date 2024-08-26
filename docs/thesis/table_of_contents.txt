@@ -23,7 +23,9 @@ Background
 Methodology
 	Tools
     Experimental Approach
-	Data and Preparation (mention uncurated nature -> imporant for scaling)
+	Data and Preparation (mention uncurated nature -> imporant for scaling, also mention 
+						  that technically it is labeled, but not done on "purpose" -> some humans
+						  did is without regarding it as data for ai -> so the data is technically still appearing "in the wild")
 Experiments
 	Unimodal Knowledge Distillation
 		Vision

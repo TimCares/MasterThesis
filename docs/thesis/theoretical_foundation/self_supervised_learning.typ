@@ -1,7 +1,9 @@
 #set heading(numbering: "1.1")
 #set math.equation(numbering: "(1)")
 == Self-Supervised Learning <self_supervised_learning>
-=== Motivation
+
+While we previously identified large Deep Learning models as generally expensive to train,
+we now focus on the problem of scalability in the context of supervised learning, the most common form of training AI models.
 
 Supervised models, while powerful, are not inherently scalable. Although their architecture can be
 extended to create larger models that achieve better performance, these larger models require more data for training.
@@ -15,7 +17,7 @@ as seen in clustering methods like K-means. In contrast, self-supervised learnin
 labeled data, but in contrast to supervised learning labels are generated directly from the data itself.
 
 A prominent example of self-supervised learning is Masked Language Modeling (MLM) in Natural Language Processing (NLP),
-which is used in the popular NLP model BERT, the latter being one of the first models trained using self-supervised
+which is used in the popular NLP model BERT, being one of the first models trained using self-supervised
 methods to achieve state-of-the-art performance in NLP @bert.
 In BERT, certain tokens, or words, are masked, i.e., removed, from a sentence, and the model is tasked with predicting the masked tokens.
 Since the labels are derived from the data itself — the words to predict are part of the original data — no human annotation is needed @bert.
@@ -30,6 +32,11 @@ concepts expressed by the sentence. While “The cat chases the mouse in the sav
 “chase,” the word “savanna” provides additional context, as it is not a typical habitat for cats and mice, but rather for lions and wildebeests.
 Thus, the model must understand that lions and wildebeests are animals that inhabit savannas, in order to make a correct prediction.
 Through this process of predicting masked words, the model learns about the concepts of the world we live in @self_supervised_learning_dark_matter.
+
+While this example is specific to text data, the same principle can be applied to other types of hierarchical data, e.g. images and audio.
+
+Consequently, self-supervised learning allows makes models scalable, as they can be trained on large amounts of unlabeled data.
+A fact we will come back to in the experimental part of this work, where will will approach multimodal models with this philosophy.
 
 #figure(
   image(
