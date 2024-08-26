@@ -28,7 +28,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
 
         self.model = Sx3HRe(cfg=self.cfg.model)
 
-        beit2_kwargs = OmegaConf.to_container(self.cfg.model.beitv2, resolve=True)
+        beit2_kwargs = OmegaConf.to_container(self.cfg.teacher, resolve=True)
         sd_path = beit2_kwargs.pop("model_path")
         sd_name = beit2_kwargs.pop("model_name")
         beit_path = os.path.join(sd_path, sd_name)
@@ -227,7 +227,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
 class BEiTv2Config():
     model_path:str = "/workspace/models"
     model_name:str = "beitv2_base_patch16_224_pt1k.pth"
-    drop_path_rate: float = 0.1
+    drop_path_rate: float = 0.05
     use_shared_rel_pos_bias:bool = True
     use_abs_pos_emb: bool = False
     vocab_size: int = 8192
