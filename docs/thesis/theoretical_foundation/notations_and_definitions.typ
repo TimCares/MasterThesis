@@ -1,8 +1,105 @@
 #set math.equation(numbering: "(1)")
 == Notations and Definitions <notions_and_definitions>
+Throughout this work we will make use of various concepts and their notations,
+which we will define here for easier reference, and to avoid redundancy.
+Bold symbols (e.g. $bold(v)$) denote vectors, and $v_i$ the $i$-th element of the respective vector.
+Upper-cased bold symbols (e.g. $bold(M)$) denote matrices, and $M_(i j)$ the element in the $i$-th row and $j$-th column of the respective matrix.
 
-The architectures used in the experiments of this thesis are based on the Transformer @transformer, and vision Transformer @vit architecture.
-Therefore, both image and text are represented as sequences of embeddings, which are processed by the Transformer blocks.
+=== Loss Functions
+==== Mean Squared Error (MSE)
+The Mean Squared Error (MSE) is a loss function used in regression tasks, and
+describes the average of the squared differences between the prediction $bold(hat(y)) in RR^d$ and the target $bold(y) in RR^d$. Since
+in this work the predictions and targets will exclusively be in the form of d-dimensional vectors, the MSE is defined as:
+
+$
+cal(L)_("MSE")(bold(y), bold(hat(y))) = ||bold(y)- bold(hat(y))||_2^2 = frac(1, d) sum_(j=1)^d (y_j - hat(y)_j)^2
+$ <mean_squared_error>
+
+==== Kullback-Leibler Divergence (KL-Divergence)
+The Kullback-Leibler Divergence (KL-Divergence) is used to measure the difference between two probability distributions.
+Specifically, in the context of Machine Learning, we are comparing a predicted probability distribution $bold(q) in RR^d$
+with a target distribution $bold(p) in RR^d$.
+Since we are using the KL-Divergence in the context of classification tasks, which are
+discrete distributions over classes, the KL-Divergence is defined as:
+
+$
+cal(L)_("KD")(bold(p) || bold(q)) = D_("KL")(bold(p) || bold(q)) = sum_(j)p_j log frac(p_j, q_j)
+$ <kl_divergence>
+
+$p_j$ and $q_j$ are the probabilities of class $j$ according to the target and
+predicted distribution, respectively.
+For both distributions, there are potentially multiple classes with a non-zero probability:
+
+$
+forall j (p_j in [0, 1]) and sum_(j) p_j = 1
+$ <kl_constraint>
+
+==== Cross-Entropy Loss (CE)
+The Cross-Entropy Loss (CE) is quite similar to the KL-Divergence in that it compares two probability distributions in
+classification tasks. It is defined as:
+
+$
+cal(L)_("CE")(bold(p), bold(q)) = H(bold(p), bold(q)) = H(bold(p)) + D_("KL")(bold(p) || bold(q))
+= -sum_(j)p_j log p_j + sum_(j)p_j log frac(p_j, q_j)
+$ <cross_entropy>
+
+Here $H(bold(p))$ denotes the entropy of the target distribution $bold(p)$, and $D_("KL")(bold(p) || bold(q))$
+the KL-Divergence between the target and predicted distribution.
+
+The difference between KL-Divergence and cross-entropy is that the latter is used in traditional classification tasks,
+where the target distribution $bold(p)$ is fixed and one-hot encoded,
+meaning that there is only one correct class:
+
+$
+exists! j (p_j=1) and forall k(k eq.not j -> p_k=0)
+$ <cross_entropy_constraint>
+
+This strengthens the condition of the KL-Divergence, which we defined previously in @kl_constraint.
+Since the goal is to minimize the cross-entropy loss $H(bold(p), bold(q))$ and $bold(p)$ is fixed,
+the entropy of the target distribution $H(bold(p))$ is a constant, and does not affect the minimization.
+Moreover, given the constraint in @cross_entropy_constraint, only one term in the sum of the KL-Divergence is non-zero.
+Consequently, we can simplify the cross-entropy loss, so that the training objective for classification tasks is:
+
+$
+min H(bold(p), bold(q)) &= H(bold(p)) + D_("KL")(bold(p) || bold(q)) \
+&= D_("KL")(bold(p) || bold(q)) \
+&= sum_(j)p_j log frac(p_j, q_j) \
+&= log frac(1, q_i) \
+&= -log q_i
+$ <cross_entropy_minimization>
+
+The cross entropy loss therefore minimizes the negative log-likelihood of the correct class $i$.
+
+Often times, the prediction of a model $bold(x)$ is returned as raw logits, and not as probabilities.
+To convert logits into probabilities, the softmax function is used. For ease of use, without having to mention a 
+softmax-normalization every time we make use of the cross-entropy loss, we redefine the cross-entropy loss
+_actually used in this work_ as:
+
+$
+cal(L)_("CE")(bold(p), bold(x)) = H(bold(p), bold(x)) = - log exp(x_i)/(sum_(j) exp(x_j))
+$ <cross_entropy_single_class_exp>
+
+We denote $bold(x)$ as the raw logits (the model prediction), and $bold(p)$
+as the one-hot encoded target distribution. $i$ is the index of the correct class,
+and hence each element in $bold(x)$ corresponds to the raw logit for one class.
+
+A comparison between the target distribution predicted using KL-Divergence, and another predicted by cross-entropy
+is shown in the following figure.
+
+#figure(
+  image("../figures/target_dist.png", width: 75%),
+  caption: [
+    Comparison between the distributions with 10 classes. The one-hot distribution (left)
+    is used for classification tasks with the cross-entropy loss. The KL-Divergence is used
+    when predicting a smooth distribution (right). A smooth distribution usually results from a model prediction,
+    and is a popular target distribution for knowledge distillation, introduced in a later section.
+  ],
+) <target_dist>
+
+=== Modality Representations
+Since the architectures used in the experiments of this work are based on the Transformer @transformer
+and vision Transformer @vit architecture, both image and text are represented as sequences of embeddings, 
+which are processed by the Transformer blocks.
 
 === Image Representation
 
@@ -13,8 +110,8 @@ Since we use an image size of 224x224 pixels, so $bold(v) in RR^(3 times 244 tim
 patches, or timesteps respectively. Each patch is flattened into a 256-dimensional vector, 
 and then projected into a 768 dimensions $bold(e)^v_i in RR^768$, using a fully connected layer. 
 The image sequence is prepended with a special learnable $mono(["I_CLS"]) in RR^768$ token,
-which is used to aggregate the global information/content of the image, and following @vit.
-The result is a sequence of patch embeddings, which we define as $bold(E)_v$, where $v$ indicates an image:
+which is, following @vit, used to aggregate the global information/content of the image.
+The result is a sequence of patch embeddings, which we define as $bold(E)_v$, where $v$ indicates the image modality:
 
 $
 bold(E)_v = [bold(e)^v_mono(["I_CLS"]), bold(e)^v_1, bold(e)^v_2, ..., bold(e)^v_N]
@@ -65,9 +162,6 @@ bold(E)_w = [bold(e)^w_mono(["T_CLS"]), bold(e)^w_1, bold(e)^w_2, ..., bold(e)^w
 $
 
 The maximum text sequence length $M$ is not fixed, and will be defined when neccessary in the experimental part of this work.
-
-As mentioned (TODO: cite data preparation), to obtain discrete tokens, a sentence is tokenized into subwords using the GPT-2 byte-pair encoder,
-so one token does not necessarily represent a whole word.
 
 A positional encoding is also added to the text embeddings, to give the Transformer a sense of order in the text sequence.
 Since the special token $mono(["T_SEP"])$ denotes the end of the text sequence, it is part of the sequence, and therefore has a positional encoding.

@@ -7,8 +7,8 @@ Introduction
 	Goals and Contributions
 	Content
 Background
-	(Transformers)
 	Notations and Definitions (... of image patches etc. -> if this changes for specific experiments, mention then and redefine)
+	(Transformers)
 	Knowledge-Distillation
 	Self-Supervised Learning
 	Contrastive Learning
