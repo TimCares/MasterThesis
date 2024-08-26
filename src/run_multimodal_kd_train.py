@@ -131,7 +131,7 @@ def main(cfg: DictConfig) -> None:
         logger=wandb_logger,
     )
     if trainer.global_rank == 0:
-        wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
+        wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True), allow_val_change=True)
         wandb.save(f'models/{cfg.model_name}.py') # saves the model file to wandb
 
     if 'load_checkpoint' in cfg and cfg.load_checkpoint is not None:
