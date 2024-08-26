@@ -267,7 +267,6 @@ class ImageNetDataModule(BaseDataModule):
             recount=1,
             beit_transforms:bool=False,
             crop_scale:Tuple[float, float]=(0.08, 1.0),
-            precompute_mask_config=None,
             *args,
             **kwargs):
         super().__init__(data_path, *args, **kwargs)
@@ -279,7 +278,6 @@ class ImageNetDataModule(BaseDataModule):
         self.recount = recount
         self.beit_transforms = beit_transforms
         self.crop_scale = crop_scale
-        self.precompute_mask_config = precompute_mask_config
 
     def prepare_data(self):
         if not hasattr(self, 'train_dataset'):
@@ -303,7 +301,6 @@ class ImageNetDataModule(BaseDataModule):
                                              recount=self.recount,
                                              beit_transforms=self.beit_transforms,
                                              crop_scale=self.crop_scale,
-                                             precompute_mask_config=self.precompute_mask_config,
                                              )
 
     def set_val_dataset(self):
@@ -324,7 +321,6 @@ class LibriSpeechDataModule(BaseDataModule):
                  types_train:Tuple[str],
                  types_test:Tuple[str]=None,
                  return_path:bool=False,
-                 precompute_mask_config=None,
                  *args,
                  **kwargs):
         super().__init__(data_path, *args, **kwargs)
@@ -335,7 +331,6 @@ class LibriSpeechDataModule(BaseDataModule):
         self.pad = pad
         self.types_train = types_train
         self.types_test = types_test
-        self.precompute_mask_config = precompute_mask_config
         self.return_path = return_path
 
     def prepare_data(self):
@@ -359,7 +354,6 @@ class LibriSpeechDataModule(BaseDataModule):
                                                 normalize=self.normalize,
                                                 pad=self.pad,
                                                 types=self.types_train,
-                                                precompute_mask_config=self.precompute_mask_config,
                                                 return_path=self.return_path)
 
     def set_test_dataset(self):
@@ -371,7 +365,6 @@ class LibriSpeechDataModule(BaseDataModule):
                                                normalize=self.normalize,
                                                pad=self.pad,
                                                types=self.types_test,
-                                               precompute_mask_config=None,
                                                return_path=self.return_path)
         
 
