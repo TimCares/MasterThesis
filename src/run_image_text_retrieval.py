@@ -73,6 +73,7 @@ def compute_scores(img_embeds, text_embeds, img_ids):
     }
 
     logger.info(f'* Eval result = {json.dumps(eval_result)}')
+    return eval_result
 
 
 @torch.no_grad()

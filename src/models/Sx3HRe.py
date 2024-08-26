@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 from functools import partial
 from typing import Dict, Any
 import os
@@ -124,23 +125,26 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         self.model.logit_scale_interm.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
         self.model.logit_scale_out.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
 
-        itc_out1 = self.clip_loss(
-            image_features=output_dict['x_interm_image'],
-            text_features=output_dict['x_interm_text'],
-            logit_scale=self.model.logit_scale_interm.exp(),
-        )
+        if stage == 'train':
+            itc_out1 = self.clip_loss(
+                image_features=output_dict['x_interm_image'],
+                text_features=output_dict['x_interm_text'],
+                logit_scale=self.model.logit_scale_interm.exp(),
+            )
 
-        itc_out2 = self.clip_loss(
-            image_features=output_dict['x_image'],
-            text_features=output_dict['x_text'],
-            logit_scale=self.model.logit_scale_out.exp(),
-        )
+            itc_out2 = self.clip_loss(
+                image_features=output_dict['x_image'],
+                text_features=output_dict['x_text'],
+                logit_scale=self.model.logit_scale_out.exp(),
+            )
 
-        self.log_itc_acc(itc_out1['logits_per_image'], itc_out1['logits_per_text'], itc_out1['targets'], stage, key_prefix="interm")
-        self.log_itc_acc(itc_out2['logits_per_image'], itc_out2['logits_per_text'], itc_out2['targets'], stage)
-            
-        itc_loss = (itc_out1['loss'] + itc_out2['loss']) / 2
-        self.log(f"{stage}/itc_loss", itc_loss)
+            self.log_itc_acc(itc_out1['logits_per_image'], itc_out1['logits_per_text'], itc_out1['targets'], stage, key_prefix="interm")
+            self.log_itc_acc(itc_out2['logits_per_image'], itc_out2['logits_per_text'], itc_out2['targets'], stage)
+                
+            itc_loss = (itc_out1['loss'] + itc_out2['loss']) / 2
+            self.log(f"{stage}/itc_loss", itc_loss)
+        else:
+            itc_loss = 0
         
         loss = kd_loss + itc_loss
 
