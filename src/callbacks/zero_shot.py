@@ -88,7 +88,7 @@ def run_filip_zero_shot(
     n_images_for_cmli = 5
     for sample in track(dataloader, description=f"Zero-shot eval: {name}"):
         logits = []
-        images = sample["x"]
+        images = sample["image"]
         target = sample["target"]
         images = images.to(device)
         target = target.to(device)
@@ -178,7 +178,7 @@ def run_multimodal_zero_shot(pl_module:AMMData2VecPreTrainingLightningModule,
     logger.info("Classifier built")
     top1, top5, n = 0.0, 0.0, 0.0
     for sample in track(dataloader, description=f"Zero-shot eval: {name}"):
-        images = sample["x"]
+        images = sample["image"]
         target = sample["target"]
         images = images.to(device)
         target = target.to(device)
