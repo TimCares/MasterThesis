@@ -92,11 +92,55 @@ $
 cal(L)_("SHRe") = cal(L)_("KD") + cal(L)_("Rank")
 $
 
-The authors evaluate SHRe on retrieval tasks, and the results show that SHRe performs significantly better than a random baseline.
+The authors evaluate SHRe on retrieval tasks, and the results (@shre_retrieval) show that SHRe performs significantly better than a random baseline.
 Interestingly, even though the model is only trained on image-text and image-audio pairs, the alignment also generalizes to text-audio pairs,
 and the model can retrieve text-audio pairs, albeit not as well as between the modalities it was trained on @shre. This indicates that the image
 modality acts as an anchor between text and audio, enabling the model to align representations between modalities it was not explicitly trained on.
 The alignment between modalities becomes transitive.
+
+#figure(
+  table(
+  columns: 13,
+    stroke: none,
+    table.hline(),
+    table.header(
+      table.cell(rowspan: 4, colspan: 1, align:horizon, [*Model*]),
+      table.cell(colspan: 4, [*MSCOCO*]),
+      table.cell(colspan: 4, [*Flickr (Custom)*#footnote[Datasets used consists of videos collected from Flickr, from which frames were extracted and used as images with the corresponding audio @shre.]]),
+      table.cell(colspan: 4, [*Unspecified*#footnote[Data has been collected and annotated using Amazon Mechanical Turk @shre @amazon_mechanical_turk. Where the data originates from is not specified in the paper.]]),
+      table.cell(colspan: 2, [Image]),
+      table.cell(colspan: 2, [Text]),
+      table.vline(stroke: .4pt),
+      table.cell(colspan: 2, [Image]),
+      table.cell(colspan: 2, [Sound]),
+      table.vline(stroke: .4pt),
+      table.cell(colspan: 2, [Text]),
+      table.cell(colspan: 2, [Sound]),
+      table.cell(colspan: 2, [$arrow.b$]),
+      table.cell(colspan: 2, [$arrow.b$]),
+      table.cell(colspan: 2, [$arrow.b$]),
+      table.cell(colspan: 2, [$arrow.b$]),
+      table.cell(colspan: 2, [$arrow.b$]),
+      table.cell(colspan: 2, [$arrow.b$]),
+
+      table.cell(colspan: 2, [Text]),
+      table.cell(colspan: 2, [Image]),
+      table.cell(colspan: 2, [Sound]),
+      table.cell(colspan: 2, [Image]),
+      table.cell(colspan: 2, [Sound]),
+      table.cell(colspan: 2, [Text]),
+    ),
+    table.hline(stroke: .4pt),
+    [Random], table.cell(colspan: 2, [500]), table.cell(colspan: 2, [500]), table.cell(colspan: 2, [500]), table.cell(colspan: 2, [500]), table.cell(colspan: 2, [500]), table.cell(colspan: 2, [500]),
+    [SHRe], table.cell(colspan: 2, [5.8]), table.cell(colspan: 2, [6.0]), table.cell(colspan: 2, [47.5]), table.cell(colspan: 2, [47.8]), table.cell(colspan: 2, [135.0]), table.cell(colspan: 2, [140.5]),
+    table.hline(),
+  ),
+  caption: [Retrieval results of SHRe on different datasets. Each dataset contains 5k sample pairs (e.g. image-text pairs) for evaluation,
+  and is splitted into 5 chunks of 1k samples each. Retrieval is then performed on each chunk, and metric used is
+  the median rank of the correct pair in the ranked list. The median rank is averaged over all chunks for each datasets, so the results
+  seen describe the average median rank over all chunks for each dataset. The results are taken from the SHRe paper @shre.],
+)<shre_retrieval>
+
 
 The approach is illustrated in @shre_fig. It is important to note that SHRe 
 is only trained with image-text and image-audio pairs, and not, how it might seem from the figure, with image-text-audio triplets.
