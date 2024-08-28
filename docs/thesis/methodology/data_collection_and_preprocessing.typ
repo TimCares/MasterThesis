@@ -91,7 +91,9 @@ Concrete examples can be found in (TODO: cite glue examples) in the Appendix.
     [Total], [15.27M],
     table.hline(),
   ),
-  caption: [Unimodal datasets and their sizes used in this work.],
+  caption: [Unimodal datasets and their sizes used in this work. While the amount of training examples from OpenWebText is indeed correct,
+  it is important to note that collecting text data is significantly cheaper to obtain, and requires less disk space than image data,
+  which is why we were able to collect that much text data without any problems.],
 )<unimodal_dataset_summary>
 
 ==== Multimodal Data
@@ -108,8 +110,9 @@ This is because the images used come from a variety of sources on the internet, 
 by humans all over the world. The images stem from blog posts, news articles, social media, and other sources.
 Since Google does not own the rights to the images, they cannot provide them in a dedicated dataset, which is why there is
 no guarantee that all images will be available at the time of download.
-Because of this, we have to utilize not only Conceptual Captions 3M, but also the 12M variant, featuring
-less curated data @cc3m @cc12m.
+Because of this, we have to utilize not only Conceptual Captions 3M, but also the 12M variant to collect enough data.
+A favorable side effect this has is that our approach becomes more scalable due to the uncurated nature of CC12M @cc3m @cc12m, which we
+will elaborate on in the next section.
 The index of CC3M is available on the official Conceptual Captions website (training split)
 #footnote[#link("https://ai.google.com/research/ConceptualCaptions/download")[https://ai.google.com/research/ConceptualCaptions/download]],
 and the index of CC12M can be found in the
@@ -144,35 +147,45 @@ we will address again in the experimental part of this work.
 )<vl_dataset_summary>
 
 ==== On Curated Datasets
-The goal of this work is to develop a multimodal model that is cheap to train, and does not rely on labeled data in the end-to-end process.
-That means not only should our multimodal model not require labeled data for training, but also any pretrained models used in the process.
+The goal of this work is to develop a multimodal model that is cheap to train and does not rely on labeled data in the end-to-end process.
+That means not only should our multimodal model not require labeled data for training, but also any pretrained models and
+components used in the process.
 
 Whether image-text datasets, and, in fact, any multimodal dataset consisting of pairs of data, can be seen as curated or even labeled data
-is a matter of perspective. While the data is not labeled in the traditional sense, as in having a label for an image or text, the pairs
-themselves can be seen as labels. While single images or texts can be considered as in-the-wild data, i.e. data that appears naturally
-in the real world, like in books, articles, or on the internet, image-text pairs require image and text to be paired together.
+is a matter of perspective.
+The difference between curated and labeled data lies in the purpose and level of human involvement:
+curated data focuses on the careful selection, organization, and cleaning of data to ensure quality and relevance,
+while labeled data involves explicit tagging or annotation of each example to provide a ground truth for training supervised models (which
+implies that the data is curated as well).
+
+While image-text datasets are not labeled in the traditional sense, as in having a label for an image or text, the pairs
+themselves can be seen as labels. Single images or texts can be considered as in-the-wild data, i.e. data that appears naturally
+in the real world, like in books, articles, or on the internet, image-text pairs however require image and text to be paired together.
 This can be seen as less natural, as it requires a human to create the caption for an image, or vice versa, which is a form of labeling.
-The COCO dataset, for example, can be seen as labeled, as for each caption a human created a caption with the specific intention
-of creating data for Machine Learning.
-Consequently, whether multimodal learning can be seen as self-supervised learning, as it is often referred to in the literature @beit3 @vlmo @flava,
+The COCO dataset, for example, can be seen as labeled, as for each image a human created a caption with the specific intention
+of training Machine Learning models @coco.
+Consequently, whether multimodal learning can be seen as self-supervised learning, as it is often referred to in the literature @vlmo @beit3 @flava,
 is debatable.
 With this in mind, creating a multimodal model that is scalable in the sense that it does not rely on labeled data, which is
 one of the most challenging aspects of AI research, is, if multimodal data is seen as labeled data, not possible.
 
-However, there are indeed multimodal data sources that can theoretically be seen as unlabeled. One example is the alt-text of images on the internet.
+However, there are multimodal data sources that are at the very least uncurated. One example is the alt-text of images on the internet.
 Even though the alt-text is created by humans, it is not created with the intention of creating data for Machine Learning, but rather to provide
-a description of the image for visually impaired people. Consequently, the data was generated as a byproduct of a different task, and can therefore
-be seen as unlabeled, or at least uncurated data.
+a description of the image for visually impaired people. Consequently, the data was generated naturally as a byproduct of a different task,
+and we therefore refer to any uncurated dataset as unlabeled data in this work.
 
 This is exactly why we select both CC3M and CC12M, as they, especially CC12M, consists of in-the-wild image-text pairs from the internet @cc3m @cc12m.
-This way of collecting data and training models is therefore significantly more scalable than using curated datasets specifically created for Machine Learning.
+This way of collecting data and training models is therefore significantly more scalable than using curated datasets specifically created for Machine Learning,
+and ensures that our approach to multimodal models can be applied to a wide range of tasks and domains without any explicit human intervention.
+A comparison between curated and labeled samples, and in-the-wild samples can be seen in @coco_vs_cc12m below.
 
 #figure(
   image("../figures/coco_vs_cc12m.png", width: 50%),
   caption: [Side-by-side comparison of examples seen in COCO (a) and CC12M (b).
-  While COCO features high quality images and detailed annotations, CC12M consists of in-the-wild image-text pairs from the internet,
-  and image-text pairs therefore might be less correlated. However, the latter enables scalability, as more data can be collected
-  without the need for human annotation. Images and text in the figure have been taken from the COCO train set @coco and CC12M @cc12m, respectively.],
+  While COCO features high quality images and detailed annotations, CC12M consists of in-the-wild image-text pairs from the internet.
+  The latter enables scalability, as more data can be collected
+  without the need for human annotation. The caveat is that the quality of the data is not guaranteed, and image-text pairs might be less correlated.
+  Images and text in the figure have been taken from the COCO train set @coco and CC12M @cc12m, respectively.],
 ) <coco_vs_cc12m>
 
 ==== Data Persistence

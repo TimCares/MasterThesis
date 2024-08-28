@@ -207,7 +207,7 @@ class ImageVQ(nn.Module):
         
         patch_embeds = self.visual_embed(image, bool_masked_pos=mask)
 
-        x = torch.cat([quantize, patch_embeds], dim=1)
+        x = torch.cat([quantize, patch_embeds], dim=1) # torch.cat([cls_token, patch_embeds], dim=1) + quantize.unsqueeze(1).expand(-1, patch_embeds.size(1), -1)
 
         rel_pos_bias = self.beitv2.rel_pos_bias()
         for blk in self.decoder:
