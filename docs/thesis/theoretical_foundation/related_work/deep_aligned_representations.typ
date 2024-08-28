@@ -38,14 +38,14 @@ of the teacher model for the image can be compared with the probability distribu
 For a single image-text pair, the loss is defined as:
 
 $
-cal(L)_("KD")^(v w) = 1/2 * D_("KL")(g(bold(x)^v) || s(f_(v)(bold(x)^v))) + 1/2 * D_("KL")(g(bold(x)^v) || s(f_(w)(bold(x)^w)))
+cal(L)_("KD")^("vw") = 1/2 * D_("KL")(g(bold(x)^v) || s(f_(v)(bold(x)^v))) + 1/2 * D_("KL")(g(bold(x)^v) || s(f_(w)(bold(x)^w)))
 $
 
 With $D_("KL")$ being the KL-Divergence. The loss changes accordingly for image-audio pairs, where the probability
 distribution over audio is defined as $s(f_(a)(bold(x)^a))$.
 
 $
-cal(L)_("KD")^(v a) = 1/2 * D_("KL")(g(bold(x)^v) || s(f_(v)(bold(x)^v))) + 1/2 * D_("KL")(g(bold(x)^v) || s(f_(a)(bold(x)^a)))
+cal(L)_("KD")^("va") = 1/2 * D_("KL")(g(bold(x)^v) || s(f_(v)(bold(x)^v))) + 1/2 * D_("KL")(g(bold(x)^v) || s(f_(a)(bold(x)^a)))
 $
 
 

@@ -18,33 +18,34 @@ as defined in (TODO: cite equ for I) and (TODO: cite equ for T), respectively.
 
 Both the image and text representations produced by the encoders are in separate embedding spaces — one for images and one for text -
 they are not related to each other initially.
-However, for contrastive learning to be effective, the embeddings should exist in the same latent space, after all, the embedding for an image
+However, for contrastive learning to be effective, the embeddings should exist in the same latent space. After all, the embedding for an image
 and its corresponding text should be the same (or at least very close to each other).
 
 In SHRE, discussed in the previous section, this shared latent space is achieved through a shared encoder on top of the modality-specific encoders,
-and through a ranking loss @shre. CLIP maps the image and text representations into a shared latent space using linear projections $O_v$ and $O_w$
+and through a ranking loss @shre. CLIP maps the image and text representations into a shared latent space using linear projections $bold(o)_v$ and $bold(o)_w$
 for image and text, respectively. These linear projections allow the model to map the image and text embeddings in a shared latent space, 
-which is ensured by the contrastive loss.
+which is ensured by the contrastive loss. Note that the linear projections $bold(o)_v$ and $bold(o)_w$ can also be defined as functions, but
+for consistency with the original paper we use dot product notation, as shown in the following.
 
-The image representation in the shared embedding space is denoted as $bold(I)' = ||O_v bold(I)^T||_2$, and the text representation
-as is given by $bold(T)' = ||O_t bold(T)^T||_2$. Since cosine similarity is used as the similarity metric in the contrastive loss,
-the embeddings are normalized, which is indicated by the $||dot||_2$ around the result of the linear projections.
+The image representation in the shared embedding space is denoted as $bold(I)' = ||bold(o)_v bold(I)^T||_2$, and the text representation
+as is given by $bold(T)' = ||bold(o)_w bold(T)^T||_2$. Since cosine similarity is used as the similarity metric in the contrastive loss,
+the embeddings are normalized, which is indicated by the l2 norm $||dot||_2$ around the result of the linear projections.
 It is important to note that the superscript $T$ denotes the transpose of a matrix, not the batch of text representations.
 
-It is sufficient to perform matrix multiplication
+Then, it is sufficient to perform matrix multiplication
 of the normalized representations in order to compute the cosine similarity between each pair. The result is given by:
 
 $
 bold(L) = exp(t) * bold(I)' bold(T)'^T, bold(L) in RR^(B times B)
 $
 
-The opteration is quite similar to the batch cosine similarity introduced in (TODO: cite vision-lang-contrast). However,
-it is notable that the cosine similarities $bold(I)' bold(T)'^T$ are scaled by $exp(t)$, where $t$ is a temperature parameter.
-This parameter is used to control the smoothness of the softmax function, which is applied to the cosine similarities and should be
+The opteration is quite similar to the batched cosine similarity operation introduced in (TODO: cite vision-lang-contrast). However,
+it is notable that the cosine similarities $bold(L)$ are scaled by $exp(t)$, where $t$ is a temperature parameter.
+This parameter is used to control the smoothness of the softmax function, and is a scalar applied element-wise to the cosine similarities, which should be
 a familiar concept from knowledge distillation (TODO: cite KD section).
 
 In knowledge distillation, the temperature was introduced as a tunable hyperparameter @kd_survey @shre.
-However, in CLIP, it is a learnable parameter that is optimized during training, just like any other parameter in the model,
+However, in CLIP it is a learnable parameter that is optimized during training, just like any other parameter in the model,
 eliminating the need for manual tuning. The temperature $t$ is optimized in log-space, which is why the actual temperature
 by which logits are scaled, is given by $exp(t)$ @clip.
 
@@ -59,13 +60,13 @@ and minimize the similarity between negative pairs $(i, j)$, with $i eq.not j$, 
 
 The loss for selecting the correct caption for each image and vice versa is
 exacly the same as given in (TODO: cite vision-lang-contrast i2t) and (TODO: cite vision-lang-contrast t2i), respectively.
-The final loss of CLIP is exactly the vision-language contrastive loss, given in (TODO: cite vision-lang-contrast).
+The final loss of CLIP is the vision-language contrastive loss, given in (TODO: cite vision-lang-contrast).
 
 $
 cal(L)_"CLIP" = cal(L)_"CL" = 1/2 * (cal(L)_"CL"^("i2t") + cal(L)_"CL"^("t2i"))
 $
 
-CLIP only relies on contrastive learning to train a vision-language model, and therefore requires high batch size to achieve good results.
+CLIP only relies on contrastive learning to train a vision-language model, and therefore requires a high batch size to achieve good results.
 The authors use a very large batch size of 32,768 @clip. An abstract illustration of the end-to-end training process of CLIP is shown in
 (TODO: cite figure) in the Appendix.
 
@@ -93,12 +94,12 @@ as demonstrated in @clip_zero_shot.
 ) <clip_zero_shot>
 
 The approach reaches a zero-shot accuracy of 76.2% on the validation set of ImageNet-1K @imagenet, with a top-5 accuracy of 95% @clip.
-This is particularly impressive, given that the model has never seen any images from the ImageNet-1K dataset during training,
+This is particularly impressive given that the model has never seen any images from the ImageNet-1K dataset during training,
 nor has it been trained on any image classification task.
 It merely achieves this accuracy through its cross-modal understanding between text and image. The model effectively “knows”
 how the ImageNet-1K classes look visually.
 
-However, it is important to note that these results were based on a vision Transformer, following the ViT-L/14@336px architecture, for
+However, it is important to note that these results were based on a vision Transformer following the ViT-L/14@336px architecture for
 the image encoder. This architecture consists of 24 layers, 16 attention heads, a hidden size of 1024, and processes images
 at a resolution of 336x336 @clip. For the text encoder, a 12-layer Transformer was used, consisting of 12 attention heads
 and a hidden size of 768 @clip. According to HuggingFace, the model is 428 million parameters
