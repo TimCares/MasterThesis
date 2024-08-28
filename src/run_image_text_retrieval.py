@@ -16,14 +16,47 @@ import json
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
-def compute_median_rank(iids:torch.Tensor, tiids:torch.Tensor, scores:torch.Tensor, dim:int)-> float:
-    ranks = scores.argsort(dim=dim, descending=True).argsort(dim=dim)
+def compute_average_median_rank(images:torch.Tensor, texts:torch.Tensor, iids:torch.Tensor, tiids:torch.Tensor):
     mask = iids.unsqueeze(1) == tiids.unsqueeze(0)
-    masked_ranks = torch.where(mask, ranks.float(), torch.tensor(float('nan')))
-    return masked_ranks.nanquantile(dim=dim, q=0.5).nanquantile(dim=0, q=0.5).item() # .median() is not accurate for even number of elements
+    
+    selected_indices = []
+    torch.manual_seed(42) # for reproducibility
+    for row in mask:
+        true_indices = torch.nonzero(row, as_tuple=False).squeeze()
+        
+        if true_indices.numel() == 1:
+            selected_indices.append(true_indices.item())
+        elif true_indices.numel() > 0:
+            selected_index = true_indices[torch.randint(0, len(true_indices), (1,))]
+            selected_indices.append(selected_index.item())
+        else:
+            raise ValueError("No matching indices found")
 
-# following stems from the BEiT3 repo: https://github.com/microsoft/unilm/blob/master/beit3/engine_for_finetuning.py
-def compute_scores(img_embeds, text_embeds, img_ids):
+    selected_indices = torch.tensor(selected_indices)
+
+    selected_texts = texts[selected_indices]
+
+    chunked_selected_texts = selected_texts.chunk(5)
+    chunked_images = images.chunk(5)
+    assert chunked_images[0].shape[0] == 1000
+    assert chunked_selected_texts[0].shape[0] == 1000
+
+    median_ranks_ir = []
+    median_ranks_tr = []
+    for img_chunk, text_chunk in zip(chunked_images, chunked_selected_texts):
+        scores = img_chunk @ text_chunk.T
+        median_rank_tr = scores.argsort(dim=1, descending=True).argsort(dim=1).diagonal().float().quantile(0.5).item()
+        median_ranks_tr.append(median_rank_tr)
+        median_rank_ir = scores.argsort(dim=0, descending=True).argsort(dim=0).diagonal().float().quantile(0.5).item()
+        median_ranks_ir.append(median_rank_ir)
+
+    avg_median_rank_tr = sum(median_ranks_tr) / len(median_ranks_tr)
+    avg_median_rank_ir = sum(median_ranks_ir) / len(median_ranks_ir)
+
+    return avg_median_rank_tr, avg_median_rank_ir
+
+# following stems mostly from the BEiT3 repo: https://github.com/microsoft/unilm/blob/master/beit3/engine_for_finetuning.py
+def compute_scores(img_embeds, text_embeds, img_ids, compute_amr=False):
     image_feats = {} # collect all unique image features, and create mapping based on id
     for feats, ids in zip(img_embeds, img_ids):
         for i, _idx in enumerate(ids):
@@ -56,8 +89,6 @@ def compute_scores(img_embeds, text_embeds, img_ids):
     tr_r5 = (iids.unsqueeze(1) == topk5_iids).float().max(dim=1)[0].mean()
     tr_r1 = (iids.unsqueeze(1) == topk1_iids).float().max(dim=1)[0].mean()
 
-    tr_mr = compute_median_rank(iids, tiids, scores, dim=1)
-
     topk10 = scores.topk(10, dim=0)
     topk5 = scores.topk(5, dim=0)
     topk1 = scores.topk(1, dim=0)
@@ -69,8 +100,6 @@ def compute_scores(img_embeds, text_embeds, img_ids):
     ir_r5 = (tiids.unsqueeze(0) == topk5_iids).float().max(dim=0)[0].mean()
     ir_r1 = (tiids.unsqueeze(0) == topk1_iids).float().max(dim=0)[0].mean()
 
-    ir_mr = compute_median_rank(tiids, iids, scores, dim=0)
-
     eval_result = {
         "tr_r10": tr_r10.item() * 100.0, 
         "tr_r5": tr_r5.item() * 100.0, 
@@ -79,16 +108,19 @@ def compute_scores(img_embeds, text_embeds, img_ids):
         "ir_r5": ir_r5.item() * 100.0, 
         "ir_r1": ir_r1.item() * 100.0, 
         "average_score": 100.0 * (tr_r1 + tr_r5 + tr_r10 + ir_r1 + ir_r5 + ir_r10).item() / 6.0,
-        "tr_amr": tr_mr,
-        "ir_amr": ir_mr, 
     }
+
+    if compute_amr:
+        tr_amr, ir_amr = compute_average_median_rank(img_embeds, text_embeds, iids, tiids)
+        eval_result['tr_amr'] = tr_amr
+        eval_result['ir_amr'] = ir_amr
 
     logger.info(f'* Eval result = {json.dumps(eval_result)}')
     return eval_result
 
 
 @torch.no_grad()
-def zero_shot_retrieval(model, dataloader, device):
+def zero_shot_retrieval(model, dataloader, device, compute_amr=False):
     img_embeds = []
     text_embeds = []
     img_ids = []
@@ -104,7 +136,7 @@ def zero_shot_retrieval(model, dataloader, device):
         text_embeds.append(text_emb)
         img_ids.append(batch['id'].to(device))
 
-    return compute_scores(img_embeds=img_embeds, text_embeds=text_embeds, img_ids=img_ids)
+    return compute_scores(img_embeds=img_embeds, text_embeds=text_embeds, img_ids=img_ids, compute_amr=compute_amr)
 
 
 @torch.no_grad()
@@ -186,7 +218,7 @@ def main(cfg: DictConfig) -> None:
             dm.prepare_data()
             dm.setup('test')
             logger.info(f"Zero-shot retrieval on: {name}")
-            zero_shot_retrieval(model, dm.test_dataloader(), device)
+            zero_shot_retrieval(model, dm.test_dataloader(), device, compute_amr=True)
 
 if __name__ == "__main__":
     main()
