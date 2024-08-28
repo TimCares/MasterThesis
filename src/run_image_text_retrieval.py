@@ -16,6 +16,11 @@ import json
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
+def compute_median_rank(iids:torch.Tensor, tiids:torch.Tensor, scores:torch.Tensor, dim:int)-> float:
+    ranks = scores.argsort(dim=dim, descending=True).argsort(dim=dim)
+    mask = iids.unsqueeze(1) == tiids.unsqueeze(0)
+    masked_ranks = torch.where(mask, ranks.float(), torch.tensor(float('nan')))
+    return masked_ranks.nanquantile(dim=dim, q=0.5).nanquantile(dim=0, q=0.5).item() # .median() is not accurate for even number of elements
 
 # following stems from the BEiT3 repo: https://github.com/microsoft/unilm/blob/master/beit3/engine_for_finetuning.py
 def compute_scores(img_embeds, text_embeds, img_ids):
@@ -51,6 +56,8 @@ def compute_scores(img_embeds, text_embeds, img_ids):
     tr_r5 = (iids.unsqueeze(1) == topk5_iids).float().max(dim=1)[0].mean()
     tr_r1 = (iids.unsqueeze(1) == topk1_iids).float().max(dim=1)[0].mean()
 
+    tr_mr = compute_median_rank(iids, tiids, scores, dim=1)
+
     topk10 = scores.topk(10, dim=0)
     topk5 = scores.topk(5, dim=0)
     topk1 = scores.topk(1, dim=0)
@@ -62,6 +69,8 @@ def compute_scores(img_embeds, text_embeds, img_ids):
     ir_r5 = (tiids.unsqueeze(0) == topk5_iids).float().max(dim=0)[0].mean()
     ir_r1 = (tiids.unsqueeze(0) == topk1_iids).float().max(dim=0)[0].mean()
 
+    ir_mr = compute_median_rank(tiids, iids, scores, dim=0)
+
     eval_result = {
         "tr_r10": tr_r10.item() * 100.0, 
         "tr_r5": tr_r5.item() * 100.0, 
@@ -69,7 +78,9 @@ def compute_scores(img_embeds, text_embeds, img_ids):
         "ir_r10": ir_r10.item() * 100.0, 
         "ir_r5": ir_r5.item() * 100.0, 
         "ir_r1": ir_r1.item() * 100.0, 
-        "average_score": 100.0 * (tr_r1 + tr_r5 + tr_r10 + ir_r1 + ir_r5 + ir_r10).item() / 6.0, 
+        "average_score": 100.0 * (tr_r1 + tr_r5 + tr_r10 + ir_r1 + ir_r5 + ir_r10).item() / 6.0,
+        "tr_amr": tr_mr,
+        "ir_amr": ir_mr, 
     }
 
     logger.info(f'* Eval result = {json.dumps(eval_result)}')
