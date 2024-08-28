@@ -123,6 +123,8 @@ Another popular choice for image-text pairs is the Visual Genome dataset @vg, co
 However, we refrain from using this dataset, as we experienced unstable training during preliminary tests, a circumstance
 we will address again in the experimental part of this work.
 
+In total, we collect more than *650 GB* of data.
+
 #figure(
   table(
     columns: 5,
@@ -189,6 +191,53 @@ A comparison between curated and labeled samples, and in-the-wild samples can be
 ) <coco_vs_cc12m>
 
 ==== Data Persistence
+How to organize, store, and batch the data during training is an important aspect, as storing this much data is not trivial, and we
+need to ensure an efficient data pipeline to avoid bottlenecks during training.
+
+For all datasets, except OpenWebText, we organize the data in a format inspired by the authors of BEiT-3.
+In the file system, each dataset is stored in a separate folder.
+Each split of a dataset is stored in a jsonl file (inside the respective dataset folder), containing a list of python-parseable dictionaries, with each
+dictionary representing one (train/val/test) example. Each dictionary contains a sample id, which is especially important for
+e.g. image-text retrieval, as the sample id is used to check if an image-text pair is a positive (they have the same id) or negative pair.
+Further, each dictionary contains a key for the image path in the file system, or a key for the text. If the dataset is multimodal, each
+sample, and therefore each dictionary, contains both an image path key and a text key. The text, already splitted into
+a list of tokens, is directly stored in the dictionary, as it is small in size.
+
+All datasets containing images have a separate folder for each split, which contains the raw images in png format.
+
+During training, we load the whole jsonl file into memory, which is manageable, as they rarely exceed 1 GB in size.
+For each batch of size $B$, $B$ elements are drawn from the list of the jsonl file, where each element is the dictionary representing one example.
+
+If the dataset contains images, the images are loaded from the file system using the image path in the dictionary, and then
+resized to a fixed size of 224x224 pixels, which is the size for images we use throughout this work. When appropriate,
+data augmentation is applied. Since all images are of the same size, they can be stacked into a tensor of shape $B times 3 times 224 times 224$.
+
+If the dataset contains text, which is a list of tokens already, each token of the text is converted to its corresponding token id,
+and the resulting list of token ids is prepended with the id of the $mono("[T_CLS]")$ token, and appended with the id of the $mono("[T_SEP]")$ token.
+The text is then padded to a fixed number of tokens, using the id of the $mono("[T_PAD]")$ token. To which fixed length the text is padded
+depends on the model and approach, and will be specified in the respective section.
+After padding, all texts are stacked into a tensor of shape $B times T$, where $T$ is the fixed number of tokens.
+
+Since sample ids are simple integers, they can be stacked into a tensor of shape $B times 1$ without any further processing.
+
+After that, the batch is ready to be fed into the model.
+
+For OpenWebText we take a different approach. The data is stored in a single binary file for each split, which contains the tokenized text data.
+We choose this strategy for OpenWebText, as the dataset consists of raw unstructured text, from which training examples
+can easily be created during training by loading the whole dataset into memory, and slicing the text,
+into consecutive slices of fixed length. Padding is not necessary, as the slices are already of the same length.
+Each token is then converted to its corresponding token id, and the resulting list of token ids is prepended with the id of the
+$mono("[T_CLS]")$ token, and appended with the id of the $mono("[T_SEP]")$ token. Consequently, for a maximum sequence length of $T$ tokens,
+the whole dataset, which is one long list of tokens, is iterated over during training in steps of $B*(T-2)$, where $B$ is the batch size.
+We do not take $B*T$, as for each example the $mono("[T_CLS]")$ and $mono("[T_SEP]")$ token are added, which increases the length of each example by 2 tokens.
+After a slice has been taken from the dataset, was converted to token ids, and special tokens were added, it is stacked into a tensor of shape $B times T$,
+and then fed into the model.
+
+#figure(
+  image("../figures/dataset_formats.png"),
+  caption: [Comparison of different dataset organization and storage formats used in this work. Labeled NLP (b) datasets are not binarized,
+  as they have a structure, i.e. there are fixed examples with labels.],
+) <dataset_formats>
 
 Data Selection and Collection:
 - starting with unimodal:
