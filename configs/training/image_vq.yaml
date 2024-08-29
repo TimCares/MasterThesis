@@ -48,6 +48,7 @@ data:
     drop_last: True
 
   common:
+    data_path: ${data_path}
     pretraining: True
     beit_transforms: False
     crop_scale: [0.5, 1.0]
@@ -78,7 +79,7 @@ optimizer:
   betas: [ 0.9,0.98 ]
   eps: 1e-06
   weight_decay: 0.01
-  max_steps: 40_030 # 4003*10
+  max_steps: 50040 # 5004*10
 
 lightning_trainer:
   default_root_dir: ${log_dir}

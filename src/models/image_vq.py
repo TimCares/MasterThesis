@@ -190,24 +190,22 @@ class ImageVQ(nn.Module):
         self.vq_to_embed_proj.apply(self.beitv2._init_weights)
 
         self.decoder_norm = nn.LayerNorm(embed_dim, eps=1e-6)
-        self.decoder_pred = nn.Linear(embed_dim, self.beitv2.patch_embed.patch_size**2 * 3, bias=True) # decoder to patch
+        self.decoder_pred = nn.Linear(embed_dim, self.beitv2.patch_embed.patch_size[0]**2 * 3, bias=True) # decoder to patch
 
     def forward(
         self,
         image:torch.Tensor,
     ):
-        cls_token = self.forward_beitv2(image)
-        to_quantizer_features = self.embed_to_vq_proj(cls_token)
+        x_beit = self.forward_beitv2(image)
+        to_quantizer_features = self.embed_to_vq_proj(x_beit[:, 0])
 
         quantize_result_dict = self.quantize(to_quantizer_features)
         quantize = quantize_result_dict['z_q']
         quantize = self.vq_to_embed_proj(quantize)
 
-        mask = self.random_masking(image, self.cfg.mask_ratio)
+        mask = self.random_masking(x_beit[:, 1:], self.cfg.mask_ratio)
         
-        patch_embeds = self.visual_embed(image, bool_masked_pos=mask)
-
-        x = torch.cat([quantize, patch_embeds], dim=1) # torch.cat([cls_token, patch_embeds], dim=1) + quantize.unsqueeze(1).expand(-1, patch_embeds.size(1), -1)
+        x = self.visual_embed(image, bool_masked_pos=mask, quantize=quantize)
 
         rel_pos_bias = self.beitv2.rel_pos_bias()
         for blk in self.decoder:
@@ -219,10 +217,9 @@ class ImageVQ(nn.Module):
         out_dict = {
             'x': x,
             'vq_loss': quantize_result_dict['loss'],
-            'beitv2_cls_token': cls_token,
+            'beitv2_cls_token': x_beit[:, 0],
             'mask': mask,
             'embed_ind': quantize_result_dict['encoding_indices'],
-            'encoding_scores': quantize_result_dict['encoding_scores'],
         }
         return out_dict
     
@@ -247,23 +244,27 @@ class ImageVQ(nn.Module):
         bool_masked_pos = torch.zeros((image.shape[0], self.beitv2.patch_embed.num_patches),
                                       dtype=torch.bool).to(image.device)
         
-        target = self.beitv2.forward_features(
+        x = self.beitv2.forward_features(
             x=image,
             bool_masked_pos=bool_masked_pos,
-        )[:, 0]
+        )
         
-        return target
+        return x
 
-    @torch.no_grad()    
-    def visual_embed(self, x:torch.Tensor, bool_masked_pos:torch.Tensor):
-        x = self.beitv2.patch_embed(x, bool_masked_pos=bool_masked_pos)
+    def visual_embed(self, x:torch.Tensor, bool_masked_pos:torch.Tensor, quantize:torch.Tensor):
+        with torch.no_grad():
+            x = self.beitv2.patch_embed(x, bool_masked_pos=bool_masked_pos)
+        
         batch_size, seq_len, _ = x.size()
 
-        mask_token = self.beitv2.mask_token.expand(batch_size, seq_len, -1)
+        quantize = quantize.unsqueeze(1).expand(-1, seq_len, -1)
 
-        # replace the masked visual tokens by mask_token
-        w = bool_masked_pos.unsqueeze(-1).type_as(mask_token)
-        x = x * (1 - w) + mask_token * w
+        w = bool_masked_pos.unsqueeze(-1).type_as(quantize)
+        x = x * (1 - w) + quantize * w
+
+        cls_tokens = self.beitv2.cls_token.expand(batch_size, -1, -1)
+
+        x = torch.cat((cls_tokens, x), dim=1)
         
         return x
 
