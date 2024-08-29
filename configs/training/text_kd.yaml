@@ -1,0 +1,75 @@
+# @package _global_
+
+hydra:
+  run:
+    dir: .
+
+defaults:
+  - _self_ # this first, so that the base config can be overridden by others
+  
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+
+base_dir: "/workspace"
+model_path: ${base_dir}/models
+data_path: ${base_dir}
+log_dir: ${base_dir}/logs
+seed: 42
+
+run_name: text_kd
+id:
+model_name: text_kd
+
+load_checkpoint:
+
+model:
+  depth: 6
+
+openwebtext:
+  num_max_bpe_tokens: 196
+  sample_break_mode: none
+
+  data_path: ${data_path}
+  batch_size: 256
+  num_workers: 8
+  shuffle: True
+  drop_last: True
+
+
+checkpoint:
+  common:
+    dirpath: ${model_path}/${run_name}
+    enable_version_counter: False
+    every_n_epochs: 1
+    save_on_train_epoch_end: False # False -> run at end of validation
+    verbose: True
+    auto_insert_metric_name: False
+
+  checkpoints:
+    - monitor: val/loss
+      mode: min
+      filename: model-{step}-{${.monitor}:.4f}-val
+
+    - monitor: train/loss
+      mode: min
+      filename: model-{step}-{${.monitor}:.4f}-train
+
+optimizer:
+  base_lr: 0.0005
+  betas: [ 0.9,0.98 ]
+  eps: 1e-06
+  weight_decay: 0.01
+  max_steps: 50040 # 5004*10
+
+lightning_trainer:
+  default_root_dir: ${log_dir}
+  accelerator: gpu
+  devices: -1
+  max_epochs: 10
+  num_sanity_val_steps: 0 # would run zero shot at the beginning if > 0
+  precision: 16-mixed
+  log_every_n_steps: 50
+
+  ddp:
+    gradient_as_bucket_view: True # optimizes memory usage
+    static_graph: True # optimizes memory usage
