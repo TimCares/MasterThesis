@@ -34,11 +34,11 @@ model:
     vocab_size: 8192
     init_values: 0.1
 
-  decoder_depth: 3
+  decoder_depth: 1
   n_codebook_embed: 1024
-  vq_dim: 32
-  vq_decay: 0.95 # 0.99
-  mask_ratio: 0.85
+  vq_dim: 16
+  vq_decay: 0.99
+  mask_ratio: 0.90
 
 data:
   dataloader:

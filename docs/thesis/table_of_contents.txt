@@ -59,12 +59,11 @@ Experiments
 			Loss Ablation Studies
 				Removing ITC
 				Removing KD (Teacher)
-			Self-Distillation (Dino Loss)
 			Masked Data Modeling as additional Loss (might make other task difficlut though)
+			Self-Distillation (Dino Loss)
 			Distillation-less approach (Teacher stays for IBN of MIM)
 			Multimodal Teacher
 				
-			Biased VL Initialization (init from text)
 			Fair Comparison with Supervised Teacher (bigger supervised teacher -> approx. 85 mill params)
 			Importance of the right Teacher (why BEiT-2? etc...) (D2V2 Image, BEiT-3, Dino, )
 			Non-Knowledge-Distaillation (motivation -> application of kd very limited, especially with unimodal model)

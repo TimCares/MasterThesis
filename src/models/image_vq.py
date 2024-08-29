@@ -42,19 +42,12 @@ class ImageVQLightningModule(L.LightningModule):
         }
 
         output_dict = self(input_dict)
-        pred = output_dict['x'][:, 1:]  # remove cls token
-        mask = output_dict['mask']
+        rec = output_dict['x']
+        target = output_dict['target']
 
-        target = self.model.patchify(image)
-
-        mean = target.mean(dim=-1, keepdim=True)
-        var = target.var(dim=-1, keepdim=True)
-        target = (target - mean) / (var + 1.e-6)**.5
-
-        loss = (pred - target) ** 2
-        loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
-
-        rec_loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
+        target = target / target.norm(dim=-1, keepdim=True)
+        rec = rec / rec.norm(dim=-1, keepdim=True)
+        rec_loss = (1 - (target * rec).sum(-1)).mean()
 
         vq_loss = output_dict['vq_loss']
 
@@ -129,11 +122,11 @@ class BEiTv2Config():
 @dataclass
 class ImageVQConfig():
     beitv2: BEiTv2Config = field(default_factory=BEiTv2Config)
-    decoder_depth: int = 3
+    decoder_depth: int = 1
     n_codebook_embed: int = 1024
-    vq_dim: int = 32
-    vq_decay: float = 0.95 # 0.99
-    mask_ratio: float = 0.85
+    vq_dim: int = 16
+    vq_decay: float = 0.99
+    mask_ratio: float = 0.90
 
 class ImageVQ(nn.Module):
     def __init__(self,
@@ -182,15 +175,8 @@ class ImageVQ(nn.Module):
             nn.Linear(embed_dim, self.cfg.vq_dim),
         )
         self.embed_to_vq_proj.apply(self.beitv2._init_weights)
-        self.vq_to_embed_proj = nn.Sequential(
-            nn.Linear(self.cfg.vq_dim, embed_dim),
-            nn.Tanh(),
-            nn.Linear(embed_dim, embed_dim),
-        )
+        self.vq_to_embed_proj = nn.Linear(self.cfg.vq_dim, embed_dim)
         self.vq_to_embed_proj.apply(self.beitv2._init_weights)
-
-        self.decoder_norm = nn.LayerNorm(embed_dim, eps=1e-6)
-        self.decoder_pred = nn.Linear(embed_dim, self.beitv2.patch_embed.patch_size[0]**2 * 3, bias=True) # decoder to patch
 
     def forward(
         self,
@@ -211,14 +197,10 @@ class ImageVQ(nn.Module):
         for blk in self.decoder:
             x = blk(x, rel_pos_bias=rel_pos_bias)
 
-        x = self.decoder_norm(x)
-        x = self.decoder_pred(x)
-
         out_dict = {
-            'x': x,
+            'x': x[:, 0],
             'vq_loss': quantize_result_dict['loss'],
-            'beitv2_cls_token': x_beit[:, 0],
-            'mask': mask,
+            'target': x_beit[:, 0],
             'embed_ind': quantize_result_dict['encoding_indices'],
         }
         return out_dict
@@ -254,18 +236,17 @@ class ImageVQ(nn.Module):
     def visual_embed(self, x:torch.Tensor, bool_masked_pos:torch.Tensor, quantize:torch.Tensor):
         with torch.no_grad():
             x = self.beitv2.patch_embed(x, bool_masked_pos=bool_masked_pos)
-        
         batch_size, seq_len, _ = x.size()
 
-        quantize = quantize.unsqueeze(1).expand(-1, seq_len, -1)
+        cls_tokens = quantize.unsqueeze(1).expand(-1, seq_len, -1)
+        mask_token = self.beitv2.mask_token.expand(batch_size, seq_len, -1)
 
-        w = bool_masked_pos.unsqueeze(-1).type_as(quantize)
-        x = x * (1 - w) + quantize * w
-
-        cls_tokens = self.beitv2.cls_token.expand(batch_size, -1, -1)
+        # replace the masked visual tokens by mask_token
+        w = bool_masked_pos.unsqueeze(-1).type_as(mask_token)
+        x = x * (1 - w) + mask_token * w
 
         x = torch.cat((cls_tokens, x), dim=1)
-        
+
         return x
 
     def random_masking(self, x, mask_ratio):
@@ -290,20 +271,6 @@ class ImageVQ(nn.Module):
         mask = torch.gather(mask, dim=1, index=ids_restore)
 
         return mask
-    
-    def patchify(self, imgs):
-        """
-        imgs: (N, 3, H, W)
-        x: (N, L, patch_size**2 *3)
-        """
-        p = self.beitv2.patch_embed.patch_size[0]
-        assert imgs.shape[2] == imgs.shape[3] and imgs.shape[2] % p == 0
-
-        h = w = imgs.shape[2] // p
-        x = imgs.reshape(shape=(imgs.shape[0], 3, h, p, w, p))
-        x = torch.einsum('nchpwq->nhwpqc', x)
-        x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * 3))
-        return x
 
 MODEL_REGISTRY['image_vq'] = {
     'cfg': ImageVQConfig,
