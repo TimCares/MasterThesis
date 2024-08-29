@@ -34,7 +34,8 @@ teacher:
 model:
   depth: 6
 
-imagenet:
+data:
+  _name: imagenet
   data_path: ${data_path}
   pretraining: True
   beit_transforms: False

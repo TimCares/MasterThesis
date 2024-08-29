@@ -25,7 +25,8 @@ load_checkpoint:
 model:
   depth: 6
 
-openwebtext:
+data:
+  _name: openwebtext
   num_max_bpe_tokens: 196
   sample_break_mode: none
 
