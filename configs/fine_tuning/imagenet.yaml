@@ -16,10 +16,9 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-name: base_init_lr_0.001
-run_name: imagenet_finetuning_${name}
-
-load_checkpoint:
+run_name: image_classification
+id:
+model_name: image_classification
 
 mixup:
   mixup_alpha: 0.7
@@ -32,30 +31,18 @@ mixup:
   num_classes: 1000
 
 model:
-  model_version: 2024-05-29_14-21-50
+  model_path:
+  model_name: 
   linear_classifier: False
   num_classes: 1000
 
-  drop_path_rate: 0.0
-  layer_decay: 0.65
+  layer_decay: 0.81
 
-  norm_eps: # None
-
-  # regularization overwrites
-  encoder_dropout: 0
-  post_mlp_drop: 0
-  attention_dropout: 0
-  activation_dropout: 0.0
-  dropout_input: 0.0
-  layerdrop: 0.0
-
-  use_fc_norm: True
+  use_head_norm: True
   prediction_mode: MEAN_POOLING
 
-  no_decay_blocks: True
-
-
-imagenet:
+data:
+  _name: imagenet
   pretraining: False
   aa: rand-m9-mstd0.5-inc1
   reprob: 0.25
@@ -64,35 +51,34 @@ imagenet:
 
   data_path: ${data_path}
   batch_size: 256
-  num_workers: 12
+  num_workers: 8
   shuffle: True
   drop_last: True
 
-
 checkpoint:
-  dirpath: "${model_path}/${now:%Y-%m-%d_%H-%M-%S}"
-  # monitor key is also computed in a callback, ModelCheckpoint callbacks are the last checkpoints executed,
-  # so the key will be computed right beforehand (therefore it is always up to date)
-  filename: mm-d2v-{step}-{${checkpoint.monitor}:.4f}
-  save_last: link # save last checkpoint -> easier access, as it has a fixed name (last.ckpt) -> not set to True here, as a link saves space
-  enable_version_counter: False # only ever one "last.ckpt" file
-  every_n_epochs: 1
-  save_on_train_epoch_end: False # False -> run at end of validation
-  verbose: True
-  monitor: val/accuracy
-  mode: max
-  auto_insert_metric_name: False
+  common:
+    dirpath: ${model_path}/${run_name}
+    enable_version_counter: False
+    every_n_epochs: 1
+    save_on_train_epoch_end: False # False -> run at end of validation
+    verbose: True
+    auto_insert_metric_name: False
+
+  checkpoints:
+    - monitor: val/accuracy
+      mode: max
+      filename: model-{step}-{${.monitor}:.4f}-val
+
+    - monitor: train/loss
+      mode: min
+      filename: model-{step}-{${.monitor}:.4f}-train
 
 optimizer:
   lr: 0.001
   betas: [0.9,0.95]
   eps: 1e-06
   weight_decay: 0.01
-  warmup: True
-
-optimizer_schedule:
-  warmup_steps: 3_800 # 16000/250200*60_045
-  max_steps: 60_045
+  max_steps: 75060
 
 lightning_trainer:
   default_root_dir: ${log_dir}

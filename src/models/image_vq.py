@@ -238,14 +238,13 @@ class ImageVQ(nn.Module):
             x = self.beitv2.patch_embed(x, bool_masked_pos=bool_masked_pos)
         batch_size, seq_len, _ = x.size()
 
-        cls_tokens = quantize.unsqueeze(1).expand(-1, seq_len, -1)
         mask_token = self.beitv2.mask_token.expand(batch_size, seq_len, -1)
 
         # replace the masked visual tokens by mask_token
         w = bool_masked_pos.unsqueeze(-1).type_as(mask_token)
         x = x * (1 - w) + mask_token * w
 
-        x = torch.cat((cls_tokens, x), dim=1)
+        x = torch.cat((quantize.unsqueeze(1), x), dim=1)
 
         return x
 
