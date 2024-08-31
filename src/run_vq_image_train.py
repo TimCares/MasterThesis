@@ -1,19 +1,18 @@
 import hydra
 import wandb
-from omegaconf import OmegaConf, open_dict, DictConfig
+from omegaconf import OmegaConf, DictConfig
 import os
 import torch
-from typing import List
 import logging
 import git
 from datetime import datetime
-from pytorch_lightning import seed_everything, Trainer, LightningDataModule
+from pytorch_lightning import seed_everything, Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelSummary
 from pytorch_lightning.loggers import WandbLogger
 import sys
 sys.path.append("beit2")
 from models import MODEL_REGISTRY
-from datamodules import DATAMODULE_REGISTRY, MultiDataModule
+from datamodules import DATAMODULE_REGISTRY
 from callbacks import WallClockCallback, GracefulStoppingCallback, ResumeCheckModelCheckpoint, CodebookUsageCallback
 from fairseq.dataclass.utils import merge_with_parent
 
@@ -92,23 +91,14 @@ def main(cfg: DictConfig) -> None:
         wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
         wandb.save(f'models/{cfg.model_name}.py') # saves the model file to wandb
 
-    dataloader_args = cfg.data.dataloader
-    common_args = cfg.data.common
-
-    datamodules:List[LightningDataModule] = []
-    for datamodule_key in cfg.data.datamodules.keys():
-        dataset_args = cfg.data.datamodules[datamodule_key]
-        with open_dict(dataset_args):
-            dataset_args.update(dataloader_args)
-            dataset_args.update(common_args)
-        datamodules.append(DATAMODULE_REGISTRY[datamodule_key](**dataset_args))
-        logger.info(f"Train datamodule {datamodule_key}: {dataset_args}")
-    
-    multi_datamodule = MultiDataModule(datamodules=datamodules, **dataloader_args)
+    datamodule_args = OmegaConf.to_container(cfg.data, resolve=True)
+    name = datamodule_args.pop('_name')
+    datamodule = DATAMODULE_REGISTRY[name](**datamodule_args)
+    logger.info(f"Datamodule {name}: {datamodule_args}")
 
     logger.info("Setting up datamodules:")
-    multi_datamodule.prepare_data()
-    multi_datamodule.setup("fit")
+    datamodule.prepare_data()
+    datamodule.setup("fit")
     logger.info("Datamodule setup complete.")
 
     if 'load_checkpoint' in cfg and cfg.load_checkpoint is not None:
@@ -117,12 +107,8 @@ def main(cfg: DictConfig) -> None:
     else:
         ckpt_path = None
 
-    val_dataloaders = [m.val_dataloader() for m in datamodules if hasattr(m, 'val_dataset')]
-    logger.info(f"Using {len(val_dataloaders)} validation dataloaders.")
-
     trainer.fit(module,
-                train_dataloaders=multi_datamodule.train_dataloader(),
-                val_dataloaders=val_dataloaders,
+                datamodule=datamodule,
                 ckpt_path=ckpt_path)
 
 if __name__ == "__main__":

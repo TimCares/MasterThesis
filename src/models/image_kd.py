@@ -157,7 +157,7 @@ class ImageKDPreTrainingLightningModule(L.LightningModule):
         return sd
         
     def log(self, *args, **kwargs):
-        super().log(batch_size=self.cfg.data.dataloader.batch_size, sync_dist=True, *args, **kwargs)
+        super().log(batch_size=self.cfg.data.batch_size, sync_dist=True, *args, **kwargs)
 
 @dataclass
 class ImageKDConfig():
