@@ -109,7 +109,7 @@ class ImageClassificationLightningModule(L.LightningModule):
         for name, param in self.model.named_parameters():
             if not param.requires_grad:
                 continue
-            if len(param.shape) == 1 or name.endswith(".bias") or 'extra_tokens' in name:
+            if len(param.shape) == 1 or name.endswith(".bias") or "fixed_positional_encoder.positions" in name or "extra_tokens" in name:
                 group_name = "no_decay"
                 this_weight_decay = 0.
             else:

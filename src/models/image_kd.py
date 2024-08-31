@@ -2,16 +2,13 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from typing import Dict, Any
-import os
 import logging
 import pytorch_lightning as L
 from dataclasses import dataclass
 from data2vec_fairseq.data.modality import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup
-from omegaconf import OmegaConf
 from . import MODEL_REGISTRY
-from utils import freeze_module, load_beit2_teacher
-from beit2.modeling_pretrain import VisionTransformerForMaskedImageModeling
+from utils import freeze_module
 from utils import load_pretrained_d2v_model, prepare_output
 
 logger = logging.getLogger(__name__)
@@ -23,16 +20,7 @@ class ImageKDPreTrainingLightningModule(L.LightningModule):
 
         self.model = ImageKDModel(cfg=self.cfg.model)
 
-        beit2_kwargs = OmegaConf.to_container(self.cfg.teacher, resolve=True)
-        sd_path = beit2_kwargs.pop("model_path")
-        sd_name = beit2_kwargs.pop("model_name")
-        beit_path = os.path.join(sd_path, sd_name)
-
-        self.teacher:VisionTransformerForMaskedImageModeling = load_beit2_teacher(
-            sd_path=beit_path,
-            **beit2_kwargs,
-        )
-        self.teacher.norm = nn.Identity()
+        self.teacher = load_pretrained_d2v_model(state_dict_path='/workspace/models/base_imagenet.pt')
         freeze_module(self.teacher)
 
         self.save_hyperparameters()
@@ -52,12 +40,11 @@ class ImageKDPreTrainingLightningModule(L.LightningModule):
 
         image = batch['image']
 
-        # no mask
-        bool_masked_pos = torch.zeros((image.shape[0], self.teacher.patch_embed.num_patches), 
-                                      dtype=torch.bool).to(image.device)
-
         with torch.no_grad():
-            target = self.beitv2_forward_features(image, bool_masked_pos)
+            target = self.teacher.extract_features(
+                source=image,
+                remove_extra_tokens=False,
+            )['layer_results']
         
         output_dict = self({'image': image}) # call "forward"
         pred = output_dict['layer_results']
@@ -79,30 +66,6 @@ class ImageKDPreTrainingLightningModule(L.LightningModule):
         assert input.shape == target.shape # this must be the case
 
         return F.mse_loss(input, target, reduction="none").float().mean()
-    
-    def beitv2_forward_features(self, x, bool_masked_pos):
-        x = self.teacher.patch_embed(x, bool_masked_pos=bool_masked_pos)
-        batch_size, seq_len, _ = x.size()
-
-        cls_tokens = self.teacher.cls_token.expand(batch_size, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
-        mask_token = self.teacher.mask_token.expand(batch_size, seq_len, -1)
-
-        # replace the masked visual tokens by mask_token
-        w = bool_masked_pos.unsqueeze(-1).type_as(mask_token)
-        x = x * (1 - w) + mask_token * w
-
-        x = torch.cat((cls_tokens, x), dim=1)
-        if self.teacher.pos_embed is not None:
-            x = x + self.teacher.pos_embed
-        x = self.teacher.pos_drop(x)
-
-        rel_pos_bias = self.teacher.rel_pos_bias() if self.teacher.rel_pos_bias is not None else None
-        layer_results = []
-        for blk in self.teacher.blocks:
-            x = blk(x, rel_pos_bias=rel_pos_bias)
-            layer_results.append(x)
-
-        return layer_results
     
 
     def configure_optimizers(self):
@@ -143,7 +106,7 @@ class ImageKDPreTrainingLightningModule(L.LightningModule):
     def _get_param_groups(self):
         wd_params, non_wd_params = [], []
         for name, param in self.model.named_parameters():
-            if len(param.shape) == 1 or name.endswith(".bias") or "pos_embed" in name or "cls_token" in name:
+            if len(param.shape) == 1 or name.endswith(".bias") or "fixed_positional_encoder.positions" in name or "extra_tokens" in name:
                 non_wd_params.append(param)
             else:
                 wd_params.append(param)
