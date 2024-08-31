@@ -38,8 +38,7 @@ model:
 
   layer_decay: 0.81
 
-  use_head_norm: True
-  prediction_mode: MEAN_POOLING
+  prediction_mode: mean_pooling
 
 data:
   _name: imagenet

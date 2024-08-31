@@ -9,7 +9,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as L
 from timm.data import Mixup
-from data2vec_fairseq.models.mae_image_classification import PredictionMode
 from transformers.optimization import get_cosine_schedule_with_warmup
 import json
 
@@ -159,8 +158,7 @@ class ImageClassificationConfig():
 
     layer_decay: float = 0.81
 
-    use_head_norm: bool = True
-    prediction_mode: PredictionMode = PredictionMode.MEAN_POOLING
+    prediction_mode: str = 'mean_pooling'
 
 
 class ImageClassificationModel(nn.Module):
@@ -177,11 +175,9 @@ class ImageClassificationModel(nn.Module):
         if self.linear_classifier:
             self.model.requires_grad_(False)
 
-        self.head_norm = None
-        if self.cfg.use_head_norm:
-            self.head_norm = nn.LayerNorm(768, eps=1e-6)
-            nn.init.constant_(self.head_norm.bias, 0)
-            nn.init.constant_(self.head_norm.weight, 1.0)
+        self.head_norm = nn.LayerNorm(768, eps=1e-6)
+        nn.init.constant_(self.head_norm.bias, 0)
+        nn.init.constant_(self.head_norm.weight, 1.0)
 
         self.head = nn.Linear(768, cfg.num_classes)
 
@@ -199,25 +195,14 @@ class ImageClassificationModel(nn.Module):
         else:
             x = self.model(image)['x']
 
-        if self.cfg.prediction_mode == PredictionMode.MEAN_POOLING:
-            x = x.mean(dim=1)
-        elif self.cfg.prediction_mode == PredictionMode.CLS_TOKEN:
+        if self.cfg.prediction_mode == 'mean_pooling':
+            x = x[:, 1:].mean(dim=1)
+        elif self.cfg.prediction_mode == 'cls_token':
             x = x[:, 0]
-        elif self.cfg.prediction_mode == PredictionMode.LIN_SOFTMAX:
-            dtype = x.dtype
-            x = F.logsigmoid(x.float())
-            x = torch.logsumexp(x + x, dim=1) - torch.logsumexp(x + 1e-6, dim=1)
-            x = x.clamp(max=0)
-            x = x - torch.log(-(torch.expm1(x)))
-            x = torch.nan_to_num(x, nan=0, posinf=0, neginf=0)
-            x = x.to(dtype=dtype)
         else:
             raise Exception(f"unknown prediction mode {self.cfg.prediction_mode.name}")
 
-        if self.head_norm is not None:
-            x = self.head_norm(x)
-
-        return self.head(x)
+        return self.head(self.head_norm(x))
 
 MODEL_REGISTRY['image_classification'] = {
     'cfg': ImageClassificationConfig,
