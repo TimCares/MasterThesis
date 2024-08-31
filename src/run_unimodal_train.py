@@ -1,3 +1,5 @@
+import sys
+sys.path.append("beit2")
 import hydra
 import wandb
 from omegaconf import OmegaConf, DictConfig

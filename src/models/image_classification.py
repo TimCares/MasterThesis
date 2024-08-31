@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict
 from omegaconf import MISSING
-from models import MODEL_REGISTRY
+from . import MODEL_REGISTRY
 from pytorch_lightning import LightningModule
 import torch
 import torch.nn as nn

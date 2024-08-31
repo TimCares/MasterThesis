@@ -5,3 +5,4 @@ from .image_vq import ImageVQLightningModule, ImageVQConfig
 from .image_cluster import ImageCluster
 from .text_kd import TextKDPreTrainingLightningModule, TextKDConfig
 from .image_kd import ImageKDPreTrainingLightningModule, ImageKDConfig
+from .image_classification import ImageClassificationModel, ImageClassificationConfig
