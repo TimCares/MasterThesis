@@ -100,7 +100,7 @@ class ImageClassificationLightningModule(L.LightningModule):
         return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": 'cosine'}]
         
     def _get_param_groups(self, lr):
-        num_layers = len(self.model.model.blocks)
+        num_layers = len(self.model.model.model.blocks)
         layer_scales = list(self.model.cfg.layer_decay ** (num_layers + 1 - i) for i in range(num_layers + 2))
 
         parameter_group_names = {}
@@ -109,7 +109,7 @@ class ImageClassificationLightningModule(L.LightningModule):
         for name, param in self.model.named_parameters():
             if not param.requires_grad:
                 continue
-            if len(param.shape) == 1 or name.endswith(".bias"):
+            if len(param.shape) == 1 or name.endswith(".bias") or 'extra_tokens' in name:
                 group_name = "no_decay"
                 this_weight_decay = 0.
             else:
