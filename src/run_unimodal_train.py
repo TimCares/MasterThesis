@@ -58,10 +58,12 @@ def main(cfg: DictConfig) -> None:
         ModelSummary(),
         LearningRateMonitor(logging_interval="step"),
         WallClockCallback(),
-        ModelCheckpoint(
-                **OmegaConf.to_container(cfg.checkpoint, resolve=True)
-        )
     ]
+
+    common_checkpoint_args = OmegaConf.to_container(cfg.checkpoint.common, resolve=True)
+    for ckpt in cfg.checkpoint.checkpoints:
+        args = OmegaConf.to_container(ckpt, resolve=True) | common_checkpoint_args
+        callbacks.append(ModelCheckpoint(**args))
 
     trainer_args = OmegaConf.to_container(cfg.lightning_trainer, resolve=True)
     if 'strategy' not in trainer_args:
