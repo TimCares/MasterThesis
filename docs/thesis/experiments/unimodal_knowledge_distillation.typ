@@ -72,11 +72,12 @@ This includes instance norm before averaging, and layer norm afterwards.
 $op("InstanceNorm")(dot)$ and $op("LayerNorm")(dot)$ are defined as specified in (TODO: cite notation),
 and $cal(L)_("MSE")(dot, dot)$ is the mean squared error between two d-dimensional vectors, defined in (TODO: cite equation) in (TODO: cite notation).
 
+==== Pretraining
 
-
-==== Results
+==== Finetuning
 === Language
 ==== Method
-==== Results
+==== Pretraining
+==== Finetuning
 
 #bibliography("../references.bib")
