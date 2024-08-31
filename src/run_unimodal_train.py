@@ -68,6 +68,15 @@ def main(cfg: DictConfig) -> None:
 
     torch.set_float32_matmul_precision("high") # or: "highest"
     trainer_args = OmegaConf.to_container(cfg.lightning_trainer, resolve=True)
+    if 'strategy' not in trainer_args:
+        if 'deepspeed' in trainer_args:
+            from pytorch_lightning.strategies import DeepSpeedStrategy
+            trainer_args['strategy'] = DeepSpeedStrategy(**trainer_args.pop('deepspeed'))
+        elif 'ddp' in trainer_args:
+            from pytorch_lightning.strategies import DDPStrategy
+            trainer_args['strategy'] = DDPStrategy(**trainer_args.pop('ddp'))
+        else:
+            trainer_args['strategy'] = 'auto'
 
     datamodule_args = OmegaConf.to_container(cfg.data, resolve=True)
     name = datamodule_args.pop('_name')
