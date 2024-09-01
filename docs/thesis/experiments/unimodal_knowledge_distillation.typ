@@ -220,7 +220,7 @@ only supervised.
     [Data2Vec2], [84.5],[-], 
     [BEiTv2], [85.0], [80.1],
     [ResNet-101], [80.1], [-], 
-    [*DistilData2Vec2 (ours)*], [75.0], [75.0],
+    [*DistilData2Vec2 (ours)*], [75.0], [55.0],
     table.hline(stroke: .6pt),
   ),
   caption: [Comparison of finetuning and linear probing results with SOTA self-supervised models on ImageNet-1K.],
@@ -271,5 +271,31 @@ that can fit on a single GPU with 24GB of memory (RTX 4090).
 
 We validate the student model on the dedicated validation dataset of OWT we introduced in (TODO: cite data). The same loss as used as for training.
 ==== Finetuning
+
+#figure(
+  table(
+    columns: 10,
+    stroke: none,
+    table.hline(),
+    table.header(
+      [],
+      [MNLI],
+      [QNLI],
+      [RTE],
+      [MRPC],
+      [QQP],
+      [STS-B],
+      [CoLA],
+      [SST],
+      [*Score*],
+      table.hline(stroke: .6pt),
+    ),
+    [BERT],[86.7], [91.8], [69.3], [88.6], [89.6], [92.7], [56.3], [92.7], [83.5],
+    [DistilBERT],[82.2], [89.2], [59.9], [87.5], [88.5], [86.9], [51.3], [91.3], [79.6],
+    [DistilData2Vec2 (ours)],[-], [-], [-], [-], [-], [-], [-], [-], [-],
+    table.hline(),
+  ),
+  caption: [Results for BERT and DistilBERT are taken from the DistilBERT paper @distilbert.],
+)<distil_d2v2_glue_results>
 
 #bibliography("../references.bib")

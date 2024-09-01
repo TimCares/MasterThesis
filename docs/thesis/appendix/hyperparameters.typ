@@ -58,9 +58,9 @@
       table.cell(colspan: 2, align:horizon, [*ImageNet*]),
       table.cell(colspan: 2, align:horizon, [*CIFAR10*]),
       table.cell(colspan: 2, align:horizon, [*CIFAR100*]),
-      [Finetune], table.vline(stroke: .3pt), [Lin. probeing],table.vline(stroke: .3pt), 
-      [Finetune], table.vline(stroke: .3pt), [Lin. probeing],table.vline(stroke: .3pt), 
-      [Finetune], table.vline(stroke: .3pt), [Lin. probeing],
+      [Finetune], table.vline(stroke: .3pt), [Linear probe],table.vline(stroke: .3pt), 
+      [Finetune], table.vline(stroke: .3pt), [Linear probe],table.vline(stroke: .3pt), 
+      [Finetune], table.vline(stroke: .3pt), [Linear probe],
     ),
     table.hline(stroke: .6pt),
     table.cell(rowspan: 11, align:horizon, [*Training*]), 
@@ -99,6 +99,47 @@
   We refer to the respective papers for details on the augmentation techniques @mixup @cutmix @randaugment @randerase.
   ],
 )<distil_data2vec2_imagenet_finetuning_hyperparameters>
+#show table: set text(11pt)
+
+#show table: set text(8pt)
+#figure(
+  table(
+    table.vline(x:1, stroke: .3pt),
+    table.vline(x:2, stroke: .3pt),
+    columns: 10,
+    stroke: none,
+    table.hline(),
+    table.header(
+      [*Type*],
+      [*Hyperparameters*],
+      [*MNLI*],
+      [*QNLI*],
+      [*RTE*],
+      [*MRPC*],
+      [*QQP*],
+      [*STS-B*],
+      [*CoLA*],
+      [*SST*],
+    ),
+    table.hline(stroke: .6pt),
+    table.cell(rowspan: 12, align:horizon, [*Training*]), 
+    [Epochs], table.cell(colspan: 8, align:horizon, [15]),
+    [Batch size], table.cell(colspan: 8, align:horizon, [256]),
+    [Optimizer], table.cell(colspan: 8, align:horizon, [AdamW]),
+    [AdamW $epsilon$], table.cell(colspan: 8, align:horizon, [1e-8]),
+    [AdamW $beta$], table.cell(colspan: 8, align:horizon, [(0.9, 0.999)]),
+    [Weight decay], table.cell(colspan: 8, align:horizon, [0.01]),
+    [Base learning rate], table.cell(colspan: 8, align:horizon, [1e-3]),
+    [Layer Decay], table.cell(colspan: 8, align:horizon, [0.81]),
+    [Learning rate schedule], table.cell(colspan: 8, align:horizon, [Cosine]),
+    [Warmup steps], table.cell(colspan: 8, align:horizon, [10% of total steps]),
+    [Metric], [Accuracy], [Accuracy], [Accuracy], [F1], [F1], [Spearman], [Accuracy], [Accuracy],
+    [Hardware], table.cell(colspan: 8, align:horizon, [1 $times$ RTX 4090 24GB]),
+    table.hline(),
+  ),
+  caption: [Hyperparameters for the GLUE @glue benchmark tasks of the distilled Data2Vec2 image model.
+  ],
+)<distil_data2vec2_glue_finetuning_hyperparameters>
 #show table: set text(11pt)
 
 #bibliography("../references.bib")
