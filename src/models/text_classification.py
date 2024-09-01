@@ -84,15 +84,17 @@ class TextClassificationLightningModule(L.LightningModule):
                                       betas=tuple(self.cfg.optimizer.betas),
                                       eps=self.cfg.optimizer.eps,
                                       weight_decay=self.cfg.optimizer.weight_decay)
-        if self.cfg.optimizer.warmup:
-            scheduler = get_polynomial_decay_schedule_with_warmup(
-                optimizer,
-                num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,
-                num_training_steps=self.cfg.optimizer_schedule.max_steps,
-            )
-            return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": 'poly_decay_w_warmup'}]
-        else:
-            return optimizer
+        max_steps = self.cfg.optimizer.max_steps
+        scheduler = get_polynomial_decay_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=int(max_steps * 0.1),
+            num_training_steps=max_steps,
+        )
+        return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": 'poly_decay_w_warmup'}]
+
+        
+    def log(self, *args, **kwargs):
+        super().log(batch_size=self.cfg.data.batch_size, sync_dist=True, *args, **kwargs)
 
 @dataclass
 class TextClassificationConfig:
