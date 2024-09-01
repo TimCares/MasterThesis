@@ -494,14 +494,24 @@ class ImageNetDataset(ImageDataset):
         write_data_into_jsonl(items, os.path.join(self.path_to_data, f'imagenet.{self.split}.jsonl'))
 
     
-class CIFARDataset(BaseDataset):
+class CIFARDataset(ImageDataset):
     def __init__(self, 
                  data_path:str,
                  split:str,
                  type:str="cifar10",
+                 aa="rand-m9-mstd0.5-inc1",
+                 reprob=0.25,
+                 remode="pixel",
+                 recount=1,
                  ):
-        super().__init__(data_path=data_path, 
-                         split=split)
+        super().__init__(
+            data_path=data_path, 
+            split=split,
+            pretraining=False,
+            aa=aa,
+            reprob=reprob,
+            remode=remode,
+            recount=recount,)
         self.type = type
 
         if self.type == "cifar10":
@@ -516,17 +526,14 @@ class CIFARDataset(BaseDataset):
         return Modality.IMAGE
 
     def load(self):
-        # only used for evaluation -> no augmentations
-        transform = get_transforms(pretraining=True, train=False)
-
         if self.type == "cifar10":
-            self.items = CIFAR10(self.data_path, train=self.split == "train", transform=transform)
+            self.items = CIFAR10(self.data_path, train=self.split == "train", transform=self.transform)
         else:
-            self.items = CIFAR100(self.data_path, train=self.split == "train", transform=transform)
+            self.items = CIFAR100(self.data_path, train=self.split == "train", transform=self.transform)
 
     def __getitem__(self, index):
         item = self.items[index]
-        return {"x": item[0], "target": item[1]}
+        return {"image": item[0], "target": item[1]}
     
 
 class UngroupedImageFolder(Dataset):

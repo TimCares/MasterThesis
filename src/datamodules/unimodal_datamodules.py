@@ -225,34 +225,43 @@ class OpenWebTextDataModule(BaseDataModule):
 class CIFARDataModule(BaseDataModule):
     def __init__(self, 
                  data_path:str,
-                 type:str,
+                 type:str="cifar10",
+                 aa="rand-m9-mstd0.5-inc1",
+                 reprob=0.25,
+                 remode="pixel",
+                 recount=1,
                  *args,
                  **kwargs):
         super().__init__(data_path, *args, **kwargs)
         assert type in ['cifar10', 'cifar100'], "Cifar dataset type must be in ['cifar10', 'cifar100']."
         self.type = type
+        self.aa = aa
+        self.reprob = reprob
+        self.remode = remode
+        self.recount = recount
 
     @property
     def modality(self) -> Modality:
         return Modality.IMAGE
 
-    def prepare_data(self): # only for validation datasets
+    def prepare_data(self):
         if not hasattr(self, 'train_dataset'):
             self.set_train_dataset()
-        if not hasattr(self, 'test_dataset'):
-            self.set_test_dataset()
+        if not hasattr(self, 'val_dataset'):
+            self.set_val_dataset()
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
             self.train_dataset.load()
-        if stage == 'test' or stage is None:
-            self.test_dataset.load()
+            self.val_dataset.load()
 
     def set_train_dataset(self):
-        self.train_dataset = DATASET_REGISTRY[self.type](data_path=self.data_path, split='train')
+        self.train_dataset = DATASET_REGISTRY[self.type](data_path=self.data_path, split='train',
+                                                         aa=self.aa, reprob=self.reprob, remode=self.remode, recount=self.recount)
 
-    def set_test_dataset(self):
-        self.test_dataset = DATASET_REGISTRY[self.type](data_path=self.data_path, split='test')
+    def set_val_dataset(self):
+        self.val_dataset = DATASET_REGISTRY[self.type](data_path=self.data_path, split='test',
+                                                        aa=self.aa, reprob=self.reprob, remode=self.remode, recount=self.recount)
 
 
 class ImageNetDataModule(BaseDataModule):
