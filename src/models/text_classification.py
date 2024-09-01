@@ -1,28 +1,18 @@
 import logging
-
 from dataclasses import dataclass
-
-from omegaconf import MISSING, open_dict
-import os
+from omegaconf import MISSING
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as L
 from typing import Any, Dict
-
-from sklearn.metrics import f1_score as _f1_score
-from scipy.stats import pearsonr, spearmanr
+from sklearn.metrics import f1_score as f1_score
+from sklearn.metrics import matthews_corrcoef as matthews_corrcoef
+from scipy.stats import spearmanr as spearmanr_
 import numpy as np
-
+from . import MODEL_REGISTRY
+from pytorch_lightning import LightningModule
 from fairseq.models.roberta.model import RobertaClassificationHead
-from fairseq.criterions.sentence_prediction import (
-    acc_and_f1 as __acc_and_f1, 
-    pearson_and_spearman as __pearson_and_spearman, 
-    matthews_corrcoef as __matthews_corrcoef
-)
-
-from data2vec_fairseq.data.modality import Modality
-from models.kd_data2vec import KDData2Vec, KDData2VecPreTrainingLightningModule
 from transformers.optimization import get_polynomial_decay_schedule_with_warmup
 
 logger = logging.getLogger(__name__)
@@ -32,42 +22,24 @@ def accuracy(target, pred):
     target = np.array(target)
     return {'accuracy': round(((pred == target).sum() / target.shape[0])*100, 2)}
 
-def matthews_corrcoef(pred, target):
-    return {'matthews_corrcoef': round(__matthews_corrcoef(pred, target), 2)}
-
-def acc_and_f1(pred, target):
-    result_dict = __acc_and_f1(pred, target)
-    return {k: round(v*100, 2) for k, v in result_dict.items()}
-
-def f1_score(pred, target):
-    return {'f1': round(_f1_score(target, pred)*100, 2)}
-
-def pearson_and_spearman(pred, target):
-    result_dict = __pearson_and_spearman(pred, target)
-    return {k: round(v*100, 2) for k, v in result_dict.items()}  
+def spearman(target, pred):
+    return spearmanr_(pred, target)[0]
 
 _METRIC_REGISTRY = {
     "f1": f1_score,
     "mcc": matthews_corrcoef,
-    "pearson": pearsonr,
-    "spearman": spearmanr,
+    "spearman": spearman,
     "accuracy": accuracy,
-    "acc_and_f1": acc_and_f1,
-    "pearson_and_spearman": pearson_and_spearman,
 }
 
 class TextClassificationLightningModule(L.LightningModule):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
-
-        with open_dict(self.cfg.model):
-            # "last.ckpt" is a symlink to the checkpoint with the best zero-shot performance during pre-training (created by PL)
-            self.cfg.model.model_path = os.path.join(self.cfg.model_path, self.cfg.model.model_version, "last.ckpt")
         
         self.model = TextClassificationModel(cfg=self.cfg.model)
 
-        self.metrics = [_METRIC_REGISTRY[metric] for metric in self.cfg.metrics]
+        self.metric = _METRIC_REGISTRY[self.cfg.metric]
         
         self.save_hyperparameters()
 
@@ -82,9 +54,9 @@ class TextClassificationLightningModule(L.LightningModule):
 
     def _step(self, batch:Dict[str, Any], batch_idx:int, stage:str='train'):
         target = batch.pop('target')
-        batch.pop('modality')
+        input_dict = {'text': batch['text'], 'padding_mask': batch['padding_mask']}
         
-        logits = self(batch) # call "forward"
+        logits = self(input_dict) # call "forward"
 
         if not self.cfg.regression:
             lprobs = F.log_softmax(logits, dim=-1, dtype=torch.float32)
@@ -98,10 +70,8 @@ class TextClassificationLightningModule(L.LightningModule):
 
         target = target.detach().cpu().tolist()
 
-        for metric in self.metrics:
-            result_dict = metric(pred, target)
-            for k, v in result_dict.items():
-                self.log(f"{stage}/{k}", v, prog_bar=True)
+        score = self.metric(target, pred)
+        self.log(f"{stage}/{self.cfg.metric}", score, prog_bar=True)
         
         self.log(f"{stage}/loss", loss, prog_bar=True)
 
@@ -126,14 +96,9 @@ class TextClassificationLightningModule(L.LightningModule):
 
 @dataclass
 class TextClassificationConfig:
-    model_version: str = MISSING
-
+    model_path: str = MISSING
+    model_name: str = MISSING
     num_classes: int = 2
-    pooler_dropout: float = 0.0
-    pooler_activation_fn: str = "tanh"
-    quant_noise_pq: int = 0
-    quant_noise_pq_block_size: int = 8
-    spectral_norm_classification_head: bool = False
 
 
 class TextClassificationModel(nn.Module):
@@ -141,35 +106,25 @@ class TextClassificationModel(nn.Module):
         super().__init__()
         self.cfg = cfg
 
-        pretrained_args = torch.load(cfg.model_path)['hyper_parameters']['cfg']
+        model_cls:LightningModule = MODEL_REGISTRY[self.cfg.model_name]['module']
+        self.model = model_cls.load_from_checkpoint(self.cfg.model_path).model
 
-        self.model:KDData2Vec = KDData2VecPreTrainingLightningModule.load_from_checkpoint(self.cfg.model_path,
-                                                                                          cfg=pretrained_args).model
-        self.model.prepare_fine_tuning(keep_modality=Modality.TEXT)
-
-        embed_dim = pretrained_args.model.embed_dim
+        embed_dim = 768
         self.classification_head = RobertaClassificationHead(
             input_dim=embed_dim,
             inner_dim=embed_dim,
             num_classes=self.cfg.num_classes,
-            activation_fn=self.cfg.pooler_activation_fn,
-            pooler_dropout=self.cfg.pooler_dropout,
-            q_noise=self.cfg.quant_noise_pq,
-            qn_block_size=self.cfg.quant_noise_pq_block_size,
-            do_spectral_norm=self.cfg.spectral_norm_classification_head,
+            activation_fn='tanh',
+            pooler_dropout=0.0,
+            q_noise=0,
+            qn_block_size=8,
+            do_spectral_norm=False,
         )
 
     def forward(
         self,
-        x,
+        text,
         padding_mask,
     ):
-        
-        x = self.model.extract_features(
-            x=x,
-            modality=Modality.TEXT,
-            padding_mask=padding_mask,
-            remove_extra_tokens=False, # we keep the bos token -> used by the classification head (but D2V removes it before, so check both)
-        )["x"]
-
+        x = self.model(text=text, padding_mask=padding_mask)['x']
         return self.classification_head(x)
