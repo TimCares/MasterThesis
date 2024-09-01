@@ -7,7 +7,7 @@
     # layer_norm: layer normalization layer
     # cls_head: linear classifier -> nn.Linear(D, C)
     # x: batch of images (B, 3, H, W)
-    def image_finetune_forward(model, layer_norm, cls_head, x, linear_probe):
+    def image_downstream_forward(model, layer_norm, cls_head, x, linear_probe):
         
         if linear_probe:
           with torch.no_grad():
@@ -23,6 +23,6 @@
         return pred
     ```
   ), 
-caption: [Pytorch pseudocode forward pass for finetuning a pretrained model on image classification tasks. The output
+caption: [Pytorch pseudocode for the forward pass during finetuning or linear probing of a pretrained model on an image classification tasks. The output
 of the forward pass is the predicted class index for each image in the batch.],
 ) <zero_shot_retrieval>
