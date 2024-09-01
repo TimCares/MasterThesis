@@ -47,6 +47,9 @@ class BaseDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.items)
     
+    def tokenize_text(self, text:str):
+        return self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(text))
+    
     @property
     def modality(self) -> Modality:
         raise NotImplementedError

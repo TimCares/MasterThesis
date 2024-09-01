@@ -1,8 +1,7 @@
 import torchtext
 from .base_datasets import BaseDataset
+from typing import Tuple
 import os
-from fairseq.data import Dictionary
-from bpe_encoder import get_bpe_encoder, BPEEncoder
 from utils import pad_text_sequence
 from .data_utils import write_data_into_jsonl
 import json
@@ -27,13 +26,6 @@ class GLUE(BaseDataset):
         if os.path.exists(self.out_jsonl_path):
             self.log(f"Found {self.out_jsonl_path}. Skip preprocessing.")
             return
-
-        dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
-        bpe_encoder = get_bpe_encoder(self.data_path)
-
-        self.bos_token_id = dictionary.bos()
-        self.eos_token_id = dictionary.eos()
-        self.pad_token_id = dictionary.pad()
                 
         os.makedirs(self.path_to_data, exist_ok=True)
 
@@ -42,16 +34,37 @@ class GLUE(BaseDataset):
             self.log(f"Upper bound length: {self.num_tokens_upper_bound} is greater than num_max_bpe_tokens: {self.num_max_bpe_tokens}.")
             self.num_tokens_upper_bound = self.num_max_bpe_tokens
 
-        items = self._make_index(bpe_encoder)
+        items = self._make_index()
             
         write_data_into_jsonl(items, self.out_jsonl_path)
         shutil.rmtree(f'{self.path_to_data}/datasets')
+
+    def prepare_sentence_pair(self, sentence1:str, sentence2:str) -> Tuple[List[int], List[int], List[int], int]:
+        tokens1 = self.tokenize_text(sentence1)
+        tokens2 = self.tokenize_text(sentence2)
+        
+        trunc = 0
+        skip = 0
+        max_len_text = self.num_max_bpe_tokens - len(tokens1) - 3 # -3 for bos token and 2x separator (eos)
+        if len(text_tokens) > max_len_text:
+            trunc = 1
+            text_tokens = text_tokens[:max_len_text]
+
+        tokens = text_tokens + [self.sep_token_id] + tokens2
+        assert len(tokens) <= self.num_max_bpe_tokens
+        
+        language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_tokens_upper_bound,
+                                                          pad_idx=self.pad_token_id, bos_idx=self.cls_token_id,
+                                                          eos_idx=self.sep_token_id)
+        if self.sep_token_id not in language_tokens:# both text and question should still be there after potential truncation
+            skip = 1
+        return language_tokens, padding_mask, trunc, skip
             
     @property
     def modality(self) -> Modality:
         return Modality.TEXT
     
-    def _make_index(self, bpe_encoder: BPEEncoder) -> List[Dict[str, Any]]:
+    def _make_index(self) -> List[Dict[str, Any]]:
         raise NotImplementedError()
     
     def _dataset(self, split):
@@ -89,13 +102,13 @@ class CoLA(GLUE):
     def _get_max_length(self, data_loader) -> int:
         return max([len(d[2]) for d in data_loader])
     
-    def _make_index(self, bpe_encoder: BPEEncoder) -> List[Dict[str, Any]]:
+    def _make_index(self) -> List[Dict[str, Any]]:
         items = []
         for _, target, text in iter(self._dataset(split=self.split)):
-            tokens = bpe_encoder.encode(text)
+            tokens = self.tokenize_text(text)
             language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_tokens_upper_bound,
-                                                              pad_idx=self.pad_token_id, bos_idx=self.bos_token_id,
-                                                              eos_idx=self.eos_token_id)
+                                                              pad_idx=self.pad_token_id, bos_idx=self.cls_token_id,
+                                                              eos_idx=self.sep_token_id)
             items.append({'x': language_tokens,
                           'padding_mask': padding_mask,
                           'target': target})
@@ -114,13 +127,13 @@ class SST(GLUE):
     def _get_max_length(self, data_loader) -> int:
         return self.num_max_bpe_tokens
     
-    def _make_index(self, bpe_encoder: BPEEncoder) -> List[Dict[str, Any]]:
+    def _make_index(self) -> List[Dict[str, Any]]:
         items = []
         for text, target in iter(self._dataset(split=self.split)):
-            tokens = bpe_encoder.encode(text)
+            tokens = self.tokenize_text(text)
             language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_tokens_upper_bound,
-                                                              pad_idx=self.pad_token_id, bos_idx=self.bos_token_id,
-                                                              eos_idx=self.eos_token_id)
+                                                              pad_idx=self.pad_token_id, bos_idx=self.cls_token_id,
+                                                              eos_idx=self.sep_token_id)
             items.append({'x': language_tokens,
                           'padding_mask': padding_mask,
                           'target': target})
@@ -139,36 +152,29 @@ class QNLI(GLUE):
     def _get_max_length(self, data_loader) -> int:
         return self.num_max_bpe_tokens
     
-    def _make_index(self, bpe_encoder: BPEEncoder) -> List[Dict[str, Any]]:
+    def _make_index(self) -> List[Dict[str, Any]]:
         items = []
         n_trunc = 0
-        for target, question, text in iter(self._dataset(split=self.split)):
-            question_tokens = bpe_encoder.encode(question)
-            text_tokens = bpe_encoder.encode(text)
-
-            max_len_text = self.num_max_bpe_tokens - len(question_tokens) - 2 # -2 for bos token and separator (eos)
-            if len(text_tokens) > max_len_text:
+        n_skip = 0
+        for target, text1, text2 in iter(self._dataset(split=self.split)):
+            language_tokens, padding_mask, trunc, skip = self.prepare_sentence_pair(sentence1=text1, sentence2=text2)
+            if skip:
+                n_skip += 1
+                continue
+            if trunc:
                 n_trunc += 1
-                text_tokens = text_tokens[:max_len_text]
-
-            tokens = text_tokens + [self.eos_token_id] + question_tokens
-            assert len(tokens) <= self.num_max_bpe_tokens
-            
-            language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_tokens_upper_bound,
-                                                              pad_idx=self.pad_token_id, bos_idx=self.bos_token_id,
-                                                              eos_idx=self.eos_token_id)
-            assert self.eos_token_id in language_tokens # both text and question should still be there after potential truncation
 
             items.append({'x': language_tokens,
                           'padding_mask': padding_mask,
                           'target': target})
         
         self.log(f"Truncated {n_trunc} examples.")
+        self.log(f"Skipped {n_skip} examples.")
             
         return items
     
 
-class RTE(GLUE):
+class RTE(QNLI):
     def _dataset(self, split):
         return torchtext.datasets.RTE(root=self.path_to_data, split=split)
     
@@ -178,35 +184,6 @@ class RTE(GLUE):
     
     def _get_max_length(self, data_loader) -> int:
         return max([len(d[1])+len(d[2]) for d in data_loader])
-    
-    def _make_index(self, bpe_encoder: BPEEncoder) -> List[Dict[str, Any]]:
-        items = []
-        n_trunc = 0
-        for target, text1, text2 in iter(self._dataset(split=self.split)):
-            text1_tokens = bpe_encoder.encode(text1)
-            text2_tokens = bpe_encoder.encode(text2)
-
-            max_len_text = self.num_max_bpe_tokens - len(text2_tokens) - 2 # -2 for bos token and separator (eos)
-            if len(text1_tokens) > max_len_text:
-                n_trunc += 1
-                text1_tokens = text1_tokens[:max_len_text]
-
-            tokens = text1_tokens + [self.eos_token_id] + text2_tokens
-            assert len(tokens) <= self.num_max_bpe_tokens
-            
-            language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_tokens_upper_bound,
-                                                              pad_idx=self.pad_token_id, bos_idx=self.bos_token_id,
-                                                              eos_idx=self.eos_token_id)
-            assert self.eos_token_id in language_tokens # both text and question should still be there after potential truncation
-
-            items.append({'x': language_tokens,
-                          'padding_mask': padding_mask,
-                          'target': target})
-        
-        self.log(f"Truncated {n_trunc} examples.")
-            
-        return items
-    
 
 class MRPC(RTE):
     def _dataset(self, split):
@@ -232,13 +209,6 @@ class QQP(GLUE):
         if os.path.exists(self.out_jsonl_path):
             self.log(f"Found {self.out_jsonl_path}. Skip preprocessing.")
             return
-
-        dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
-        bpe_encoder = get_bpe_encoder(self.data_path)
-
-        self.bos_token_id = dictionary.bos()
-        self.eos_token_id = dictionary.eos()
-        self.pad_token_id = dictionary.pad()
                 
         os.makedirs(self.path_to_data, exist_ok=True)
 
@@ -248,7 +218,7 @@ class QQP(GLUE):
         os.system(f"unzip {filepath} -d {self.path_to_data}")
         os.remove(filepath)
 
-        items = self._make_index(bpe_encoder)
+        items = self._make_index()
             
         write_data_into_jsonl(items, self.out_jsonl_path)
         shutil.rmtree(os.path.join(self.path_to_data, 'QQP'))
@@ -257,34 +227,29 @@ class QQP(GLUE):
     def _dataset_name(self):
         return 'qqp'
     
-    def _make_index(self, bpe_encoder: BPEEncoder) -> List[Dict[str, Any]]:
+    def _make_index(self) -> List[Dict[str, Any]]:
         path = os.path.join(self.path_to_data, 'QQP', f'{self.split}.tsv')
         df = pd.read_csv(path, delimiter='\t')[['question1', 'question2', 'is_duplicate']]
 
         items = []
         n_trunc = 0
+        n_skip = 0
         for _, example in df.iterrows():
-            question1_tokens = bpe_encoder.encode(example['question1'])
-            question2_tokens = bpe_encoder.encode(example['question2'])
-
-            max_len_text = self.num_max_bpe_tokens - len(question2_tokens) - 2 # -2 for bos token and separator (eos)
-            if len(question1_tokens) > max_len_text:
+            question1_tokens = self.tokenize_text(example['question1'])
+            question2_tokens = self.tokenize_text(example['question2'])
+            language_tokens, padding_mask, trunc, skip = self.prepare_sentence_pair(sentence1=question1_tokens, sentence2=question2_tokens)
+            if skip:
+                n_skip += 1
+                continue
+            if trunc:
                 n_trunc += 1
-                question1_tokens = question1_tokens[:max_len_text]
-
-            tokens = question1_tokens + [self.eos_token_id] + question2_tokens
-            assert len(tokens) <= self.num_max_bpe_tokens
-            
-            language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                                              pad_idx=self.pad_token_id, bos_idx=self.bos_token_id,
-                                                              eos_idx=self.eos_token_id)
-            assert self.eos_token_id in language_tokens # both text and question should still be there after potential truncation
 
             items.append({'x': language_tokens,
                           'padding_mask': padding_mask,
                           'target': example['is_duplicate']})
-            
+        
         self.log(f"Truncated {n_trunc} examples.")
+        self.log(f"Skipped {n_skip} examples.")
         return items
     
 
