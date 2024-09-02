@@ -195,12 +195,10 @@ class OpenWebTextDataModule(BaseDataModule):
     def __init__(self, 
                  data_path:str,
                  num_max_bpe_tokens:int,
-                 sample_break_mode:str,
                  *args,
                  **kwargs):
         super().__init__(data_path, *args, **kwargs)
         self.num_max_bpe_tokens = num_max_bpe_tokens
-        self.sample_break_mode = sample_break_mode
 
     def prepare_data(self):
         if not hasattr(self, 'train_dataset'):
@@ -214,12 +212,10 @@ class OpenWebTextDataModule(BaseDataModule):
             self.val_dataset.load()
 
     def set_train_dataset(self):
-        self.train_dataset = OpenWebTextDataset(data_path=self.data_path, split='train', num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                                sample_break_mode=self.sample_break_mode)
+        self.train_dataset = OpenWebTextDataset(data_path=self.data_path, split='train', num_max_bpe_tokens=self.num_max_bpe_tokens,)
         
     def set_val_dataset(self):
-        self.val_dataset = OpenWebTextDataset(data_path=self.data_path, split='val', num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                              sample_break_mode=self.sample_break_mode)
+        self.val_dataset = OpenWebTextDataset(data_path=self.data_path, split='val', num_max_bpe_tokens=self.num_max_bpe_tokens,)
 
 
 class CIFARDataModule(BaseDataModule):

@@ -12,40 +12,37 @@ from .data_utils import get_transforms, write_data_into_jsonl
 from .base_datasets import BaseDataset
 from fairseq.data.audio.raw_audio_dataset import FileAudioDataset
 from .wav2vec_manifest import create_manifests
-from bpe_encoder import encode, get_bpe_encoder
+from bpe_encoder import get_bpe_encoder
 from utils import pad_text_sequence
 from torchvision.datasets.utils import download_url
 import pandas as pd
+from tqdm import tqdm
 import zipfile
-
+from multiprocessing import Pool
+import pyarrow as pa
 from fairseq.data import Dictionary, ConcatDataset
-from fairseq_cli.preprocess import preprocess
-
 from torchaudio.datasets import LIBRISPEECH, SPEECHCOMMANDS
 import torchtext
 from torchvision.datasets import CIFAR10, CIFAR100
-
-from .base_datasets import AudioDataset, ImageDataset, NLPDataset
+from .base_datasets import AudioDataset, ImageDataset
 from data2vec_fairseq.data.modality import Modality
 from .imagenet_classes import IMAGENET2012_CLASSES
 
 logger = logging.getLogger(__name__)
 
-class OpenWebTextDataset(NLPDataset):
+class OpenWebTextDataset(BaseDataset):
     def __init__(self,
                  data_path: str,
                  split: str, # ignored, as only train for pretraining
-                 num_max_bpe_tokens: int,
-                 sample_break_mode: str = 'none'):
+                 num_max_bpe_tokens: int,):
         super().__init__(data_path=data_path,
-                         split=split,
-                         num_max_bpe_tokens=num_max_bpe_tokens, 
-                         sample_break_mode=sample_break_mode)
+                         split=split,)
+        self.num_max_bpe_tokens = num_max_bpe_tokens
         dataset_path = os.path.join(self.data_path, 'openwebtext')
         base_data_path = self.data_path
         self.data_path = dataset_path
 
-        if self.index_exists(dataset_path=dataset_path):
+        if self.index_exists():
             self.log("Data already exists. Skip creating it.")
             return
 
@@ -88,12 +85,67 @@ class OpenWebTextDataset(NLPDataset):
 
         self.log("Encoding...")
         in_file = os.path.join(dataset_path, 'openwebtext.txt')
-        out_file = os.path.join(dataset_path, 'openwebtext.bpe')
-        encode(f'{base_data_path}/encoder.json', f'{base_data_path}/vocab.bpe', [in_file], [out_file], keep_empty=True)
+        table = self.encode(in_file)
+        
+        with pa.OSFile(self.get_index_files()[0], "wb") as sink:
+            with pa.RecordBatchFileWriter(sink, table.schema) as writer:
+                writer.write_table(table)
+        
         os.remove(in_file)
-        preprocess(srcdict=f'{base_data_path}/dict.txt', trainpref=out_file, destdir=dataset_path, workers=os.cpu_count(),
-                   only_source=True)
-        os.remove(out_file)
+
+    @property
+    def modality(self) -> Modality:
+        return Modality.TEXT
+
+    def get_index_files(self):
+        return (os.path.join(self.data_path, f'openwebtext_{self.split}_{self.num_max_bpe_tokens}.arrow'),)
+
+    def index_exists(self):
+        for file in self.get_index_files():
+            if not os.path.exists(file):
+                return False
+        self.log(f"Data already exists under: {self.data_path}")
+        return True
+
+    def encode(self, input_file):
+        all_text = []
+        items = []
+        with open(input_file, "r", encoding="utf-8") as input_fr:
+            raw_lines = input_fr.readlines()
+            pool = Pool()
+
+            for enc_line in tqdm(pool.imap_unordered(self._encode_line, raw_lines, chunksize=200), total=len(raw_lines), desc="Encoding"):
+                if enc_line is None:
+                    continue
+                all_text.append(enc_line + [self.sep_token_id])
+            del raw_lines
+
+        all_text = [token for enc_line in all_text for token in enc_line]
+
+        n_content_tokens = self.num_max_bpe_tokens-1
+        for idx in tqdm(range(0, len(all_text), n_content_tokens), desc="Creating items"):
+            text = all_text[idx:idx+n_content_tokens]
+            items.append({'text': [self.cls_token_id] + text, 'padding_mask': [0]*self.num_max_bpe_tokens})
+
+        enc_data = pa.Table.from_pylist(items)
+        return enc_data
+
+    def _encode_line(self, line):
+        line = line.strip()
+        if len(line) == 0:
+            return None
+        return self.tokenize_text(line)
+    
+    def __getitem__(self, index):
+        return self.items[index]
+    
+    def load(self):
+        """
+        Load a given dataset split.
+        """
+        data_path = self.get_index_files()[0]
+        table = pa.RecordBatchFileReader(pa.memory_map(data_path)).read_all()
+        self.items = table.to_pandas().to_dict(orient='records')
 
 
 class IMDBDataset(BaseDataset):

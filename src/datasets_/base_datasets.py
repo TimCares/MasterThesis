@@ -9,19 +9,10 @@ import soundfile as sf
 from .data_utils import get_transforms
 import torch.nn.functional as F
 import random
-from fairseq.data.data_utils import load_indexed_dataset
 from data2vec_fairseq.data.modality import Modality
 from utils import pad_text_sequence
 
-from fairseq.data import (
-    Dictionary,
-    NestedDictionaryDataset,
-    TokenBlockDataset,
-    PrependTokenDataset,
-    RightPadDataset,
-    RightPaddingMaskDataset,
-    IdDataset,
-)
+from fairseq.data import Dictionary
 
 from torchvision.datasets.folder import default_loader
 from transformers import BertTokenizer
@@ -98,6 +89,8 @@ class BaseDataset(torch.utils.data.Dataset):
         for tensor_key in samples[0]:
             if isinstance(samples[0][tensor_key], torch.Tensor):
                 batch_tensors[tensor_key] = torch.stack([d[tensor_key] for d in samples])
+            elif isinstance(samples[0][tensor_key], np.ndarray):
+                batch_tensors[tensor_key] = torch.from_numpy(np.stack([d[tensor_key] for d in samples]))
             else:
                 batch_tensors[tensor_key] = torch.tensor([d[tensor_key] for d in samples], dtype=torch.long)
 
@@ -106,88 +99,7 @@ class BaseDataset(torch.utils.data.Dataset):
     
     def log(self, msg:str):
         logger.info(f"[{self.__class__.__name__}]: {msg}")
-    
 
-class NLPDataset(BaseDataset):
-    def __init__(
-            self,
-            data_path:str,
-            split:str,
-            num_max_bpe_tokens:int,
-            sample_break_mode:str='none',):
-        super().__init__(data_path=data_path, 
-                         split=split)
-        self.num_max_bpe_tokens = num_max_bpe_tokens
-        self.dictionary = Dictionary.load(os.path.join(self.data_path, "dict.txt"))
-        self.sample_break_mode = sample_break_mode
-
-    @property
-    def modality(self) -> Modality:
-        return Modality.TEXT
-
-    def index_exists(self, dataset_path):
-        prefix = os.path.join(dataset_path, self.split)
-        if os.path.exists(os.path.join(prefix, f'{self.split}.bin')) and os.path.exists(os.path.join(prefix, f'{self.split}.idx')):
-            self.log(f"Data already exists under: {dataset_path}")
-            return True
-        else:
-            return False
-          
-    def load(self):
-        """
-        Load a given dataset split.
-        """
-        split_path = os.path.join(self.data_path, self.split, self.split)
-
-        dataset = load_indexed_dataset(
-            split_path,
-            self.dictionary,
-            combine=True,
-        )
-        if dataset is None:
-            raise FileNotFoundError(
-                "Dataset not found: {} ({})".format(self.split, split_path)
-            )
-
-        # create continuous blocks of tokens
-        dataset = TokenBlockDataset(
-            dataset,
-            dataset.sizes,
-            self.num_max_bpe_tokens - 1,  # one less for bos
-            pad=self.dictionary.pad(),
-            eos=self.dictionary.eos(),
-            break_mode=self.sample_break_mode,
-        )
-        logger.info("loaded {} blocks from: {}".format(len(dataset), split_path))
-
-        # prepend beginning-of-sentence
-        dataset = PrependTokenDataset(dataset, self.dictionary.bos())
-
-        input_dict = {
-            "x": RightPadDataset(
-                dataset,
-                pad_idx=self.dictionary.pad(),
-            ),
-            "padding_mask": RightPaddingMaskDataset(dataset),
-            "id": IdDataset(),
-        }
-
-        self.dataset = NestedDictionaryDataset(input_dict)
-
-    def __getitem__(self, index):
-        return self.dataset[index]
-    
-    def __len__(self):
-        if self.split=='val':
-            return int(len(self.dataset)*0.15) # shorten validation set for faster validation
-        else:
-            return len(self.dataset)
-    
-    def collater(self, samples):
-        batch = self.dataset.collater(samples)
-        batch["modality"] = self.modality
-        return batch
-    
 
 class AudioDataset(BaseDataset):
     def __init__(
