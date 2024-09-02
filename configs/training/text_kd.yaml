@@ -66,8 +66,8 @@ lightning_trainer:
   default_root_dir: ${log_dir}
   accelerator: gpu
   devices: -1
-  max_epochs: 10
-  num_sanity_val_steps: 0 # would run zero shot at the beginning if > 0
+  max_epochs: 2
+  val_check_interval: 6000
   precision: 16-mixed
   log_every_n_steps: 50
 
