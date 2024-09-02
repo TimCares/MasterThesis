@@ -16,7 +16,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: image_classification
+run_name: image_classification_imagenet
 id:
 model_name: image_classification
 
@@ -53,20 +53,6 @@ data:
   num_workers: 8
   shuffle: True
   drop_last: True
-
-checkpoint:
-  common:
-    dirpath: ${model_path}/${run_name}
-    enable_version_counter: False
-    every_n_epochs: 1
-    save_on_train_epoch_end: False # False -> run at end of validation
-    verbose: True
-    auto_insert_metric_name: False
-
-  checkpoints:
-    - monitor: val/accuracy
-      mode: max
-      filename: model-{step}-{${.monitor}:.4f}-val
 
 optimizer:
   lr: 0.001
