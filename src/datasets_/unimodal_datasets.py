@@ -46,7 +46,7 @@ class OpenWebTextDataset(BaseDataset):
             self.log("Data already exists. Skip creating it.")
             return
 
-        pattern = os.path.join(base_data_path, 'urlsf_*.tar')
+        pattern = os.path.join(base_data_path, f'urlsf_*_{self.split}.tar')
         files = glob.glob(pattern)
 
         if len(files)==0:
