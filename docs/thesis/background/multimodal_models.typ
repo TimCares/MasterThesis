@@ -1,6 +1,3 @@
-#set heading(numbering: "1.1")
-#set math.equation(numbering: "(1)")
-
 == Multimodal Models
 
 Multimodal models are characterized by their ability to process multiple modalities, such as text, images,
@@ -71,5 +68,3 @@ An illustration of a multimodal model is provided in @multimodal_model_abstract,
   A contrastive loss ensures the alignment and repulsion of similar and dissimilar concepts, respectively. We indicate this through
   purple arrows.],
 ) <multimodal_model_abstract>
-
-#bibliography("../references.bib")

@@ -1,5 +1,4 @@
-#set heading(numbering: "1.1")
-#set math.equation(numbering: "(1)")
+== Related Work
 === Deep Aligned Representations
 
 The motivation for the knowledge distillation driven approach in this work is
@@ -162,5 +161,3 @@ from a *supervised* unimodal (image) model can be _extracted_ and _transferred_ 
   custom visualization of the concept. Image and text example is taken from the MSCOCO train set @coco, the spectogram originates
   from the SHRe paper @shre.],
 ) <shre_fig>
-
-#bibliography("../../references.bib")

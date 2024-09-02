@@ -1,5 +1,5 @@
 #set math.equation(numbering: "(1)")
-=== Knowledge Distillation
+== Knowledge Distillation
 
 Training large Deep Learning models is computationally expensive, and therefore finanically infeasible for researchers outside
 of large corporations. Models often need more than 100 million parameters to achieve state-of-the-art (SOTA) performance, and training
@@ -113,5 +113,3 @@ An illustration of response-based vs. feature-based KD is shown in @kd_fig.
     Figure adapted and inspired by @kd_survey, image is taken from COCO train set @coco.
   ],
 ) <kd_fig>
-
-#bibliography("../references.bib")

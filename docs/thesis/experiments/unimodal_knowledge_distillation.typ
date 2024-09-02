@@ -1,5 +1,4 @@
-#set math.equation(numbering: "(1)")
-
+= Experiments
 == Unimodal Knowledge Distillation
 To validate whether traditional unimodal knowledge distillation, an undoubtedly simpler task than multimodal knowledge distillation, even works,
 we will first conduct experiments on unimodal knowledge distillation. We will then build on the results to develop a multimodal knowledge distillation.
@@ -298,5 +297,3 @@ We validate the student model on the dedicated validation dataset of OWT we intr
   ),
   caption: [Results for BERT and DistilBERT are taken from the DistilBERT paper @distilbert.],
 )<distil_d2v2_glue_results>
-
-#bibliography("../references.bib")

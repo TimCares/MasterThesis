@@ -1,5 +1,3 @@
-#set heading(numbering: "1.1")
-#set math.equation(numbering: "(1)")
 === CLIP
 ==== Method
 
@@ -105,6 +103,3 @@ at a resolution of 336x336 @clip. For the text encoder, a 12-layer Transformer w
 and a hidden size of 768 @clip. According to HuggingFace, the model is 428 million parameters
 large #footnote[#link("https://huggingface.co/openai/clip-vit-large-patch14")].
 Additionally, the model was trained on a custom dataset specifically developed for CLIP, consisting of 400 million image-text pairs @clip.
-
-
-#bibliography("../../references.bib")

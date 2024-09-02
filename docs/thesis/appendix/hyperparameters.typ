@@ -1,3 +1,4 @@
+= Appendix
 == Hyperparameters <hyperparameters>
 
 #figure(
@@ -141,5 +142,3 @@
   ],
 )<distil_data2vec2_glue_finetuning_hyperparameters>
 #show table: set text(11pt)
-
-#bibliography("../references.bib")

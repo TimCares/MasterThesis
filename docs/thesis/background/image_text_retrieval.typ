@@ -1,4 +1,4 @@
-=== Image-Text Retrieval <image_text_retrieval>
+== Image-Text Retrieval <image_text_retrieval>
 
 The goal of image-text retrieval (ITR) is to find the matching caption for a given image in a set of captions, and likewise,
 finding the matching image for a given caption in a set of images.
@@ -63,5 +63,3 @@ We will report the results of image-text retrieval in the format seen in @image_
   ),
   caption: [Benchmarks of different vision-language models on the MSCOCO and Flickr30K datasets for image-text retrieval.],
 )<image_text_retrieval_example>
-
-#bibliography("../references.bib")

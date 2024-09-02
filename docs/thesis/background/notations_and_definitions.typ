@@ -1,4 +1,4 @@
-#set math.equation(numbering: "(1)")
+= Background
 == Notations and Definitions <notions_and_definitions>
 Throughout this work we will make use of various concepts and their notations,
 which we will define here for easier reference, and to avoid redundancy.
@@ -206,5 +206,3 @@ operations @pre_layer_norm. $bold(H)^s_(v, l)$ and $bold(H)^s_(w, l)$ can be use
 Both equations are, with slight adjustment, taken from VLMo @vlmo.
 
 We define a Transformer as multiple Transformer blocks stacked on top of each other.
-
-#bibliography("../references.bib")

@@ -1,6 +1,3 @@
-#set heading(numbering: "1.1")
-#set math.equation(numbering: "(1)")
-
 == Vision-Language Contrast <vision_language_contrast>
 
 Introduced as a method for self-supervised learning of image models ((TODO: cite contrastive learning section)), contrastive learning
@@ -133,5 +130,3 @@ The results improve with an increased number of negative examples @moco @beit3, 
 we will also show later, in the experiments section.
 More negative samples are usually achieved by using larger batch sizes @moco @clip @beit3.
 However, this typically requires higher VRAM GPUs, or multiple GPUs, which is costly.
-
-#bibliography("../references.bib")

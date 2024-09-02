@@ -23,6 +23,3 @@
   The example is shown with a batch size of 6. The figure does not originate from the original paper, but is a custom visualization of the concept. Image-Text pair is taken from the MSCOCO train set @coco, 
   and do not refer to the contrastive loss of 6 pairs at the top of the figure. They are merely indicators of the intput to the model.],
 ) <clip_fig>
-
-
-#bibliography("../references.bib")
