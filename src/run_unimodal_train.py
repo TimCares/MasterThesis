@@ -19,7 +19,7 @@ from fairseq.dataclass.utils import merge_with_parent
 logger = logging.getLogger(__name__)
 
 
-@hydra.main(version_base=None, config_path=os.path.join("..", "configs", "training"))
+@hydra.main(version_base=None, config_path=os.path.join("..", "configs"))
 def main(cfg: DictConfig) -> None:
     if cfg.id is None:
         repo = git.Repo(search_parent_directories=True)
