@@ -200,7 +200,7 @@ randomly and can be assigned a higher learning rate than the other layers.
 For all hyperparameters used on the downstream tasks, see (TODO: cite hyperparameters).
 
 The results, displayed in @distil_d2v2_imagenet_results and @distil_d2v2_cifar_results, show that while
-the student model is not able to outperform the teacher model,
+the student model is not able to outperform the teacher model (Data2Vec2),
 as well as all other models we compare to, it is able to achieve acceptable performance on all 6 evaluations considering both BEiTv2 and
 Data2Vec2 are based on the ViT-B/16 architecture @data2vec2 @beitv2, which is twice as large as the student model. We also compare to the ResNet-101 model
 from the original ResNet paper @resnet, which has 44.5M parameters, and is therefore comparable in size to the student model, but has been trained
@@ -220,8 +220,8 @@ only supervised.
     [Data2Vec2], [84.5],[-], 
     [BEiTv2], [85.0], [80.1],
     [ResNet-101], [80.1], [-], 
-    [*DistilData2Vec2 (ours)*], [75.0], [55.0],
-    table.hline(stroke: .6pt),
+    [*DistilData2Vec2 (ours)*], [75.0], [56.2],
+    table.hline(),
   ),
   caption: [Comparison of finetuning and linear probing results with SOTA self-supervised models on ImageNet-1K.],
 )<distil_d2v2_imagenet_results>
@@ -237,11 +237,12 @@ only supervised.
       [*Accuracy*],
       table.hline(stroke: .6pt),
     ),
-    table.cell(rowspan: 2, align: horizon, [CIFAR-10]), [Finetune],[-], 
-    [Linear Probe],[-], 
-    table.cell(rowspan: 2, align: horizon, [CIFAR-100]), [Finetune],[-], 
-    [Linear Probe],[-], 
-    table.hline(stroke: .6pt),
+    table.cell(rowspan: 2, align: horizon, [CIFAR-10]), [Finetune],[97.0], 
+    [Linear Probe],[68.4], 
+    table.hline(stroke: .3pt),
+    table.cell(rowspan: 2, align: horizon, [CIFAR-100]), [Finetune],[85.1], 
+    [Linear Probe],[46.2], 
+    table.hline(),
   ),
   caption: [Results of finetuning and linear probing of our distilled Data2Vec2 image model on CIFAR-10 and CIFAR-100.],
 )<distil_d2v2_cifar_results>
