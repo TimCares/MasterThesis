@@ -141,13 +141,7 @@
         {[List of Tables]},
     target: figure.where(kind: table),
   )
-  include("../theoretical_foundation/knowledge_distillation.typ")
-  include("../theoretical_foundation/contrastive_learning_and_retrieval.typ")
-  include("../methodology/tools_and_approach.typ")
-  include("../methodology/data_collection_and_preprocessing.typ")
-  include("../theoretical_foundation/contrastive_learning_and_retrieval.typ")
-  include("../experiments/differences_to_unimodal_kd.typ")
-  include("../experiments/multimodal_knowledge_distillation.typ")
+  include("../theoretical_")
 
   // Appendix.
   set heading(numbering: "A")
