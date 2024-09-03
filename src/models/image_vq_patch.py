@@ -17,12 +17,12 @@ from utils import freeze_module, load_beit2_teacher
 
 logger = logging.getLogger(__name__)
 
-class ImageVQLightningModule(L.LightningModule):
+class ImageVQPatchLightningModule(L.LightningModule):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
 
-        self.model = ImageVQ(cfg=self.cfg.model)
+        self.model = ImageVQPatch(cfg=self.cfg.model)
 
         self.save_hyperparameters()
 
@@ -140,7 +140,7 @@ class BEiTv2Config():
     init_values: float =  0.1
 
 @dataclass
-class ImageVQConfig():
+class ImageVQPatchConfig():
     beitv2: BEiTv2Config = field(default_factory=BEiTv2Config)
     decoder_depth: int = 1
     n_codebook_embed: int = 1024
@@ -148,11 +148,11 @@ class ImageVQConfig():
     vq_decay: float = 0.99
     mask_ratio: float = 0.90
 
-class ImageVQ(nn.Module):
+class ImageVQPatch(nn.Module):
     def __init__(self,
-                 cfg: ImageVQConfig,
+                 cfg: ImageVQPatchConfig,
                  ):
-        super(ImageVQ, self).__init__()
+        super(ImageVQPatch, self).__init__()
         self.cfg = cfg
         
         beit2_kwargs = OmegaConf.to_container(self.cfg.beitv2, resolve=True)
@@ -267,7 +267,7 @@ class ImageVQ(nn.Module):
 
         x = torch.cat((cls_tokens, x), dim=1)
 
-        quantize_tokens = quantize.unsqueeze(1).expand(-1, seq_len, -1)
+        quantize_tokens = quantize.unsqueeze(1).expand(-1, seq_len+1, -1)
         x = x + quantize_tokens
 
         return x
@@ -296,6 +296,6 @@ class ImageVQ(nn.Module):
         return mask
 
 MODEL_REGISTRY['image_vq_patch'] = {
-    'cfg': ImageVQConfig,
-    'module': ImageVQLightningModule
+    'cfg': ImageVQPatchConfig,
+    'module': ImageVQPatchLightningModule
 }
