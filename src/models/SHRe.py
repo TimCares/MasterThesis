@@ -51,9 +51,6 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         return self._step(batch, batch_idx, stage='val')
 
     def _step(self, batch:Dict[str, Any], batch_idx, stage:str='train'):
-        if 'target' in batch:
-            batch.pop('target') # unused, layer activations are the targets
-
         with torch.no_grad():
             target = self.teacher(batch.pop('image_teacher'))
         
