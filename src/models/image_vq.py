@@ -3,6 +3,7 @@ from torch import nn
 from functools import partial
 from typing import Dict, Any
 import os
+import json
 import logging
 import pytorch_lightning as L
 from dataclasses import dataclass, field
@@ -69,13 +70,9 @@ class ImageVQLightningModule(L.LightningModule):
             learning_rate = self.cfg.optimizer.base_lr * (self.cfg.data.batch_size*ws) / 256
             logger.info(f"[Optimizer]: Base Learning rate is {self.cfg.optimizer.base_lr}")
         logger.info(f"[Optimizer]: Learning rate is {learning_rate}")
-        wd_params, non_wd_params = self._get_param_groups()
-        assert len(wd_params) + len(non_wd_params) == len(list(self.model.parameters()))
+        params = self._get_param_groups(lr=learning_rate)
         optim_args = {
-            "params": [
-                {"params": wd_params, "weight_decay": self.cfg.optimizer.weight_decay},
-                {"params": non_wd_params, "weight_decay": 0}
-            ],
+            "params": params,
             "lr": learning_rate,
             "betas": tuple(self.cfg.optimizer.betas),
             "eps": self.cfg.optimizer.eps,
@@ -93,18 +90,41 @@ class ImageVQLightningModule(L.LightningModule):
             num_training_steps=max_steps,
         )
         return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": 'cosine'}]
-        
-    def _get_param_groups(self):
+    
+    def _get_param_groups(self, lr):
         no_wd_keys = {'quantize.embedding.weight', 'decoder.cls_token',
                       'decoder.pos_embed', 'encoder.cls_token', 'encoder.pos_embed'}
         
-        wd_params, non_wd_params = [], []
+        parameter_group_names = {}
+        parameter_group_vars = {}
+
         for name, param in self.model.named_parameters():
-            if any(no_wd_key in name for no_wd_key in no_wd_keys):
-                non_wd_params.append(param)
+            if not param.requires_grad:
+                continue
+            if len(param.shape) == 1 or any(no_wd_key in name for no_wd_key in no_wd_keys):
+                group_name = "no_decay"
+                this_weight_decay = 0.
             else:
-                wd_params.append(param)
-        return wd_params, non_wd_params
+                group_name = "decay"
+                this_weight_decay = self.cfg.optimizer.weight_decay
+
+            if group_name not in parameter_group_names:
+                parameter_group_names[group_name] = {
+                    "weight_decay": this_weight_decay,
+                    "params": [],
+                    "lr": lr
+                }
+                parameter_group_vars[group_name] = {
+                    "weight_decay": this_weight_decay,
+                    "params": [],
+                    "lr": lr
+                }
+
+            parameter_group_vars[group_name]["params"].append(param)
+            parameter_group_names[group_name]["params"].append(name)
+
+        logger.info(f"Param groups = {json.dumps(parameter_group_names, indent=2)}")
+        return list(parameter_group_vars.values())
         
     def log(self, *args, **kwargs):
         super().log(batch_size=self.cfg.data.batch_size, sync_dist=True, *args, **kwargs)
