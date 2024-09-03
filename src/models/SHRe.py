@@ -257,8 +257,8 @@ class SHRe(nn.Module):
         logits = self.head(logits)
 
         out_dict["encoder_out"] = logits
-        logits = logits / logits.norm(dim=-1, keepdim=True)
-        out_dict["x_out"] = logits
+        x_out = logits / logits.norm(dim=-1, keepdim=True)
+        out_dict["x_out"] = x_out
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
         x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
