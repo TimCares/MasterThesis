@@ -18,6 +18,7 @@ from modules import Block, ClipLoss, KDClipMomentumMemoryBankLoss, KDClipLoss
 from timm.models.vision_transformer import LayerScale
 from utils import freeze_module, load_beit2_teacher
 from beit2.modeling_pretrain import VisionTransformerForMaskedImageModeling
+from utils import load_pretrained_d2v_model
 
 logger = logging.getLogger(__name__)
 
@@ -277,18 +278,9 @@ class Sx3HRe(nn.Module):
         self.text_model = BertModel.from_pretrained("bert-base-uncased")
         self.text_model.encoder.layer = self.text_model.encoder.layer[:self.cfg.depth]
         self.text_model.pooler = None # remove pooler
-
-        beit2_kwargs = OmegaConf.to_container(self.cfg.beitv2, resolve=True)
-        sd_path = beit2_kwargs.pop("model_path")
-        sd_name = beit2_kwargs.pop("model_name")
-        beit_path = os.path.join(sd_path, sd_name)
-
-        self.image_model:VisionTransformerForMaskedImageModeling = load_beit2_teacher(
-            sd_path=beit_path,
-            **beit2_kwargs,
-        )
+        
+        self.image_model = load_pretrained_d2v_model(state_dict_path='/workspace/models/base_imagenet.pt')
         self.image_model.blocks = self.image_model.blocks[:self.cfg.depth]
-        self.image_model.norm = nn.Identity()
 
     def forward(
         self,
@@ -311,13 +303,10 @@ class Sx3HRe(nn.Module):
         return out
     
     def encode_image(self, image):
-        # no mask
-        bool_masked_pos = torch.zeros((image.shape[0], self.image_model.patch_embed.num_patches), 
-                                      dtype=torch.bool).to(image.device)
-        x = self.image_model.forward_features(
-            x=image,
-            bool_masked_pos=bool_masked_pos,
-        )
+        x = self.image_model.extract_features(
+            source=image,
+            remove_extra_tokens=False,
+        )['x']
 
         img_tte = self.token_type_embeddings(
             torch.ones_like(x[:, :, 0], dtype=torch.long)

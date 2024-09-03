@@ -17,7 +17,8 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: SHRe_shared_transformer_block
+run_name: SHRe
+id:
 model_name: SHRe
 
 load_checkpoint:
@@ -25,20 +26,8 @@ load_checkpoint:
 nlp_context_length: 64 # inspired by BEiT3
 
 model:
-  pretrained_path: ${model_path}
-  pretrained:
-    audio: base_libri.pt
-    image: base_imagenet.pt
-    text: nlp_base.pt
-
   embed_dim: 768
-
   depth: 6
-  num_heads: 12
-  mlp_ratio: 4.0
-  norm_eps: 1e-6
-  norm_affine: True
-  layer_init_scale: 0.2 # VLMo and BEiT use 0.1, we have half the depth so 0.2
 
 data:
   dataloader:
@@ -53,6 +42,7 @@ data:
     color_jitter: # None
     beit_transforms: False
     crop_scale: [0.9, 1.0]
+    text_token_mask_prob: 0.0
 
   datamodules:
     coco_captions:
@@ -81,38 +71,21 @@ checkpoint:
       filename: model-{step}-{${.monitor}:.4f}-train
 
 optimizer:
-  lr: 0.0001
+  base_lr: 0.0001
   betas: [ 0.9,0.98 ]
   eps: 1e-06
   weight_decay: 0.01
-  warmup: True
-
-optimizer_schedule: # relevant if "optimizer.warmup" is True
-  type: cosine # constant or cosine
-  warmup_steps: 7_600
-  max_steps: 76520
+  max_steps: 89273
 
 lightning_trainer:
   default_root_dir: ${log_dir}
   accelerator: gpu
   devices: -1
-  max_epochs: 6
+  max_epochs: 7
   num_sanity_val_steps: 0 # would run zero shot at the beginning if > 0
   precision: 16-mixed
   log_every_n_steps: 50
 
-  # deepspeed:
-  #   stage: 2
-  #   offload_optimizer: False
-  #   allgather_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
-  #   reduce_bucket_size: 5e8 # size as recommended by pytorch lightning deepspeed docs
-
   ddp:
     gradient_as_bucket_view: True # optimizes memory usage
     static_graph: True # optimizes memory usage
-
-# memory_bank:
-#   batch_size: ${data.dataloader.batch_size}
-#   size: 16384
-#   device: cuda
-#   half_precision: True

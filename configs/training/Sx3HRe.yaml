@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: Sx3HRe_beit_bert
+run_name: Sx3HRe_d2v2_bert
 id:
 model_name: Sx3HRe
 

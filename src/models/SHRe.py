@@ -4,18 +4,19 @@ import torch.nn.functional as F
 from functools import partial
 from typing import Dict, Any
 import numpy as np
-import os
 from utils import load_pretrained_d2v_model
 import logging
 import pytorch_lightning as L
-from deepspeed.ops.adam import FusedAdam, DeepSpeedCPUAdam
-from dataclasses import dataclass, field
+import json
+from dataclasses import dataclass
 from data2vec_fairseq.data.modality import Modality
-from transformers.optimization import get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
+from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
+from transformers import BertModel
 import timm
 from . import MODEL_REGISTRY
 from modules import Block, ClipLoss
+from modules.layers import Mlp_
 from utils import freeze_module
 
 logger = logging.getLogger(__name__)
@@ -34,10 +35,10 @@ class SHRePreTrainingLightningModule(L.LightningModule):
 
     def on_train_start(self):
         logger.info(f'World size: {self.trainer.world_size}')
-        self.itc_loss = ClipLoss(
+        self.clip_loss = ClipLoss(
             cache_labels=True,
             rank=self.trainer.local_rank,
-            world_size=self.trainer.world_size,
+            world_size=self.trainer.world_size
         )
 
     def forward(self, input_dict):
@@ -68,24 +69,22 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         kl_loss = (kl_loss1 + kl_loss2) / 2
         self.log(f"{stage}/kl_loss", kl_loss)
 
-        self.model.logit_scale_interm.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
-        self.model.logit_scale_out.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
+        self.model.logit_scales.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
 
-        itc_loss1, _, _, _ = self.itc_loss(
-            image_features=output_dict['x_interm_image'],
-            text_features=output_dict['x_interm_text'],
-            logit_scale=self.model.logit_scale_interm.exp(),
-        )
-
-        itc_loss2, logits_per_image, logits_per_text, target = self.itc_loss(
-            image_features=output_dict['x_text'],
-            text_features=output_dict['x_image'],
-            logit_scale=self.model.logit_scale_out.exp(),
-        )
-        self.log_itc_acc(logits_per_text, logits_per_image, target, stage)
-            
-        itc_loss = (itc_loss1 + itc_loss2) / 2
-        self.log(f"{stage}/itc_loss", itc_loss)
+        if stage == 'train':
+            itc_loss = 0
+            for i, key_prefix in enumerate(['x_interm', 'x', 'x_out']):
+                itc_out = self.clip_loss(
+                    image_features=output_dict[key_prefix + '_image'],
+                    text_features=output_dict[key_prefix + '_text'],
+                    logit_scale=self.model.logit_scales[i].exp(),
+                )
+                self.log_itc_acc(itc_out['logits_per_image'], itc_out['logits_per_text'], itc_out['targets'], stage, key_prefix=key_prefix)
+                itc_loss += itc_out['loss']
+            itc_loss /= 3
+            self.log(f"{stage}/itc_loss", itc_loss)
+        else:
+            itc_loss = 0
         
         loss = kl_loss + itc_loss
 
@@ -93,84 +92,92 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         
         return loss
     
-    def log_itc_acc(self, logits_per_text, logits_per_image, target, stage):
+    def log_itc_acc(self, logits_per_image, logits_per_text, target, stage, key_prefix=""):
         img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
         text_itc_acc = (logits_per_text.argmax(dim=1) == target).float().mean()
-        self.log(f"{stage}/itc_text_acc", text_itc_acc)
-        self.log(f"{stage}/itc_image_acc", img_itc_acc)
-        self.log(f"{stage}/itc_acc", (img_itc_acc + text_itc_acc) / 2, prog_bar=True)
+        if key_prefix != "":
+            key_prefix = key_prefix + "_"
+        self.log(f"{stage}/{key_prefix}itc_text_acc", text_itc_acc)
+        self.log(f"{stage}/{key_prefix}itc_image_acc", img_itc_acc)
+        self.log(f"{stage}/{key_prefix}itc_acc", (img_itc_acc + text_itc_acc) / 2, prog_bar=True)
 
     def configure_optimizers(self):
-        wd_params, non_wd_params = self._get_param_groups()
-        assert len(wd_params) + len(non_wd_params) == len(list(self.model.parameters()))
+        ws = torch.cuda.device_count()
+        logger.info(f"[Optimizer]: World size is {ws}")
+        if 'lr' in self.cfg.optimizer:
+            learning_rate = self.cfg.optimizer.lr
+        else:
+            assert 'base_lr' in self.cfg.optimizer
+            learning_rate = self.cfg.optimizer.base_lr * (self.cfg.data.dataloader.batch_size*ws) / 256
+            logger.info(f"[Optimizer]: Base Learning rate is {self.cfg.optimizer.base_lr}")
+        logger.info(f"[Optimizer]: Learning rate is {learning_rate}")
+        param_groups = self._get_param_groups(lr=learning_rate)
         optim_args = {
-            "params": [
-                {"params": wd_params, "weight_decay": self.cfg.optimizer.weight_decay},
-                {"params": non_wd_params, "weight_decay": 0}
-            ],
-            "lr": self.cfg.optimizer.lr,
+            "params": param_groups,
+            "lr": learning_rate,
             "betas": tuple(self.cfg.optimizer.betas),
             "eps": self.cfg.optimizer.eps,
         }
-        if 'deepspeed' in self.cfg.lightning_trainer:
-            if self.cfg.lightning_trainer.deepspeed.offload_optimizer:
-                opt_cls = DeepSpeedCPUAdam
-                optim_args['model_params'] = optim_args.pop("params")
-            else:
-                opt_cls = FusedAdam
-        else:
-            opt_cls = torch.optim.AdamW
             
-        optimizer = opt_cls(**optim_args)
+        optimizer = torch.optim.AdamW(**optim_args)
         
-        if self.cfg.optimizer.warmup:
-            name = self.cfg.optimizer_schedule.type
-            if name == 'cosine':
-                scheduler = get_cosine_schedule_with_warmup(
-                    optimizer,
-                    num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,
-                    num_training_steps=self.cfg.optimizer_schedule.max_steps,
-                )
-            else:
-                scheduler = get_constant_schedule_with_warmup(
-                    optimizer,
-                    num_warmup_steps=self.cfg.optimizer_schedule.warmup_steps,
-                )
-            return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": name}]
-        else:
-            return optimizer
+        max_steps = int(self.cfg.optimizer.max_steps / ws)
+        warmup_steps = int(max_steps * 0.1)
+        logger.info(f"[Scheduler]: Max steps is {max_steps}")
+        logger.info(f"[Scheduler]: Warmup steps is {warmup_steps}")
+        scheduler = get_cosine_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=warmup_steps,
+            num_training_steps=max_steps,
+        )
+        return [optimizer], [{"scheduler": scheduler, "interval": "step", "name": 'cosine'}]
         
-    def _get_param_groups(self):
-        wd_params, non_wd_params = [], []
+    def _get_param_groups(self, lr):
+        parameter_group_names = {}
+        parameter_group_vars = {}
+
         for name, param in self.model.named_parameters():
-            if len(param.shape) == 1 or name.endswith(".bias") or "extra_tokens" in name or 'embed_tokens' in name:
-                non_wd_params.append(param)
+            if not param.requires_grad:
+                continue
+            if len(param.shape) == 1 or name.endswith(".bias") or "fixed_positional_encoder.positions" in name or "extra_tokens" in name or 'embeddings' in name:
+                group_name = "no_decay"
+                this_weight_decay = 0.
             else:
-                wd_params.append(param)
-        return wd_params, non_wd_params
+                group_name = "decay"
+                this_weight_decay = self.cfg.optimizer.weight_decay
+
+            if group_name not in parameter_group_names:
+                parameter_group_names[group_name] = {
+                    "weight_decay": this_weight_decay,
+                    "params": [],
+                    "lr": lr
+                }
+                parameter_group_vars[group_name] = {
+                    "weight_decay": this_weight_decay,
+                    "params": [],
+                    "lr": lr
+                }
+
+            parameter_group_vars[group_name]["params"].append(param)
+            parameter_group_names[group_name]["params"].append(name)
+
+        logger.info(f"Param groups = {json.dumps(parameter_group_names, indent=2)}")
+        return list(parameter_group_vars.values())
+    
+    def state_dict(self, *args, **kwargs):
+        sd = super().state_dict(*args, **kwargs)
+        for k in list(sd.keys()):
+            if k.startswith('teacher.'):
+                del sd[k]
+        return sd
         
     def log(self, *args, **kwargs):
         super().log(batch_size=self.cfg.data.dataloader.batch_size, sync_dist=True, *args, **kwargs)
 
 @dataclass
-class PretrainedStateDictsConfig():
-    audio:str = 'base_libri.pt'
-    image:str = 'base_imagenet.pt'
-    text:str = 'nlp_base.pt'
-
-@dataclass
 class SHReConfig():
-    pretrained_path:str = '../models'
-    pretrained: PretrainedStateDictsConfig = field(default_factory=PretrainedStateDictsConfig)
-
     embed_dim: int = 768
-
     depth: int = 6
-    num_heads: int = 12
-    mlp_ratio: float = 4.0
-    norm_eps: float = 1e-6
-    norm_affine: bool = True
-    layer_init_scale: float = 0.2
 
 class SHRe(nn.Module):
     def __init__(self,
@@ -178,14 +185,20 @@ class SHRe(nn.Module):
                  ):
         super(SHRe, self).__init__()
         self.cfg = cfg
-        make_layer_norm = partial(nn.LayerNorm, eps=self.cfg.norm_eps, elementwise_affine=self.cfg.norm_affine)
+        make_layer_norm = partial(nn.LayerNorm, eps=1e-6)
 
-        self.shared = Block(
-            dim=self.cfg.embed_dim,
-            num_heads=self.cfg.num_heads,
-            mlp_ratio=self.cfg.mlp_ratio,
-            qkv_bias=True,
-            init_values=self.cfg.layer_init_scale,
+        # self.shared = Block(
+        #     dim=self.cfg.embed_dim,
+        #     num_heads=12,
+        #     mlp_ratio=4.0,
+        #     qkv_bias=True,
+        #     init_values=0.2,
+        #     norm_layer=make_layer_norm,
+        # )
+        self.shared = Mlp_(
+            in_features=self.cfg.embed_dim,
+            hidden_features=self.cfg.embed_dim * 4,
+            out_features=self.cfg.embed_dim,
             norm_layer=make_layer_norm,
         )
 
@@ -194,12 +207,13 @@ class SHRe(nn.Module):
 
         self.apply(init_bert_params)
 
-        self.logit_scale_interm = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
-        self.logit_scale_out = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        self.logit_scales = nn.Parameter(torch.ones([3]) * np.log(1 / 0.07))
 
-        self.text_model = load_pretrained_d2v_model(state_dict_path=os.path.join(self.cfg.pretrained_path, self.cfg.pretrained.text))
-        self.text_model.blocks = self.text_model.blocks[:self.cfg.depth]
-        self.image_model = load_pretrained_d2v_model(state_dict_path=os.path.join(self.cfg.pretrained_path, self.cfg.pretrained.image))
+        self.text_model = BertModel.from_pretrained("bert-base-uncased")
+        self.text_model.encoder.layer = self.text_model.encoder.layer[:self.cfg.depth]
+        self.text_model.pooler = None # remove pooler
+
+        self.image_model = load_pretrained_d2v_model(state_dict_path='/workspace/models/base_imagenet.pt')
         self.image_model.blocks = self.image_model.blocks[:self.cfg.depth]
 
     def forward(
@@ -223,34 +237,31 @@ class SHRe(nn.Module):
         return out
     
     def encode_image(self, image):
-        encoder_out = self.image_model.extract_features(
+        x = self.image_model.extract_features(
             source=image,
             remove_extra_tokens=False,
-        )
+        )['x']
         
-        return self.encode_shared(encoder_out)
+        return self.encode_shared(x)
 
     def encode_text(self, text, padding_mask):
-        encoder_out = self.text_model.extract_features(
-            source=text,
-            padding_mask=padding_mask,
-            remove_extra_tokens=False,
-        )
+        x = self.text_model(
+            input_ids=text,
+            attention_mask=1-padding_mask,
+        ).last_hidden_state
         
-        return self.encode_shared(encoder_out)
+        return self.encode_shared(x, padding_mask)
     
-    def encode_shared(self, encoder_out):
+    def encode_shared(self, x, padding_mask=None):
         out_dict = dict()
-        x = encoder_out['x']
-        mask = encoder_out['padding_mask'] if 'padding_mask' in encoder_out else None
-        x_interm, x = self.shared(x=x, mask=mask)
-        x_interm = x_interm[:, 0]
-        x = x[:, 0]
+        x_interm, x = self.shared(x[:, 0])
         
         logits = self.fc_norm(x)
         logits = self.head(logits)
 
         out_dict["encoder_out"] = logits
+        logits = logits / logits.norm(dim=-1, keepdim=True)
+        out_dict["x_out"] = logits
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
         x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
