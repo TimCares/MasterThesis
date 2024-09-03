@@ -62,7 +62,7 @@ checkpoint:
     auto_insert_metric_name: False
 
   checkpoints:
-    - monitor: val/loss
+    - monitor: val/coco_retrieval
       mode: min
       filename: model-{step}-{${.monitor}:.4f}-val
 
