@@ -60,7 +60,10 @@ Experiments
 				Contrastive Target Loss (each teacher target is a class -> not 1000 classes, but 256 or 512, each being the cls token of one image passed to the teacher)
 				Dimensionality Reduction (lin projection on both, teacher proj in ema of student proj)
 				Feature Clusters
-				Quantizing Visual Features
+				Quantizing Global Features
+					CLS Token
+					Patch Aggregation
+					Codebook Collapse
 			Loss Ablation Studies
 				Removing ITC
 				Removing KD (Teacher)

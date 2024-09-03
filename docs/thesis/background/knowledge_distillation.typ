@@ -103,7 +103,7 @@ of the teacher 1:1. In this case, other strategies have to be used, and we will 
 An illustration of response-based vs. feature-based KD is shown in @kd_fig.
 
 #figure(
-  image("../figures/kd.png"),
+  image("../figures/kd.png", width: 75%),
   caption: [
     Response-based knowledge distillation (a) requires a teacher to provide logits
     to generate a probability distribution, which is predicted by the student. Feature-based knowledge distillation (b)

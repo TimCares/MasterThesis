@@ -117,29 +117,11 @@
   )
 
   set page(numbering: "1")
-  counter(page).update(1) 
+  counter(page).update(1)
+
+  set figure(placement: auto)
 
   body
-
-  // List of figures.
-  outline(
-    title: 
-      if details.language == "de" 
-        {[Abbildungsverzeichnis]} 
-      else 
-        {[List of Figures]},
-    target: figure.where(kind: image),
-  )
-
-  // List of tables.
-  outline(
-    title: 
-      if details.language == "de" 
-        {[Tabellenverzeichnis]} 
-      else 
-        {[List of Tables]},
-    target: figure.where(kind: table),
-  )
 
   include("background/basic_loss_functions.typ")
   include("background/knowledge_distillation.typ")
