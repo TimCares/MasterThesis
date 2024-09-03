@@ -203,7 +203,7 @@ class ImageVQ(nn.Module):
         image:torch.Tensor,
     ):
         x_beit = self.forward_beitv2(image)
-        to_quantizer_features = self.embed_to_vq_proj(x_beit[:, 0])
+        to_quantizer_features = self.embed_to_vq_proj(x_beit[:, 1:].mean(dim=1))
 
         quantize_result_dict = self.quantize(to_quantizer_features)
         quantize = quantize_result_dict['z_q']
@@ -218,9 +218,9 @@ class ImageVQ(nn.Module):
             x = blk(x, rel_pos_bias=rel_pos_bias)
 
         out_dict = {
-            'x': x[:, 0],
+            'x': x[:, 1:].mean(dim=1),
             'vq_loss': quantize_result_dict['loss'],
-            'target': x_beit[:, 0],
+            'target': x_beit[:, 1:].mean(dim=1),
             'embed_ind': quantize_result_dict['encoding_indices'],
         }
         return out_dict
@@ -229,9 +229,9 @@ class ImageVQ(nn.Module):
         self,
         image:torch.Tensor,
     ):
-        cls_token = self.forward_beitv2(image)
+        mean_patch = self.forward_beitv2(image)[:, 1:].mean(dim=1)
 
-        to_quantizer_features = self.embed_to_vq_proj(cls_token)
+        to_quantizer_features = self.embed_to_vq_proj(mean_patch)
 
         quantize_result_dict = self.quantize(to_quantizer_features, return_scores=True)
 
@@ -259,12 +259,16 @@ class ImageVQ(nn.Module):
         batch_size, seq_len, _ = x.size()
 
         mask_token = self.beitv2.mask_token.expand(batch_size, seq_len, -1)
+        cls_tokens = self.beitv2.cls_token.expand(batch_size, -1, -1)
 
         # replace the masked visual tokens by mask_token
         w = bool_masked_pos.unsqueeze(-1).type_as(mask_token)
         x = x * (1 - w) + mask_token * w
 
-        x = torch.cat((quantize.unsqueeze(1), x), dim=1)
+        x = torch.cat((cls_tokens, x), dim=1)
+
+        quantize_tokens = quantize.unsqueeze(1).expand(-1, seq_len, -1)
+        x = x + quantize_tokens
 
         return x
 
