@@ -229,7 +229,7 @@ class ImageVQ(nn.Module):
         self,
         image:torch.Tensor,
     ):
-        cls_token = self.forward_beitv2(image)
+        cls_token = self.forward_beitv2(image)[:, 0]
 
         to_quantizer_features = self.embed_to_vq_proj(cls_token)
 
