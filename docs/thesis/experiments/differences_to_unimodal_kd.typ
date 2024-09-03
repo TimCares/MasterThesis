@@ -1,4 +1,5 @@
-=== Differences to Unimodal Knowledge Distillation <differences_to_unimodal_knowledge_distillation>
+== Multimodal Knowledge Distillation <multimodal_knowledge_distillation>
+=== Unimodal vs. Multimodal: Key Differences <unimodal_vs_multimodal_key_differences>
 
 - for multimodal Knowledge Distillation, we also need a teacher model
 - question is, which model should be the teacher model, or rather, in which modality should the teacher have been (pre-)trained?
@@ -62,7 +63,7 @@ well researched
 - if the representation of the CLS token still contains image specific information, then the student model will not be able to align the representation of the caption with that of the image
   - based on the caption, it is impossible to predict the image-specific information still encoded in the representation of the CLS token
   - also not desired, representation should be independent of the modality
-- this is something we will elaborate on in @self_supervised_teacher
+- this is something we will elaborate on in (TODO: cite self-supervised teacher)
 
 - SHRe can be seen as a special case of regressing the CLS token @shre
 - was published before the inception of Transformers @transformer

@@ -23,3 +23,29 @@
   The example is shown with a batch size of 6. The figure does not originate from the original paper, but is a custom visualization of the concept. Image-Text pair is taken from the MSCOCO train set @coco, 
   and do not refer to the contrastive loss of 6 pairs at the top of the figure. They are merely indicators of the intput to the model.],
 ) <clip_fig>
+
+#show table: set text(8pt)
+#figure(
+  table(
+    columns: 3,
+    stroke: none,
+    table.hline(),
+    table.header(
+      [*Dataset*],
+      [*Example*],
+      [*Label*],
+    ),
+    table.hline(stroke: .4pt),
+    [CoLA], [Our friends won't buy this analysis, let alone the next one we propose.], [1],
+    [SST-2], [hide new secretions from the parental units], [0],
+    [MRPC], [Amrozi accused his brother, whom he called "the witness", of deliberately distorting his evidence. [SEP] Referring to him as only "the witness", Amrozi accused his brother of deliberately distorting his evidence.], [1],
+    [STS-B], [A plane is taking off. [SEP] An air plane is taking off.], [5.0],
+    [QQP], [How is the life of a math student? Could you describe your own experiences? [SEP] Which level of prepration is enough for the exam "jlpt5"?], [0],
+    [MNLI], [Conceptually cream skimming has two basic dimensions - product and geography. [SEP] Product and geography are what make cream skimming work.], [1],
+    [QNLI], [When did the third Digimon series begin? [SEP] Unlike the two seasons before it and most of the seasons that followed, Digimon Tamers takes a darker and more realistic approach to its story featuring Digimon who do not reincarnate after their deaths and more complex character development in the original Japanese.], [1],
+    [RTE], [No Weapons of Mass Destruction Found in Iraq Yet. [SEP] Weapons of Mass Destruction Found in Iraq.], [1],
+  ),
+  caption: [Training examples of the GLUE benchmark tasks (one example per task). Examples are taking from the GLUE dataset card on Hugging Face
+  #footnote[#link("https://huggingface.co/datasets/nyu-mll/glue")].],
+)<glue_example>
+#show table: set text(11pt)

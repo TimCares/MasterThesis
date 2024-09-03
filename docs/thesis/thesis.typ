@@ -140,20 +140,23 @@
         {[List of Tables]},
     target: figure.where(kind: table),
   )
-  include("background/transformers.typ")
-  include("background/notations_and_definitions.typ")
+
+  include("background/basic_loss_functions.typ")
   include("background/knowledge_distillation.typ")
+  include("background/transformer.typ")
+  include("background/multimodal_transformer.typ")
   include("background/self_supervised_learning.typ")
-  include("background/multimodal_models.typ")
-  include("background/vision_language_contrast.typ")
-  include("background/image_text_retrieval.typ")
+  include("background/contrastive_learning.typ")
 
   include("background/related_work/deep_aligned_representations.typ")
   include("background/related_work/clip.typ")
 
   include("methodology/tools_and_approach.typ")
+  include("methodology/data_collection_and_preprocessing.typ")
 
   include("experiments/unimodal_knowledge_distillation.typ")
+
+  include("experiments/differences_to_unimodal_kd.typ")
 
   // Appendix.
   set heading(numbering: "A")

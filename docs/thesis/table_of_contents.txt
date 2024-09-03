@@ -6,15 +6,20 @@ Introduction
 	Motivation
 	Goals and Contributions
 	Content
+	Required Background Knowledge
 Background
-	Notations and Definitions (... of image patches etc. -> if this changes for specific experiments, mention then and redefine)
-	(Transformers)
+	Basic Loss Functions
 	Knowledge-Distillation
+	Transformer
+		Language
+		Vision
+		Vision-Language
+	Multimodal Transformer
 	Self-Supervised Learning
 	Contrastive Learning
-	Multimodal Models
-	Vision-Language Contrast
-	Image-Text Retrieval
+		Vision
+		Vision-Language
+		Vision-Language Retrieval
 	Related Work
 		Deep Aligned Representations
 		CLIP
