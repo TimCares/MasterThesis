@@ -47,7 +47,7 @@ of the images, learned without the need for labels.
 An implementation and mathematical formulation of the contrastive loss will be introduced in (TODO: cite vision language contrast)
 on the example of vision-language models.
 
-=== Vision-Language
+=== Vision-Language <vision_language_contrast>
 
 Introduced as a method for self-supervised learning of image models ((TODO: cite contrastive learning section)), contrastive learning
 can be extended from unimodal (image) to multimodal applications, such as image and text.

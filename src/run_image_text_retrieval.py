@@ -19,8 +19,18 @@ logger = logging.getLogger()
 def compute_average_median_rank(images:torch.Tensor, texts:torch.Tensor, iids:torch.Tensor, tiids:torch.Tensor):
     mask = iids.unsqueeze(1) == tiids.unsqueeze(0)
     
+    seeds = [42, 0, 13, 99, 100]
+    amrs_ir = []
+    amrs_tr = []
+    for seed in seeds:
+        avg_median_rank_tr, avg_median_rank_ir = amr_for_seed(images, texts, mask, seed)
+        amrs_tr.append(avg_median_rank_tr)
+        amrs_ir.append(avg_median_rank_ir)
+    return sum(amrs_tr) / len(amrs_tr), sum(amrs_ir) / len(amrs_ir)
+
+def amr_for_seed(images, texts, mask, seed):
     selected_indices = []
-    torch.manual_seed(42) # for reproducibility
+    torch.manual_seed(seed) # for reproducibility
     for row in mask:
         true_indices = torch.nonzero(row, as_tuple=False).squeeze()
         

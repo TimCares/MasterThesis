@@ -182,7 +182,7 @@ Both ViT-B/16 and ViT-L/16 have a patch size of $16 times 16$ pixels, while the 
 As might have come apparent,
 our explanation of the Transformer architecture is based on the ViT-B/16 model, which is the model we will make use of in this work.
 
-=== Vision-Language Transformer <vision_language_transformer>
+== Multimodal Models <multimodal_models>
 
 Multimodal models are characterized by their ability to process multiple modalities, such as text, images,
 audio, or video, within a single model. The motivation behind these models lies in the idea that
@@ -190,25 +190,27 @@ models should be able to understand real-world concepts in a way similar to huma
 across different modalities, “a cat”, for example, can be represented in text, image, or audio, and regardless of how the concept
 is expressed, the interpretation and understanding remains the same.
 
-Please note that since our focus is on vision-language models, all further explanations will be
-based on the multimodality in the context of vision and language.
+Please note that since our focus is on vision-language models, all further explanations of multimodality will be
+in the context of vision and language.
 
-In the context of Deep Learning, this means that the representations of a concept should be the same (or at least close to each other),
-no matter if is expressed through text or image, which is also called alignment.
-However, in most existing models, this is not the case. These models are typically unimodal, meaning they process only one modality,
+In the context of Deep Learning this means that the representations, the embedding/representation
+of e.g. the $mono(["I_CLS"])$ or $mono(["T_CLS"])$ token, of a concept should be the same (or at least close to each other),
+no matter if is expressed through image or text, which is also called alignment.
+However, in most existing models this is not the case. These models are typically unimodal, meaning they process only one modality,
 making alignment of multiple modalities impossible.
-A naive approach would be to pass an image into an image model, and its caption into a text model. Even though the generated representations
+A naive approach would be to pass an image into an image model, and its caption into a (seperate) text model. Even though the generated representations
 describe the same concept, they will not be the same, as both models are not related to each other.
 Each model will have a seperate latent space, as there has been no incentive for the models to learn a representation that
 is aligned across modalities (@different_latent_spaces), resulting in different representations for the same concept.
 While it is possible to compare the representations of two unimodal models, e.g. through cosine similarity,
 a similarity close to 1 (the maximum) does not necessarily mean that the concepts expressed in the representations are the same.
 There simply is no semantic relationship between the representations of the same concept produced by two unimodal models.
-A proof will be shown in (TODO: cite section where d2v2 image+text is used with retrieval).
+A proof of this will be shown in @transformer_shre.
 
-To overcome this limitation, we need to develop models that can understand the same concept across different modalities,
-or input types respectively. They should map the input of different modalities into a common representation space, where the representations
-of the same concept are aligned, i.e. close to each other.
+To overcome this limitation, a model is required that can produce modality-invariant representations, i.e. representations that are
+independent of the modality of the input.
+They should map the input of different modalities into a common representation space, where the representations
+of the same concept are aligned, i.e. close to each other, since they describe the same concept.
 
 #figure(
   image(
@@ -239,9 +241,8 @@ while pushing the representations of different concepts further apart. For visio
 pushing the representations of an image and its caption closer together, while pushing the representations of an image and an unrelated caption
 (or vice versa) further apart. To quantify the similarity between two representations,
 a distance metric is used, e.g. cosine similarity.
-The loss function is usually the contrastive loss, and its implementation for vision-language models will be introduced in
-the next section.
-An illustration of a multimodal model is provided in @multimodal_model_abstract, concrete examples will be introduced in (TODO: cite related work).
+The loss function is usually the contrastive loss, and its implementation for vision-language models will be introduced in @vision_language_contrast.
+An illustration of a multimodal model is provided in @multimodal_model_abstract, concrete examples will be introduced in @related_work.
 
 #figure(
   image(
@@ -252,3 +253,10 @@ An illustration of a multimodal model is provided in @multimodal_model_abstract,
   A contrastive loss ensures the alignment and repulsion of similar and dissimilar concepts, respectively. We indicate this through
   purple arrows.],
 ) <multimodal_model_abstract>
+
+When it comes to the actual implementation of multimodal models, Transformers are a very suitable choice, as they can be used for
+both vision and language, and even other modalities not covered in this work, like audio. Furthermore, both the language and vision
+Transformer require their input to be a sequence of embeddings, which makes alignment more straightforward: For each unimodal encoder
+of a multimodal (vision-language) model one distinct Transformer can be used, and the output of a unimodal encoder, which is the respective
+cls token ($mono(["I_CLS"])$ or $mono(["T_CLS"])$) can then be passed to a shared encoder, which can be implemented as a simple feed-forward
+network. The output of the shared encoder is then the aligned representation of the image and text, which can be used for downstream tasks.
