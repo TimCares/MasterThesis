@@ -16,7 +16,6 @@ from transformers import BertModel
 import timm
 from . import MODEL_REGISTRY
 from modules import Block, ClipLoss
-from modules.layers import Mlp_
 from utils import freeze_module
 
 logger = logging.getLogger(__name__)
@@ -70,7 +69,7 @@ class SHRePreTrainingLightningModule(L.LightningModule):
 
         if stage == 'train':
             itc_loss = 0
-            for i, key_prefix in enumerate(['x_interm', 'x', 'x_out']):
+            for i, key_prefix in enumerate(['x_interm', 'x']):
                 itc_out = self.clip_loss(
                     image_features=output_dict[key_prefix + '_image'],
                     text_features=output_dict[key_prefix + '_text'],
@@ -184,18 +183,12 @@ class SHRe(nn.Module):
         self.cfg = cfg
         make_layer_norm = partial(nn.LayerNorm, eps=1e-6)
 
-        # self.shared = Block(
-        #     dim=self.cfg.embed_dim,
-        #     num_heads=12,
-        #     mlp_ratio=4.0,
-        #     qkv_bias=True,
-        #     init_values=0.2,
-        #     norm_layer=make_layer_norm,
-        # )
-        self.shared = Mlp_(
-            in_features=self.cfg.embed_dim,
-            hidden_features=self.cfg.embed_dim * 4,
-            out_features=self.cfg.embed_dim,
+        self.shared = Block(
+            dim=self.cfg.embed_dim,
+            num_heads=12,
+            mlp_ratio=4.0,
+            qkv_bias=True,
+            init_values=0.2,
             norm_layer=make_layer_norm,
         )
 
@@ -204,7 +197,7 @@ class SHRe(nn.Module):
 
         self.apply(init_bert_params)
 
-        self.logit_scales = nn.Parameter(torch.ones([3]) * np.log(1 / 0.07))
+        self.logit_scales = nn.Parameter(torch.ones([2]) * np.log(1 / 0.07))
 
         self.text_model = BertModel.from_pretrained("bert-base-uncased")
         self.text_model.encoder.layer = self.text_model.encoder.layer[:self.cfg.depth]
@@ -249,16 +242,16 @@ class SHRe(nn.Module):
         
         return self.encode_shared(x, padding_mask)
     
-    def encode_shared(self, x, padding_mask=None):
+    def encode_shared(self, x, mask=None):
         out_dict = dict()
-        x_interm, x = self.shared(x[:, 0])
+        x_interm, x = self.shared(x=x, mask=mask)
+        x_interm = x_interm[:, 0]
+        x = x[:, 0]
         
         logits = self.fc_norm(x)
         logits = self.head(logits)
 
         out_dict["encoder_out"] = logits
-        x_out = logits / logits.norm(dim=-1, keepdim=True)
-        out_dict["x_out"] = x_out
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
         x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
