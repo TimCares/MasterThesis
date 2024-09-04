@@ -11,8 +11,6 @@ import glob
 from .data_utils import get_transforms, write_data_into_jsonl
 from .base_datasets import BaseDataset
 from fairseq.data.audio.raw_audio_dataset import FileAudioDataset
-from .wav2vec_manifest import create_manifests
-from bpe_encoder import get_bpe_encoder
 from utils import pad_text_sequence
 from torchvision.datasets.utils import download_url
 import pandas as pd

@@ -1,4 +1,3 @@
-from bpe_encoder import BPEEncoder
 from typing import Tuple
 import logging
 import torch
@@ -20,7 +19,6 @@ from modules import mask_eos
 from rich.progress import track
 from fairseq.data import Dictionary
 from utils import pad_text_sequence # src/utils.py
-from bpe_encoder import get_bpe_encoder
 from data2vec_fairseq.data.modality import Modality
 from transformers import BertTokenizer
 
