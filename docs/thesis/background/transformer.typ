@@ -242,21 +242,25 @@ pushing the representations of an image and its caption closer together, while p
 (or vice versa) further apart. To quantify the similarity between two representations,
 a distance metric is used, e.g. cosine similarity.
 The loss function is usually the contrastive loss, and its implementation for vision-language models will be introduced in @vision_language_contrast.
-An illustration of a multimodal model is provided in @multimodal_model_abstract, concrete examples will be introduced in @related_work.
 
 #figure(
   image(
   width: 75%,
-  "../figures/multimodal_model_abstract.png"),
-  caption: [An abstract representation of a vision-language model. Image and text are first passed through unimodal, modality-specific,
-  models (encoders), and then through a multimodal encoder that maps the modality-specific representations into a common representation space.
+  "../figures/multimodal_model.png"),
+  caption: [An abstract illustration of a vision-language model. Image and text are first passed through unimodal
+  Transformer encoders, the cls tokens are extracted, and passed seperately into the MLP that maps the
+  modality-specific representations into a common representation space.
   A contrastive loss ensures the alignment and repulsion of similar and dissimilar concepts, respectively. We indicate this through
   purple arrows.],
-) <multimodal_model_abstract>
+) <multimodal_model>
 
 When it comes to the actual implementation of multimodal models, Transformers are a very suitable choice, as they can be used for
 both vision and language, and even other modalities not covered in this work, like audio. Furthermore, both the language and vision
 Transformer require their input to be a sequence of embeddings, which makes alignment more straightforward: For each unimodal encoder
 of a multimodal (vision-language) model one distinct Transformer can be used, and the output of a unimodal encoder, which is the respective
-cls token ($mono(["I_CLS"])$ or $mono(["T_CLS"])$) can then be passed to a shared encoder, which can be implemented as a simple feed-forward
-network. The output of the shared encoder is then the aligned representation of the image and text, which can be used for downstream tasks.
+cls token ($mono(["I_CLS"])$ or $mono(["T_CLS"])$) can then be passed (seperately) to a shared encoder, which can be implemented as a simple
+multi-layer MLP (feed forward).
+The output of the shared encoder is then still _one_ representation for the image, and _one_ for the text. However,
+both represenations will be close to each other under cosine similarity, which is useful
+for multimodal tasks like image-text retrieval, introduced in @image_text_retrieval. An abstract illustration of a vision-language model
+with Transformer encoders and a shared encoder MLP is shown in @multimodal_model.

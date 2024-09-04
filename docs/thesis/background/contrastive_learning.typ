@@ -1,8 +1,8 @@
 #set heading(numbering: "1.1")
 #set math.equation(numbering: "(1)")
 
-== Contrastive Learning <contrastive_learning>
-=== Vision
+=== Contrastive Learning <contrastive_learning>
+==== Vision
 In settings where masking discrete tokens and predicting them based on a set of possible tokens, as in language models,
 is not possible, contrastive learning can be used as a self-supervised method.
 This is especially useful in vision models, as images are continuous, so there is no discrete set of possible tokens to predict.
@@ -47,7 +47,7 @@ of the images, learned without the need for labels.
 An implementation and mathematical formulation of the contrastive loss will be introduced in (TODO: cite vision language contrast)
 on the example of vision-language models.
 
-=== Vision-Language <vision_language_contrast>
+==== Vision-Language <vision_language_contrast>
 
 Introduced as a method for self-supervised learning of image models ((TODO: cite contrastive learning section)), contrastive learning
 can be extended from unimodal (image) to multimodal applications, such as image and text.
@@ -180,7 +180,7 @@ we will also show later, in the experiments section.
 More negative samples are usually achieved by using larger batch sizes @moco @clip @beit3.
 However, this typically requires higher VRAM GPUs, or multiple GPUs, which is costly.
 
-=== Vision-Language Retrieval
+== Image-Text Retrieval <image_text_retrieval>
 
 The goal of image-text retrieval (ITR) is to find the matching caption for a given image in a set of captions, and likewise,
 finding the matching image for a given caption in a set of images.

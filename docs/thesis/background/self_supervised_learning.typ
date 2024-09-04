@@ -1,5 +1,5 @@
 == Self-Supervised Learning <self_supervised_learning>
-
+=== Motivation
 While we previously identified large Deep Learning models as generally expensive to train,
 we now focus on the problem of scalability in the context of supervised learning, the most common form of training AI models.
 
@@ -34,7 +34,6 @@ Through this process of predicting masked words, the model learns about the conc
 While this example is specific to text data, the same principle can be applied to other types of hierarchical data, e.g. images and audio.
 
 Consequently, self-supervised learning allows makes models scalable, as they can be trained on large amounts of unlabeled data.
-A fact we will come back to in the experimental part of this work, where will will approach multimodal models with this philosophy.
 
 #figure(
   image(
@@ -43,3 +42,5 @@ A fact we will come back to in the experimental part of this work, where will wi
   caption: [In self-supervised learning parts of the data are masked (grey), and the task of a model is to predict the
   masked parts using the visible data (green) @self_supervised_learning_dark_matter.],
 ) <self_supervised_learning_dark_matter_fig>
+
+=== Relationship to Multimodal Models

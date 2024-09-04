@@ -15,10 +15,11 @@ Background
 		Vision
 		Vision-Language
 	Self-Supervised Learning
-	Contrastive Learning
-		Vision
-		Vision-Language
-		Vision-Language Retrieval
+		Motivation
+		Contrastive Learning
+			Vision
+			Vision-Language
+			Vision-Language Retrieval
 	Related Work
 		Deep Aligned Representations
 		CLIP
