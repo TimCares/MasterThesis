@@ -66,10 +66,8 @@ The architecture of a Transformer is displayed in @transformer_encoder.
 Independent of modality, we define the operations performed by one Transformer layer as follows:
 
 $
-bold(H)'_l = op("LN")(op("MHA")(bold(H)_(l-1)) + bold(H)_(l-1))
-$
-$
-bold(H)_l = op("LN")(op("FFN")(bold(H)'_l) + bold(H)'_l)
+bold(H)'_l &= op("LN")(op("MHA")(bold(H)_(l-1)) + bold(H)_(l-1)) \
+bold(H)_l &= op("LN")(op("FFN")(bold(H)'_l) + bold(H)'_l)
 $
 
 $op("LN")(dot)$ denotes layer normalization, or short LayerNorm. as defined in @layer_norm.
@@ -113,82 +111,144 @@ a single linear layer:
 
 $
 bold(hat(y))_w = bold(h)_(w, L, mono(["T_CLS"]))bold(W_mono(["CLS"])) + bold(b)_mono(["CLS"]) in RR^C
-$
-
-#figure(
-  image("../figures/pre_layer_norm.png", width: 50%),
-  caption: [Comparison of a Post-Norm Transformer block/layer (a), and a Pre-Norm Transformer block/layer (b).
-  (a) is the architecture as defined in the original "Attention is all you need" paper @transformer. We follow the Pre-Norm architecture @pre_layer_norm.
-  ],
-) <pre_layer_norm_fig>
-
-One Transformer block performs the following operations:
-
-$
-bold(H)'_l = op("MHA")(op("LN")(bold(H)_(l-1))) + bold(H)_(l-1)
-$
-$
-bold(H)_l = op("FFN")(op("LN")(bold(H)'_l)) + bold(H)'_l
-$
-
-We denote $op("LN")$ as LayerNorm, $op("MHA")$ as Multi-Head Attention, and $op("FFN")$ as a 2 layer MLP, all following the original Transformer
-of @transformer. As previously mentioned, the only difference is the order of
-operations @pre_layer_norm. $bold(H)^s_(v, l)$ and $bold(H)^s_(w, l)$ can be used as a drop-in replacement for image and text, respectively.
-Both equations are, with slight adjustment, taken from VLMo @vlmo.
-
-We define a Transformer as multiple Transformer blocks stacked on top of each other.
+$ <transformer_classification_head>
 
 === Vision Transformer <vision_transformer>
 
-We define an image as a 3-dimensional tensor $bold(v) in RR^(C times H times W)$. Because we will use the base variant of the vision Transformer,
-ViT-B/16 @vit, the image is patchified into 14x14 patches, each being a square of size 16x16 pixels. Each image patch represents one timestep in the
-sequence, and the number of patches $N$ is given by $N = H times W / P^2$, with $P$ being the number of patches per dimension, and $P=14$.
-Since we use an image size of 224x224 pixels, so $bold(v) in RR^(3 times 244 times 244)$, we will have $N=244 times 244 / 14^2 = 196$
-patches, or timesteps respectively. Each patch is flattened into a 256-dimensional vector, 
-and then projected into a 768 dimensions $bold(e)^v_i in RR^768$, using a fully connected layer. 
-The image sequence is prepended with a special learnable $mono(["I_CLS"]) in RR^768$ token,
-which is, following @vit, used to aggregate the global information/content of the image.
-The result is a sequence of patch embeddings, which we define as $bold(E)_v$, where $v$ indicates the image modality:
+After the success of the Transformer architecture in NLP, breaking various benchmarks with architectures like BERT @bert,
+leading to its widespread adoption especially in Large Language Models (LLMs) like GPT-2 @gpt2, researchers explored
+the potential of this architecture beyond text. This exploration led to the development of the Vision Transformer (ViT) @vit,
+marking a significant shift in computer vision.
+
+Diffent from traditional Convolutional Neural Networks (CNNs), which have been the dominant architecture in computer vision 
+before the ViT, the ViT processes images as 1D sequences of patches, instead of 2D grids of pixels.
+
+We define an image as a 3-dimensional tensor $bold(v) in RR^(C times H times W)$. Throughout this work, we will exclusively
+use an image size of $224 times 224$ pixels and 3 color channels, so $bold(v) in RR^(3 times 224 times 224)$. Before being passed to the
+Transformer layers, the image first needs to be converted into a sequence of embeddings, similar to text. This is done by
+first dividing the image into $14 times 14$ patches, each being a square of size $16 times 16$ pixels. Each patch $i$ is then
+flattened into a 256-dimensional vector, and projected into a 768-dimensional embedding $bold(e)^v_i in RR^768$ using a fully connected layer.
+$v$ denotes the image modality.
+
+Similar to text, the resulting sequence of patches is prepended with a special learnable $mono(["I_CLS"]) in RR^768$ token, which is used
+to aggregate the global information/content of the image. A $mono(["I_SEP"])$ does not exist, as images can not be intuitively concatenated like
+multiple sentences of text. The image representation is defined as:
 
 $
 bold(E)_v = [bold(e)^v_mono(["I_CLS"]), bold(e)^v_1, bold(e)^v_2, ..., bold(e)^v_N]
 $
 
-To give the Transformer a sense of order in the image patches/timestep, a unique positional encoding is added to each patch embedding.
-This can either be learned or fixed, with the latter being for example a sinusoidal positional encoding @transformer.
-This positional encoding is also represented as a sequence of 768-dimensional vectors:
+To again give the Transformer a sense of order in the image patches, a unique positional encoding is added to each patch embedding,
+which is either learned or fixed and also represented as a sequence of 768-dimensional vectors:
 
 $
 bold(T)^"pos"_v &= [0, bold(t)^v_"pos"_1, bold(t)^v_"pos"_2, ..., bold(t)^v_"pos"_N]
 $
 
-#figure(
-  image("../figures/vit.png", width: 75%),
-  caption: [@vit.
-  ],
-) <vit_img>
-
-Since the $mono(["I_CLS"])$ token is not part of the image, the positional encoding for the $mono(["I_CLS"])$ token is set to zero,
-so nothing is added to it. An image representation is defined as:
-
-$
-bold(H)^s_(v, l)=[bold(h)^s_(v, l, mono(["I_CLS"])), bold(h)^s_(v, l, 1), ..., bold(h)^s_(v, l, N)]
-$ <image_representation>
-
-In @image_representation, $l$ denotes the layer of the Transformer block that returned the image representation, and $v$ indicates that the representation is an image. Since we use Knowledge Distillation (KD) in some parts of this thesis, representations will be,
-if neccessary, superscripted with $s$ or $t$, for a student and teacher representation, respectively.
-
-We define $l=0$ as the input to the Transformer, and $l=L$ as the output of the Transformer, where $L$ is the number of layers in the Transformer.
-Consequently, the image input to the Transformer is defined as:
+Notice that the positional encoding for the $mono(["I_CLS"])$ token is set to zero. This is because the $mono(["I_CLS"])$ token is not 
+actually part of the image, and can be seen as a type of meta token. The input to a ViT is defined as:
 
 $
 bold(H)^s_(v, 0)=[bold(h)^s_(v, 0, mono(["I_CLS"])), bold(h)^s_(v, 0, 1), ..., bold(h)^s_(v, 0, N)] = bold(E)_v + bold(T)^"pos"_v
-$ <image_representation_input>
+$ <image_representation>
 
-The output of the Transformer is defined as:
+For an image size of $224 times 224$ pixels, and a patch size of $16 times 16$ pixels, the number of patches $N$ is $196$.
+
+The architecture of a vision Transformer layer is almost identical to a language Transformer layer, with the only difference being
+that the LayerNorm operation $op("LN")(dot)$ is applied before Multi-Head Attention $op("MHA")(dot)$ @vit, as illustrated in @vit_img.
+This type of Transformer is referred to as the Pre-LN Transformer, and the operations performed by one layer change to:
 
 $
-bold(H)^s_(v, L)=[bold(h)^s_(v, L, mono(["I_CLS"])), bold(h)^s_(v, L, 1), ..., bold(h)^s_(v, L, N)]
-$ <image_representation_output>
+bold(H)'_l &= op("MHA")(op("LN")(bold(H)_(l-1))) + bold(H)_(l-1) \
+bold(H)_l &= op("FFN")(op("LN")(bold(H)'_l)) + bold(H)'_l
+$
+
+#figure(
+  image("../figures/vit.png", width: 75%),
+  caption: [The architecture of the vision Transformer. Its key difference to the language Transformer is the patch embedding
+  and the position of LayerNorm in a layer @vit.
+  ],
+) <vit_img>
+
+For downstream tasks like classification, the ViT follows the procedure of the original Transformer, and passes the representation
+of the $mono(["I_CLS"])$ token to a classification head, which is a single linear (i.e. feed-forward)
+layer @vit (see @transformer_classification_head).
+
+With the introducion of the vision Transformer came the division into three different model variants, each having the same architecture
+but different scales. The smallest model is the ViT-B/16, followed by the ViT-L/16. The largest model is the ViT-H/14. The number
+of layers $L$ and the hidden size $D$ are different for each model, and the ViT-B/16 has $L=12$ layers and $D=768$ hidden dim, the ViT-L/16
+has $L=24$ layers and $D=1024$ hidden dim, and the ViT-H/14 has $L=32$ layers and $D=1280$ hidden dim @vit. 
+Both ViT-B/16 and ViT-L/16 have a patch size of $16 times 16$ pixels, while the ViT-H/14 has a patch size of $14 times 14$ pixels.
+As might have come apparent,
+our explanation of the Transformer architecture is based on the ViT-B/16 model, which is the model we will make use of in this work.
 
 === Vision-Language Transformer <vision_language_transformer>
+
+Multimodal models are characterized by their ability to process multiple modalities, such as text, images,
+audio, or video, within a single model. The motivation behind these models lies in the idea that
+models should be able to understand real-world concepts in a way similar to humans. Humans can express the same concept
+across different modalities, “a cat”, for example, can be represented in text, image, or audio, and regardless of how the concept
+is expressed, the interpretation and understanding remains the same.
+
+Please note that since our focus is on vision-language models, all further explanations will be
+based on the multimodality in the context of vision and language.
+
+In the context of Deep Learning, this means that the representations of a concept should be the same (or at least close to each other),
+no matter if is expressed through text or image, which is also called alignment.
+However, in most existing models, this is not the case. These models are typically unimodal, meaning they process only one modality,
+making alignment of multiple modalities impossible.
+A naive approach would be to pass an image into an image model, and its caption into a text model. Even though the generated representations
+describe the same concept, they will not be the same, as both models are not related to each other.
+Each model will have a seperate latent space, as there has been no incentive for the models to learn a representation that
+is aligned across modalities (@different_latent_spaces), resulting in different representations for the same concept.
+While it is possible to compare the representations of two unimodal models, e.g. through cosine similarity,
+a similarity close to 1 (the maximum) does not necessarily mean that the concepts expressed in the representations are the same.
+There simply is no semantic relationship between the representations of the same concept produced by two unimodal models.
+A proof will be shown in (TODO: cite section where d2v2 image+text is used with retrieval).
+
+To overcome this limitation, we need to develop models that can understand the same concept across different modalities,
+or input types respectively. They should map the input of different modalities into a common representation space, where the representations
+of the same concept are aligned, i.e. close to each other.
+
+#figure(
+  image(
+  width: 75%,
+  "../figures/different_latent_spaces.png"),
+  caption: [A multimodal model maps multiple modalities into a common representation space, where the representations of the same concept are aligned. In contrast, unimodal models map the input of a single modality into a modality-specific representation space. There is no alignment
+  between the representations of the same concept produced by two unimodal models (indicated by the double slashed [\//] arrow).
+  While a comparison between the representations of two unimodal
+  models is numerically possible, e.g. through cosine similarity, the similarity cannot be interpreted in a meaningful way.],
+) <different_latent_spaces>
+
+Multimodal models consist of both unimodal encoders and multimodal components. Unimodal encoders are needed because of the
+inherent differences between modalities, e.g. image and text: Images are 2D and composed of pixels, while text is 1D and composed of words.
+Unimodal encoders encode the input into a modality-specific representation space, so they are normal
+unimodal models, e.g. a ResNet for images. In this work, all encoders will be based on the Transformer architecture.
+
+Multimodal models require components that enforce a common representation space for the different modalities.
+There are two options: A multimodal (or shared) encoder, or a loss function (training objective).
+
+The multimodal encoder is responsible for mapping the modality-specific representations into a unified/shared representation space,
+where representations should be independent of the modality. That means, the representations should not contain any modality-specific information,
+e.g. pixel information in images or single-word information in text. Only then representations of the same concept can be aligned, or close
+to each other under some distance metric, respectively.
+
+To actually ensure that the representations of the same concept are aligned, and not only in the same space,
+a training objective is needed that pushes the representations of the same concept closer together in representation space,
+while pushing the representations of different concepts further apart. For vision-language models this translates to
+pushing the representations of an image and its caption closer together, while pushing the representations of an image and an unrelated caption
+(or vice versa) further apart. To quantify the similarity between two representations,
+a distance metric is used, e.g. cosine similarity.
+The loss function is usually the contrastive loss, and its implementation for vision-language models will be introduced in
+the next section.
+An illustration of a multimodal model is provided in @multimodal_model_abstract, concrete examples will be introduced in (TODO: cite related work).
+
+#figure(
+  image(
+  width: 75%,
+  "../figures/multimodal_model_abstract.png"),
+  caption: [An abstract representation of a vision-language model. Image and text are first passed through unimodal, modality-specific,
+  models (encoders), and then through a multimodal encoder that maps the modality-specific representations into a common representation space.
+  A contrastive loss ensures the alignment and repulsion of similar and dissimilar concepts, respectively. We indicate this through
+  purple arrows.],
+) <multimodal_model_abstract>

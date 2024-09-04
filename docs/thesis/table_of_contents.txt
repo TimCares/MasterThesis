@@ -14,7 +14,6 @@ Background
 		Language
 		Vision
 		Vision-Language
-	Multimodal Transformer
 	Self-Supervised Learning
 	Contrastive Learning
 		Vision
@@ -55,6 +54,7 @@ Experiments
 				Cross-Modal Late Interaction
 				Method
 				(Empty Target)
+			Unimodal Masking
 			Object-Level Regression
 				Image MSE only
 				Contrastive Target Loss (each teacher target is a class -> not 1000 classes, but 256 or 512, each being the cls token of one image passed to the teacher)

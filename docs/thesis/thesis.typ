@@ -126,7 +126,6 @@
   include("background/basic_loss_functions.typ")
   include("background/knowledge_distillation.typ")
   include("background/transformer.typ")
-  include("background/multimodal_transformer.typ")
   include("background/self_supervised_learning.typ")
   include("background/contrastive_learning.typ")
 
