@@ -45,9 +45,9 @@ def compute_average_median_rank(images:torch.Tensor, texts:torch.Tensor, iids:to
     median_ranks_tr = []
     for img_chunk, text_chunk in zip(chunked_images, chunked_selected_texts):
         scores = img_chunk @ text_chunk.T
-        median_rank_tr = scores.argsort(dim=1, descending=True).argsort(dim=1).diagonal().float().quantile(0.5).item()
+        median_rank_tr = scores.argsort(dim=1, descending=True).argsort(dim=1).diagonal().add(1).float().quantile(0.5).item()
         median_ranks_tr.append(median_rank_tr)
-        median_rank_ir = scores.argsort(dim=0, descending=True).argsort(dim=0).diagonal().float().quantile(0.5).item()
+        median_rank_ir = scores.argsort(dim=0, descending=True).argsort(dim=0).diagonal().add(1).float().quantile(0.5).item()
         median_ranks_ir.append(median_rank_ir)
 
     avg_median_rank_tr = sum(median_ranks_tr) / len(median_ranks_tr)
@@ -218,7 +218,7 @@ def main(cfg: DictConfig) -> None:
             dm.prepare_data()
             dm.setup('test')
             logger.info(f"Zero-shot retrieval on: {name}")
-            zero_shot_retrieval(model, dm.test_dataloader(), device, compute_amr=True)
+            zero_shot_retrieval(model, dm.test_dataloader(), device, compute_amr=name=='coco_captions')
 
 if __name__ == "__main__":
     main()
