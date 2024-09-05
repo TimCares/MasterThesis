@@ -1,5 +1,5 @@
 == Related Work <related_work>
-=== Deep Aligned Representations
+=== Deep Aligned Representations <shre_section>
 
 The motivation for the knowledge distillation driven approach in this work is
 provided by the paper “See, Hear, and Read: Deep Aligned Representations”

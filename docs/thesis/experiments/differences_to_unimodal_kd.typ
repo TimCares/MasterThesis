@@ -1,75 +1,83 @@
-== Multimodal Knowledge Distillation <multimodal_knowledge_distillation>
-=== Unimodal vs. Multimodal: Key Differences <unimodal_vs_multimodal_key_differences>
+=== Challenges of Self-Supervision <multimodal_knowledge_distillation_challenges>
 
-- for multimodal Knowledge Distillation, we also need a teacher model
-- question is, which model should be the teacher model, or rather, in which modality should the teacher have been (pre-)trained?
-- in our case, should the teacher be an image model or a text model?
-- why not both?, so why not have a teacher text model and a teacher image model, so two teachers?
-- because then the model would have to regress two representations, one for the image and one for the text
-- would mean for an image-text pair, the student would regress two representations, one for the image and one for the text
-- because both teachers are not related, the representations of the image and text, we would like to learn, are not aligned and related in any way
-- recall that a multimodal model always has at least one shared block at the end of the architecture
-- constrains the model that the same representation has to be produced for an image and its corresponding text/caption
-- only then we can align the representations of the image and text
-- if we would now have two teachers, one for the image and one for the text, and the student would regress both representations, then we would have two targets for one image-text pair, but we can only predict one representation, which should be the same for the image and text
-- also, with two targets the model would have to learn two different representations for the image and text, and would most likely not learn
-anything meaningful, as it is not possible, and not desired, to learn two different representations at the same time, i.e for an image and its corresponding text
-- so we only can take one teacher model, either an image model or a text model
-- we select an image model as the teacher model
-- also done by @shre, which pioneered the approach 
-- seems to work good in practice, so we follow this approach
-- makes sense, as there are a lot of supervised, and self-supvervised, image models available, and learning content from image
-well researched
-- also: VLMo initializes attention layers, which are shared between image and text, with weights from a pretrained image model @vlmo
-- so it seems a model can learn text based on knowledge obtained from image pretraining
-- consequently, we will use, as in unimodal distillation, a pretrained image model as the teacher model
-  - so we still have just one teacher model
-  - also good, because a second one would increase the computational cost, GPU memory requirements, and training time
-- but why not directly use a multimodal model as the teacher model?
-- because the goal is to learn a multimodal model (learn alignment of modalities, i.e. image and text) from scratch
-- and use the fact that there are many pretrained unimodal (for us now image) models available
-- recall: goal of this research/thesis is to learn it from just a unimodal teacher model!!!
+Our approach differs to that of SHRe @shre in that we will make use of a self-supervised teacher model.
+The consequence is that the teacher's prediction for a given sample is not a probability distribution over a set of classes, but merely
+a representation of the input sample. As mentioned in @shre_section, a probabilty distribution over a set of classes is to some extent
+independent of the input modality, as each class can be seen as a semantic concept that can be present in both images and text.
+SHRe works well with a supervised image teacher model, as the probability distribution over the classes of an image can somewhat describe
+the content of the image's caption. Examples are shown in TODO.
 
-- previously, in unimodal knowledge distillation, we were able to regress all time steps of the teacher model with the student model
-- means the representation of each patch or text token, respectively
-  - included the CLS/BOS token
-- for multimodal Knowledge Distillation, we can't do this
-  - we have to regress the whole image/text representation
-  - and not the representation of each patch or text token
-- has two reasons
-1.
-- the number of time steps (patches) an image model has is usually not the same as the number of time steps (text tokens) a text model has
-- so we can't just regress all time steps
-- also, text can vary in length, and we use padding -> embedding at the time steps where there is padding is not meaningful
-- we would regress the representation of individual image patches -> if an image time step (patch) contains e.g. an eye, and the text token at the same time step is a padding token, then regressing this does not make sense
-2.
-- in order for this to work, a text token at a certain time step has to be related to the image patch at the same time step
-- so if an image patch contains an eye, the text token at the same time step has to contain the word "eye"
-- not possible, as result would be just a concatenation of words and no meaningful text
-- also, text naturally contains fill words, e.g. "the", "a", "is", which is nothing that can be represented in any way in an image
-- also those words do not have any meaning regarding real-world concepts, like a dog, cat, or car
-- example illustrated in @mm_kd_cls_token
+For a unimodal self-supervised model however, this probability distribution does not exists, raising the question
+which training objective to use when using a self-supervised teacher.
+In preliminary experiments on unimodal knowledge distillation, a self-supervised teacher did not pose a problem, as both the
+teacher and student received the same input, and the latter was able to regress all time steps of the teacher model.
+However, this was only possible because the teacher and student received exactly the same input: For a given time step, 
+the patch or text token at that time step was the same for both models, allowing the student to learn the teacher's
+representation for each patch or text token, respectively. Since we predict the output of an image teacher model, in which ever form it may be,
+the aforementioned still holds true when the multimodal model receives an image as the input. The output will be a representation
+for each image patch, which is also the prediction of the teacher model, allowing for the same approach used in unimodal knowledge distillation,
+see @unimodal_kd_vision.
+
+When the multimodal model receives a text as the input, the teacher's prediction is still a representation of the image, and not the text
+(the image's caption). This poses the following problems:
+
+1. The number of patches (and therefore time steps) in an image is usually not the same as the number of text tokens of its corresponding caption.
+   Consequently, we do not have a one-to-one correspondence between the time steps of the image and text models, and the student cannot regress
+   every time step of the teacher model.
+
+2. Even if the number of time steps were the same, the content of the time steps would not be aligned: The text token at a time step does not
+   necessarily correspond to the content of the image patch at the same time step. Moreover, text naturally contains fill words such as "the", "a", "is",
+   which do not have any meaning with respect to the content of an image. Another example are padding tokens, which do not contain any information
+   at all, and are merely used for batching a set of texts.
+
+Consequently, regressing the representation of individual patches when the multimodal student model receives a text as the input is not possible,
+and we have to resort to regressing the global representation of the image, which is the $mono(["I_CLS"])$ token.
+This choice solves both of the aforementioned problems, as we do not rely on the representations of individual time steps.
+To clarify, the concept of the forward pass remains the same as in SHRe @shre and our Transformer variant of the previous chapter (@transformer_shre):
+For a single image-text pair, the image can be passed to the teacher, and the image and its caption can be passed to the student seperately.
+When we focus on the global representation (the cls token) returned, the teacher will always return a representation of the $mono(["I_CLS"])$ token,
+aggregating global information of the image. The same holds true for the student, producing a representation of the $mono(["I_CLS"])$ token.
+As a training objective we can then require:
+
+$
+min_(bold(h)^s_(v, L_s, mono(["I_CLS"])))||bold(h)^s_(v, L_s, mono(["I_CLS"])) - bold(h)^t_(v, L_t, mono(["I_CLS"]))||
+$
+
+This forces the student to push its representation of the $mono(["I_CLS"])$ token as close as possible to the teachers representation of 
+the same token. Most importantly, the student can also be trained to push the representation of the caption $mono(["T_CLS"])$ as close as possible
+to the representation of the image $mono(["I_CLS"])$ produced by the teacher:
+
+$
+min_(bold(h)^s_(w, L_s, mono(["T_CLS"])))||bold(h)^s_(w, L_s, mono(["T_CLS"])) - bold(h)^t_(v, L_t, mono(["I_CLS"]))||
+$
+
+An illustration of the problem posed by the misalignment of time steps and the solution of regressing the global representation of the image
+is shown in @mm_kd_cls_token.
+
+The combined training objective when regressing only global information is then:
+
+$
+min_(bold(h)^s_(v, L_s, mono(["I_CLS"])), bold(h)^s_(w, L_s, mono(["T_CLS"])))
+||bold(h)^s_(v, L_s, mono(["I_CLS"])) - bold(h)^t_(v, L_t, mono(["I_CLS"]))|| +
+||bold(h)^s_(w, L_s, mono(["T_CLS"])) - bold(h)^t_(v, L_t, mono(["I_CLS"]))||
+$
+
+While this objective in theory forces the student to output the same global representation for an image and its caption as the teacher,
+it requires the teacher to produce a representation of the $mono(["I_CLS"])$ token that is abstract enough to also describe the content of the caption.
+Conretely, the representation of the $mono(["I_CLS"])$ token should *not* contain any image-specific information, as this would make it impossible
+for the student to align the representation of the caption with that of the image. It is not possible the extract any image-specific information
+like the pixel values of the exact position of an object in the image from the caption of the image. Consequently, whether the representation of the
+$mono(["I_CLS"])$ token produced by the teacher is abstract enough to also describe the content of the caption remains to be seen in the
+following experiments.
 
 #figure(
   image("../figures/mm_kd_cls_token.png"),
-  caption: [The meaning/content of time steps across modalities is not aligned, and the number of time steps will differ between modalities. This makes alignment on the level of individual time steps impossible. The CLS token aggregates global information independent of time steps, and captures the meaning and interpretation of the respective input, making alignment possible. This requires the teacher CLS token to not contain any modality-specific (in this case image) information after the last layer. Image-Text example is taken from the COCO train set @coco.],
+  caption: [The meaning/content of time steps across modalities is not aligned, and the number of time steps will differ between modalities. This makes alignment on the level of individual time steps impossible. The cls token aggregates global information independent of time steps, and captures the meaning and interpretation of the respective input, making alignment possible. However, this requires the teacher cls token to not contain any modality-specific (in this case image) information. Image-Text example is taken from the COCO train set @coco.],
 ) <mm_kd_cls_token>
 
-- that is why we have to regress the global representation of the image and text
-- means the CLS/BOS token -> goal of it is to aggregate as much information as possible, meaning it is a global representation of the image/text content
-- is independent of the number of time steps (patches) or text tokens or what is going on in a certain time step
-- necessary requirement: representation of CLS token that is returned by the teacher and regressed by the student has to be independent of the image modality
-- means it should be abstract enought that it can be used to also describe the content of the caption of the image
-- if the representation of the CLS token still contains image specific information, then the student model will not be able to align the representation of the caption with that of the image
-  - based on the caption, it is impossible to predict the image-specific information still encoded in the representation of the CLS token
-  - also not desired, representation should be independent of the modality
-- this is something we will elaborate on in (TODO: cite self-supervised teacher)
-
-- SHRe can be seen as a special case of regressing the CLS token @shre
-- was published before the inception of Transformers @transformer
-- uses ConvNets
-- output of FFN head of deep ConvNets usually contains global information of the image due to the increased receptive field with more layers
-- so in a sense, SHRe does exactly what we aim to do, just in a supervised way: it regresses the probability distribution of the Imagenet-1k classes
-- probability distribution created from FFN head of the ConvNet, contains global information of the image, like the CLS token in Transformers
-
-< TODO: add plot for top k classes for a given image and compare it to content of caption >
+The challenges that come with the choice of a self-supervised teacher raises the question why we do not directly use a multimodal model as the teacher.
+This reason behind this choice can be attributed to the fact that the goal of this research is to train a multimodal model without using any existing,
+especially pretrained, _multimodal_ components.
+Instead, we aim to extract knowledge from purely unimodal models and learn to generate modality-invariant features from it (1), and to not rely on
+labeled data in the end-to-end training of the multimodal model (2). This includes the teacher model, which should not be trained
+on labeled data, but only self-supervised.

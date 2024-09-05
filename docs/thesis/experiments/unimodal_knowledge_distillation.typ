@@ -2,7 +2,7 @@
 == Unimodal Knowledge Distillation <unimodal_knowledge_distillation>
 To validate whether traditional unimodal knowledge distillation, an undoubtedly simpler task than multimodal knowledge distillation, even works,
 we will first conduct experiments on unimodal knowledge distillation. We will then build on the results to develop a multimodal knowledge distillation.
-=== Vision
+=== Vision <unimodal_kd_vision>
 
 ==== Method <unimodal_kd_data2vec2_method>
 Our approach to vision KD involves using a pretrained Data2Vec2 @data2vec2 image model as the teacher model, and distilling

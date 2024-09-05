@@ -137,8 +137,8 @@
 
   include("experiments/unimodal_knowledge_distillation.typ")
 
-  include("experiments/differences_to_unimodal_kd.typ")
   include("experiments/transformer_shre.typ")
+  include("experiments/differences_to_unimodal_kd.typ")
 
   // Appendix.
   set heading(numbering: "A")

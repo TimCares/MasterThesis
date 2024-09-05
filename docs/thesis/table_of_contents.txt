@@ -68,7 +68,9 @@ Experiments
 			Loss Ablation Studies
 				Removing ITC
 				Removing KD (Teacher)
-			Masked Data Modeling as additional Loss (might make other task difficlut though)
+			Strengthening Unimodal Features
+				Use unimodal encoders distilled in "Unimodal Knowledge Distillation"
+				Masked Data Modeling as additional Loss for modality specific encoders(might make other task difficlut though, with IBN for MIM)
 			Self-Distillation (Dino Loss)
 			Distillation-less approach (Teacher stays for IBN of MIM)
 			Multimodal Teacher
