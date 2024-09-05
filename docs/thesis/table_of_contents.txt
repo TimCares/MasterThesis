@@ -36,11 +36,11 @@ Experiments
 		Vision
 		Language
 	Multimodal Knowledge Distillation
-		Transformer SHRe
+		Transformer SHRe (imagenet not zero-shot!!!)
 		Aligned Representations
 			Supervised Teacher
 				Larger Batch Sizes with DDP
-				Multimodal Transformer Block
+				Multimodal Transformer Block (Mention increased model size)
 			Self-Supervised Teacher
 			Contrastive Learning
 				On Zero-Shot Retrieval
