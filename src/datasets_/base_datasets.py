@@ -297,7 +297,7 @@ class BaseImageText(ImageDataset):
         transforms_args = BeitTransformsArgs(imagenet_default_mean_and_std=True, input_size=224, second_input_size=None,
                                              min_crop_scale=0.9, train_interpolation='bicubic', second_interpolation='bicubic')
         
-        self.transform = DataAugmentationForBEiT(transforms_args)
+        self.transform_teacher = DataAugmentationForBEiT(transforms_args)
         
     @property
     def modality(self) -> Modality:
@@ -331,7 +331,7 @@ class BaseImageText(ImageDataset):
 
     def _get_image(self, image_path: str):
         image = self.loader(image_path)
-        return self.transform(image)
+        return self.transform(image), self.transform_teacher(image)
 
     def _get_text_segment(self, text_segment, max_len=None):
         assert isinstance(text_segment, list)
@@ -359,8 +359,9 @@ class BaseImageText(ImageDataset):
     def _get_image_text_example(self, index: int, data: dict):
         item = self.items[index]
         img_path = item["image_path"]
-        img = self._get_image(img_path)
+        img, img_teacher = self._get_image(img_path)
         data["image"] = img
+        data["image_teacher"] = img_teacher
         data["id"] = item["id"]
 
         text_segment = item["text"]

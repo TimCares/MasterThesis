@@ -62,7 +62,7 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         if 'target' in batch:
             batch.pop('target') # unused, layer activations are the targets
 
-        image_teacher = batch['image_teacher']
+        image_teacher = batch.pop('image_teacher')
 
         # no mask
         bool_masked_pos = torch.zeros((image_teacher.shape[0], self.teacher.patch_embed.num_patches), 
