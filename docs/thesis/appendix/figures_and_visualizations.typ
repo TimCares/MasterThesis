@@ -68,3 +68,26 @@
   Image-text pairs have been taken from the COCO train set @coco.
 ],
 ) <vl_crop_size_good>
+
+#figure(
+  table(
+    columns: 2,
+    stroke: none,
+    table.hline(),
+    table.header(
+      [*Approach*],
+      [*\# Image-Text pairs*],
+      table.hline(stroke: .6pt),
+    ),
+    [FLAVA @flava], [70M],
+    [CLIP @clip], [400M], 
+    [VLMo @vlmo], [10M],
+    [CoCa @coca], [>3B],
+    [BEiT-3 @beit3], [21M],
+    table.hline(stroke: .6pt),
+    [This work], [3.3M],
+    table.hline(),
+  ),
+  caption: [A comparison of the number of image-text pairs used for pretraining in different approaches. We use significantly
+  fewer pairs compared to other approaches.],
+)<models_data_size_comparison>

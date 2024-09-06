@@ -100,7 +100,7 @@
   We refer to the respective papers for details on the augmentation techniques @mixup @cutmix @randaugment @randerase.
   ],
 )<distil_data2vec2_imagenet_finetuning_hyperparameters>
-#show table: set text(11pt)
+#show table: set text(12pt)
 
 #show table: set text(8pt)
 #figure(
@@ -141,4 +141,49 @@
   caption: [Hyperparameters for the GLUE @glue benchmark tasks of the distilled Data2Vec2 image model.
   ],
 )<distil_data2vec2_glue_finetuning_hyperparameters>
-#show table: set text(11pt)
+#show table: set text(12pt)
+
+#figure(
+  table(
+    table.vline(x:1, stroke: .3pt),
+    table.vline(x:2, stroke: .3pt),
+    columns: 3,
+    stroke: none,
+    table.hline(),
+    table.header(
+      [*Type*],
+      [*Hyperparameters*],
+      [*Values*],
+    ),
+    table.hline(stroke: .6pt),
+    table.cell(rowspan: 8, align:horizon, [*Model*]), 
+    [Image/Text layers], [6 (Transformer)],
+    [Shared layers], [3 (MLP)],
+    [Hidden size], [768],
+    [FFN inner hidden size], [3072],
+    [Attention Heads], [12],
+    [Patch size], [16$times$16],
+    [Input resolution], [224$times$224],
+    [Max. caption length], [64],
+    table.hline(stroke: .6pt),
+    table.cell(rowspan: 11, align:horizon, [*Training*]), 
+    [Epochs], [7],
+    [Total steps], [89273],
+    [Batch size], [256],
+    [Optimizer], [AdamW],
+    [AdamW $epsilon$], [1e-06],
+    [AdamW $beta$], [(0.9,0.98)],
+    [Weight decay], [0.01],
+    [Base learning rate], [1e-4],
+    [Learning rate schedule], [Cosine],
+    [Warmup steps], [8927 (10% of total steps)],
+    [Hardware], [1 $times$ RTX 4090 24GB],
+    table.hline(stroke: .6pt),
+    table.cell(rowspan: 2, align:horizon, [*Augmentations*]), 
+    [Horizontal flipping prob.], [0.5],
+    [RandomResizeCrop range], [[0.9, 1.0]],
+    table.hline(),
+  ),
+  caption: [Hyperparameters used for training the Transformer SHRe model.
+  ],
+)<transformer_shre_hyperparams>

@@ -145,7 +145,7 @@ patch embeddings as the output of the student model, which is then
 passed to the layer normalization and linear classifier (cls token embedding is ingnored).
 For all three tasks we perform full finetuning, i.e. we finetune all layers of the student model on the downstream task, and
 linear probing, we only train the added layer norm and linear classifier on top of the student model. For pytorch pseudocode of linear probing
-and full finetuning see (TODO: cite pseudocode).
+and full finetuning see @image_downstream_forward_pseudocode.
 
 For data augmentation during finetuning we use RandAugment @randaugment, mixup @mixup and cutmix @cutmix augmentation, and random erasing @randerase.
 The hyperparameters for these augmentations are provided in (TODO: cite hyperparameters), and have been selected based on the values used in

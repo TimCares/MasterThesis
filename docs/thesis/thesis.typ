@@ -143,6 +143,7 @@
   // Appendix.
   set heading(numbering: "A")
   counter(heading).update(0)
+  set figure(placement: none)
   include("appendix/hyperparameters.typ")
   include("appendix/pseudocode.typ")
   include("appendix/figures_and_visualizations.typ")

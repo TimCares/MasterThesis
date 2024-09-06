@@ -115,8 +115,8 @@ $
 bold(L) = bold(I) bold(T)^T, bold(L) in RR^(B times B)
 $ <contrastive_logits>
 
-$bold(L)_(i,j)$ then denotes the similarity between image $i$ and text $j$ in the batch. The diagonal of the matrix contains the similarity
-between positive pairs, i.e., the correct image-text pairs $(i,i)$, with $bold(L)_(i, i)$ describing their similarity.
+$L_(i,j)$ then denotes the similarity between image $i$ and text $j$ in the batch. The diagonal of the matrix contains the similarity
+between positive pairs, i.e., the correct image-text pairs $(i,i)$, with $L_(i, i)$ describing their similarity.
 For an image, all other texts in the batch are considered as negative samples, and vice versa for text. The superscript $T$ denotes the transpose
 of a matrix, and is not to be confused with the batch of text representations $bold(T)$.
 
@@ -129,10 +129,10 @@ are the similarities to the captions of other images. The same holds vice versa 
 To calculate the loss, the cross-entropy loss is used. For a batch, the loss for selecting the correct caption for each image is given by:
 
 $
-cal(L)_"CL"^("i2t") = 1/B sum_(i=1)^B -log exp(bold(L)_(i, i))/(sum_(k=1)^B exp(bold(L)_(i, k)))
+cal(L)_"CL"^("i2t") = 1/B sum_(i=1)^B -log exp(L_(i, i))/(sum_(k=1)^B exp(L_(i, k)))
 $
 
-$exp(bold(L)_(i, i))/(sum_(k=1)^B exp(bold(L)_(i, k)))$ denotes the softmax-normalized similarity between an image and its correct caption,
+$exp(L_(i, i))/(sum_(k=1)^B exp(L_(i, k)))$ denotes the softmax-normalized similarity between an image and its correct caption,
 which is the usual way for calculating the cross-entropy. The result of this normalization is a probability distribution for each image,
 where each caption in the batch has a probability of being the correct caption for the image, and vice versa. The probability that the correct
 caption belongs to the current image is then used to calculate the negative log-likelihood, which is the loss.
@@ -140,7 +140,7 @@ caption belongs to the current image is then used to calculate the negative log-
 Accordingly, the loss for selecting the correct image for each caption is given by:
 
 $
-cal(L)_"CL"^("t2i") = 1/B sum_(i=1)^B -log exp(bold(L)_(i, i))/(sum_(k=1)^B exp(bold(L)_(k, i)))
+cal(L)_"CL"^("t2i") = 1/B sum_(i=1)^B -log exp(L_(i, i))/(sum_(k=1)^B exp(L_(k, i)))
 $
 
 Here, the softmax-normalization is with respect to the similarity of a text with all other images in the batch. The final loss is the mean
