@@ -104,7 +104,8 @@ $
 bold(T) = [bold(h)'_((w, L, mono(["T_CLS"])),1), bold(h)'_((w, L, mono(["T_CLS"])),2), ..., bold(h)'_((w, L, mono(["T_CLS"])),B)] in RR^(B times D)
 $
 
-$I$ denotes the batch/matrix of image representations, and $T$ contains the text representations. $D$ is the dimensionality of the representations,
+$bold(I)$ denotes the batch/matrix of image representations, and $bold(T)$ contains the text representations.
+$D$ is the dimensionality of the representations,
 often referred to as the hidden size or hidden dimension in Transformers.
 
 A matrix multiplication of both batches of representations then computes the dot product between every image with every text, and vice versa.

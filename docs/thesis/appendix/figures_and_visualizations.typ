@@ -49,3 +49,22 @@
   #footnote[#link("https://huggingface.co/datasets/nyu-mll/glue")].],
 )<glue_example>
 #show table: set text(11pt)
+
+#figure(
+  image(
+  width: 75%,
+  "../figures/vl_crop_size_bad.png"),
+  caption: [A small lower bound (8%) for a random crop erases high-level semantic features which are important for aligning text and image.
+  Image-text pairs have been taken from the COCO train set @coco.
+],
+) <vl_crop_size_bad>
+
+#figure(
+  image(
+  width: 75%,
+  "../figures/vl_crop_size_good.png"),
+  caption: [A larger lower bound (90%) for a random crop retains high-level semantic features. Notice how this is not the case for very low
+  values, as shown in @vl_crop_size_bad.
+  Image-text pairs have been taken from the COCO train set @coco.
+],
+) <vl_crop_size_good>

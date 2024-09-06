@@ -91,7 +91,7 @@ respectively, is defined as:
 
 $
 op("FFN")(bold(h)) = op("LN")(op("GELU")(bold(h)bold(W)_1 + bold(b)_1))bold(W)_2 + bold(b)_2
-$
+$ <transformer_ffn_eq>
 
 For a sequence of embeddings $bold(H)$, the operation is applied to each time step $bold(h)$ individually, which includes the $mono(["T_CLS"])$
 and $mono(["T_SEP"])$ token, though not displayed in @point_wise_ffn. Since the output of $op("FFN")(dot)$ is also in $RR^D$, the embedding

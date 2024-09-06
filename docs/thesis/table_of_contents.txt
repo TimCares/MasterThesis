@@ -80,7 +80,9 @@ Experiments
 			Non-Knowledge-Distaillation (motivation -> application of kd very limited, especially with unimodal model)
 				Remove ITC? and do finetuning?
 			Limitations (from trained models alone: No NRLV2, etc possible) -> mention https://arxiv.org/pdf/2102.03334 section 2.1 beginning page 3
-		
+			Concatenated representations (Motivation: Seen in retrieval visualization that e.g. retrieved text is often very similar with correct one, but
+			differs in small differences -> can only be solved by interaction between individual tokens)
+
 		Aligned Referencing Representations
 			Relevance (regarding: unimodal model as teacher no possible)
 			Masked Vision-Language Modeling

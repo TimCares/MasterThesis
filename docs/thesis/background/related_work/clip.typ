@@ -68,7 +68,7 @@ CLIP only relies on contrastive learning to train a vision-language model, and t
 The authors use a very large batch size of 32,768 @clip. An abstract illustration of the end-to-end training process of CLIP is shown in
 (TODO: cite figure) in the Appendix.
 
-==== Zero-Shot Image Classification
+==== Zero-Shot Image Classification <clip_zero_shot_section>
 
 What makes CLIP special is its method of zero-shot image classification using the trained model.
 This capability is achieved through prompt engineering on the text encoder.

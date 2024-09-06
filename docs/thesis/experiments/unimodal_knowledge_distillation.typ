@@ -97,7 +97,7 @@ This includes instance norm before averaging, and layer norm after averaging.
 For the definition of $op("LayerNorm")(dot)$, see (TODO: cite notation).
 $cal(L)_("MSE")(dot, dot)$ is the mean squared error between two vectors, defined in (TODO: cite equation).
 
-==== Distillation
+==== Distillation <unimodal_kd_data2vec2_distillation>
 We distill the student model by minimizing the loss defined in @unimodal_kd_data2vec2_loss
 using the AdamW optimizer @adamW with a base learning rate of 5e-4. We train for 10 epochs with a batch size of 256 on the training set
 of ImageNet-1K @imagenet, and run validation after every epoch on the validation set of ImageNet-1K. As Data2Vec2
