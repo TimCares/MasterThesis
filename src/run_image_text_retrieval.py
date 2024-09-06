@@ -18,43 +18,29 @@ logger = logging.getLogger()
 
 def compute_average_median_rank(images:torch.Tensor, texts:torch.Tensor, iids:torch.Tensor, tiids:torch.Tensor):
     mask = iids.unsqueeze(1) == tiids.unsqueeze(0)
+    masks = mask.chunk(5)
+    image_chunks = images.chunk(5)
     
-    seeds = [42, 0, 13, 99, 100]
     amrs_ir = []
     amrs_tr = []
-    for seed in seeds:
-        avg_median_rank_tr, avg_median_rank_ir = amr_for_seed(images, texts, mask, seed)
+    for i in range(5):
+        avg_median_rank_tr, avg_median_rank_ir = amr_for_chunk(image_chunks[i], texts, masks[i])
         amrs_tr.append(avg_median_rank_tr)
         amrs_ir.append(avg_median_rank_ir)
     return sum(amrs_tr) / len(amrs_tr), sum(amrs_ir) / len(amrs_ir)
 
-def amr_for_seed(images, texts, mask, seed):
+def amr_for_chunk(images, texts, mask):
     selected_indices = []
-    torch.manual_seed(seed) # for reproducibility
-    for row in mask:
-        true_indices = torch.nonzero(row, as_tuple=False).squeeze()
-        
-        if true_indices.numel() == 1:
-            selected_indices.append(true_indices.item())
-        elif true_indices.numel() > 0:
-            selected_index = true_indices[torch.randint(0, len(true_indices), (1,))]
-            selected_indices.append(selected_index.item())
-        else:
-            raise ValueError("No matching indices found")
-
-    selected_indices = torch.tensor(selected_indices)
-
-    selected_texts = texts[selected_indices]
-
-    chunked_selected_texts = selected_texts.chunk(5)
-    chunked_images = images.chunk(5)
-    assert chunked_images[0].shape[0] == 1000
-    assert chunked_selected_texts[0].shape[0] == 1000
+    matching_candidates_indices = torch.stack([torch.nonzero(row).squeeze()[:5] for row in mask])
+    # [:5] -> some images have >5 captions
 
     median_ranks_ir = []
     median_ranks_tr = []
-    for img_chunk, text_chunk in zip(chunked_images, chunked_selected_texts):
-        scores = img_chunk @ text_chunk.T
+    for i in range(matching_candidates_indices.shape[1]):
+        selected_indices = matching_candidates_indices[:, i]
+        selected_texts = texts[selected_indices]
+
+        scores = images @ selected_texts.T
         median_rank_tr = scores.argsort(dim=1, descending=True).argsort(dim=1).diagonal().add(1).float().quantile(0.5).item()
         median_ranks_tr.append(median_rank_tr)
         median_rank_ir = scores.argsort(dim=0, descending=True).argsort(dim=0).diagonal().add(1).float().quantile(0.5).item()
@@ -62,7 +48,6 @@ def amr_for_seed(images, texts, mask, seed):
 
     avg_median_rank_tr = sum(median_ranks_tr) / len(median_ranks_tr)
     avg_median_rank_ir = sum(median_ranks_ir) / len(median_ranks_ir)
-
     return avg_median_rank_tr, avg_median_rank_ir
 
 # following stems mostly from the BEiT3 repo: https://github.com/microsoft/unilm/blob/master/beit3/engine_for_finetuning.py
