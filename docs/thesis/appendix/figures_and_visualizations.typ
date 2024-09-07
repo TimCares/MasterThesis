@@ -91,3 +91,13 @@
   caption: [A comparison of the number of image-text pairs used for pretraining in different approaches. We use significantly
   fewer pairs compared to other approaches.],
 )<models_data_size_comparison>
+
+#figure(
+  image(
+  width: 75%,
+  "../figures/ddp_visualization.png"),
+  caption: [Distributed Data Parallel allows training a model with larger batch sizes than possible on a single GPU. The actual batch
+  size per GPU does not change, but gradient updates are synchronized across GPUs, leading to weight updates that are equivalent
+  to a larger batch size @pytorch_ddp.
+],
+) <ddp_illustration>
