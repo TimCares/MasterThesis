@@ -464,8 +464,3 @@ we indicate the difference in dimensionality between the linear layers by a diff
 
 Since the shared encoder is now can actual Transformer layer plus the classification head, we redefine our previous forward pass
 for the shared encoder from @transformer_shre_shared_encoder_computation to the following:
-
-
-Introducing just the Multi-Head Self-Attention layer also means that we stay consistent the the contrastive loss we defined
-in @full_contrastive_loss_transformer_shre. This is because the input to this loss is the output of the three MLP layers of the shared encoder
-we define in @transformer_shre_shared_encoder_computation.
