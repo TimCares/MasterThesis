@@ -1,4 +1,7 @@
 === Challenges of Self-Supervision <multimodal_knowledge_distillation_challenges>
+With the architecture and the first benchmarks in place, we can now focus on the main goal of this research: Applying the idea
+of SHRe @shre using a self-supervised teacher model. A consequence of a self-supervised teacher is that the teacher's prediction
+for a given image is not a probability distribution over a set of classes, but merely a representation of the input sample.
 
 Our approach differs to that of SHRe @shre in that we will make use of a self-supervised teacher model.
 The consequence is that the teacher's prediction for a given sample is not a probability distribution over a set of classes, but merely

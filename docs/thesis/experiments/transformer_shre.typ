@@ -8,7 +8,7 @@ previous advancements.
 
 ==== Method
 ===== Architecture <transformer_shre_architecture>
-What makes our approach different from SHRe is that we use a langauge Transformer as the text encoder, and
+What makes our approach different from SHRe is that we use a language Transformer as the text encoder, and
 a vision Transformer as the image encoder, bringing us closer to a unified architecture.
 In contrast, SHRe uses 2D convolutions and 1D convolutions for the image and text, respectively. For now, the shared encoder remains
 a 3-layer MLP, as in SHRe @shre. Since the output of the image and text encoder is a sequence of features, but we use a normal MLP as the shared encoder,
@@ -155,7 +155,7 @@ $
 min cal(L)_("KD") + cal(L)_("CL")
 $
 
-===== Training
+===== Training <transformer_shre_training>
 For the teacher model we select an improved variant of the ResNet-50 @resnet, called ResNet-50-A1 @resnet_50_a1, which has
 25.6M parameters but runs in inference mode, so no gradients are computed. The model was trained on ImageNet-1K @imagenet and is available
 on HuggingFace#footnote[#link("https://huggingface.co/timm/resnet50.a1_in1k")].
@@ -190,7 +190,7 @@ A visualization of too small crops is shown in @vl_crop_size_bad, and a visualiz
 
 All hyperparameters as summarized in @transformer_shre_hyperparams, pytorch pseudocode for the forward pass can be found in @transformer_shre_forward_pseudocode.
 
-===== Results
+===== Results <first_results_transformer_shre>
 We report the results of
 image-text retrieval on the test sets of COCO @coco and Flickr30k @flickr30k, which is shown in @image_text_retrieval_shre_transformer_first.
 Note that we do not report results on unimodal downstream tasks like image classification
@@ -200,14 +200,22 @@ approach.
 While the results on image-text retrieval are significantly worse than the state-of-the-art, we can still observe that we are not far off
 from the performance of FLAVA @flava. Considering that FLAVA was developed by a team of researchers from Meta AI, and that this is our first
 iteration of a multimodal model, the results are promising. From CLIP, VLMo, and BEiT-3 we are still far off, but this can at least partly
-be attributed to the fact that those model are significantly larger than ours, and that they have been trained on much more data, which we 
-show in @models_data_size_comparison.
+be attributed to the fact that those model are significantly larger than ours, and that they have been trained on much more data. The
+latter is shown in @models_data_size_comparison.
 The increased performance on Flickr30K compared to COCO can be attributed to the fact that the Flickr30K dataset is smaller. For a given
 image, there are 5 correct captions in only 5k possible captions (25k for COCO),
 and for a given caption there are only 1k possible images (5k for COCO).
 
-The model reaches 40.26% accuracy on the (zero-shot) ImageNet classification task, which is significantly worse that the 76.2% reached by
-CLIP @clip, which is an actual zero-shot application.
+We also proof our statement of @multimodal_models that using two unrelated unimodal models, one image and one text model, for image-text retrieval
+fails, as the representations produced by the two models are not aligned. We do this by using the pretrained image and text variant from
+Data2Vec2 @data2vec2 as the image and text encoder, respectively. Each image is encoded by the image encoder, and each caption is encoded
+by the text encoder, after which the representation of the $mono(["I_CLS"])$ and $mono(["T_CLS"])$ token is extracted and used for retrieval
+according to our formulation from @vision_language_contrast. This approach does not reach a score of more than 0.2% on any metric,
+and is therefore inappropriate for image-text retrieval. Consequently, we can conclude that training a multimodal model is essential
+for the alignment of modalities.
+
+Transformer SHRe reaches 40.26% accuracy on the (zero-shot) ImageNet classification task, which is significantly worse that the 76.2% reached by
+CLIP @clip, with CLIP being an actual zero-shot application (see previous section).
 
 
 #show table: set text(8pt)
@@ -232,6 +240,8 @@ CLIP @clip, which is an actual zero-shot application.
       [R@1], [R@5], [R@10], [R@1], [R@5], [R@10], [R@1], [R@5], [R@10], [R@1], [R@5], [R@10]
     ),
     table.hline(stroke: .4pt),
+    [Data2Vec2 @data2vec2], [0.02], [0.08], [0.19], [0.01], [0.10], [0.19], [0.02], [0.12], [0.18], [0.02], [0.06], [0.12],
+    table.hline(stroke: .1pt),
     [FLAVA @flava], [42.74], [76.76], [-], [38.38], [67.47], [-], [67.7], [94.0], [-], [65.22], [89.38], [-],
     [CLIP @clip], [58.4], [81.5], [88.1], [37.8], [62.4], [72.2], [88.0],[98.7], [99.4], [68.7], [90.6], [95.2],
     [VLMo @vlmo], [74.8], [93.1], [96.9], [57.2], [82.6], [89.8], [92.3], [99.4], [99.9], [79.3], [95.7], [97.8],
@@ -282,6 +292,12 @@ Lastly, our approach is a vision-language model, while SHRe is a vision-language
   caption: [Comparison of the average median rank over 5 1k image-caption splits on the COCO test set.
   Our approach outperforms SHRe by a large margin. The best possible value is 1.],
 )<transformer_shre_amr_results>
+
+As mentioned in the introduction of SHRe @shre, the idea of not only predicting the probability distribution over the ImageNet-1K classes
+for a given image, but also for a given caption, works because the ImageNet-1K classes can also be used to describe the content of a caption.
+The main reason for this being that the ImageNet-1K classes describe real-world objects, which are independent of the image modality, and
+can therefore also be used to describe the content of a text. A visualization of that is shown on image-text pairs from COCO,
+which is the data we use for training, in @shre_coco_prob_dist.
 
 ==== Larger Batch Sizes with DDP
 As mentioned in the introduction of contrastive learning (@vision_language_contrast), a large batch size is crucial
@@ -530,6 +546,8 @@ is the first retrieved item. This does not account for outliers, and is only app
 Nevertheless, this is the benchmark provided by SHRe @shre, so a perfect score is still worth mentioning. Unless there will be a decrease in performance
 on the average median rank, we will refrain from reporting it in the future, as it is not a very informative metric and we have already reached the best
 possible score.
+A visualization of the retrieved samples for captions (image retrieval) and images (text retrieval) is shown in @shre_transformer_only_ir_1k
+and @shre_transformer_only_tr_1k, respectively.
 
 
 #show table: set text(8pt)

@@ -205,7 +205,7 @@ is aligned across modalities (@different_latent_spaces), resulting in different 
 While it is possible to compare the representations of two unimodal models, e.g. through cosine similarity,
 a similarity close to 1 (the maximum) does not necessarily mean that the concepts expressed in the representations are the same.
 There simply is no semantic relationship between the representations of the same concept produced by two unimodal models.
-A proof of this will be shown in @transformer_shre.
+A proof of this will be shown in @first_results_transformer_shre.
 
 To overcome this limitation, a model is required that can produce modality-invariant representations, i.e. representations that are
 independent of the modality of the input.

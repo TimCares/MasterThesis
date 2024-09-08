@@ -70,6 +70,19 @@
 ) <vl_crop_size_good>
 
 #figure(
+  image(
+  width: 100%,
+  "../figures/shre_coco_prob_dist.png"),
+  caption: [
+  Visualization of the predicted probabilities for the top-5 ImageNet-1K @imagenet classes on image-text pairs from the COCO train set @coco.
+  While the predicted classes are not always correct, e.g. bottom right, they are able to capture to some extend the semantic content
+  of the image, and even the text. The latter is crucial for the approach of SHRe @shre.
+  Note: The figure does not stem from the SHRe paper @shre, but is a custom visualization of the concept.
+  The ResNet-50-A1 @resnet_50_a1 model is used for the predictions.
+],
+) <shre_coco_prob_dist>
+
+#figure(
   table(
     columns: 2,
     stroke: none,
@@ -101,3 +114,21 @@
   to a larger batch size @pytorch_ddp.
 ],
 ) <ddp_illustration>
+
+#figure(
+  image(
+  width: 75%,
+  "../figures/shre_transformer_only_ir_1k_crop.png"),
+  caption: [
+    Results of image retrieval on a 1k subset of the COCO test set @coco, as described in @shre.
+],
+) <shre_transformer_only_ir_1k>
+
+#figure(
+  image(
+  width: 75%,
+  "../figures/shre_transformer_only_tr_1k_crop.png"),
+  caption: [
+  Results of text/caption retrieval on a 1k subset of the COCO test set @coco, as described in @shre.
+],
+) <shre_transformer_only_tr_1k>
