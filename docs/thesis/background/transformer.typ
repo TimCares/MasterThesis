@@ -161,7 +161,7 @@ This type of Transformer is referred to as the Pre-LN Transformer, and the opera
 $
 bold(H)'_l &= op("MHA")(op("LN")(bold(H)_(l-1))) + bold(H)_(l-1) \
 bold(H)_l &= op("FFN")(op("LN")(bold(H)'_l)) + bold(H)'_l
-$
+$ <vit_full_forward_eq>
 
 #figure(
   image("../figures/vit.png", width: 75%),
