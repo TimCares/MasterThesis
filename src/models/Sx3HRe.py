@@ -224,6 +224,9 @@ class Sx3HRe(nn.Module):
             norm_layer=make_layer_norm,
         )
 
+        self.fc_norm = make_layer_norm(self.cfg.embed_dim)
+        self.head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim)
+
         self.apply(init_bert_params)
 
         self.logit_scales = nn.Parameter(torch.ones([2]) * np.log(1 / 0.07))
@@ -277,7 +280,7 @@ class Sx3HRe(nn.Module):
         x_interm = x_interm[:, 0]
         x = x[:, 0]
 
-        out_dict["encoder_out"] = x
+        out_dict["encoder_out"] = self.head(self.fc_norm(x))
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
         x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
