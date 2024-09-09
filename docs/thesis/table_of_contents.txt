@@ -42,15 +42,15 @@ Experiments
 				Larger Batch Sizes with DDP
 				Multimodal Transformer Block (Mention increased model size)
 			Self-Supervised Teacher
+			Token-Type Embedding (Also try without layerscale)
+			Unimodal-2-Multimodal Projection
 			Contrastive Learning
 				On Zero-Shot Retrieval
 				Short Captions (Region Descriptions)
-				Projections for Task-Seperation
 				Image-Text Matching with Feature-Fusion
 				Increasing Negative Examples for ITC
 				
-			Token-Type Embedding (Also try without layerscale)
-			Unimodal-2-Multimodal Projection
+
 			Target Cross-Modal Late Interaction
 				Cross-Modal Late Interaction
 				Method
@@ -59,7 +59,6 @@ Experiments
 			Object-Level Regression
 				Image MSE only
 				Contrastive Target Loss (each teacher target is a class -> not 1000 classes, but 256 or 512, each being the cls token of one image passed to the teacher)
-				Dimensionality Reduction (lin projection on both, teacher proj in ema of student proj)
 				Feature Clusters
 				Quantizing Global Features
 					CLS Token

@@ -25,6 +25,8 @@
   ), 
 caption: [Pytorch pseudocode for the forward pass during finetuning or linear probing of a pretrained model on an image classification tasks. The output
 of the forward pass is the predicted class index for each image in the batch.],
+kind: "code",
+supplement: [Code]
 ) <image_downstream_forward_pseudocode>
 
 #figure(
@@ -65,4 +67,6 @@ of the forward pass is the predicted class index for each image in the batch.],
 caption: [
   Abstract code used in the forward pass for distilling the multimodal Transformer SHRe from a pretrained ResNet-50-A1 model.
 ],
+kind: "code",
+supplement: [Code],
 ) <transformer_shre_forward_pseudocode>

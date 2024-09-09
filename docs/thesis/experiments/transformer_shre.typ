@@ -54,6 +54,8 @@ $
 bold(bold(h))'''_(w, K) &= op("LN")(bold(h)''_(w, K))bold(W)_3 + bold(b)_3 \
 $ <transformer_shre_shared_encoder_head_computation>
 
+We consider the 3-layer MLP as a single layer stacked on the image and text encoder, and therefore denote the layer
+number as $K=L_s+1=7$.
 The operation done in @transformer_shre_shared_encoder_ffn_computation is analogous to the definition of the
 MLP layers in a Transformer layer, defined in @transformer_ffn_eq. We choose a different notation here
 to also capture the result $bold(h)'_(w, K)$, or $bold(h)'_(v, K)$ for an image, of the first linear layer
@@ -205,6 +207,7 @@ latter is shown in @models_data_size_comparison.
 The increased performance on Flickr30K compared to COCO can be attributed to the fact that the Flickr30K dataset is smaller. For a given
 image, there are 5 correct captions in only 5k possible captions (25k for COCO),
 and for a given caption there are only 1k possible images (5k for COCO).
+We use the representations $bold(h)'''_(v, K)$ and $bold(h)'''_(w, K)$ for retrieval.
 
 We also proof our statement of @multimodal_models that using two unrelated unimodal models, one image and one text model, for image-text retrieval
 fails, as the representations produced by the two models are not aligned. We do this by using the pretrained image and text variant from
@@ -486,7 +489,7 @@ $
 bold(h)'''_(w, K, mono(["T_CLS"])) &= op("LN")((bold(H)''_(w,K)+ bold(H)^("MHA")_(w,K))_(w, K, mono(["T_CLS"])))bold(W)_3 + bold(b)_3 \
 $ <shre_shared_transformer_layer_head_eq>
 
-It holds that $K=L_s+1$, since the shared encoder is one additional Transformer layer.
+It holds that $K=L_s+1=7$, since the shared encoder is one additional Transformer layer.
 The subscripts for the weights $bold(W)$ and biases $bold(b)$ denote to which linear layer from @comparison_shared_mlp_transformer (right)
 they belong. Correspondingly, the output of the equation where a pair of ($bold(W)_i$, $bold(b)_i$) is used, is
 also the output of the linear layer $i$.
@@ -532,6 +535,8 @@ An overview which tokens are used in which part of the training objective is sho
   ],
 ) <transformer_shre_loss_tokens>
 
+For retrieval, as well as for CLIP-like ImageNet-1K classification, we now use representations $bold(h)'''_(v, K, mono(["I_CLS"]))$
+and $bold(h)'''_(w, K, mono(["T_CLS"]))$ for image and text, respectively.
 The influence on retrieval when adding a shared Transformer layer, which means just adding Multi-Head Self-Attention to the shared encoder,
 can be seen, together with the previous results, in @image_text_retrieval_shre_overview. This change not only outperforms
 our first two experiments in all metrics, but also FLAVA @flava in R@1 text retrieval on COCO. For other metrics on COCO, we are also

@@ -119,7 +119,7 @@
   set page(numbering: "1")
   counter(page).update(1)
 
-  set figure(placement: auto)
+  set figure(placement: top)
 
   body
 
@@ -139,6 +139,7 @@
 
   include("experiments/transformer_shre.typ")
   include("experiments/differences_to_unimodal_kd.typ")
+  include("experiments/tte.typ")
 
   // Appendix.
   set heading(numbering: "A")

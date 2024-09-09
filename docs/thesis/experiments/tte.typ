@@ -1,5 +1,4 @@
-#set math.equation(numbering: "(1)")
-=== Token-Type Embeddings (TTE)
+=== Token-Type Embeddings <token_type_embeddings>
 In order for the shared Transformer architecture to work, the shared Transformer block needs to be able to somewhat differentiate between both
 modalities (image and text). Even though we desire an aligned representation to form in the shared block, especially the Self-Attention mechanism
 still needs to be able to differentiate between the two modalities. This can be explained by the fact that for images the model needs to
@@ -163,6 +162,3 @@ a value lower or equal to the initial value of 1e-5, then we can conclude that e
 importance of TTE is low. We measure a mean of 7.2e-4, with a standard deviation of 1.6e-2, and we observe the maximum weight for a channel
 to be 0.3. This shows that the actual features extracted by the image and text encoder are significantly more important than the TTE, which
 is not surprising, but also that the model utilizes the TTE to some extent.
-
-
-#bibliography("../references.bib")
