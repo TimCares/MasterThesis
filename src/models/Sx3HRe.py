@@ -9,6 +9,7 @@ import os
 import logging
 import pytorch_lightning as L
 import json
+from timm.models.vision_transformer import LayerScale
 from dataclasses import dataclass, field
 from data2vec_fairseq.data.modality import Modality
 from transformers.optimization import get_cosine_schedule_with_warmup
@@ -215,6 +216,9 @@ class Sx3HRe(nn.Module):
         self.cfg = cfg
         make_layer_norm = partial(nn.LayerNorm, eps=1e-6)
 
+        self.token_type_embeddings = nn.Embedding(2, self.cfg.embed_dim)
+        self.tte_scale = LayerScale(self.cfg.embed_dim, init_values=1e-5)
+
         self.shared = Block(
             dim=self.cfg.embed_dim,
             num_heads=12,
@@ -263,6 +267,12 @@ class Sx3HRe(nn.Module):
             source=image,
             remove_extra_tokens=False,
         )['x']
+
+        img_tte = self.token_type_embeddings(
+            torch.ones_like(x[:, :, 0], dtype=torch.long)
+        )
+        img_tte = self.tte_scale(img_tte)
+        x = x + img_tte
         
         return self.encode_shared(x)
 
@@ -271,6 +281,12 @@ class Sx3HRe(nn.Module):
             input_ids=text,
             attention_mask=1-padding_mask,
         ).last_hidden_state
+
+        text_tte = self.token_type_embeddings(
+            torch.zeros_like(padding_mask)
+        )
+        text_tte = self.tte_scale(text_tte)
+        x = x + text_tte
         
         return self.encode_shared(x, padding_mask)
     
