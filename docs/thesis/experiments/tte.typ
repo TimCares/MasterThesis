@@ -1,30 +1,32 @@
 === Token-Type Embeddings <token_type_embeddings>
-In order for the shared Transformer architecture to work, the shared Transformer block needs to be able to somewhat differentiate between both
+In order for the shared Transformer approach to work, the linear layers and Self-Attention mechanism in the
+shared Transformer layer need to be able to somewhat differentiate between both
 modalities (image and text). Even though we desire an aligned representation to form in the shared block, especially the Self-Attention mechanism
 still needs to be able to differentiate between the two modalities. This can be explained by the fact that for images the model needs to
-find 2-dimensional spatial relationships, while for text only 1-dimensional relationships are required. Even though we saw in previous experiments
+find 2-dimensional spatial relationships, while for text only 1-dimensional relationships are required. Even though we learned from
+the previous experiments
 that the shared Transformer block is able to learn a good representation without any modality-specific information, we still want to investigate
 how the performance of the model changes when we explicitly provide the shared Transformer block with the information which modality it
 is processing. This nessessitates a special embedding for both image and text, which is added to each token of the respective modality, 
-even the special tokens.
-Our motivation in this change lies in the fact that VLMo @vlmo also follows this approach.
+even the special tokens. This is called a token-type embedding (TTE) @vlmo, and is also used in multimodal models such as VLMo @vlmo.
 
-The intuitive approach to implement this, would be to directly follow VLM @vlmo and add the token type embeddings after the positional
-encoding, before the input is fed into the Transformer blocks @vlmo. Our definition of the Transformer input changes as follows for text:
+The intuitive approach to implement this would be to directly follow VLMo and add the token type embeddings after the positional
+encoding, before the input is fed into the Transformer blocks @vlmo, which corresponds
+to our modality-specific encoders. Our definition of the Transformer input changes as follows for text:
 
 $
-bold(H)^w_(0)&=[bold(w)_0^mono(["T_CLS"]), bold(w)_0^1, ..., bold(w)_0^M, bold(w)_0^mono(["T_SEP"])] + bold(T)^w_"pos" + bold(T)^w_"type", "with"\
-bold(T)^w_"pos" &= [bold(t)^w_"pos"_mono(["T_CLS"]), bold(t)^w_"pos"_1, ..., bold(t)^w_"pos"_M, bold(t)^w_"pos"_mono(["T_SEP"])], "and" \
-bold(T)^w_"type" &= [bold(t)^w_"type"_mono(["T_CLS"]), bold(t)^w_"type"_1, ..., bold(t)^w_"type"_M, bold(t)^w_"type"_mono(["T_SEP"])]
-$
+bold(H)_(w, 0) &= [bold(h)_(w, 0, mono(["T_CLS"])), bold(h)_(w, 0, 1), ..., bold(h)_(w, 0, M), bold(h)_(w, 0, mono(["T_SEP"]))]
+= bold(E)_w + bold(T)^"pos"_w + bold(T)^("type")_w \
+bold(T)^("type")_w &= [bold(t)^w_"type"_mono(["T_CLS"]), bold(t)^w_"type"_1, ..., bold(t)^w_"type"_M, bold(t)^w_"type"_mono(["T_SEP"])]
+$ <text_representation_tte>
 
 Similar holds for images:
 
 $
-bold(H)^v_(0)&=[bold(v)_0^mono(["I_CLS"]), bold(v)_0^1, ..., bold(v)_0^N] + bold(T)^v_"pos" + bold(T)^v_"type", "with"\
-bold(T)^v_"pos" &= [0, bold(t)^v_"pos"_1, ..., bold(t)^v_"pos"_N], "and" \
-bold(T)^v_"type" &= [bold(t)^v_"type"_mono(["I_CLS"]), bold(t)^v_"type"_1, ..., bold(t)^v_"type"_N]
-$
+bold(H)^s_(v, 0) &= [bold(h)^s_(v, 0, mono(["I_CLS"])), bold(h)^s_(v, 0, 1), ..., bold(h)^s_(v, 0, N)]
+= bold(E)_v + bold(T)^"pos"_v + bold(T)^("type")_v \
+bold(T)^("type")_v &= [bold(t)^v_"type"_mono(["I_CLS"]), bold(t)^v_"type"_1, ..., bold(t)^v_"type"_N]
+$ <image_representation_tte>
 
 The token type embedding is the same for every token and patch in the sequence, respectively. 
 
@@ -34,7 +36,7 @@ bold(t)^v_"type"_i = bold(t)^v_"type"_j, forall i,j in {mono(["I_CLS"]), 1, ...,
 $
 
 This follows VLMo @vlmo and 
-is the case because each token/patch of a text/image input sequence is of the same modality.
+is because each token/patch of a text/image input sequence is of the same modality.
 The parameters added to the model are negligible, as they
 only include two additional embeddings of size $D$, with $D=768$ this accounts for just $768*2=1536$ parameters.
 
@@ -79,33 +81,42 @@ We present the results in @image_text_retrieval_tte_first, and show that the var
       [Retrieval Flickr30K],
     ),
     table.hline(stroke: .6pt),
-    [EMKUM], [26.1], [50.4], [66.3], [77.83], 
-    [EMKUM#sub[TTE]], [25.6], [49.5], [66.0], [77.36],
+    [S-SMKE], [26.1], [50.4], [66.3], [77.83], 
+    [S-SMKE#sub[TTE]], [25.6], [49.5], [66.0], [77.36],
     table.hline(),
   ),
-  caption: [Introducing token-type embeddings (TTE) @vlmo after the positional encoding degrades performance slightly. We compare to the model
-  variant introduced in (TODO: cite "Projections for Task-Seperation"), which does not use TTE.],
+  caption: [Introducing token-type embeddings (TTE) @vlmo after the positional encoding degrades performance slightly. We compare to
+  the previous model, which does not use TTE.],
 )<image_text_retrieval_tte_first>
 
-We suspect that this is due to two reasons. First, the the TTE is added before the modality-specific encoders, so image and text encoder. Their
-task is to extract features from the input, independent of the other respective modality. So TTE is of no use to them, as the same embedding
-is added to every token/patch, and one does not need to differentiate between image and text in the modality-specific encoders. Second, even worse,
-we use pretrained models for the encoders (Data2Vec2), which already extract rich features from the input. Adding a TTE to their input, which
-is randomly initialized, will destroy the information the modality encoders receive as input, and thus the feature extraction will be less effective.
+We suspect that this is due to two reasons. First, the the TTE is added before the modality-specific encoders, so the
+image and text encoder. Their
+task is to extract features from the input, independent of the *other* respective modality. Consequently,
+TTE is of no use to them, as the same embedding
+is added to every token/patch, and both encoders do not need to differentiate between image and text
+in their input: The image encoder will always receive an image, and the text encoder always a text. Second, even worse,
+we use pretrained layers for the image and text encoder, which already extract rich features from the input. Adding the same token-type
+embedding to their input, 
+initialized randomly, will destroy the patch (token) embeddings the image (text) encoder receives as its input,
+and thus the feature extraction will be less effective.
 Even though we are also training the pretrained image and text encoder, it will take time until the encoders learn to adapt to the TTE, and until
-the TTE has been trained in general.
+the TTE has been trained in itself.
 
-We therefore opt for two changes to the TTE approach. First, we add the TTE after the modality-specific encoders, meaning the token type embedding
+We therefore opt for the following change: We add the TTE after the modality-specific encoders, meaning the token type embedding
 is added to the output of the image and text encoder. This way, the TTE will not disturb the feature extraction of the image and text encoder.
-However, what will inevitably happen is that addind the TTE after the modality-specific encoders will destroy the features extracted by the aforementioned encoders, which is exactly the second problem mentioned before.
+However, what will inevitably happen is that adding the TTE after the modality-specific encoders will destroy the features extracted by the
+encoders, which is exactly the second problem mentioned before, just at a different stage in the model.
 
 A possible solution can be found in the Transformer block of
-extremely deep and large models, such as BEiT-3 @beit3. They multiply the output of the Self-Attention and Feed-Forward in a Transformer block
-with a learnable scalar parameter per embedding dimension. What makes this approach special is that the scalar parameters are all initialized
-with a values close to zero. As this multiplication is done before the residual connection, i.e. the addition of the input the the Self-Attention
-and Feed-Forward respectively, the contribution of the Self-Attention and Feed-Forward to the output of the Transformer block is very small
+extremely deep and large models, such as BEiT-3 @beit3. Here, each embedding dimension of the output
+generated by the Self-Attention and MLP in a Transformer layer
+is multiplied with a seperate, learnable, scalar.
+What makes this approach special is that the scalars are all initialized
+with values close to zero. As this multiplication is done before the residual connection, i.e. the addition of the input of the Self-Attention
+and MLP respectively, the contribution of the Self-Attention and MLP to the output of the Transformer block is very small
 at the beginning of training. What follows is that the initial input to the model is carried very far through the model, and the actual
-contribution of the parameters is added as the model lears to extract meaningful features from the input @layer_scale.
+contribution of the Self-Attention and other parameters is added gradually as the model lears
+to extract meaningful features from the input @layer_scale.
 
 #figure(
   image(
@@ -118,21 +129,33 @@ contribution of the parameters is added as the model lears to extract meaningful
 ) <layer_scale_formula>
 
 We will use LayerScale not for the purpose it was intended for, that is to allow training of extremely deep models @layer_scale, but to
-allow the TTE to be added after the modality-specific encoders, without destroying the features extracted by the encoders.
-We initialize the weights of the LayerScale to 1e-5, meaning the contribution of the TTE to the extracted features will be almost zero at the beginning. The shared Transformer block will receive the almost unaltered features, and as the scale is learned, the TTE will be added
+allow the TTE to be added gradually after the modality-specific encoders, without destroying the features extracted by the encoders.
+Before the TTE is added to the output sequence of the image and text encoder, we multiply each dimension of the TTE with its own learnable
+scalar, as given by LayerScale.
+We initialize the weights of the LayerScale to 1e-5, so that each dimension of the TTE is multiplied with a very small scalar, and the
+contribution of the TTE, when adding it to the output of the image and text encoder, is very small. This way,
+the shared Transformer block will receive the almost unaltered features from the encoders, and since the scale is learned, the TTE will be added
 as the models sees fit - as much as it helps the model to learn.
 
 $
-bold(H')^w_(L)&=bold(H)^w_(L) + op("diag")(lambda_(L, 1), ..., lambda_(L, D)) * bold(T)^w_"type", "or simply" \
-bold(H')^w_(L)&=bold(H)^w_(L) + op("LayerScale")(bold(T)^w_"type")
+bold(H)'_(w, L_s) = bold(H)_(w, L_s) + bold(t)_"scale" * bold(T)^w_"type" = \
+bold(H)_(w, L_s) + [bold(t)_"scale" dot.circle bold(t)^w_"type"_mono(["T_CLS"]),
+bold(t)_"scale" dot.circle bold(t)^w_"type"_1, ..., bold(t)_"scale" dot.circle bold(t)^w_"type"_M,
+bold(t)_"scale" dot.circle bold(t)^w_"type"_mono(["T_SEP"])]
 $
 
 $
-bold(H')^v_(L)&=bold(H)^v_(L) + op("diag")(lambda_(L, 1), ..., lambda_(L, D)) * bold(T)^v_"type", "or simply" \
-bold(H')^v_(L)&=bold(H)^v_(L) + op("LayerScale")(bold(T)^v_"type")
+bold(H)'_(v, L_s) = bold(H)_(v, L_s) + bold(t)_"scale" * bold(T)^v_"type" = \
+bold(H)_(v, L_s) + [bold(t)_"scale" dot.circle bold(t)^v_"type"_mono(["I_CLS"]),
+bold(t)_"scale" dot.circle bold(t)^v_"type"_1, ..., bold(t)_"scale" dot.circle bold(t)^v_"type"_N]
 $
 
-We use the same LayerScale for both image and text type embeddings, as the contribution of the type embeddings should be the same for both modalities. We do not want to bias the model towards one modality. @image_text_retrieval_tte_second shows that this approach is able to slightly improve the performance of the model, and we achieve a gain of at least 0.3% in all tasks. While this is not a significant improvement, it shows that the TTE @vlmo, together with LayerScale @layer_scale, can be beneficial, which is why we keep this approach.
+We use the same LayerScale $bold(t)_"scale" in RR^768$ for both image and text type embeddings,
+as the contribution of the type embeddings should be the same for both modalities.
+We do not want to bias the model towards one modality. @image_text_retrieval_tte_second shows that
+this approach is able to slightly improve the performance of the model, and we achieve a gain of at
+least 0.3% in all tasks. While this is not a significant improvement, it shows that the TTE @vlmo,
+together with LayerScale @layer_scale, can be beneficial, which is why we keep this approach.
 
 #figure(
   table(

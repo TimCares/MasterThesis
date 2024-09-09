@@ -244,13 +244,13 @@ even outperform CLIP on COCO R@10 image retrieval by more than 6 percentage poin
     [FLAVA @flava], [42.74], [76.76], [-], [*38.38*], [*67.47*], [-], [67.7], [94.0], [-], [65.22], [89.38], [-],
     [CLIP @clip], [*58.4*], [*81.5*], [88.1], [37.8], [62.4], [72.2], [*88.0*],[*98.7*], [*99.4*], [*68.7*], [*90.6*], [*95.2*],
     table.hline(stroke: .3pt),
-    [$"SHRe"_T$], [44.6], [75.3], [85.64], [31.69], [62.1], [74.48], [58.8], [85.6], [92.4], [43.92], [74.06], [82.8],
+    [SHRe#sub[T]], [44.6], [75.3], [85.64], [31.69], [62.1], [74.48], [58.8], [85.6], [92.4], [43.92], [74.06], [82.8],
     [S-SMKE ($arrow.t 4.38$)], [51.66], [79.9], [*88.66*], [36.17], [66.55], [*78.28*], [64.5], [88.4], [93.0], [51.78], [78.54], [86.46],
     table.hline(),
   ),
   caption: [
    An updated contrastive loss with a self-supervised teacher, which we denote as "S-SMKE" leads to an average gain of
-   4.38% compared to our previous approach $"SHRe"_T$. On Flickr30K, we reach substantial improvements while still being behind
+   4.38% compared to our previous approach SHRe#sub[T]. On Flickr30K, we reach substantial improvements while still being behind
    FLAVA @flava and CLIP @clip.
   ],
 )<image_text_retrieval_S_SMKE>
@@ -290,7 +290,7 @@ which would be even more pronounced if we wouldn't use DDP with 2 GPUs.
     ),
     [Visual N-Grams @visual_n_grams $dagger$], [11.5], 
     [CLIP @clip $dagger$], [*76.2*], 
-    [$"SHRE"_(T)$ (ours)], [44.57], 
+    [SHRe#sub[T] (ours)], [44.57], 
     [S-SMKE (ours)], [30.4],
     table.hline(),
   ),
@@ -304,7 +304,7 @@ which would be even more pronounced if we wouldn't use DDP with 2 GPUs.
       table.hline(stroke: .6pt),
     ),
     [$"SHRE"_("DDP")$], [*4.8*],
-    [$"SHRE"_(T)$], [5.27],
+    [SHRe#sub[T]], [5.27],
     [S-SMKE], [6.9],
     table.hline(),
   ),
@@ -313,7 +313,7 @@ which would be even more pronounced if we wouldn't use DDP with 2 GPUs.
       (Left) Accuracy of S-SMKE on the validation set of ImageNet-1k, using CLIP zero-shot classification, compared to CLIP @clip
       and Visual N-Grams @visual_n_grams. The latter was developed as a first proof-of-concept of zero-shot image classification
       in 2017 @visual_n_grams @clip. We denote a full zero-shot approach with $dagger$.
-      (Right) Development of the training time for the different approaches. Adding additional parameters through Self-Attention ($"SHRE"_(T)$)
+      (Right) Development of the training time for the different approaches. Adding additional parameters through Self-Attention (SHRe#sub[T])
       and a large self-supervised teacher (S-SMKE) increases the training time by more than two hours.
     ]
 ) <imagenet_1k_classification_S_SMKE>

@@ -141,6 +141,8 @@
   include("experiments/differences_to_unimodal_kd.typ")
   include("experiments/tte.typ")
 
+  include("experiments/region_descriptions.typ")
+
   // Appendix.
   set heading(numbering: "A")
   counter(heading).update(0)

@@ -43,10 +43,8 @@ Experiments
 				Multimodal Transformer Block (Mention increased model size)
 			Self-Supervised Teacher
 			Token-Type Embedding (Also try without layerscale)
-			Unimodal-2-Multimodal Projection
-			Contrastive Learning
-				On Zero-Shot Retrieval
-				Short Captions (Region Descriptions)
+			Enhancing Alignment
+				Region Descriptions for Contrastive Learning
 				Image-Text Matching with Feature-Fusion
 				Increasing Negative Examples for ITC
 				
