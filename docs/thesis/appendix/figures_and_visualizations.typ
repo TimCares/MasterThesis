@@ -77,7 +77,8 @@
   Visualization of the predicted probabilities for the top-5 ImageNet-1K @imagenet classes on image-text pairs from the COCO train set @coco.
   While the predicted classes are not always correct, e.g. bottom right, they are able to capture to some extend the semantic content
   of the image, and even the text. The latter is crucial for the approach of SHRe @shre.
-  Note: The figure does not stem from the SHRe paper @shre, but is a custom visualization of the concept.
+  Note: The figure does not stem from the SHRe paper @shre, but is a custom visualization of the concept. However, it is inspired by
+  the CLIP paper @clip.
   The ResNet-50-A1 @resnet_50_a1 model is used for the predictions.
 ],
 ) <shre_coco_prob_dist>

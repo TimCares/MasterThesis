@@ -1,6 +1,6 @@
 #let details = (
-  title: "Titel der Arbeit",
-  date: "25. September 2024",
+  title: "Extracting Multimodal Knowledge from Pretrained Vision Models",
+  date: "9. Oktober 2024",
   language: "en",
   degree: "Master",
   field: "Applied Computer Science",
