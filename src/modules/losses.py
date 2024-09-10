@@ -278,21 +278,28 @@ class KDClipMomentumMemoryBankLoss(nn.Module):
 
 # adapted from VLMo -> https://github.com/microsoft/unilm/blob/master/vlmo/vlmo/modules/objectives.py
 class ITMLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, rank=0, world_size=1,):
         super().__init__()
+        self.rank = rank
+        self.world_size = world_size
 
     def forward(self,
-                all_image_features,
-                all_text_features,
+                image_features,
+                text_features,
                 logits_per_image,
                 logits_per_text,
-                proj_head,):
+                cls_head,):
         device = logits_per_image.device
         bsz = logits_per_image.shape[0]
         itm_labels = torch.cat([
             torch.ones(bsz), 
             torch.zeros(bsz), 
             torch.zeros(bsz)]).to(device)
+
+        if self.world_size > 1:
+            image_features, text_features = gather_features(
+                image_features, text_features
+            )
 
         with torch.no_grad():
             weights_i2t = F.softmax(logits_per_image[:bsz].float(), dim=1)
@@ -303,13 +310,13 @@ class ITMLoss(nn.Module):
         neg_text_idx = torch.multinomial(weights_i2t, 1).squeeze()
         neg_image_idx = torch.multinomial(weights_t2i, 1).squeeze()
 
-        pos_image_text_pairs = torch.concat([all_image_features[:bsz], all_text_features[:bsz]], dim=1)
-        neg_image_text_pairs = torch.concat([all_image_features[:bsz], all_text_features[neg_text_idx]], dim=1)
-        neg_text_image_samples = torch.concat([all_image_features[neg_image_idx], all_text_features[:bsz]], dim=1)
+        pos_image_text_pairs = image_features[:bsz] + text_features[:bsz]
+        neg_image_text_pairs = image_features[:bsz] + text_features[neg_text_idx]
+        neg_text_image_samples = image_features[neg_image_idx] + text_features[:bsz]
 
         examples = torch.concat([pos_image_text_pairs, neg_image_text_pairs, neg_text_image_samples], dim=0)
 
-        logits = proj_head(examples)
+        logits = cls_head(examples)
 
         out_dict = {
             'loss': F.cross_entropy(logits, itm_labels.long()),
