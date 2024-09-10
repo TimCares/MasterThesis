@@ -142,6 +142,7 @@
   include("experiments/tte.typ")
 
   include("experiments/region_descriptions.typ")
+  include("experiments/itm.typ")
 
   // Appendix.
   set heading(numbering: "A")

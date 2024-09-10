@@ -149,7 +149,7 @@ Notice that the positional encoding for the $mono(["I_CLS"])$ token is set to ze
 actually part of the image, and can be seen as a type of meta token. The input to a ViT is defined as:
 
 $
-bold(H)^s_(v, 0)=[bold(h)^s_(v, 0, mono(["I_CLS"])), bold(h)^s_(v, 0, 1), ..., bold(h)^s_(v, 0, N)] = bold(E)_v + bold(T)^"pos"_v
+bold(H)_(v, 0)=[bold(h)_(v, 0, mono(["I_CLS"])), bold(h)_(v, 0, 1), ..., bold(h)_(v, 0, N)] = bold(E)_v + bold(T)^"pos"_v
 $ <image_representation>
 
 For an image size of $224 times 224$ pixels, and a patch size of $16 times 16$ pixels, the number of patches $N$ is $196$.

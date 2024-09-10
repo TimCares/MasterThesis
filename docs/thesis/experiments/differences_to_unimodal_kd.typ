@@ -114,7 +114,7 @@ $bold(h)'''^s_(v, K, mono(["I_CLS"])) in RR^768$ and $bold(h)'''^s_(w, K, mono([
 As a side note, the student's classification head is technically not a classification head anymore, as it does not predict any classes
 but rather a representation of the teacher.
 
-==== Loss-Equilibrium Harms Alignment
+==== Loss-Equilibrium Harms Alignment <loss_equilibrium_harms_alignment>
 
 An important change we make is removing the application of the contrastive loss on the outputs of the student's (classification) head
 $bold(h)'''^s_(v, K, mono(["I_CLS"]))$ and $bold(h)'''^s_(w, K, mono(["T_CLS"]))$, which were also the representations used for image-text
