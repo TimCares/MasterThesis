@@ -263,7 +263,14 @@ avoid the memory overflow. We illustrate this in @me_forward_comparison.
 ) <me_forward_comparison>
 
 
-The result is shown in @zs_imagenet_itc_vs_mb. The additional forward pass of the momentum encoder adds approximately 5 minutes per epoch, which we cosider as marginal. However, the performance does not exceed that of the the standard gathering from all devices with just 511 negative examples (effective batch size of 512). The experiment seems more promising to achieve a higher accuracy with more epochs, compared to the previous approach, as the latter appears to saturate towards the end of training, but a longer training is both financially unsustainable for us, and lacks efficiency, which we cosider as a key aspect of our work.
+The result is shown in @zs_imagenet_itc_vs_mb. The additional forward pass of the momentum encoder adds
+approximately 5 minutes per epoch, which we consider as marginal. However, the performance does not exceed
+that of the the standard gathering from all devices with just 511 negative examples (effective batch size of 512).
+The experiment seems more promising to achieve a higher accuracy with more epochs,
+compared to the previous approach, as the latter appears to saturate towards the end of training,
+but a longer training is both financially unsustainable for us, and lacks efficiency,
+which we cosider as a key aspect of our work. Additionally, adding a momentum encoder increases the complexity of our approach,
+which, combined with the lack of performance improvement, leads us to abandon this approach.
 
 #let st(r) = text(8pt)[#r]
 #figure(
