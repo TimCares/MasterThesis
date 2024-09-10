@@ -23,7 +23,7 @@ $ <text_representation_tte>
 Similar holds for images:
 
 $
-bold(H)^s_(v, 0) &= [bold(h)^s_(v, 0, mono(["I_CLS"])), bold(h)^s_(v, 0, 1), ..., bold(h)^s_(v, 0, N)]
+bold(H)_(v, 0) &= [bold(h)_(v, 0, mono(["I_CLS"])), bold(h)_(v, 0, 1), ..., bold(h)_(v, 0, N)]
 = bold(E)_v + bold(T)^"pos"_v + bold(T)^("type")_v \
 bold(T)^("type")_v &= [bold(t)^v_"type"_mono(["I_CLS"]), bold(t)^v_"type"_1, ..., bold(t)^v_"type"_N]
 $ <image_representation_tte>

@@ -20,13 +20,13 @@ the image and text representations are separate, and the $mono(["T_CLS"])$ token
 token only about the image. If we want to apply ITM to our model, we need to find a way to combine the image and text representations.
 
 An intuitive way to combine, or rather compare, the image and text representations is to compute the cosine similarity between the global text
-representation $bold(h)'''_(w, K, mono(["T_CLS"]))$ and the image representation $bold(h)'''_(v, K, mono(["I_CLS"]))$. However,
+representation $bold(h)''_(w, K, mono(["T_CLS"]))$ and the image representation $bold(h)''_(v, K, mono(["I_CLS"]))$. However,
 this is already performed by the contrastive loss (explained in @vision_language_contrast). 
 Instead, we propose an approach we call feature fusion, where we perform a linear transformation of
 the representation of the $mono(["T_CLS"])$ and $mono(["I_CLS"])$ token, and then simply add them together.
 The linear transformation is modeled by a linear layer. We justify approach by the intuition that a linear projection of the representations
 might transform them in a way that adding them together gives a meaningful representation of the image-text pair. Using the actual representations
-$bold(h)'''_(v, K, mono(["I_CLS"]))$ and $bold(h)'''_(w, K, mono(["T_CLS"]))$ for the addition is not a good idea, as they are already
+$bold(h)''_(v, K, mono(["I_CLS"]))$ and $bold(h)''_(w, K, mono(["T_CLS"]))$ for the addition is not a good idea, as they are already
 enforced to be similar under the contrastive loss. Adding them together and using the result for ITM could work agaist the alignment
 of the representations, which would lead to something similar as the loss-equlibrium described in @loss_equilibrium_harms_alignment.
 Adding a linear projection however, allows the model to keep the representations aligned, while learning a projection of the aligned representations
@@ -34,8 +34,8 @@ that is useful for ITM.
 
 
 $
-bold(h)_(v, mono(["I_ITM"])) &= bold(h)'''_(v, K, mono(["I_CLS"]))bold(W)_"ITM" \
-bold(h)_(w, mono(["T_ITM"])) &= bold(h)'''_(w, K, mono(["T_CLS"]))bold(W)_"ITM" \
+bold(h)_(v, mono(["I_ITM"])) &= bold(h)''_(v, K, mono(["I_CLS"]))bold(W)_"ITM" \
+bold(h)_(w, mono(["T_ITM"])) &= bold(h)''_(w, K, mono(["T_CLS"]))bold(W)_"ITM" \
 bold(hat(y))_"ITM" &= [hat(y)_0, hat(y)_1] = (bold(h)_(v, mono(["I_ITM"]))+bold(h)_(w, mono(["T_ITM"])))bold(W)_"ITM_CLS" + bold(b)_"ITM_CLS"
 $ <itm_feature_fusion>
 

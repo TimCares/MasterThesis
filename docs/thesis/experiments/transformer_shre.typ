@@ -302,7 +302,7 @@ The main reason for this being that the ImageNet-1K classes describe real-world 
 can therefore also be used to describe the content of a text. A visualization of that is shown on image-text pairs from COCO,
 which is the data we use for training, in @shre_coco_prob_dist.
 
-==== Larger Batch Sizes with DDP
+==== Larger Batch Sizes with DDP <larger_batch_sizes_ddp>
 As mentioned in the introduction of contrastive learning (@vision_language_contrast), a large batch size is crucial
 for the success of contrastive learning. Larger batch sizes allow for more negative samples, which makes the task of
 finding the correct pair among those negatives more difficult.  Unfortunately, we are not able to exceed a batch size of 256,

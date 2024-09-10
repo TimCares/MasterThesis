@@ -143,6 +143,7 @@
 
   include("experiments/region_descriptions.typ")
   include("experiments/itm.typ")
+  include("experiments/memory_bank.typ")
 
   // Appendix.
   set heading(numbering: "A")
