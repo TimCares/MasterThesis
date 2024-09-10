@@ -290,7 +290,7 @@ class ITMLoss(nn.Module):
                 logits_per_text,
                 cls_head,):
         device = logits_per_image.device
-        bsz = logits_per_image.shape[0]
+        bsz = image_features.shape[0]
         itm_labels = torch.cat([
             torch.ones(bsz), 
             torch.zeros(bsz), 
