@@ -286,10 +286,8 @@ class ITMLoss(nn.Module):
     def forward(self,
                 image_features,
                 text_features,
-                logits_per_image,
-                logits_per_text,
                 cls_head,):
-        device = logits_per_image.device
+        device = image_features.device
         bsz = image_features.shape[0]
         itm_labels = torch.cat([
             torch.ones(bsz), 
@@ -301,14 +299,11 @@ class ITMLoss(nn.Module):
                 image_features, text_features
             )
 
-        with torch.no_grad():
-            weights_i2t = F.softmax(logits_per_image[:bsz].float(), dim=1)
-            weights_t2i = F.softmax(logits_per_text[:bsz].float(), dim=1)
-            weights_i2t.fill_diagonal_(0)
-            weights_t2i.fill_diagonal_(0)
+        scores = torch.ones(bsz, bsz)
+        scores.fill_diagonal_(0)
 
-        neg_text_idx = torch.multinomial(weights_i2t, 1).squeeze()
-        neg_image_idx = torch.multinomial(weights_t2i, 1).squeeze()
+        neg_text_idx = torch.multinomial(scores, 1).squeeze()
+        neg_image_idx = torch.multinomial(scores, 1).squeeze()
 
         pos_image_text_pairs = image_features[:bsz] + text_features[:bsz]
         neg_image_text_pairs = image_features[:bsz] + text_features[neg_text_idx]
