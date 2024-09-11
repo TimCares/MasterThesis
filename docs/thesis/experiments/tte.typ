@@ -56,7 +56,7 @@ We present the results in @image_text_retrieval_tte_first, and show that the var
     ),
     table.hline(stroke: .6pt),
     [$times$], [*30.4*], [*66.87*], [*77.1*],
-    [$checkmark$], [25.6], [66.0], [69.3],
+    [$checkmark$], [29.6], [66.0], [76.5],
     table.hline(),
   ),
   caption: [Introducing token-type embeddings (TTE) after the positional encoding degrades performance slightly. We compare to
@@ -140,7 +140,7 @@ together with LayerScale @layer_scale, can be beneficial, which is why we keep t
     ),
     table.hline(stroke: .6pt),
     [$times$], [$times$], [*30.4*], [66.87], [77.1],
-    [$checkmark$],[$times$], [30.3], [*67.2*], [*78.29*],
+    [$checkmark$],[$times$], [30.3], [*67.2*], [78.08],
     [$checkmark$],[$checkmark$], [30.3], [*67.2*], [*78.29*],
     table.hline(),
   ),
@@ -152,6 +152,9 @@ together with LayerScale @layer_scale, can be beneficial, which is why we keep t
 
 After training, to validate whether the TTE is actually utilized, we check the average value of the LayerScale weights. If they show
 a value lower or equal to the initial value of 1e-5, then we can conclude that even though the model performance improves, the relative
-importance of TTE is low. We measure a mean of 7.2e-4, with a standard deviation of 1.6e-2, and we observe the maximum weight for a channel
-to be 0.3. This shows that (1) the actual features extracted by the image and text encoder are significantly more important than the TTE, which
-is not surprising, but also that (2) the model utilizes the TTE to some extent.
+importance of TTE is low. We measure a mean of 2e-4 and observe the maximum weight for a channel
+to be 0.37. This shows that the model utilizes the TTE to some extend, although it does not seem to be that useful.
+This is also reflected in the low gain achieved from adding LayerScale to the TTE, as seen in @image_text_retrieval_tte_second.
+Nevertheless, we keep the TTE and LayerScale in the model, as they increase the performance slightly,
+and only add few parameters to the model (1,536 for both token type embeddings, and 768 for the learnable scaling weights of LayerNorm).
+
