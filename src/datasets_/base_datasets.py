@@ -380,7 +380,8 @@ class BaseImageText(ImageDataset):
         batch_tensors = super().collater(samples)
         if self.text_token_mask_prob > 0.0:
             batch_tensors['targets'] = batch_tensors['text'].clone()
-            batch_tensors['text'][batch_tensors['mask_labels'].bool()] = self.mask_token_id
+            batch_tensors['masked_text'] = batch_tensors['text'].clone()
+            batch_tensors['masked_text'][batch_tensors['mask_labels'].bool()] = self.mask_token_id
             batch_tensors['targets'][~batch_tensors['mask_labels'].bool()] = -100
         return batch_tensors
     
