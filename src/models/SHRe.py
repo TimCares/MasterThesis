@@ -14,8 +14,9 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from transformers import BertModel
 import timm
+from timm.models.vision_transformer import Block
 from . import MODEL_REGISTRY
-from modules import Block, ClipLoss
+from modules import ClipLoss
 from utils import freeze_module
 
 logger = logging.getLogger(__name__)
@@ -65,19 +66,16 @@ class SHRePreTrainingLightningModule(L.LightningModule):
         kl_loss = (kl_loss1 + kl_loss2) / 2
         self.log(f"{stage}/kl_loss", kl_loss)
 
-        self.model.logit_scales.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
+        self.model.logit_scale.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
 
         if stage == 'train':
-            itc_loss = 0
-            for i, key_prefix in enumerate(['x_interm', 'x']):
-                itc_out = self.clip_loss(
-                    image_features=output_dict[key_prefix + '_image'],
-                    text_features=output_dict[key_prefix + '_text'],
-                    logit_scale=self.model.logit_scales[i].exp(),
-                )
-                self.log_itc_acc(itc_out['logits_per_image'], itc_out['logits_per_text'], itc_out['targets'], stage, key_prefix=key_prefix)
-                itc_loss += itc_out['loss']
-            itc_loss /= 3
+            itc_out = self.clip_loss(
+                image_features=output_dict['x_image'],
+                text_features=output_dict['x_text'],
+                logit_scale=self.model.logit_scale.exp(),
+            )
+            self.log_itc_acc(itc_out['logits_per_image'], itc_out['logits_per_text'], itc_out['targets'], stage)
+            itc_loss = itc_out['loss']
             self.log(f"{stage}/itc_loss", itc_loss)
         else:
             itc_loss = 0
@@ -197,7 +195,7 @@ class SHRe(nn.Module):
 
         self.apply(init_bert_params)
 
-        self.logit_scales = nn.Parameter(torch.ones([2]) * np.log(1 / 0.07))
+        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
         self.text_model = BertModel.from_pretrained("bert-base-uncased")
         self.text_model.encoder.layer = self.text_model.encoder.layer[:self.cfg.depth]
@@ -244,18 +242,11 @@ class SHRe(nn.Module):
     
     def encode_shared(self, x, mask=None):
         out_dict = dict()
-        x_interm, x = self.shared(x=x, mask=mask)
-        x_interm = x_interm[:, 0]
-        x = x[:, 0]
-        
-        logits = self.fc_norm(x)
-        logits = self.head(logits)
+        x = self.shared(x=x, mask=mask)[:, 0]
 
-        out_dict["encoder_out"] = logits
+        out_dict["encoder_out"] = self.head(self.fc_norm(x))
         x = x / x.norm(dim=-1, keepdim=True)
         out_dict["x"] = x
-        x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
-        out_dict["x_interm"] = x_interm
         return out_dict
 
 MODEL_REGISTRY['SHRe'] = {

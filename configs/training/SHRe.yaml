@@ -17,7 +17,7 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: SHRe
+run_name: SHRe_transformer_only_single_itc
 id:
 model_name: SHRe
 
