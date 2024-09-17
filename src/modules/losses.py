@@ -461,17 +461,17 @@ class TargetCMLILoss(L.LightningModule):
         self.down_proj = nn.Linear(embed_dim, self.cmli_dim)
         self.down_proj.apply(init_bert_params)
 
-        self.empty_token = nn.Parameter(torch.rand(1, 1, 256))
-        trunc_normal_(self.empty_token, mean=0, std=0.02, a=-0.02, b=0.02)
+        #self.empty_token = nn.Parameter(torch.rand(1, 1, 256))
+        #trunc_normal_(self.empty_token, mean=0, std=0.02, a=-0.02, b=0.02)
     
-    def forward(self, image, text, target, padding_mask, down_proj):
+    def forward(self, image, text, target, padding_mask):
 
         text_tokens = text[:, 1:]
         target_patches = target[:, 1:]
         padding_mask = mask_eos(padding_mask)[:, 1:]
 
-        text_tokens_proj = down_proj(text_tokens)
-        target_patches_proj = down_proj(target_patches)
+        text_tokens_proj = self.down_proj(text_tokens)
+        target_patches_proj = self.down_proj(target_patches)
         text_tokens_proj_norm = text_tokens_proj / text_tokens_proj.norm(dim=-1, keepdim=True)
 
         #empty_token_ = self.empty_token.expand(target_patches_proj.shape[0], -1, -1)
