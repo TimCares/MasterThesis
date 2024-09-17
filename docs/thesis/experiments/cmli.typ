@@ -18,8 +18,10 @@ similarity between all image patches $[bold(h)_(v, l, k)]_(1 lt.eq k lt.eq N)$ a
 with $N$ being the number of image patches, and $M$ being the number of text tokens. 
 Specifically, $N$ and $M$ denote the number of patches/tokens in a sequence that are not the cls token
 ($mono(["I_CLS"])$/$mono(["T_CLS"])$) or padding token ($mono(["PAD"])$) @filip. The choice to exclude
-padding tokens is obvious, as they do not carry any semantic information. The cls token is excluded, as it contains
-global information. The result is the cosine similarity between all image patches and text tokens of an image-text pair.
+padding tokens is obvious, as they do not carry any semantic information. The cls token is excluded, as it is not specific
+to any token/patch, and is used to represent
+global information. We additionally exclude the end-of-sequence token ($mono(["EOS"])$), as it is not specific to any token/patch either.
+The result is the cosine similarity between all image patches and text tokens of an image-text pair.
 
 The next step is to find for each image patch $k$, the text token with the maximum cosine similarity to this image patch.
 
@@ -124,10 +126,15 @@ For a given text representation we first need to find $m_j^("t2i")$ for each tex
 $
 cal(L)_("KD")^("t2i") =
 op("MSE")(bold(H)'''^s_(w, K), bold(H)^t_(v, L_t)) =
-sum_(z=1)^Z ||bold(h)'''^s_(w, K, z) - bold(h)^t_(v, L_t, m_j^("t2i"))||^2
-
+sum_(z=1)^Z ||g(bold(h)'''^s_(w, K, z)) - g(bold(h)^t_(v, L_t, m_j^("t2i")))||^2
 $
 
+We denote $g(dot)$ as a linear projection to reduce the dimensionality of the image representation from the teacher, and the text representation
+from the student, to 32. This is done to (1) reduce memory consumption when computing the similarity between all image patches and text tokens
+for all image-text pairs in a batch, and (2) to reduce the information that can be expressed by $g(bold(x))$. We motivate (2) by the fact
+that matching individual image patches to text tokens is a very fine-grained task, and we want to aviod having pixel-level information
+in the patch representations of the teacher model, which would, despite the matching via $op("argmax")$, cause problems with predicting those
+representations, as we can't extract those pixel-level information from the text tokens.
 The total Knowledge-Distillation loss remains the same, and is the mean of the two losses:
 
 $
@@ -135,19 +142,16 @@ cal(L)_("KD") = 1/2 * (cal(L)_("KD")^("i2t") + cal(L)_("KD")^("t2i"))
 $
 
 We use the mean instead of the sum, as we also use the contrastive loss, and we want both losses to have the same weight.
-As in FILIP @filip, we find $m_k^("t2i")$ using an embedding dimension of 256. The hidden size of the model stays at 768,
-and we use a linear projection to reduce the dimensionality of the image representation from the teacher, and the text representation
-from the student, to 256.
-As the goal is to bring the representations of the student as close as possible to the teacher, we use the same linear projection
-for both the student and the teacher representations.
-The loss is still computed using the raw outputs, with 768 dimensions. Only CMLI is performed
-in the lower-dimensional space.
+We find $m_k^("t2i")$ using an embedding dimension of 32, which is achieved through the same projection $g(dot)$.
+The hidden size of the model remains at 768.
 
 What makes the implementation of Target-CMLI feasible is that we only need to compute the similarity between the positive pairs,
 and not all possible image-text pairs in a batch. This is because we only need to find the most similar image patch for each text token
 of a positive pair. For a per-device batch size of 256, Target-CMLI requires $12,544*256=3,211,264$ dot products to compute.
-With an embedding dimension of 256 and half-precision float16, just $3,211,264*256*2 "bytes" = 1.64 "GB"$ of additional GPU memory
+With an embedding dimension of 32, just $3,211,264*32*4 "bytes" = 411 "MB"$ of additional GPU memory
 is required. This is feasible in our setup.
+
+==== Results <target_cmli_results>
 
 ==== Empty Target <target_cmli_empty_target>
 
@@ -177,3 +181,9 @@ $
 We denote $p$ as the percentage of tokens that have the highest similarity to an actual image patch, and not the empty target.
 The more text tokens have the highest similarity to an image patch, the closer $cal(L)_("Reg")$ will be to zero, and vice versa.
 This forces the model to utilize the empty target for as few tokens as possible.
+
+The total loss is then:
+
+$
+cal(L)_("S-SMKE") = cal(L)_("KD") + cal(L)_("Reg") + cal(L)_("CL")
+$
