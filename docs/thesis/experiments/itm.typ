@@ -50,7 +50,7 @@ $h_(mono(["IT_ITM"]), 1)$ denote the score that the image-text pair
 is not matching and matching, respectively.
 For clarity, we name the learnable parameters with the same primes ($'$) as the representations they are applied to.
 
-Because the contrastive loss is applied on the $mono(["I_CLS"])$/$mono(["T_CLS"])$ token (depending which modality was the input) of both the first and last MLP layer of the shared Transformer block, we also introduce ITM for both layers. This means that we have two classification heads, $op("Interm-Head")_op("ITM")$ and $op("Head")_op("ITM")$, one for the first and one for the last layer, respectively. Since at its core this is a binary classification task, we can use cross-entropy as the loss function:
+Since at its core ITM is a binary classification task, we can use cross-entropy as the loss function:
 
 $
 cal(L)_"ITM" = 1/2*cal(L)_("CE")(bold(h)'_(mono(["IT_ITM"])), bold(y)_"ITM") + 1/2*cal(L)_("CE")(bold(h)''_(mono(["IT_ITM"])), bold(y)_"ITM") =

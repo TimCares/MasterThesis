@@ -58,32 +58,9 @@ and $bold(h)''_(w, K, mono(["T_CLS"]))$. An overview of the memory banks require
   represenations of the other modality, created by the same layer.],
 )<number_of_mbs_required>
 
-Illustrated in @mb_results, we observed a significant drop in performance.
+Illustrated in @mb_results, we observed a significant drop in performance, and the resulting model is not usable. The accuracy on ImageNet-1K,
+which is 0.001% and therefore corresponds to a random classification (1000 classes), indicates that the model did not learn anything useful.
 This suggests that simply increasing the number of negative examples via a memory bank does not help in learning richer represenations.
-
-// #figure(
-//   table(
-//     columns: 6, //7,
-//     stroke: none,
-//     table.hline(),
-//     table.header(
-//       [Model],
-//       [ImageNet-1K Accuracy],
-//       [Retrieval MSCOCO],
-//       [Retrieval Flickr30K],
-//       [Batch Size],
-//       [ITC \# Negative Examples],
-//       //[Wall Clock Time (in h)],
-//     ),
-//     table.hline(stroke: .6pt),
-//     [CLIP @clip], [*72.6*], [*66.73*], [*90.1*], [32,768], [32,767], //[-],
-//     [EMKUM#sub[DDP]], [26.1], [66.3], [42.4], [512], [511], //[7.09],
-//     [EMKUM#sub[MB]], [17.8], [54.4], [30.3], [256], [511], //[11.88],
-//     //[*Sx3HRe#sub[DDP NG]*], [17.8], [54.4], [30.3], [512], [255], [7.09],
-//     table.hline(),
-//   ),
-//   caption: [CLIP],
-// )<mb_results>
 
 #figure(
   table(
@@ -99,10 +76,12 @@ This suggests that simply increasing the number of negative examples via a memor
     ),
     table.hline(stroke: .6pt),
     [$times$], [*30.3*], [*67.2*], [*78.29*],
-    [$checkmark$], [30.3], [*67.2*], [*78.29*],
+    [$checkmark$], [0.001], [0.12], [0.58],
     table.hline(),
   ),
   caption: [
+    Using a memory bank to store negative examples leads to unusable results. Especially noticeable is an accuracy of 0.001% on ImageNet-1K,
+    which corresponds to a random classification.
   ],
 )<mb_results>
 
@@ -200,8 +179,9 @@ which is the disadvantage of this variant.
   image(
   width: 50%,
   "../figures/mm_momentum_encoder.png"),
-  caption: [A momentum encoder generates negative examples for ITC, which are also stored in a memory bank that
-  discards the representations of the oldest batch when new ones are added after every step. Figure inspired by MoCo v2 @mocov2.
+  caption: [A momentum encoder generates negative examples for ITC, which are stored in a memory bank that
+  discards the representations of the oldest batch when new ones are added after every step. Figure inspired by MoCo v2 @mocov2, image and
+  text taken from COCO @coco.
   ],
 ) <mm_momentum_encoder>
 
@@ -263,36 +243,44 @@ avoid the memory overflow. We illustrate this in @me_forward_comparison.
 ) <me_forward_comparison>
 
 
-The result is shown in @zs_imagenet_itc_vs_mb. The additional forward pass of the momentum encoder adds
-approximately 5 minutes per epoch, which we consider as marginal. However, the performance does not exceed
+The result is shown in @itc_vs_mb. 
+The performance does not exceed
 that of the the standard gathering from all devices with just 511 negative examples (effective batch size of 512).
-The experiment seems more promising to achieve a higher accuracy with more epochs,
-compared to the previous approach, as the latter appears to saturate towards the end of training,
-but a longer training is both financially unsustainable for us, and lacks efficiency,
-which we cosider as a key aspect of our work. Additionally, adding a momentum encoder increases the complexity of our approach,
-which, combined with the lack of performance improvement, leads us to abandon this approach.
+However, the experiment seems more promising to achieve a better retrieval performance with more epochs
+compared to the previous approach (see @coco_val_imagenet_itc_vs_mb), as the latter appears to saturate towards the end of training.
 
-#let st(r) = text(8pt)[#r]
+We consider efficiency and simplicity as a key aspect of our work. Since adding a momentum encoder
+
+1. increases the complexity of our approach,
+2. increases the training time from approx. 7 hours to 10.3 hours, and
+3. does not lead to a significant improvement in performance,
+
+we decide to abandon this approach.
+The increase training time can be attributed to the additional forward pass of the momentum encoder
+and a large matrix multiplication, resulting from the large memory bank.
+
 #figure(
-    grid(
-        columns: 2,
-        gutter: 2mm,
-        image( "../figures/zs_imagenet_itc_vs_mb.png"),
-        st(table(
-          columns: 4,
-          stroke: none,
-          table.hline(),
-          table.header(
-            [Model],
-            [ImageNet-1K Accuracy],
-            [Retrieval MSCOCO],
-            [Retrieval Flickr30K],
-          ),
-          table.hline(stroke: .6pt),
-          [Standard ITC], [26.1], [66.3], [42.4],
-          [Momentum Encoder], [26.0], [256], [30.3],
-          table.hline(),
-        )),
-    ),
-    caption: [Comparison of the Standard ITC approach with momentum encoder and a memory bank of size 65,536. The momentum encoder approach does not exceed the performance of the standard ITC approach (right), even though it shows a promising trend towards the end of training (left, validation accuracy on ImageNet-1K).]
-) <zs_imagenet_itc_vs_mb>
+  table(
+  columns: 4,
+  stroke: none,
+  table.hline(),
+  table.header(
+    table.cell(rowspan: 2, colspan: 1, align:horizon, [Momentum Encoder]),
+    table.cell(rowspan: 2, colspan: 1, align:horizon, [ImageNet-1K]),
+    table.cell(colspan: 2, align:horizon, [Retrieval]),
+    [MSCOCO],
+    [Flickr30K],
+  ),
+  table.hline(stroke: .6pt),
+  [$times$], [*30.3*], [*67.2*], [*78.29*],
+  [$checkmark$], [30.0], [64.28], [76.17],
+  table.hline(),
+),
+    caption: [Comparison of the Standard ITC approach with momentum encoder and a memory bank of size 65,536. The momentum encoder
+    approach does not exceed the performance of the standard ITC approach.]
+) <itc_vs_mb>
+
+#figure(
+  image( "../figures/coco_val_imagenet_itc_vs_mb.png", width: 50%),
+  caption: [A momentum encoder shows a promising trend to achieve better retrieval performance towards the end of training.]
+) <coco_val_imagenet_itc_vs_mb>
