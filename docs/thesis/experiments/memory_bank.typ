@@ -259,6 +259,7 @@ we decide to abandon this approach.
 The increase training time can be attributed to the additional forward pass of the momentum encoder
 and a large matrix multiplication, resulting from the large memory bank.
 
+#show table: set text(8pt)
 #figure(
   table(
   columns: 4,
@@ -284,3 +285,4 @@ and a large matrix multiplication, resulting from the large memory bank.
   image( "../figures/coco_val_imagenet_itc_vs_mb.png", width: 50%),
   caption: [A momentum encoder shows a promising trend to achieve better retrieval performance towards the end of training.]
 ) <coco_val_imagenet_itc_vs_mb>
+#show table: set text(12pt)

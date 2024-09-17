@@ -145,6 +145,8 @@
   include("experiments/itm.typ")
   include("experiments/memory_bank.typ")
 
+  include("experiments/cmli.typ")
+
   // Appendix.
   set heading(numbering: "A")
   counter(heading).update(0)
