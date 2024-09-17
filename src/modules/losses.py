@@ -8,6 +8,7 @@ from timm.models.layers import trunc_normal_
 from .layers import gather_features, GatherLayer
 from .cmli import infer_cmli_logits, masked_mean, max_neg_value, to_half, remove_cls
 from typing import Dict
+from fairseq.modules.transformer_sentence_encoder import init_bert_params
 import logging
 
 logger = logging.getLogger(__name__)
@@ -453,9 +454,13 @@ class SparseCMLILoss(CMLILoss):
         return out_dict
 
 class TargetCMLILoss(L.LightningModule):
-    def __init__(self, embed_dim):
+    def __init__(self, embed_dim, cmli_dim=None):
         super().__init__()
         self.embed_dim = embed_dim
+        self.cmli_dim = cmli_dim if cmli_dim is not None else embed_dim
+        self.down_proj = nn.Linear(embed_dim, self.cmli_dim)
+        self.down_proj.apply(init_bert_params)
+
         self.empty_token = nn.Parameter(torch.rand(1, 1, 256))
         trunc_normal_(self.empty_token, mean=0, std=0.02, a=-0.02, b=0.02)
     
@@ -467,61 +472,61 @@ class TargetCMLILoss(L.LightningModule):
 
         text_tokens_proj = down_proj(text_tokens)
         target_patches_proj = down_proj(target_patches)
-        text_tokens_proj = text_tokens_proj / text_tokens_proj.norm(dim=-1, keepdim=True)
+        text_tokens_proj_norm = text_tokens_proj / text_tokens_proj.norm(dim=-1, keepdim=True)
 
-        empty_token_ = self.empty_token.expand(target_patches_proj.shape[0], -1, -1)
-        target_patches_proj = torch.cat([empty_token_, target_patches_proj], dim=1)
+        #empty_token_ = self.empty_token.expand(target_patches_proj.shape[0], -1, -1)
+        #target_patches_proj = torch.cat([empty_token_, target_patches_proj], dim=1)
 
-        target_patches_proj = target_patches_proj / target_patches_proj.norm(dim=-1, keepdim=True)
+        target_patches_proj_norm = target_patches_proj / target_patches_proj.norm(dim=-1, keepdim=True)
         
-        text_tokens_proj = text_tokens_proj.half()
-        target_patches_proj = target_patches_proj.half()
-        similarity = opt_einsum.contract('b i d, b j d -> b i j', text_tokens_proj, target_patches_proj)
+        text_tokens_proj_norm = text_tokens_proj_norm.half()
+        target_patches_proj_norm = target_patches_proj_norm.half()
+        similarity = opt_einsum.contract('b i d, b j d -> b i j', text_tokens_proj_norm, target_patches_proj_norm)
 
         similarity = similarity.argmax(dim=-1)
-        not_paired_with_empty_token = (similarity!=0).view(-1)
+        #not_paired_with_empty_token = (similarity!=0).view(-1)
 
         token2patch_idx = similarity.unsqueeze(-1).expand(-1, -1, self.embed_dim)
 
-        padding_mask = ~padding_mask.contiguous().view(-1).bool()
+        not_padding = ~padding_mask.contiguous().view(-1).bool()
 
         # gathered from "target", not from "target_patches" -> cls token is at index 0, which is the same
         # index used for the empty token -> will be excluded using "include_mask" -> cls token is just a placeholder
         # to allows correct gathering -> "target_patches_proj" has one more element than "target_patches"
-        token_aliged_patches = torch.gather(target, 1, token2patch_idx).view(-1, self.embed_dim)[padding_mask]
+        token_aliged_patches = torch.gather(target_patches_proj, 1, token2patch_idx).view(-1, self.embed_dim)[not_padding]
 
-        tokens = text_tokens.contiguous().view(-1, self.embed_dim)[padding_mask]
+        tokens = text_tokens_proj.contiguous().view(-1, self.embed_dim)[not_padding]
 
-        frac_not_paired_w_empty_token = not_paired_with_empty_token.float().mean()
+        #frac_not_paired_w_empty_token = not_paired_with_empty_token.float().mean()
         # reg_loss = -torch.log(frac_not_paired_w_empty_token)
 
         # weight cls loss the same as all other tokens combined
         kd_text_other_loss = F.mse_loss(input=tokens.float(), target=token_aliged_patches.float(), reduction='none').mean(dim=-1)
-        kd_text_other_loss[~not_paired_with_empty_token[padding_mask]] = 0.0
+        #kd_text_other_loss[~not_paired_with_empty_token[not_padding]] = 0.0
         kd_text_other_loss = kd_text_other_loss.mean()
-        kd_text_cls_loss = F.mse_loss(input=text[:, 0].float(), target=target[:, 0].float())
+        #kd_text_cls_loss = F.mse_loss(input=text[:, 0].float(), target=target[:, 0].float())
 
-        kd_text_loss = (kd_text_other_loss + kd_text_cls_loss) / 2
+        #kd_text_loss = (kd_text_other_loss + kd_text_cls_loss) / 2
 
         image_all = image[:, 1:].reshape(-1, self.embed_dim).float() # (B, D, C) -> (B*D, C)
         target_all = target[:, 1:].reshape(-1, self.embed_dim).float() # (B, D, C) -> (B*D, C)
 
         kd_image_other_loss = F.mse_loss(input=image_all, target=target_all)
-        kd_image_cls_loss = F.mse_loss(input=image[:, 0].float(), target=target[:, 0].float())
-        kd_image_loss = (kd_image_other_loss + kd_image_cls_loss) / 2
+        #kd_image_cls_loss = F.mse_loss(input=image[:, 0].float(), target=target[:, 0].float())
+        #kd_image_loss = (kd_image_other_loss + kd_image_cls_loss) / 2
 
-        total_loss = (kd_text_loss + kd_image_loss) / 2
+        total_loss = (kd_text_other_loss + kd_image_other_loss) / 2
 
         out_dict = {
             'kd_loss': total_loss,
-            'kd_text_loss': kd_text_loss,
-            'kd_image_loss': kd_image_loss,
+            #'kd_text_loss': kd_text_loss,
+            #'kd_image_loss': kd_image_loss,
             'kd_text_other_loss': kd_text_other_loss,
-            'kd_text_cls_loss': kd_text_cls_loss,
+            #'kd_text_cls_loss': kd_text_cls_loss,
             'kd_image_other_loss': kd_image_other_loss,
-            'kd_image_cls_loss': kd_image_cls_loss,
+            #'kd_image_cls_loss': kd_image_cls_loss,
             'token2patch_idx': token2patch_idx,
-            'frac_not_empty_token': frac_not_paired_w_empty_token,
+            #'frac_not_empty_token': frac_not_paired_w_empty_token,
         }
         
         return out_dict
