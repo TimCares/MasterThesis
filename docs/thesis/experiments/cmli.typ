@@ -2,14 +2,19 @@
 ===== Target Cross-Modal Late Interaction <target_cross_modal_late_interaction>
 ==== Cross-Modal Late Interaction <cross_modal_late_interaction>
 Until now, we used the global text and image representations $mono(["T_CLS"])$ and $mono(["I_CLS"])$, respectively, for
-contrastive learning and the alignment loss of (TODO: cite removing itc).
+contrastive learning.
 This has the disadvantage that only global information is utilized, and fine-grained, token/patch-specific, information is not considered.
-This can make retrieval, and alignment in general, difficult, especially if real-world concepts described by and image and text differ
-in small, yet important, details.
-To address this, the authors of FILIP @filip introduce Cross-Modal Late Interaction (CMLI) for a fine-grained comparison of text and image in contrastive learning.
+This can make retrieval, and alignment in general, difficult, especially if real-world concepts described by an image and a text differ
+in small, yet important, details. An example of this can be seen in (TODO: vis retrievals on full coco), where multiple retrievals
+are incorrect, even though they are semantically very similar to the query. The differences between the query and the retrieved samples
+are often so small, that they are not captured by the global representations. This is one of the reasons why models like BEiT-3 @beit3
+or VLMo @vlmo, which allow fine-grained alignment of text and image through cross-attention, perform better than models that only use
+global representations, like CLIP @clip and our model.
+To address the issue of fine-grained alignemnt without the need for cross-modal attention, the authors of FILIP @filip
+introduce Cross-Modal Late Interaction (CMLI) for contrastive learning.
 
 As shown in @cmli, no cosine similarity between $mono(["T_CLS"])$ and $mono(["I_CLS"])$ is computed, but instead the cosine 
-similarity between all image patches $[bold(v)_l^k]_(1 lt.eq k lt.eq N)$ and text tokens $[bold(w)_l^j]_(1 lt.eq j lt.eq M)$, 
+similarity between all image patches $[bold(h)_(v, l, k)]_(1 lt.eq k lt.eq N)$ and text tokens $[bold(h)_(w, l, j)]_(1 lt.eq j lt.eq M)$, 
 with $N$ being the number of image patches, and $M$ being the number of text tokens. 
 Specifically, $N$ and $M$ denote the number of patches/tokens in a sequence that are not the cls token
 ($mono(["I_CLS"])$/$mono(["T_CLS"])$) or padding token ($mono(["PAD"])$) @filip. The choice to exclude
@@ -19,12 +24,12 @@ padding tokens is obvious, as they do not carry any semantic information. The cl
 The next step is to find for each image patch $k$, the text token with the maximum cosine similarity to this image patch.
 
 $
-m_k^("i2t") = op("argmax", limits: #true)_(1 lt.eq j lt.eq M) [bold(v)^k] [bold(w)^j]^T
+m_k^("i2t") = op("argmax", limits: #true)_(1 lt.eq j lt.eq M) [bold(h)_(v, l, k)] [bold(h)_(w, l, j)]^T
 $
 
 Likewise, for each text token $j$, we get the image patch with the maximum cosine similarity to this text token
 $
-m_j^("t2i") = op("argmax", limits: #true)_(1 lt.eq k lt.eq N) [bold(v)^k] [bold(w)^j]^T
+m_j^("t2i") = op("argmax", limits: #true)_(1 lt.eq k lt.eq N) [bold(h)_(v, l, k)] [bold(h)_(w, l, j)]^T
 $
 
 This has an intersting effect: For each image patch, the semantically most similar text token is found, and vice versa 
@@ -33,21 +38,22 @@ Consequently, the model will be able to associate small details of an image with
 The actual cosine similarity between an image-text pair is then the average of all associations between an image patch and a text token.
 
 $
-s^("i2t")_(bold(H)^v_(l),bold(H)^w_(l)) = 1/N sum_(k=1)^N [bold(v)_l^k] [bold(w)_l^(m_k^("i2t"))]^T
+s^("i2t")_(bold(H)_(v, l),bold(H)_(w, l)) = 1/N sum_(k=1)^N [bold(h)_(v, l, k)] [bold(h)_(w, l, m_k^("i2t"))]^T
 $
 
 $
-s^("t2i")_(bold(H)^v_(l),bold(H)^w_(l)) = 1/M sum_(j=1)^M [bold(v)_l^(m_j^("t2i"))] [bold(w)_l^j]^T
+s^("t2i")_(bold(H)_(v, l),bold(H)_(w, l)) = 1/M sum_(j=1)^M [bold(h)_(v, l, m_j^("t2i"))] [bold(h)_(w, l, j)]^T
 $
 
 Here, for one image-text pair, $m_k^("i2t")$ denotes the index of the text token with the highest cosine similarity to image patch $k$,
-and $m_j^("t2i")$ the index of the image patch with the highest cosine similarity to text token $j$. $s^("i2t")_(bold(H)^v_(l),bold(H)^w_(l))$
-denotes the the similarity score between an image representation $bold(H)^v_(l)$ and text representation $bold(H)^w_(l)$.
-Vice versa, $s^("t2i")_(bold(H)^v_(l),bold(H)^w_(l))$ denotes the similarity score between a text representation $bold(H)^w_(l)$ and an image representation $bold(H)^v_(l)$. $l$ can denote any layer of the model, but we will use, as done in FILIP @filip, the last layer of the model,
-so if a model has $L$ layers, then $l=L$.
+and $m_j^("t2i")$ the index of the image patch with the highest cosine similarity to text token $j$. $s^("i2t")_(bold(H)_(v, l),bold(H)_(w, l))$
+denotes the the similarity score between an image representation $bold(H)_(v, l)$ and text representation $bold(H)_(w, l)$.
+Vice versa, $s^("t2i")_(bold(H)_(v, l),bold(H)_(w, l)) $ denotes the similarity score between a text representation $bold(H)_(w, l)$ and an image representation $bold(H)_(v, l)$. $l$ can denote any layer of the model, but we will use, as done in FILIP @filip, the last layer of the model,
+so $l=K$.
 
 In contrast to the standard contrastive learning, this similarity measure is not necessarily symmetric,
-as e.g. a text token might have a maximum cosine similarity to another image patch, than a image patch to the text token @filip.
+as e.g. a text token might have a maximum cosine similarity to another image patch, than the image patch that has its maximum
+similarity to the text token @filip.
 The process in illustrated in @cmli.
  
 #figure(
@@ -79,17 +85,17 @@ Consequently, this approach is not feasible in our setup.
 ===== Method <target_cmli_method>
 
 What is feasible though, is to apply CMLI to a setting where the computation is more lightweight.
-As in Contrastive Learning, the driving factor behind the memory requirements is that the similarity between all
-possible image-text pairs in a batch is computed. However, this is not the case when just the similarity between
-the positive pairs is computed, which is the case for what we call Target-CMLI.
+As the driving factor behind the memory requirements in contrastive learning is that the similarity between all
+possible image-text pairs in a batch is computed, this is removed when just the similarity between
+positive pairs is computed, which is what we call Target-CMLI.
 
 Target-CMLI is not used for contrastive learning, but rather to alleviate the problem of regressing
 patch-level information of the teacher model.
-Recall that in the current setting, which is Multimodal Knowledge Distillation, it is merely possible
+Recall that in the current setting, which is multimodal knowledge distillation, it is merely possible
 to regress the global representations of the teacher model, and not the patch-level information.
 This is because the teacher model only outputs patch-level predictions for the image modality, and not for the text modality.
 Consequently, the student model can replicate the output of the teacher model for the image modality, but not for the text modality,
-as it is not possible to assign a text token to a specific image patch (without labeled data).
+as it is not possible to assign a text token to a specific image patch.
 This is illustrated in (TODO: cite \@mm_kd_cls_token) of (TODO: cite \@differences_to_unimodal_knowledge_distillation).
 
 However, as seen in @cmli, when computing the cosine similarity between all image patches and text tokens of an image-text pair,
@@ -102,49 +108,22 @@ the selected image patch and the representation of the text token.
 For the patch-level image representation of the student model that means that we can now also regress the patch-level information
 of the teacher, and not only the global information. This was also possible in all previous experiments, as the order of the
 image patches does not change, however, this would heavily bias the parameters of the shared Transformer block towards the image modality.
-The definition of the loss changes as follows. For a given image representation
-$
-bold(H)^s_(v, L)=[bold(h)^s_(v, L, mono(["I_CLS"])), bold(h)^s_(v, L, 1), ..., bold(h)^s_(v, L, N)]
-$
-of the student, and the image representation
-$
-bold(H)^t_(v, L)=[bold(h)^t_(v, L, mono(["I_CLS"])), bold(h)^t_(v, L, 1), ..., bold(h)^t_(v, L, N)]
-$ 
-of the teacher, the loss is defined as:
+The definition of the loss changes as follows:
 
 $
 cal(L)_("KD")^("i2t") = 
-op("MSE")(bold(H)^s_(v, L), bold(H)^t_(v, L)) = \
-1/(N+1) (||bold(h)^s_(v, L, mono(["I_CLS"])) - bold(h)^t_(v, L, mono(["I_CLS"]))||^2 + 
-sum_(k=1)^N ||bold(h)^s_(v, L, k) - bold(h)^t_(v, L, k)||^2)
+op("MSE")(bold(H)^s_(v, K), bold(H)^t_(v, L_t)) =
+sum_(n=1)^N ||bold(h)^s_(v, K, n) - bold(h)^t_(v, L_t, n)||^2_2
 $
 
-For a given text representation
-$
-bold(H)^s_(w, L)=[bold(h)^s_(w, L, mono(["T_CLS"])), bold(h)^s_(w, L, 1), ..., bold(h)^s_(w, L, M), bold(h)^s_(w, L, mono(["T_SEP"]))]
-$
-of the student, we first need to find $m_k^("t2i")$ for each text token $k$, and then define the loss as:
+For a given text representation we first need to find $m_j^("t2i")$ for each text token $j$, and then define the loss as:
 
 $
 cal(L)_("KD")^("t2i") =
-op("MSE")(bold(H)^s_(w, L), bold(H)^t_(v, L)) = \
-1/(M+1) (||bold(h)^s_(w, L, mono(["T_CLS"])) - bold(h)^t_(v, L, mono(["I_CLS"]))||^2 + 
-sum_(k=1)^M ||bold(h)^s_(w, L, k) - bold(h)^t_(v, L, m_k^("t2i"))||^2)
+op("MSE")(bold(H)^s_(w, L), bold(H)^t_(v, L)) =
+sum_(z=1)^Z ||bold(h)^s_(w, L, z) - bold(h)^t_(v, L, m_j^("t2i"))||^2
 
 $
-
-// $
-// cal(L)_("KD")^("t2i") &= 
-// 1/2 * (
-//   op("MSE")(bold(h)^s_(w, L, mono(["T_CLS"])), bold(h)^t_(v, L, mono(["I_CLS"])))
-//   op("MSE")(bold(H)^s_(w, L), bold(H)^t_(v, L))
-// ) \
-// &= 
-// 1/2 * (
-//   ||bold(h)^s_(w, L, mono(["T_CLS"])) - bold(h)^t_(v, L, mono(["I_CLS"]))||^2 +
-//   1/N sum_(k=1)^N ||bold(h)^s_(w, L, k) - bold(h)^t_(v, L, m_k^("t2i"))||^2
-// )
-// $
 
 Notice how in both cases we also regress the global representation of the teacher $bold(h)^t_(v, L, mono(["I_CLS"]))$
 for the given image. So the first term (the one before the sum-operator) is the loss we used before. In both cases,

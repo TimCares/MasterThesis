@@ -112,105 +112,10 @@ the classification head now also outputs 768-dimensional representations,
 instead of the 1000-dimensional output used previously for the ImageNet-1K classes. Therefore:
 $bold(h)'''^s_(v, K, mono(["I_CLS"])) in RR^768$ and $bold(h)'''^s_(w, K, mono(["T_CLS"])) in RR^768$.
 As a side note, the student's classification head is technically not a classification head anymore, as it does not predict any classes
-but rather a representation of the teacher.
-
-==== Loss-Equilibrium Harms Alignment <loss_equilibrium_harms_alignment>
-
-An important change we make is removing the application of the contrastive loss on the outputs of the student's (classification) head
-$bold(h)'''^s_(v, K, mono(["I_CLS"]))$ and $bold(h)'''^s_(w, K, mono(["T_CLS"]))$, which were also the representations used for image-text
-retrieval and CLIP-like ImageNet-1K classification in the previous benchmarks.
-We consider it as unwise to apply a contrastive loss on the output of the classification head, as this output is also used to
-regress the teacher's representation $bold(h)^t_(v, L_t, mono(["I_CLS"]))$ of the $mono(["I_CLS"])$ token (see @kd_loss_mse).
-In preliminary experiments, we found that requiring
-the student's outputs $bold(h)'''^s_(v, K, mono(["I_CLS"]))$ and $bold(h)'''^s_(w, K, mono(["T_CLS"]))$ to be close to each other
-under the contrastive loss, while also requiring them to be close to the teacher's representation $bold(h)^t_(v, L_t, mono(["I_CLS"]))$,
-leads diminishing results on retrieval.
-
-Usually, the combination of both losses would actually be a good idea, as it would push both representations closer together
-(contrastive loss), while also pushing each of them closer to the teacher's
-representation (knowledge distillation loss, see @kd_loss_mse).
-However, since the teacher representation $bold(h)^t_(v, L_t, mono(["I_CLS"]))$ actually still contains image-specific information,
-which we will illustrate later,
-both losses work against each other:
-
-The contrastive loss pushes the student's representations of the image $bold(h)'''^s_(v, K, mono(["I_CLS"]))$
-and caption $bold(h)'''^s_(w, K, mono(["T_CLS"]))$ closer together, while
-the knowledge distillation loss pushes both $bold(h)'''^s_(v, K, mono(["I_CLS"]))$ and $bold(h)'''^s_(w, K, mono(["T_CLS"]))$
-towards the teacher representation $bold(h)^t_(v, L_t, mono(["I_CLS"]))$.
-
-The issue arises because the teacher's representation $bold(h)^t_(v, L_t, mono(["I_CLS"]))$ still contains image-specific information.
-This means the student's image representation $bold(h)'''^s_(v, K, mono(["I_CLS"]))$ will always be closer to
-$bold(h)^t_(v, L_t, mono(["I_CLS"]))$ than the caption representation $bold(h)'''^s_(w, K, mono(["T_CLS"]))$ (see @mse_kd_loss_comparison),
-because only the image input allows the student to extract this image-specific information, not the caption.
-As a result, it is easier for the student to regress the teacher's image representation with its own image representation
-than with its caption representation.
-
-At some point, there will be an equilibrium between the two losses, where the student's image representation
-is being pulled equally toward the teacher's representation (kd loss) and toward the caption representation (contrastive loss). The consequence of
-this equilibrium is that the student's representations $bold(h)'''^s_(v, K, mono(["I_CLS"]))$ and $bold(h)'''^s_(w, K, mono(["T_CLS"]))$
-will not be as close to each other as they could be without the knowledge distillation loss,
-leading to suboptimal alignment between image and caption. This ultimately harms retrieval performance,
-as the alignment between image and caption representations is weakened. A visual representation of the problem is shown in @cl_kd_vs_cl.
-
-#figure(
-  image(
-  width: 75%,
-  "../figures/cl+kd_vs_cl.png"),
-  caption: [
-      Using both the contrastive loss and the knowledge distillation loss on the final output of the student leads
-      to suboptimal alignment between image and caption representations. (a) The greyed out arrow indicates that the minimum distance between the student's caption representation
-      and the teacher's image representation is reached. Only the student's image representation can
-      be transported closer to the teacher's image representation, but this force stands in an
-      equilibrium with the contrastive loss between both student representations. The
-      knowledge distillation loss leads to a suboptimal alignment between image and caption representations.
-      (b) Using only the contrastive loss on the final output of the student allows the student's image and
-      caption representations to be as close as possible to each other, leading to a better alignment between image and caption representations.
-],
-) <cl_kd_vs_cl>
-
-The reason why we know that the teacher's representation $bold(h)^t_(v, L_t, mono(["I_CLS"]))$ still contains image-specific information
-is the comparison between the training loss of $cal(L)_("KD")^v$ and $cal(L)_("KD")^w$ in @mse_kd_loss_comparison.
-It is observable that the loss $cal(L)_("KD")^v$ is significantly lower than $cal(L)_("KD")^w$, which indicates that the student
-is able to regress the teacher's image representation $bold(h)^t_(v, L_t, mono(["I_CLS"]))$ better
-with its own image representation $bold(h)'''^s_(v, K, mono(["I_CLS"]))$ than with its caption representation $bold(h)'''^s_(w, K, mono(["T_CLS"]))$.
-If the teacher's representation $bold(h)^t_(v, L_t, mono(["I_CLS"]))$ would not contain any image-specific information, say,
-it encodes the information "dog" for an image of a dog, the student should be able to regress this representation with both
-of its representations equally well. However,
-this is not the case.
-
-#figure(
-  image(
-  width: 50%,
-  "../figures/mse_kd_loss_comparison.png"),
-  caption: [
-   Comparison between the Image-2-Image KD loss $cal(L)_("KD")^v$ and the Text-2-Image KD loss $cal(L)_("KD")^w$.
-   The latter is significantly higher, indicating that the student is able to regress the teacher's
-   image representation better with its own image representation than with its caption representation.
-],
-) <mse_kd_loss_comparison>
-
-As mentioned before, our solution is to remove the contrastive loss $cal(L)_("CL"''')$ working on
-$bold(h)'''^s_(v, K, mono(["I_CLS"]))$ and $bold(h)'''^s_(w, K, mono(["T_CLS"]))$.
-This removes the alignment constraint between the student's image and caption representations of the "classification" head.
-Correspondingly, we now use the representations $bold(h)''^s_(v, K, mono(["I_CLS"]))$ and $bold(h)''^s_(w, K, mono(["T_CLS"]))$
-for image-text retrieval and CLIP-like ImageNet-1K classification, which are still aligned under the contrastive loss $cal(L)_("CL"'')$.
-The full contrastive loss is then:
-
-$
-cal(L)_("CL") &= \
-1/2 * (cal(L)_("CL"') &+ cal(L)_("CL"'')) = \
-1/4cal(L)_("CL"')^("i2t") &+ 1/4cal(L)_("CL"')^("t2i") + \
-1/4cal(L)_("CL"'')^("i2t") &+ 1/4cal(L)_("CL"'')^("t2i")
-$ <contrastive_loss_sx3hre>
-
-The "classification" head, which should rather be called the "regression" head, considering we regress the teacher's representation
-under the mean squared error loss, is now only used for the knowledge distillation loss. Since its output is now not used for any
-vision-language tasks like retrieval, we can discard it after training. What remains is simply the output of the shared Transformer
-layer. With this approach, we focus on aligning the modalities through the contrastive loss, while still utilizing the knowledge
-learned by the teacher model. 
+but rather a representation of the teacher. We will refer to it as the regression head from now on.
 
 ==== Results
-Apart from the change in the teacher and the loss functions, the training setup remains the same, and no hyperparameters are changed.
+Apart from the change in the teacher and the impact on the loss, the training setup remains the same, and no hyperparameters are changed.
 As we now do not follow the approach of SHRe, that is, predicting a probability distribution over ImageNet-1K classes @shre,
 we name the new approach "#text(weight: "bold")[S]elf#text(weight: "bold")[-S]upervised #text(weight: "bold")[M]ultimodal
 #text(weight: "bold")[K]nowledge #text(weight: "bold")[E]xtraction" (S-SMKE). 

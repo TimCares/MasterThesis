@@ -468,7 +468,7 @@ we indicate the difference in dimensionality between the linear layers by a diff
   caption: [
     Switching from our implementation of the shared encoder as a 3-layer MLP to a Transformer layer only corresponds to adding a
     Multi-Head Self-Attention layer before the linear layers. The dimensionality of the linear layers remains the same.
-    On the right, layer normalization and residual connections are omitted for simplicity.
+    On the right, layer normalization, activations, and residual connections are omitted for simplicity.
 ],
 ) <comparison_shared_mlp_transformer>
 
@@ -477,16 +477,17 @@ of the shared encoder from @transformer_shre_shared_encoder_ffn_computation and 
 following (also on the example of the text modality):
 
 $
-bold(H)^("MHA")_(w,K) &= op("MHA")(op("LN")(bold(H)_(w,L_s))) + bold(H)_(w,L_s)
+bold(H)^("mha")_(w,K) &= op("MHA")(op("LN")(bold(H)_(w,L_s))) + bold(H)_(w,L_s)
 $ <shre_shared_transformer_layer_mha_eq>
 
 $
-bold(H)'_(w,K) &= op("LN")(bold(H)^("MHA")_(w,K))bold(W)_1 + bold(b)_1 \
+bold(H)'_(w,K) &= op("LN")(bold(H)^("mha")_(w,K))bold(W)_1 + bold(b)_1 \
 bold(H)''_(w,K) &= op("LN")(op("GELU")(bold(H)'_(w,K)))bold(W)_2 + bold(b)_2 \
+bold(H)^("ln")_(w,K) &= op("LN")(bold(H)''_(w,K) + bold(H)^("mha")_(w,K))
 $ <shre_shared_transformer_layer_ffn_eq>
 
 $
-bold(h)'''_(w, K, mono(["T_CLS"])) &= op("LN")((bold(H)''_(w,K)+ bold(H)^("MHA")_(w,K))_(w, K, mono(["T_CLS"])))bold(W)_3 + bold(b)_3 \
+bold(h)'''_(w, K, mono(["T_CLS"])) &= bold(h)^("ln")_(w,K, mono(["T_CLS"]))bold(W)_3 + bold(b)_3 \
 $ <shre_shared_transformer_layer_head_eq>
 
 It holds that $K=L_s+1=7$, since the shared encoder is one additional Transformer layer.
@@ -498,47 +499,80 @@ and is therefore also shown in @vit_full_forward_eq of the section on Vision Tra
 
 @shre_shared_transformer_layer_ffn_eq shows the operation of the Feed-Forward Network (FFN) layer of the Transformer.
 It is the same operation as defined in @transformer_shre_shared_encoder_ffn_computation, but applied pointwise on a sequence.
-If the original input to our model is an image, then we extract $bold(h)'_(v, K, mono(["I_CLS"]))$ and $bold(h)''_(v, K, mono(["I_CLS"]))$
-for the contrastive loss, if it is a caption, then we extract $bold(h)'_(w, K, mono(["T_CLS"]))$ and $bold(h)''_(w, K, mono(["T_CLS"]))$.
+We divide the operations of the FFN into three formulas, as we want to explicitly show that we extract
+the intermediate representation $bold(H)'_(w,K)$ and $bold(H)'_(v,K)$,
+and final representation $bold(H)''_(w,K)$ and $bold(H)''_(v,K)$ from the FFN.
+Both the intermediate and final representations we extract are the raw outputs from linear layer \#1 and linear layer \#2,
+without any activation function or normalization applied.
+From those representations, which are still sequences,
+we take the representation of the $mono(["T_CLS"])$ and $mono(["I_CLS"])$ token for text and image, respectively.
+Concretely, they are: $bold(h)'_(w, K, mono(["T_CLS"]))$ and $bold(h)'_(v, K, mono(["I_CLS"]))$, and
+$bold(h)''_(w, K, mono(["T_CLS"]))$ and $bold(h)''_(v, K, mono(["I_CLS"]))$. Those are then used for the contrastive loss.
 
-The operation for the classification head in @shre_shared_transformer_layer_head_eq is only applied on the $mono(["I_CLS"])$ or $mono(["T_CLS"])$ token.
-This is because at this point the other tokens (time steps) are not needed anymore.
+The operation in @shre_shared_transformer_layer_head_eq now resembles that of an actual
+classification head from the vision Transformer architecture, and is only applied on the $mono(["I_CLS"])$ or $mono(["T_CLS"])$ token.
+An important distinction we make here, compared to the original shared 3-layer MLP, is that we do not apply the contrastive loss on the output
+of the classification head $bold(h)'''_(w, K, mono(["T_CLS"]))$
+and $bold(h)'''_(v, K, mono(["I_CLS"]))$, and we explain the reasoning for this in the following.
+
+The task of the classification head is to leverage the knowledge learned from the teacher to provide the student with guidance.
+This guidance can be described as the fact that objects, or rather the ImageNet-1K classes that describe them, can be found in both
+the image and its caption (see @shre_coco_prob_dist). The student will therefore learn that an image and its caption
+both describe the same real-world object/concepts.
+Based on this intuition, the classification head is not meant to output representations of the image or text, and should therefore not be used
+for retrieval tasks.
+
+For all retrieval tasks, including CLIP-like zero-shot classification, we consequently use the representations
+$bold(h)''_(v, K, mono(["I_CLS"]))$ and $bold(h)''_(w, K, mono(["T_CLS"]))$ as final representations for image and text, respectively.
+The classification head can therefore be discared after training, as it is not needed for retrieval
+or any other downstream task. It is only used during training to provide the student with guidance from the teacher.
 An overview which tokens are used in which part of the training objective is shown in @transformer_shre_loss_tokens.
+
+The full contrastive loss is now:
+$
+cal(L)_("CL") &= \
+1/2 * (cal(L)_("CL"') &+ cal(L)_("CL"'')) = \
+1/4cal(L)_("CL"')^("i2t") &+ 1/4cal(L)_("CL"')^("t2i") + \
+1/4cal(L)_("CL"'')^("i2t") &+ 1/4cal(L)_("CL"'')^("t2i")
+$ <contrastive_loss_sx3hre>
 
 #figure(
   table(
     columns: 4,
     stroke: none,
+    gutter: (0pt, 0pt, 2pt, 0pt, 2pt, 0pt, 2pt, 0pt, 0pt),
     table.hline(),
     table.header(
       [*Loss*],
       [*Modality*],
-      [*3-layer MLP*],
-      [*Transformer layer + Classification Head*],
+      [*SHRe*],
+      [*Transformer SHRe*],
       table.hline(stroke: .6pt),
     ),
     table.cell(rowspan: 2, align:horizon, [$cal(L)_("KD")$]), [Image], [$bold(h)'''_(v, K)$], [$bold(h)'''_(v, K, mono(["I_CLS"]))$],
       [Text], [$bold(h)'''_(w, K)$], [$bold(h)'''_(w, K, mono(["T_CLS"]))$],
-    table.hline(stroke: .2pt),
+    table.hline(stroke: .5pt),
     table.cell(rowspan: 2, align:horizon, [$cal(L)_("CL"')$]), [Image], [$bold(h)'_(v, K)$], [$bold(h)'_(v, K, mono(["I_CLS"]))$],
       [Text], [$bold(h)'_(w, K)$], [$bold(h)'_(w, K, mono(["T_CLS"]))$],
-    table.hline(stroke: .2pt),
+    table.hline(stroke: .1pt),
     table.cell(rowspan: 2, align:horizon, [$cal(L)_("CL"'')$]), [Image], [$bold(h)''_(v, K)$], [$bold(h)''_(v, K, mono(["I_CLS"]))$],
       [Text], [$bold(h)''_(w, K)$], [$bold(h)''_(w, K, mono(["T_CLS"]))$],
-    table.hline(stroke: .2pt),
-    table.cell(rowspan: 2, align:horizon, [$cal(L)_("CL"''')$]), [Image], [$bold(h)'''_(v, K)$], [$bold(h)'''_(v, K, mono(["I_CLS"]))$],
-      [Text], [$bold(h)'''_(w, K)$], [$bold(h)'''_(w, K, mono(["T_CLS"]))$],
+    table.hline(stroke: .1pt),
+    table.cell(rowspan: 2, align:horizon, [$cal(L)_("CL"''')$]), [Image], [$bold(h)'''_(v, K)$], [-],
+      [Text], [$bold(h)'''_(w, K)$], [-],
     table.hline(),
   ),
   caption: [
-    A comparison between the tokens used in the loss functions for the shared 3-layer MLP and the shared Transformer layer (+ classification head).
+    A comparison between the tokens used in the loss functions for the approach of SHRe @shre with a shared 3-layer MLP
+    and out Transformer SHRe.
+    For Transformer SHRe we do not use the contrastive loss $cal(L)_("CL"''')$.
   ],
 ) <transformer_shre_loss_tokens>
 
-For retrieval, as well as for CLIP-like ImageNet-1K classification, we now use representations $bold(h)'''_(v, K, mono(["I_CLS"]))$
-and $bold(h)'''_(w, K, mono(["T_CLS"]))$ for image and text, respectively.
-The influence on retrieval when adding a shared Transformer layer, which means just adding Multi-Head Self-Attention to the shared encoder,
-can be seen, together with the previous results, in @image_text_retrieval_shre_overview. This change not only outperforms
+==== Results
+
+The influence on retrieval, when adding a shared Transformer layer and changing the representations used for retrieval,
+can be seen in @image_text_retrieval_shre_overview. This change not only outperforms
 our first two experiments in all metrics, but also FLAVA @flava in R@1 text retrieval on COCO. For other metrics on COCO, we are also
 surprisingly close to FLAVA. On Flickr30K, we still lack behind FLAVA, but the gap is significantly smaller than before.
 

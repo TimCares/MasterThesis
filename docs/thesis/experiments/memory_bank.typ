@@ -296,9 +296,3 @@ which, combined with the lack of performance improvement, leads us to abandon th
     ),
     caption: [Comparison of the Standard ITC approach with momentum encoder and a memory bank of size 65,536. The momentum encoder approach does not exceed the performance of the standard ITC approach (right), even though it shows a promising trend towards the end of training (left, validation accuracy on ImageNet-1K).]
 ) <zs_imagenet_itc_vs_mb>
-
-Before we move on from contrastive learning, we use the opportunity to test whether also removing the $cal(L)_"CL"'$ loss on
-the intermediate representations of the shared Transformer layer has a negative impact on performance. We motivate this ablation
-study on other multimodal models like VLMo @vlmo, BEiT-3 @beit3, and FLAVA @flava, which only apply the contrastive loss on the final
-representation of the cls token from a Transformer layer. They do not apply the contrastive loss on the output of the first linear
-layer of the 2-layer MLP that is part fo each Transformer layer. 
