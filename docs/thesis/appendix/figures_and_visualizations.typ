@@ -133,3 +133,12 @@
   Results of text/caption retrieval on a 1k subset of the COCO test set @coco, as described in @shre.
 ],
 ) <shre_transformer_only_tr_1k>
+
+#figure(
+  image(
+  width: 75%,
+  "../figures/filip_cmli_examples.png"),
+  caption: [
+  Image-text pairs taken from COCO test set @filip.
+],
+) <filip_cmli_examples>

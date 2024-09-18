@@ -153,6 +153,68 @@ is required. This is feasible in our setup.
 
 ==== Results <target_cmli_results>
 
+The results, as seen in @t_cmli_results, can be considered as disappointing. We lose more than 2 percentage points in average retrieval
+on both MSCOCO and Flickr30K, while the performance on ImageNet-1K decreases by nearly 4 percentage points.
+
+A look at a visualization (@t_cmli_examples) of matches between text tokens and their top-5 most similar image patches under cosine similarity
+reveals that while there are some cases where the token has the highest similarity to an actual image patch belonging the the correct
+object, the matching is far from perfect, and matches are often either completely unrelated, or scattered across almost random regions.
+A matching that would be expected from a successful approach is illustrated by the authors of FILIP @filip, and can be seen in
+@filip_cmli_examples. While the exaples of FILIP are based on CMLI for contrastive learning, and not our Target-CMLI for knowledge distillation,
+the principle of matching text tokens to image patches remains the same, and the quality of the matches is expected to be similar.
+
+In general, we observe that the patch with the highest similarity for an example text token is often a patch completely unrelated to the token,
+and the matches do not contain enough information to accurately match the text token. For example, consider the image in the first row and
+second column of @t_cmli_examples. While the matched patch token is part of a "bike", it is not large enough to actually contain the bike.
+Minimizing the MSE between the representation of the text token "bike" and the representation of the matched patch will therefore
+not result in a representation that is representative of the concept "bike". This is a general problem of the approach, and might be one reason
+why our previous approach of regressing the global representations of the teacher model performed better.
+
+While it is true that the representation of an image patch not only contains information about the patch itself, but also about its surrounding
+patches, thanks to self-attention, this still does not explain the matches to completely unrelated patches that are not even part of the
+correct object.
+
+#figure(
+  image(
+  width: 100%,
+  "../figures/t_cmli_examples.png"),
+  caption: [
+  Image-text pairs taken from COCO test set @coco.
+],
+) <t_cmli_examples>
+
+#figure(
+  image(
+  width: 100%,
+  "../figures/beit2_cls_attn_examples.png"),
+  caption: [
+  Image-text pairs taken from COCO test set @coco.
+],
+) <beit2_cls_attn_examples>
+
+
+#show table: set text(8pt)
+#figure(
+  table(
+  columns: 4,
+  stroke: none,
+  table.hline(),
+  table.header(
+    table.cell(rowspan: 2, colspan: 1, align:horizon, [T-CMLI]),
+    table.cell(rowspan: 2, colspan: 1, align:horizon, [ImageNet-1K]),
+    table.cell(colspan: 2, align:horizon, [Retrieval]),
+    [MSCOCO],
+    [Flickr30K],
+  ),
+  table.hline(stroke: .6pt),
+  [$times$], [*30.3*], [*67.2*], [*78.29*],
+  [$checkmark$], [26.7], [65.68], [76.2],
+  table.hline(),
+),
+    caption: [C]
+) <t_cmli_results>
+#show table: set text(12pt)
+
 ==== Empty Target <target_cmli_empty_target>
 
 A weakness of the aforementioned approach is that some not all text tokens carry semantic information that can be mapped
