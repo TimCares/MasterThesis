@@ -136,9 +136,12 @@
 
 #figure(
   image(
-  width: 75%,
+  width: 100%,
   "../figures/filip_cmli_examples.png"),
   caption: [
-  Image-text pairs taken from COCO test set @filip.
+  Cross-Model Late Interaction (CMLI) on FILIP @filip and CLIP @clip. Numbers in parentheses describe the index of the text token
+  in the text sequence, and numbers in patches to which text token a patch is matched.
+  While FILIP is able to achieve a localization of the correct image patches, CLIP fails to do so. The figure is directly taken
+  from FILIP @filip.
 ],
 ) <filip_cmli_examples>

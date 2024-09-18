@@ -147,6 +147,14 @@
 
   include("experiments/cmli.typ")
 
+  include("experiments/modality_invariant_targets.typ")
+
+  include("experiments/teacher_ablations.typ")
+
+  include("experiments/limitations.typ")
+
+  include("experiments/fine_grained_alignment.typ")
+
   // Appendix.
   set heading(numbering: "A")
   counter(heading).update(0)

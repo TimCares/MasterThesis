@@ -126,7 +126,7 @@ For a given text representation we first need to find $m_j^("t2i")$ for each tex
 $
 cal(L)_("KD")^("t2i") =
 op("MSE")(bold(H)'''^s_(w, K), bold(H)^t_(v, L_t)) =
-sum_(z=1)^Z ||g(bold(h)'''^s_(w, K, z)) - g(bold(h)^t_(v, L_t, m_j^("t2i")))||^2
+sum_(z=1)^Z ||g(bold(h)'''^s_(w, K, z)) - g(bold(h)^t_(v, L_t, m_z^("t2i")))||^2
 $
 
 We denote $g(dot)$ as a linear projection to reduce the dimensionality of the image representation from the teacher, and the text representation
@@ -156,43 +156,6 @@ is required. This is feasible in our setup.
 The results, as seen in @t_cmli_results, can be considered as disappointing. We lose more than 2 percentage points in average retrieval
 on both MSCOCO and Flickr30K, while the performance on ImageNet-1K decreases by nearly 4 percentage points.
 
-A look at a visualization (@t_cmli_examples) of matches between text tokens and their top-5 most similar image patches under cosine similarity
-reveals that while there are some cases where the token has the highest similarity to an actual image patch belonging the the correct
-object, the matching is far from perfect, and matches are often either completely unrelated, or scattered across almost random regions.
-A matching that would be expected from a successful approach is illustrated by the authors of FILIP @filip, and can be seen in
-@filip_cmli_examples. While the exaples of FILIP are based on CMLI for contrastive learning, and not our Target-CMLI for knowledge distillation,
-the principle of matching text tokens to image patches remains the same, and the quality of the matches is expected to be similar.
-
-In general, we observe that the patch with the highest similarity for an example text token is often a patch completely unrelated to the token,
-and the matches do not contain enough information to accurately match the text token. For example, consider the image in the first row and
-second column of @t_cmli_examples. While the matched patch token is part of a "bike", it is not large enough to actually contain the bike.
-Minimizing the MSE between the representation of the text token "bike" and the representation of the matched patch will therefore
-not result in a representation that is representative of the concept "bike". This is a general problem of the approach, and might be one reason
-why our previous approach of regressing the global representations of the teacher model performed better.
-
-While it is true that the representation of an image patch not only contains information about the patch itself, but also about its surrounding
-patches, thanks to self-attention, this still does not explain the matches to completely unrelated patches that are not even part of the
-correct object.
-
-#figure(
-  image(
-  width: 100%,
-  "../figures/t_cmli_examples.png"),
-  caption: [
-  Image-text pairs taken from COCO test set @coco.
-],
-) <t_cmli_examples>
-
-#figure(
-  image(
-  width: 100%,
-  "../figures/beit2_cls_attn_examples.png"),
-  caption: [
-  Image-text pairs taken from COCO test set @coco.
-],
-) <beit2_cls_attn_examples>
-
-
 #show table: set text(8pt)
 #figure(
   table(
@@ -211,41 +174,80 @@ correct object.
   [$checkmark$], [26.7], [65.68], [76.2],
   table.hline(),
 ),
-    caption: [C]
+    caption: [Comparison of adjusting the loss function $cal(L)_("KD")$ from regressing the $mono(["I_CLS"])$ of the teacher
+    model to regressing the patch-level information of the teacher model using Target-CMLI. We observe a decrease in all metrics.]
 ) <t_cmli_results>
 #show table: set text(12pt)
 
-==== Empty Target <target_cmli_empty_target>
+A look at a visualization (@t_cmli_examples) of matches between text tokens and their top-5 most similar image patches under cosine similarity
+reveals that while there are some cases where the token has the highest similarity to an actual image patch belonging the the correct
+object, the matching is far from perfect, and matches are often either completely unrelated, or scattered across almost random regions.
+A matching that would be expected from a successful approach is illustrated by the authors of FILIP @filip, and can be seen in
+@filip_cmli_examples. While the exaples of FILIP are based on CMLI for contrastive learning, and not our Target-CMLI for knowledge distillation,
+the principle of matching text tokens to image patches remains the same, and the quality of the matches is expected to be similar.
 
-A weakness of the aforementioned approach is that some not all text tokens carry semantic information that can be mapped
-to image patches. An example of this can be seen in @cmli, where the tokens "A", "his", "to", and "some"
-do not contains any information that can be related to an image patch, because they are merely fill words in a sentence.
-However, with Target-CMLI there will be an image patch that is most similar to these tokens, even if the similarity is very low.
-Consequently, the model will try to minimize the MSE between the representation of these tokens and the corresponding image
-patches, which is not meaningful.
+In general, we observe that the patch with the highest similarity for a text token is often a patch completely unrelated to the token.
+While it is true that, thanks to self-attention, the representation of an image patch not only contains information about the patch itself,
+but also about patches it considers important, the self-attention map of the image patch with the highest similarity to a text token, which
+is the matched image patch, does not show any clear signs that it contains aggregated information from patches that are part of the object
+the text token describes. If that were the case, then the self-attention map of the matched image patch would show a clear focus on the object
+the text token describes/represents. This is illustrated in @t_cmli_examples, where for each example, the left image shows the top 5 most similar
+image patches for a text token under cosine similarity, and the right image shows the self-attention map of the image patch with the highest
+similarity to the text token, i.e. the image patch $m_j^("t2i")$ for a text token $j$.
+For the aforementioned, we observe a very inconsistent matching between text tokens and image patches. Especially examples "planes" and
+"birds" show that a mismatch is not rare.
 
-To address this, we propose the introduction of an empty target, which is a learnable token to which all text tokens are,
-next to the image patches, compared to using cosine similarity. If the maximum similarity for a text token is the empty target,
-then the loss for this token is set to zero, i.e. is ignored.
+Moreover, all top 5 matched image patches are often scattered across the image, and not focused on a specific region, underlining that
+the approach does not work as intended. Instead, a result similar to that of FILIP in @filip_cmli_examples is expected, where the matched
+image patches are focused on the object the text token describes, and lie next to each other. Our results are much more similar to
+that of CLIP, also illustrated by the authors of FILIP (@filip_cmli_examples), leading us to believe that a missing cross-modal
+attention might be the reason.
 
-However, this approach will inevitably lead to a model collapse. This is because the model will try to find the easiest way
-to minimize the loss ($cal(L)_("KD")$), and the easiest way to do that is to simply have all text tokens have the
-highest similarity to the empty target. This will result in a loss of zero, as the loss for all text token is now ignored,
-i.e. zero. Consequently, the model will not learn any meaningful representations. A potential solution to this is to
-add another loss term that encourages the model minimize the number of text tokens that have the highest similarity to the empty target,
-which will strike a balance between utilizing the empty target for meaningless tokens, and using actual image patches for meaningful tokens.
-We define the loss $cal(L)_("Reg")$ as follows:
+We suspect this, because FILIP @filip, like VLMo @vlmo and BEiT-3 @beit3, uses cross-attention to align text and image. This allows
+individual text tokens to attend to specific image patches, and vice versa, leading to e.g. text tokens to be able to "locate"
+the objects they describe in an image. Cross-Modal Late Interaction then allows to apply this "locating of the matched image patch"
+to contrastive learning and retrieval.
 
-$
-cal(L)_("Reg") = -log(p)
-$
+CLIP however, like our model, does not use cross-attention, and only uses global representations for contrastive learning. Therefore,
+CLIP is not able to find relationships between individual text tokens and image patches, leading to a scattered matching, as seen in
+@filip_cmli_examples.
 
-We denote $p$ as the percentage of tokens that have the highest similarity to an actual image patch, and not the empty target.
-The more text tokens have the highest similarity to an image patch, the closer $cal(L)_("Reg")$ will be to zero, and vice versa.
-This forces the model to utilize the empty target for as few tokens as possible.
+While we do not use CMLI for contrastive learning, but for knowledge distillation, the same principles apply. Even worse, since the image patches
+that we try to match to text tokens are not even the result of the student model, but of the teacher model, the model does not have
+the possibility to somehow learn patch-level representations that are suitable for matching to text tokens.
+Consequently, there really is no guidance for the model to learn matching its text tokens to the right image patches of the teacher model.
 
-The total loss is then:
+Lastly, @t_cmli_examples shows the problem based on text tokens that have a real-world meaning, and therefore a counterpart in images:
+The text token "plane" can also be present in an image as an actual plane. However, text tokens like "a", "the", and even a
+full stop ".", which is a valid token, are also matched to image patches. They are merely fill words or grammatic nuances in a sentence,
+and do not carry any semantic information that can be mapped to an image patch. Because CMLI works over all text tokens, 
+and only few text tokens actually have an object-level counterpart in images, like "plane", most of the matchings between text tokens
+and image patches are not meaningful to begin with.
 
-$
-cal(L)_("S-SMKE") = cal(L)_("KD") + cal(L)_("Reg") + cal(L)_("CL")
-$
+To come to a conclusion, even though Target-CMLI seems to be a promising approach to alleviate the mismatch between text tokens and image patches,
+especially considering that some examples in @t_cmli_examples show a self-attention map that is focused on the object the text token describes,
+the results are far from consistent, and are constrained to only a few text tokens that have a real-world counterpart in images, and even
+this are not reliable.
+
+#figure(
+  image(
+  width: 100%,
+  "../figures/t_cmli_examples.png"),
+  caption: [
+    Visualization of selected text tokens from the image's caption
+    and the tokens top 5 most similar image patches under cosine similarity (left). The self-attention
+    map (right) of the image patch with the highest similarity to the text token is shown next to the original image.
+    We observe that matched image patches are often scattered across the image, are not part of the object the text token represents,
+    and their self-attention map, indicating the composition of the token, does not always show a clear focus on the object the text token describes.
+    Image-text pairs taken from COCO test set @coco.
+],
+) <t_cmli_examples>
+
+// #figure( TODO -> maybe use later to generally question the validity of the approach (regressing cls token)
+//   image(
+//   width: 100%,
+//   "../figures/beit2_cls_attn_examples.png"),
+//   caption: [
+//   Image-text pairs taken from COCO test set @coco.
+// ],
+// ) <beit2_cls_attn_examples>
