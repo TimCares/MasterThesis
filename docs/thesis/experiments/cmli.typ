@@ -197,7 +197,12 @@ similarity to the text token, i.e. the image patch $m_j^("t2i")$ for a text toke
 For the aforementioned, we observe a very inconsistent matching between text tokens and image patches. Especially examples "planes" and
 "birds" show that a mismatch is not rare.
 
-Moreover, all top 5 matched image patches are often scattered across the image, and not focused on a specific region, underlining that
+As a reference, we provide the self-attention map, w.r.t. the $mono(["I_CLS"])$ token, of the final Transformer layer
+from the self-supervised image model DINO @dino in @dino_cls_attn_examples (Appendix). We would expect the self-attention map of
+the matched image patch $m_j^("t2i")$ to the example text token $j$ (@t_cmli_examples) to be similar to that of DINO. However, this
+is not always the case.
+
+Moreover, the top 5 matched image patches are often scattered across the image, and not focused on a specific region, underlining that
 the approach does not work as intended. Instead, a result similar to that of FILIP in @filip_cmli_examples is expected, where the matched
 image patches are focused on the object the text token describes, and lie next to each other. Our results are much more similar to
 that of CLIP, also illustrated by the authors of FILIP (@filip_cmli_examples), leading us to believe that a missing cross-modal
@@ -222,7 +227,8 @@ The text token "plane" can also be present in an image as an actual plane. Howev
 full stop ".", which is a valid token, are also matched to image patches. They are merely fill words or grammatic nuances in a sentence,
 and do not carry any semantic information that can be mapped to an image patch. Because CMLI works over all text tokens, 
 and only few text tokens actually have an object-level counterpart in images, like "plane", most of the matchings between text tokens
-and image patches are not meaningful to begin with.
+and image patches are not meaningful to begin with. Recall that this was one of the reasons why we decided to only regress the teacher's
+$mono(["I_CLS"])$ token (see @multimodal_knowledge_distillation_challenges).
 
 To come to a conclusion, even though Target-CMLI seems to be a promising approach to alleviate the mismatch between text tokens and image patches,
 especially considering that some examples in @t_cmli_examples show a self-attention map that is focused on the object the text token describes,
@@ -239,15 +245,8 @@ this are not reliable.
     map (right) of the image patch with the highest similarity to the text token is shown next to the original image.
     We observe that matched image patches are often scattered across the image, are not part of the object the text token represents,
     and their self-attention map, indicating the composition of the token, does not always show a clear focus on the object the text token describes.
+    The title shows a text token $j$, and the self-attention map with respect to image patch $m_j^("t2i")$ (i.e. the matched one).
     Image-text pairs taken from COCO test set @coco.
 ],
 ) <t_cmli_examples>
 
-// #figure( TODO -> maybe use later to generally question the validity of the approach (regressing cls token)
-//   image(
-//   width: 100%,
-//   "../figures/beit2_cls_attn_examples.png"),
-//   caption: [
-//   Image-text pairs taken from COCO test set @coco.
-// ],
-// ) <beit2_cls_attn_examples>

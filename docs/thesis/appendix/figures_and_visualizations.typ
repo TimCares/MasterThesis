@@ -144,4 +144,14 @@
   While FILIP is able to achieve a localization of the correct image patches, CLIP fails to do so. The figure is directly taken
   from FILIP @filip.
 ],
-) <filip_cmli_examples>
+) <filip_cmli_examples> 
+
+#figure(
+  image(
+  width: 100%,
+  "../figures/dino_cls_attn_examples.png"),
+  caption: [
+    Fine-grained DINO @dino self-attention map of the $mono(["I_CLS"])$ token on image-text pairs of the COCO test set @coco.
+    Heatmap is average over all attention heads.
+],
+) <dino_cls_attn_examples>
