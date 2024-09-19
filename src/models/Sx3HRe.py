@@ -16,7 +16,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from transformers import BertModel
 from . import MODEL_REGISTRY
-from modules import Block, ClipLoss
+from modules import Block, ClipLoss, KDClipLoss
 from utils import freeze_module, load_beit2_teacher, load_pretrained_d2v_model
 from beit2.modeling_pretrain import VisionTransformerForMaskedImageModeling
 
@@ -40,11 +40,18 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         )
         freeze_module(self.teacher)
 
+        self.logit_scale_target = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+
         self.save_hyperparameters()
 
     def on_train_start(self):
         logger.info(f'World size: {self.trainer.world_size}')
         self.clip_loss = ClipLoss(
+            cache_labels=True,
+            rank=self.trainer.local_rank,
+            world_size=self.trainer.world_size
+        )
+        self.kd_loss = KDClipLoss(
             cache_labels=True,
             rank=self.trainer.local_rank,
             world_size=self.trainer.world_size
@@ -79,12 +86,23 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         input_text = output_dict['encoder_out_text']
         input_image = output_dict['encoder_out_image']
 
-        kd_loss1 = F.mse_loss(input=input_text, target=target)
-        self.log(f"{stage}/kd_text_loss", kd_loss1)
-        kd_loss2 = F.mse_loss(input=input_image, target=target)
-        self.log(f"{stage}/kd_image_loss", kd_loss2)
-        kd_loss = (kd_loss1 + kd_loss2) / 2
+        input_text = input_text / input_text.norm(dim=-1, keepdim=True)
+        input_image = input_image / input_image.norm(dim=-1, keepdim=True)
+        target = target / target.norm(dim=-1, keepdim=True)
+
+        kd_out = self.kd_loss(
+            input_image=input_image,
+            input_text=input_text,
+            target=target,
+            logit_scale=self.logit_scale_target.exp(),
+        )
+
+        self.log(f"{stage}/kd_text_loss", kd_out['text_loss'])
+        self.log(f"{stage}/kd_image_loss", kd_out['image_loss'])
+        kd_loss = kd_out['loss']
         self.log(f"{stage}/kd_loss", kd_loss)
+
+        self.log_acc(kd_out['logits_per_image'], kd_out['logits_per_text'], kd_out['targets'], stage, key_prefix="kd")
 
         self.model.logit_scales.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
 
@@ -96,7 +114,8 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
                     text_features=output_dict[key_prefix + '_text'],
                     logit_scale=self.model.logit_scales[i].exp(),
                 )
-                self.log_itc_acc(itc_out['logits_per_image'], itc_out['logits_per_text'], itc_out['targets'], stage, key_prefix=key_prefix)
+                key_prefix = key_prefix + "_itc"
+                self.log_acc(itc_out['logits_per_image'], itc_out['logits_per_text'], itc_out['targets'], stage, key_prefix=key_prefix)
                 itc_loss += itc_out['loss']
             itc_loss /= 2
             self.log(f"{stage}/itc_loss", itc_loss)
@@ -109,14 +128,14 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         
         return loss
     
-    def log_itc_acc(self, logits_per_image, logits_per_text, target, stage, key_prefix=""):
+    def log_acc(self, logits_per_image, logits_per_text, target, stage, key_prefix=""):
         img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
         text_itc_acc = (logits_per_text.argmax(dim=1) == target).float().mean()
         if key_prefix != "":
             key_prefix = key_prefix + "_"
-        self.log(f"{stage}/{key_prefix}itc_text_acc", text_itc_acc)
-        self.log(f"{stage}/{key_prefix}itc_image_acc", img_itc_acc)
-        self.log(f"{stage}/{key_prefix}itc_acc", (img_itc_acc + text_itc_acc) / 2, prog_bar=True)
+        self.log(f"{stage}/{key_prefix}text_acc", text_itc_acc)
+        self.log(f"{stage}/{key_prefix}image_acc", img_itc_acc)
+        self.log(f"{stage}/{key_prefix}acc", (img_itc_acc + text_itc_acc) / 2, prog_bar=True)
 
     def configure_optimizers(self):
         ws = torch.cuda.device_count()
