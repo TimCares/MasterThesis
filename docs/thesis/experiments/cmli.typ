@@ -222,19 +222,6 @@ that we try to match to text tokens are not even the result of the student model
 the possibility to somehow learn patch-level representations that are suitable for matching to text tokens.
 Consequently, there really is no guidance for the model to learn matching its text tokens to the right image patches of the teacher model.
 
-Lastly, @t_cmli_examples shows the problem based on text tokens that have a real-world meaning, and therefore a counterpart in images:
-The text token "plane" can also be present in an image as an actual plane. However, text tokens like "a", "the", and even a
-full stop ".", which is a valid token, are also matched to image patches. They are merely fill words or grammatic nuances in a sentence,
-and do not carry any semantic information that can be mapped to an image patch. Because CMLI works over all text tokens, 
-and only few text tokens actually have an object-level counterpart in images, like "plane", most of the matchings between text tokens
-and image patches are not meaningful to begin with. Recall that this was one of the reasons why we decided to only regress the teacher's
-$mono(["I_CLS"])$ token (see @multimodal_knowledge_distillation_challenges).
-
-To come to a conclusion, even though Target-CMLI seems to be a promising approach to alleviate the mismatch between text tokens and image patches,
-especially considering that some examples in @t_cmli_examples show a self-attention map that is focused on the object the text token describes,
-the results are far from consistent, and are constrained to only a few text tokens that have a real-world counterpart in images, and even
-this are not reliable.
-
 #figure(
   image(
   width: 100%,
@@ -250,3 +237,16 @@ this are not reliable.
 ],
 ) <t_cmli_examples>
 
+
+Lastly, @t_cmli_examples shows the problem based on text tokens that have a real-world meaning, and therefore a counterpart in images:
+The text token "plane" can also be present in an image as an actual plane. However, text tokens like "a", "the", and even a
+full stop ".", which is a valid token, are also matched to image patches. They are merely fill words or grammatic nuances in a sentence,
+and do not carry any semantic information that can be mapped to an image patch. Because CMLI works over all text tokens, 
+and only few text tokens actually have an object-level counterpart in images, like "plane", most of the matchings between text tokens
+and image patches are not meaningful to begin with. Recall that this was one of the reasons why we decided to only regress the teacher's
+$mono(["I_CLS"])$ token (see @multimodal_knowledge_distillation_challenges).
+
+To come to a conclusion, even though Target-CMLI seems to be a promising approach to alleviate the mismatch between text tokens and image patches,
+especially considering that some examples in @t_cmli_examples show a self-attention map that is focused on the object the text token describes,
+the results are far from consistent, and are constrained to only a few text tokens that have a real-world counterpart in images, and even
+this are not reliable.
