@@ -1,4 +1,4 @@
-==== Increasing Negative Examples for ITC
+==== Increasing Negative Examples for ITC <memory_bank_section>
 
 Our current approach utilizes Distributed Data Parallel (DDP) @pytorch_ddp with a batch size of 256 per GPU.
 With two GPUs, the combined batch size is 512 and image/text features are gathered from all devices to increase the number of negative examples,
@@ -116,7 +116,7 @@ While this effect is less pronounced with a memory bank, as the representations 
 the shift in the model's weights is still significant enough to make the representations inconsistent with each other.
 
 
-===== Relation to Initial Memory Bank Approach
+===== Relation to Initial Memory Bank Approach <original_memory_bank>
 The memory bank was initially introduced by @memory_bank as a mapping of the complete training dataset:
 The embedding of each sample in the dataset is stored in the memory bank (illustrated in @memory_bank_images).
 For each batch/step, $K$ samples are randomly drawn from the memory bank to be used as negative examples.
@@ -149,7 +149,7 @@ that a similarity measure can provide meaningful learning signals to the model. 
   ],
 ) <memory_bank_images>
 
-===== Momentum Encoder
+===== Momentum Encoder <momentum_encoder>
 
 Inconsistent representations in a memory bank is a problem also identified by the authors of MoCo @moco,
 which employ a different approach to address this issue.

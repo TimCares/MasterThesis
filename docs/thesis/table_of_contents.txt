@@ -77,6 +77,8 @@ Experiments
 				Try with lin proj on t_cls and then regress teacher
 				Try without teacher
 
+			Fine-Tuning on Downstream Tasks
+
 		Ablation Study: Reduction of Data (Mulitple reductions and plot retrieval and zero shot)
 		Ablation Study: Scaling up our final approach
 		

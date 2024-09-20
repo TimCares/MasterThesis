@@ -54,6 +54,81 @@ the student representation of the caption $i$ is more likely match the teacher r
 
 ==== Implementation <contrastive_target_loss_implementation>
 The implementation closely follows that of the image-text contrast of @vision_language_contrast.
+We concatenate all teacher representations of the image $mono(["I_CLS"])$ in the batch to a tensor, and all student representations
+of the caption $mono(["T_CLS"])$ to another tensor:
+
+$
+bold(I)_t = [bold(h)^t_((v, L_t, mono(["I_CLS"])), 1), bold(h)^t_((v, L_t, mono(["I_CLS"])), 2), ..., bold(h)^t_((v, L_t, mono(["I_CLS"])), B')]
+in RR^(B' times D) \
+bold(T)_s = [bold(h)'''^s_((w, K, mono(["T_CLS"])), 1), bold(h)'''^s_((w, K, mono(["T_CLS"])), 2), ..., bold(h)'''^s_((w, K, mono(["T_CLS"])), B')]
+in RR^(B' times D)
+$
+
+Additionally, we also collect all image representations of the student $mono(["I_CLS"])$ in the batch to a tensor:
+
+$
+bold(I)_s = [bold(h)^s_((v, K, mono(["I_CLS"])), 1), bold(h)^s_((v, K, mono(["I_CLS"])), 2), ..., bold(h)^s_((v, K, mono(["I_CLS"])), B')]
+in RR^(B' times D)
+$
+
+We define $B'$ as the combined batch size over all devices, as we can gather all representations from all devices (see @larger_batch_sizes_ddp).
+It therefore holds that $B' = B * P$, where $P$ is the number of devices. In our case we use $P=2$ devices and $B=256$
+samples per device, resulting in $B'=2*256=512$.
+
+The cosine similarity can again be computed efficiently using matrix multiplication of the normalized representations:
+
+$
+bold(L)^w = delta(bold(T)_s) delta(bold(I)_t)^T in RR^(B' times B') \
+bold(L)^v = delta(bold(I)_s) delta(bold(I)_t)^T in RR^(B' times B') \
+$
+
+Here, $delta$ denotes the normalization:
+
+$
+delta(bold(X)) &= [delta(bold(x)_1), delta(bold(x)_2), ..., delta(bold(x)_B')] in RR^(B' times D) \
+delta(bold(x)) &= bold(x) / (||bold(x)||_2) in RR^D
+$
+
+Notice how the contrastive target loss is computed both between the student representation of the caption and the teacher representations of the image,
+which is the important part we covered in the previous section, and between the student representations of the image and the teacher
+representations of the image. The latter is the image-to-image part of the knowledge distillation loss, which does not suffer from
+image-specific information in the teacher representation of the image, but we also adapt it to the contrastive loss for consistency.
+
+Analogous to image-text contrast, we define the loss, which is just cross-entropy, as follows:
+
+$
+cal(L)^"t2i"_"KD" &= 1/B' sum_(i=1)^(B') -log exp(L^w_(i, i)) / (sum_(k=1)^(B') exp(L^w_(i, k))) \
+cal(L)^"i2i"_"KD" &= 1/B' sum_(i=1)^(B') -log exp(L^v_(i, i)) / (sum_(k=1)^(B') exp(L^v_(i, k))) \
+cal(L)_"KD" &= 1/2 * cal(L)^"t2i"_"KD" + 1/2 * cal(L)^"i2i"_"KD"
+$
+
 
 
 ==== Memory Bank <contrastive_target_loss_mb>
+In @memory_bank_section, we evaluated the possibility of storing representations, produced by the student, from previous batches in a memory bank.
+The idea was that since the contrastive loss requires a large number of negative samples to be effective, we could use
+representations from previous batches as additional negative samples. However, we found that using representations from previous batches
+leads to a significant performance drop, as the representations were inconsistent.
+
+Fortunately, the contrastive target loss does not suffer from outdated representations. This is because the representations we compare the
+student representation to are from the teacher. The teacher's weights are frozen during training, meaning that the teacher's representations
+are consistent over the entire training process. Therefore, all negative examples that are used in the contrastive target loss are consistent
+with each other, meaning we can savely use a simple memory bank to store the teacher representations from previous batches.
+Workarounds like a momentum encoder (@momentum_encoder) or proximal regularization of the features (@original_memory_bank) are not necessary.
+
+The formulation of the loss does not change, but only the concatenated teacher representations.
+
+$
+bold(I)'_t &= bold(I)_t||bold(V) = \
+[bold(h)^t_((v, L_t, mono(["I_CLS"])), 1), ..., bold(h)^t_((v, L_t, mono(["I_CLS"])), B'),&
+bold(v)^t_((v, L_t, mono(["I_CLS"])), 1), ..., bold(v)^t_((v, L_t, mono(["I_CLS"])), G)]
+in RR^((B'+G) times D)
+$
+
+$
+bold(L)^w = delta(bold(T)_s) delta(bold(I)'_t)^T in RR^(B' times G) \
+$
+
+We denote $bold(v)^t_((v, L_t, mono(["I_CLS"])), i)$ as the teacher representation of the image $i$ from the memory bank, so from a previous batch,
+and $G$ as the number of representations stored in the memory bank, i.e. the size. We set $G=65536$ in our experiments, which we orientate on the
+ideal size found by MoCo @moco for contrastive learning (see @moco_vs_mb).
