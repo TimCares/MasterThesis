@@ -58,17 +58,22 @@ class TextKDPreTrainingLightningModule(L.LightningModule):
         pred = prepare_output(pred, modality=Modality.TEXT)
         target = prepare_output(target, modality=Modality.TEXT)
         
-        loss = self.kd_loss(input=pred, target=target)
+        loss = self.kd_loss(input=pred, target=target, padding_mask=padding_mask)
 
         self.log(f"{stage}/loss", loss, prog_bar=True)
         
         return loss
     
-    def kd_loss(self, input:torch.Tensor, target:torch.Tensor) -> float:
+    def kd_loss(self, input:torch.Tensor, target:torch.Tensor, padding_mask:torch.Tensor) -> float:
         input = input.contiguous()
         input = input.view(-1, input.size(-1)).float() # (B, D, C) -> (B*D, C)
         target = target.contiguous()
         target = target.view(-1, target.size(-1)).float() # (B, D, C) -> (B*D, C)
+        loss_mask = ~padding_mask.view(-1).bool() # (B, D) -> (B*D)
+
+        # only calculate loss on non-padding tokens
+        input = input[loss_mask]
+        target = target[loss_mask]
 
         assert input.shape == target.shape # this must be the case
 
