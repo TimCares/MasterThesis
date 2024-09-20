@@ -16,7 +16,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from transformers import BertModel
 from . import MODEL_REGISTRY
-from modules import Block, ClipLoss, KDClipLoss
+from modules import Block, ClipLoss, KDClipMomentumMemoryBankLoss
 from utils import freeze_module, load_beit2_teacher, load_pretrained_d2v_model
 from beit2.modeling_pretrain import VisionTransformerForMaskedImageModeling
 
@@ -51,9 +51,10 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
             rank=self.trainer.local_rank,
             world_size=self.trainer.world_size
         )
-        self.kd_loss = KDClipLoss(
-            cache_labels=True,
-            rank=self.trainer.local_rank,
+        self.kd_loss = KDClipMomentumMemoryBankLoss(
+            embed_size=self.cfg.model.embed_dim,
+            size=65536,
+            device=self.device,
             world_size=self.trainer.world_size
         )
 
