@@ -155,3 +155,12 @@
     Heatmap is average over all attention heads.
 ],
 ) <dino_cls_attn_examples>
+
+#figure(
+  image(
+  width: 75%,
+  "../figures/rand_mask_ex.png"),
+  caption: [
+    Examples of random masking applied to images from the COCO test set @coco. The masking probability is set to $p=0.9$.
+],
+) <rand_mask_ex>
