@@ -8,7 +8,6 @@ from .base_datasets import (
 )
 
 from .unimodal_datasets import (
-    OpenWebTextDataset,
     IMDBDataset,
     LibriSpeechDataset,
     SpeechCommandsDataset,
@@ -60,4 +59,6 @@ from .glue import (
     GLUE_DATASET_REGISTRY,
 )
 
-DATASET_REGISTRY = UNIMODAL_DATASET_REGISTRY | MULTIMODAL_DATASET_REGISTRY | KD_DATASET_REGISTRY | GLUE_DATASET_REGISTRY
+from .masked_lm import MaskedLMDataset
+
+DATASET_REGISTRY = UNIMODAL_DATASET_REGISTRY | MULTIMODAL_DATASET_REGISTRY | KD_DATASET_REGISTRY | GLUE_DATASET_REGISTRY | {'masked_lm': MaskedLMDataset}

@@ -1,7 +1,7 @@
 from .unimodal_datamodules import (
     BaseDataModule,
     IMDBDataModule,
-    OpenWebTextDataModule,
+    MaskedLMDataModule,
     CIFARDataModule,
     ImageNetDataModule,
     LibriSpeechDataModule,

@@ -7,17 +7,13 @@ import json
 from typing import *
 from functools import partial
 import shutil
-import glob
 from .data_utils import get_transforms, write_data_into_jsonl
 from .base_datasets import BaseDataset
 from fairseq.data.audio.raw_audio_dataset import FileAudioDataset
 from utils import pad_text_sequence
 from torchvision.datasets.utils import download_url
 import pandas as pd
-from tqdm import tqdm
 import zipfile
-from multiprocessing import Pool
-import pyarrow as pa
 from fairseq.data import Dictionary, ConcatDataset
 from torchaudio.datasets import LIBRISPEECH, SPEECHCOMMANDS
 import torchtext
@@ -27,124 +23,6 @@ from data2vec_fairseq.data.modality import Modality
 from .imagenet_classes import IMAGENET2012_CLASSES
 
 logger = logging.getLogger(__name__)
-
-class OpenWebTextDataset(BaseDataset):
-    def __init__(self,
-                 data_path: str,
-                 split: str, # ignored, as only train for pretraining
-                 num_max_bpe_tokens: int,):
-        super().__init__(data_path=data_path,
-                         split=split,)
-        self.num_max_bpe_tokens = num_max_bpe_tokens
-        dataset_path = os.path.join(self.data_path, 'openwebtext')
-        base_data_path = self.data_path
-        self.data_path = dataset_path
-
-        if self.index_exists():
-            self.log("Data already exists. Skip creating it.")
-            return
-
-        pattern = os.path.join(base_data_path, f'urlsf_*_{self.split}.tar')
-        files = glob.glob(pattern)
-
-        if len(files)==0:
-            raise FileNotFoundError(f"No tar files found under: {dataset_path}")
-
-        self.log(f"Found {len(files)} tar files, inflating...")
-        for file in files:
-            os.system(f"tar -xf {file} -C {base_data_path}")
-            os.remove(file)
-        pattern = os.path.join(dataset_path, '*.xz')
-        files = glob.glob(pattern)
-        for file in files:
-            os.system(f"unxz {file}")
-        self.log("Inflated all tar files.")
-
-        self.log("Cleaning...")
-        files = os.listdir(dataset_path)
-        for file in files:
-            with open(os.path.join(dataset_path, file), 'r+', encoding='utf-8', errors='ignore') as reader:
-                lines = reader.readlines()
-                reader.seek(0)
-                reader.truncate()
-                for line in lines:
-                    line = line.strip()
-                    if '\x00' not in line and line != '' and line != '---': # remove null bytes and empty lines
-                        reader.write(line)
-                        reader.write('\n')
-
-        self.log("Joining...")
-        with open(os.path.join(dataset_path, 'openwebtext.txt'), 'w', encoding='utf-8') as f:
-            for file in files:
-                path_to_file = os.path.join(dataset_path, file)
-                with open(path_to_file, 'r', encoding='utf-8') as f2:
-                    f.write(f2.read())
-                os.remove(path_to_file)
-
-        self.log("Encoding...")
-        in_file = os.path.join(dataset_path, 'openwebtext.txt')
-        table = self.encode(in_file)
-        
-        with pa.OSFile(self.get_index_files()[0], "wb") as sink:
-            with pa.RecordBatchFileWriter(sink, table.schema) as writer:
-                writer.write_table(table)
-        
-        os.remove(in_file)
-
-    @property
-    def modality(self) -> Modality:
-        return Modality.TEXT
-
-    def get_index_files(self):
-        return (os.path.join(self.data_path, f'openwebtext_{self.split}_{self.num_max_bpe_tokens}.arrow'),)
-
-    def index_exists(self):
-        for file in self.get_index_files():
-            if not os.path.exists(file):
-                return False
-        self.log(f"Data already exists under: {self.data_path}")
-        return True
-
-    def encode(self, input_file):
-        all_text = []
-        items = []
-        with open(input_file, "r", encoding="utf-8") as input_fr:
-            raw_lines = input_fr.readlines()
-            pool = Pool()
-
-            for enc_line in tqdm(pool.imap_unordered(self._encode_line, raw_lines, chunksize=200), total=len(raw_lines), desc="Encoding"):
-                if enc_line is None:
-                    continue
-                all_text.append(enc_line + [self.sep_token_id])
-            del raw_lines
-
-        all_text = [token for enc_line in all_text for token in enc_line]
-
-        n_content_tokens = self.num_max_bpe_tokens-1
-        for idx in tqdm(range(0, len(all_text), n_content_tokens), desc="Creating items"):
-            text = all_text[idx:idx+n_content_tokens]
-            items.append({'text': [self.cls_token_id] + text, 'padding_mask': [0]*self.num_max_bpe_tokens})
-
-        enc_data = pa.Table.from_pylist(items)
-        return enc_data
-
-    def _encode_line(self, line):
-        line = line.strip()
-        if len(line) == 0:
-            return None
-        return self.tokenize_text(line)
-    
-    def __getitem__(self, index):
-        return self.items[index]
-    
-    def load(self):
-        """
-        Load a given dataset split.
-        """
-        data_path = self.get_index_files()[0]
-        table = pa.RecordBatchFileReader(pa.memory_map(data_path)).read_all()
-        self.items = table.to_pandas().to_dict(orient='records')
-
 
 class IMDBDataset(BaseDataset):
     def __init__(
@@ -619,7 +497,6 @@ class UngroupedImageFolder(Dataset):
 
 
 UNIMODAL_DATASET_REGISTRY = {
-    "openwebtext": OpenWebTextDataset,
     "imdb": IMDBDataset,
     "librispeech": LibriSpeechDataset,
     "speechcommands": SpeechCommandsDataset,

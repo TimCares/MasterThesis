@@ -1,10 +1,12 @@
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from typing import Tuple, Dict, Any, List
-from datasets_ import IMDBDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, OpenWebTextDataset, QQPDataset, MRPCDataset
+from datasets_ import IMDBDataset, ImageNetDataset, LibriSpeechDataset, SpeechCommandsDataset, MaskedLMDataset, QQPDataset, MRPCDataset
 from datasets_ import DATASET_REGISTRY
 from functools import partial
 from data2vec_fairseq.data.modality import Modality
+import os
+from transformers import BertTokenizer
 
 class BaseDataModule(LightningDataModule):
     def __init__(self,
@@ -191,14 +193,23 @@ class MRPCDataModule(BaseDataModule):
                                         num_max_bpe_tokens=self.num_max_bpe_tokens)
 
 
-class OpenWebTextDataModule(BaseDataModule):
-    def __init__(self, 
-                 data_path:str,
-                 num_max_bpe_tokens:int,
-                 *args,
-                 **kwargs):
+class MaskedLMDataModule(BaseDataModule):
+    def __init__(
+        self,
+        name: str,
+        data_path: str,
+        text_file: os.PathLike,
+        block_size: int=512,
+        mask_prob: float=0.0,
+        *args,
+        **kwargs):
         super().__init__(data_path, *args, **kwargs)
-        self.num_max_bpe_tokens = num_max_bpe_tokens
+        self.name = name
+        self.train_text_file = text_file + '.train'
+        self.val_text_file = text_file + '.val'
+        self.block_size = block_size
+        self.mask_prob = mask_prob
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
     def prepare_data(self):
         if not hasattr(self, 'train_dataset'):
@@ -212,10 +223,14 @@ class OpenWebTextDataModule(BaseDataModule):
             self.val_dataset.load()
 
     def set_train_dataset(self):
-        self.train_dataset = OpenWebTextDataset(data_path=self.data_path, split='train', num_max_bpe_tokens=self.num_max_bpe_tokens,)
+        self.train_dataset = MaskedLMDataset(name=self.name, data_path=self.data_path, split='train', text_file=self.train_text_file,
+                                             tokenizer=self.tokenizer,
+                                             block_size=self.block_size, mask_prob=self.mask_prob)
         
     def set_val_dataset(self):
-        self.val_dataset = OpenWebTextDataset(data_path=self.data_path, split='val', num_max_bpe_tokens=self.num_max_bpe_tokens,)
+        self.val_dataset = MaskedLMDataset(name=self.name, data_path=self.data_path, split='val', text_file=self.val_text_file,
+                                           tokenizer=self.tokenizer,
+                                           block_size=self.block_size, mask_prob=self.mask_prob)
 
 
 class CIFARDataModule(BaseDataModule):
@@ -414,7 +429,7 @@ class SpeechCommandsDataModule(BaseDataModule):
 
 UNIMODAL_DATAMODULE_REGISTRY = {
     'imdb': IMDBDataModule,
-    'openwebtext': OpenWebTextDataModule,
+    'masked_lm': MaskedLMDataModule,
     'cifar10': partial(CIFARDataModule, type='cifar10'),
     'cifar100': partial(CIFARDataModule, type='cifar100'),
     'imagenet': ImageNetDataModule,
