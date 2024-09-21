@@ -100,9 +100,42 @@ $
 cal(L)^"t2i"_"KD" &= 1/B' sum_(i=1)^(B') -log exp(L^w_(i, i)) / (sum_(k=1)^(B') exp(L^w_(i, k))) \
 cal(L)^"i2i"_"KD" &= 1/B' sum_(i=1)^(B') -log exp(L^v_(i, i)) / (sum_(k=1)^(B') exp(L^v_(i, k))) \
 cal(L)_"KD" &= 1/2 * cal(L)^"t2i"_"KD" + 1/2 * cal(L)^"i2i"_"KD"
-$
+$ <contrastive_target_loss_eq>
 
+We rename the components of the loss from $cal(L)^"w"_"KD"$ to $cal(L)^"t2i"_"KD"$, and
+$cal(L)^"v"_"KD"$ to $cal(L)^"i2i"_"KD"$, in order to reflect the text-to-image and image-to-image parts
+of contrastive learning, respectively.
 
+When comparing our current configuration to our previous best, which was reached when introducing a token-type embedding
+after the modality specific encoders (@token_type_embeddings), we find that while performance
+on MSCOCO and Flickr30K retrieval remains unchanged, performance on ImageNet-1K improves by nearly 3 percentage points.
+This improvement on ImageNet-1K is likely due to our use of CLIP zero-shot classification, which involves retrieving the
+most similar class prototype using a contrastive loss (see @clip_zero_shot_section). Since we now employ a contrastive loss
+for knowledge distillation, and the weights of the teacher model — responsible for generating one component of the contrastive target loss
+(the teacher representations $bold(I)_t$ of the images) — were originally trained on ImageNet-1K, the student model's
+learning method aligns more closely with CLIP zero-shot classification. This alignment is likely to enhance performance on ImageNet-1K.
+
+#show table: set text(8pt)
+#figure(
+  table(
+  columns: 4,
+  stroke: none,
+  table.hline(),
+  table.header(
+    table.cell(rowspan: 2, colspan: 1, align:horizon, [KD Loss]),
+    table.cell(rowspan: 2, colspan: 1, align:horizon, [ImageNet-1K]),
+    table.cell(colspan: 2, align:horizon, [Retrieval]),
+    [MSCOCO],
+    [Flickr30K],
+  ),
+  table.hline(stroke: .6pt),
+  [MSE], [30.3], [*67.2*], [78.29],
+  [Contrastive], [*33.0*], [67.15], [*78.3*],
+  table.hline(),
+),
+    caption: [Replacing the MSE loss with the contrastive target loss improves the performance on ImageNet-1K by almost 3 percentage points,
+    while matching the performance on MSCOCO and Flickr30K retrieval.]
+) <mse_loss_vs_contrastive>
 
 ==== Memory Bank <contrastive_target_loss_mb>
 In @memory_bank_section, we evaluated the possibility of storing representations, produced by the student, from previous batches in a memory bank.
@@ -132,3 +165,56 @@ $
 We denote $bold(v)^t_((v, L_t, mono(["I_CLS"])), i)$ as the teacher representation of the image $i$ from the memory bank, so from a previous batch,
 and $G$ as the number of representations stored in the memory bank, i.e. the size. We set $G=65536$ in our experiments, which we orientate on the
 ideal size found by MoCo @moco for contrastive learning (see @moco_vs_mb).
+
+A detailed look on retrieval performance in @image_text_retrieval_ctl_mb shows a gain especially on text retrieval tasks,
+and we are able to increase text retrieval on Flickr30K by approx. 2-3 percentage points in each metric. This is surprising, as we would expect
+an increase in image retrieval performance, because the contrastive target loss uses text-image retrieval, expressed through
+the loss $cal(L)^"t2i"_"KD"$ in @contrastive_target_loss_eq. This should have a positive effect on text-image retrieval
+in COCO and Flickr30K, but we instead observe a slight decrease in performance. Simultaneously, the performance
+on image-text retrieval increases consistently, even though
+the contrastive target loss does not use image-text retrieval. We would expect the opposite.
+
+The performance on ImageNet-1K is increasd by an impressive 4 percentage points to 37% (33% before).
+Considering the increase in image-text retrieval on Flickr30K and COCO, this is actually to be expected:
+In CLIP zero-shot classification, a candidate image is compared to all class prototypes,
+which have been created from text descriptions of the classes. The class prototype,
+which is a text representation, with the highest similarity to the image is then chosen as the predicted class, which is essentially
+image-text retrieval. Therefore, if the performance on image-text retrieval increases, we would expect an increase in performance on ImageNet-1K.
+
+#show table: set text(8pt)
+#figure(
+  table(
+  columns: (25%, auto, auto, auto, auto, auto, auto, auto, auto, auto, auto, auto, auto),
+    stroke: none,
+    table.hline(),
+    table.header(
+      table.cell(rowspan: 3, colspan: 1, align:horizon, [*Model*]),
+      table.cell(colspan: 6, [*MSCOCO (5K test set)*]),
+      table.cell(colspan: 6, [*Flickr30K (1K test set)*]),
+      table.cell(colspan: 3, [Image $arrow.r$ Text]),
+      table.cell(colspan: 3, [Text $arrow.r$ Image]),
+      table.vline(stroke: .4pt),
+      table.cell(colspan: 3, [Image $arrow.r$ Text]),
+      table.cell(colspan: 3, [Text $arrow.r$ Image]),
+      table.hline(start: 1, end: 4, stroke: .2pt),
+      table.hline(start: 4, end: 7, stroke: .2pt),
+      table.hline(start: 7, end: 10, stroke: .2pt),
+      table.hline(start: 10, end: 13, stroke: .2pt),
+      [R@1], [R@5], [R@10], [R@1], [R@5], [R@10], [R@1], [R@5], [R@10], [R@1], [R@5], [R@10]
+    ),
+    table.hline(stroke: .4pt),
+    [FLAVA @flava], [42.74], [76.76], [-], [*38.38*], [*67.47*], [-], [67.7], [94.0], [-], [65.22], [89.38], [-],
+    [CLIP @clip], [*58.4*], [*81.5*], [88.1], [37.8], [62.4], [72.2], [*88.0*],[*98.7*], [*99.4*], [*68.7*], [*90.6*], [*95.2*],
+    table.hline(stroke: .3pt),
+    [S-SMKE], [51.66], [79.9], [88.66], [36.17], [66.55], [*78.28*], [64.5], [88.4], [93.0], [51.78], [78.54], [86.46],
+    [S-SMKE#sub[CTL]], [52.68], [80.56], [88.3], [36.5], [66.58], [*78.28*], [69.0], [89.2], [94.3], [51.48], [79.18], [86.66],
+    [S-SMKE#sub[CTL_MB]], [53.54], [81.1], [*89.52*], [35.65], [66.0], [77.77], [70.9], [92.1], [96.0], [52.72], [80.2], [87.46],
+    table.hline(),
+  ),
+  caption: [
+    A contrastive target loss with memory bank especially improves text retrieval, while the performance on COCO image retrieval
+    degrades slightly. S-SMKE#sub[CTL] denotes the contrastive target loss without memory bank, and S-SMKE#sub[CTL_MB]
+    denotes the contrastive target loss with memory bank.
+  ],
+)<image_text_retrieval_ctl_mb>
+#show table: set text(12pt)

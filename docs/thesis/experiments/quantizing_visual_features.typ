@@ -2,10 +2,22 @@
 ==== Motivation
 Even though we were able to reduce the impact of the image-specific information in the teacher's $mono(["I_CLS"])$
 token by introducing the contrastive target loss, the problem remains the same.
-A repeated glance on the comparison between the training loss for the image and text component of the $cal(L)_"KD"$ loss, which is now based
+A repeated glance on the comparison between the training loss for the image and text component of the $cal(L)_"KD"$ loss
+(@ctl_component_comp), which is now based
 on a contrastive loss with memory bank, shows that the loss for the image component $cal(L)^"i2i"_"KD"$ is still significantly lower
 than that for the text component $cal(L)^"t2i"_"KD"$. While our approach is able to achieve impressive results even with this imbalance,
 we push the boundaries by introducing an additional component that aims to further reduce the impact of the image-specific information.
+
+#figure(
+  image(
+  width: 75%,
+  "../figures/ctl_component_comp.png"),
+  caption: [
+    Training loss for the image and text component of the $cal(L)_"KD"$ loss. Even though the contrastive target loss
+    is able to increase the performance of the model, the loss for the image component $cal(L)^"i2i"_"KD"$ is still significantly lower
+    than that for the text component $cal(L)^"t2i"_"KD"$.
+  ],
+) <ctl_component_comp>
 
 The paper "Neural Discrete Representation Learning" by van den Oord et al. @neural_discrete_representation_learning first introduced
 the concept of quantizing images to discrete values in order to learn representations. The idea is to learn a so-called codebook
@@ -157,7 +169,7 @@ inspired by the vector quantization process in BEiTv2 @beitv2.
 ) <image_vq_fig>
 
 
-==== Training
+==== Training Image VQ
 For training, we use an embedding dimension of the codebook of $S=16$. For comparison, BEiTv2 uses $S=32$ for its patch-level
 codebook. As might have come apparent from the previous section, we heavily orient on the vector quantization process in BEiTv2 @beitv2,
 which is why we originally used $S=32$ as well. However, we found that this led to codebook collapse in preliminary experiments, which
@@ -180,3 +192,5 @@ Simultaneously, we use a frozen teacher model, which acts as a feature extractor
 
 After each epoch, we validate the loss $cal(L)_(I-V Q)$ on the validation set of ImageNet-1K, and, most importantly,
 calculate the codebook usage over the whole validation set to check for codebook collapse.
+
+==== Training S-SMKE with Image VQ

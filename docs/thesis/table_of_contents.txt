@@ -84,7 +84,7 @@ Experiments
 		
 		
 Conclusion
-Outlook (Same vs. different pos encoding ^*, can architectures be mixed?, add other modalities, especially audio + add audio)
+Outlook (Same vs. different pos encoding ^*, can architectures be mixed?, add other modalities, especially audio + add audio, mome architecture)
 Lessons Learned
 Appendix (plots, money spend etc.)
 	Hyperparameters
