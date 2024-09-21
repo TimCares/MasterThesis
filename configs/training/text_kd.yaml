@@ -26,9 +26,13 @@ model:
   depth: 6
 
 data:
-  _name: openwebtext
-  num_max_bpe_tokens: 196
-  sample_break_mode: none
+  _name: masked_lm # dataset name
+
+  name: openwebtext # name of the (masked) language modeling dataset
+  data_path: /workspace
+  text_file: /workspace/openwebtext.txt
+  block_size: 196
+  mask_prob: 0.0
 
   data_path: ${data_path}
   batch_size: 256
