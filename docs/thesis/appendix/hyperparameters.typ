@@ -187,3 +187,46 @@
   caption: [Hyperparameters used for training the Transformer SHRe model.
   ],
 )<transformer_shre_hyperparams>
+
+#figure(
+  table(
+    table.vline(x:1, stroke: .3pt),
+    table.vline(x:2, stroke: .3pt),
+    columns: 3,
+    stroke: none,
+    table.hline(),
+    table.header(
+      [*Type*],
+      [*Hyperparameters*],
+      [*Values*],
+    ),
+    table.hline(stroke: .6pt),
+    table.cell(rowspan: 6, align:horizon, [*Model*]), 
+    [Encoder], [BEiTv2 ViT-B/16],
+    [\# Decoder layers], [1],
+    [Codebook size], [{1024$times$16, 8192$times$16}],
+    [Patch size], [16$times$16],
+    [EMA decay], [0.99],
+    [Mask prob.], [0.9],
+    table.hline(stroke: .6pt),
+    table.cell(rowspan: 11, align:horizon, [*Training*]), 
+    [Epochs], [10],
+    [Total steps], [50040],
+    [Batch size], [256],
+    [Optimizer], [AdamW],
+    [AdamW $epsilon$], [1e-06],
+    [AdamW $beta$], [(0.9,0.98)],
+    [Weight decay], [0.01],
+    [Base learning rate], [1e-3],
+    [Learning rate schedule], [Cosine],
+    [Warmup steps], [5004 (10% of total steps)],
+    [Hardware], [2 $times$ RTX 4090 24GB],
+    table.hline(stroke: .6pt),
+    table.cell(rowspan: 2, align:horizon, [*Augmentations*]), 
+    [Horizontal flipping prob.], [0.5],
+    [RandomResizeCrop range], [[0.5, 1.0]],
+    table.hline(),
+  ),
+  caption: [Hyperparameters used for training the image vector quantizer.
+  ],
+)<image_vq_cls_hparams>

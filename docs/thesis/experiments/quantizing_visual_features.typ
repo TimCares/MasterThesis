@@ -47,10 +47,10 @@ m = op("argmin", limits: #true)_(1 lt.eq s lt.eq S) delta(bold(h)^t_(v, L_t, mon
 $
 
 We use the projection $bold(W)_(q arrow.b)$, because this already reduces the dimensionality of the representation, forcing only the most important
-information to be kept. At best, the pixel-level information is removed is completely removed. Furthermore, a projection to a lower-dimensional space
+information to be kept. At best, pixel-level information is completely removed. Furthermore, a projection to a lower-dimensional space
 has shown to alleviate the problem of codebook collapse, where all representations are mapped to only a few, or even just one, prototype @beitv2.
-If codebook collapse occurs, the model is not able to learn meaningful representations, as all representations are mapped to the same prototype.
-Consequently, there would not be a set of prototypes that represent different semantic concepts, like classes in a supervised model.
+If codebook collapse occurs, the model is not able to learn distinct representations, and
+there would not be a set of prototypes that represent different semantic concepts, like classes in a supervised model.
 
 The index $m$ of the closest prototype is then used to select the corresponding prototype embedding $bold(q)_m$ from the codebook $bold(Q)$, which is then
 projected back to the original embeddings dimension $D$ using yet another learnable linear projection $bold(W)_(b arrow.t) in RR^(S times D)$.
@@ -93,7 +93,7 @@ $
 cal(L)_(I-V Q) =& \
 &1 - delta(bold(h)^t_(v, F, mono(["I_CLS"])))delta(bold(h)^t_(v, L_t, mono(["I_CLS"])))^T \
 &+ ||delta(bold(h)^t_(v, L_t, mono(["I_CLS"]))bold(W)_(q arrow.b)) - op(s g)[delta(bold(q)_m)]||_2^2
-$
+$ <i_vq_loss>
 
 Here, $bold(h)^t_(v, F, mono(["I_CLS"]))$ denotes the decoder output for the $mono(["I_CLS"])$ token, which is the one we want to reconstruct.
 $F$ denotes the number of all Transformer layers of the encoder, the frozen BEiTv2 model, and the decoder. It holds that $F = L_t + U$, where
@@ -102,7 +102,7 @@ $U$ is the number of Transformer layers in the decoder. Since for our teacher it
 The first term, $1 - delta(bold(h)^t_(v, F, mono(["I_CLS"])))delta(bold(q)_m)^T$, aims to maximize the cosine similarity between
 the reconstructed $mono(["I_CLS"])$ token and the original representation $bold(h)^t_(v, L_t, mono(["I_CLS"]))$ for the image, produced by the teacher.
 If the cosine similarity is maximized, so 1.0, then this part becomes 0. This is the reconstruction loss.
-The other two components aim to minimize the distance between the projected representation $bold(h)^t_(v, L_t, mono(["I_CLS"]))bold(W)_(q arrow.b)$
+The other component aims to minimize the distance between the projected representation $bold(h)^t_(v, L_t, mono(["I_CLS"]))bold(W)_(q arrow.b)$
 and the closest, and therefore selected, prototype $bold(q)_m$. It is the mean squared error.
 
 The form $op(s g)[dot]$ denotes a stop-gradient operation. This operation is required, because the codebook lookup, i.e. replacing
@@ -134,11 +134,14 @@ Here, $m_i$ is the index of the closest prototype for the $i$-th image in the ba
 is then:
 
 $
-bold(q)_j = m * bold(q)_j + (1 - m) * 1/Z sum_(z=1)^(Z) (bold(A)_j)_z
+bold(q)_j = d * bold(q)_j + (1 - d) * 1/Z sum_(z=1)^(Z) (bold(A)_j)_z
 $
 
 The codebook embedding $j$ is updated with the mean over all representations in the batch it was closest to.
-We show can illustration of the concept in @image_vq_fig.
+$d$ denotes the decay factor of the EMA update, normally specified as $m$. However, we use $d$ to avoid confusion with the index $m$ of the closest
+prototype.
+We show can illustration of the concept in @image_vq_fig. The loss formulation in @i_vq_loss, as well as the EMA update, is heavily
+inspired by the vector quantization process in BEiTv2 @beitv2.
 
 #figure(
   image(
@@ -155,3 +158,25 @@ We show can illustration of the concept in @image_vq_fig.
 
 
 ==== Training
+For training, we use an embedding dimension of the codebook of $S=16$. For comparison, BEiTv2 uses $S=32$ for its patch-level
+codebook. As might have come apparent from the previous section, we heavily orient on the vector quantization process in BEiTv2 @beitv2,
+which is why we originally used $S=32$ as well. However, we found that this led to codebook collapse in preliminary experiments, which
+is why we opt for a lower dimensionality. We experiment with two different codebook sizes, $J=1024$ and $J=8192$. The former is motivated
+by the fact that we aim to learn a set of prototypes that represent different semantic concepts in the image, like classes in a supervised model.
+Since we BEiTv2, which is our encoder, was pretrained on ImageNet-1K @beitv2, we orient the number of possible concepts on the number of classes
+in ImageNet-1K, which is 1000 @imagenet. The latter is used to investigate whether a larger codebook size can still capture semantic concepts
+without image-specific information.
+
+For the decoder, we merely use a single Transformer layer initialized from scratch. Few decoder layer means lower capacity to reconstruct
+the image representation, which should force the model to rely even more on the quantized global image representation $bold(q)_m$.
+This is also done in BEiTv2, where the authors experiment with a single, and three decoder layers. Consequently, for us it holds that $U=1$,
+and $F=L_s + U = 12+1 = 13$. For the decay factor, we again orient on BEiTv2, and use $d=0.99$. As mentioned in the previous section,
+we use a masking probability of $p=0.9$. All hyperparameters, including the ones described here, are shown in @image_vq_cls_hparams.
+
+We train the model for 10 epochs on ImageNet-1K, and use a relatively large learning rate of $1e-3$. We do this, because we use two
+GPUs with a combined batch size of 512, which is relatively large. Further, we do not have have a large number of trainable parameters,
+only the projection matrices $bold(W)_(q arrow.b)$, $bold(W)_(q arrow.t)$, and the weights of one Transformer layer (decoder).
+Simultaneously, we use a frozen teacher model, which acts as a feature extractor and provides high quality representations.
+
+After each epoch, we validate the loss $cal(L)_(I-V Q)$ on the validation set of ImageNet-1K, and, most importantly,
+calculate the codebook usage over the whole validation set to check for codebook collapse.
