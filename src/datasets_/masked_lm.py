@@ -41,6 +41,7 @@ class MaskedLMDataset(BaseDataset):
         self.mask_prob = mask_prob
         self.token_file = os.path.join(self.data_path, f'mlm_{self.name}_{self.split}.bin')
         self.index_file = os.path.join(self.data_path, f'mlm_{self.name}_{self.split}.idx')
+        self.items_file = os.path.join(self.data_path, f'mlm_{self.name}_{self.split}.items_{self.max_seq_length}.bin')
 
         if not self.index_exists():
             self.preprocess()
@@ -52,6 +53,8 @@ class MaskedLMDataset(BaseDataset):
         state = self.__dict__.copy()
         state.pop('fp', None)  # Remove the file pointer
         state.pop('mmap_file', None)  # Remove the mmap object
+        state.pop('index', None)
+        state.pop('items', None)
         return state
 
     def __setstate__(self, state):
@@ -60,6 +63,12 @@ class MaskedLMDataset(BaseDataset):
         # Reopen the file and recreate the mmap object
         self.fp = open(self.token_file, 'rb')
         self.mmap_file = mmap.mmap(self.fp.fileno(), 0, access=mmap.ACCESS_READ)
+        # Load the index
+        with open(self.index_file, 'rb') as f_idx:
+            self.index = pickle.load(f_idx)
+        # Load examples
+        with open(self.items_file, 'rb') as f_items:
+            self.items = pickle.load(f_items)
 
     def load(self):
         # Load the index
@@ -67,7 +76,14 @@ class MaskedLMDataset(BaseDataset):
             self.index = pickle.load(f_idx)
 
         # Build sequences
-        self.build_sequences()
+        if os.path.exists(self.items_file):
+            with open(self.items_file, 'rb') as f_items:
+                self.items = pickle.load(f_items)
+        else:
+            self.build_sequences()
+            with open(self.items_file, 'wb') as f_items:
+                pickle.dump(self.items, f_items)
+
 
     def preprocess(self):
         """Tokenize the text file and store tokenized data into a binary mmap file."""
