@@ -165,7 +165,7 @@ class MaskedLMDataset(BaseDataset):
         if current_length > 0:
             items.append([current_offset, current_length])
 
-        self._items = plasma_utils.PlasmaArray(
+        self._items = PlasmaArray(
             np.array(items, dtype=np.int64)
         )
 
