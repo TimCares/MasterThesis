@@ -77,7 +77,7 @@ class TextKDPreTrainingLightningModule(L.LightningModule):
 
         assert input.shape == target.shape # this must be the case
 
-        return F.mse_loss(input, target, reduction="none").float().mean()
+        return F.mse_loss(input, target)
 
     def configure_optimizers(self):
         ws = torch.cuda.device_count()
