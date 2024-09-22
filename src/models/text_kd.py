@@ -86,7 +86,7 @@ class TextKDPreTrainingLightningModule(L.LightningModule):
             learning_rate = self.cfg.optimizer.lr
         else:
             assert 'base_lr' in self.cfg.optimizer
-            learning_rate = self.cfg.optimizer.base_lr * (self.cfg.data.dataloader.batch_size*ws) / 256
+            learning_rate = self.cfg.optimizer.base_lr * (self.cfg.data.batch_size*ws) / 256
             logger.info(f"[Optimizer]: Base Learning rate is {self.cfg.optimizer.base_lr}")
         logger.info(f"[Optimizer]: Learning rate is {learning_rate}")
         wd_params, non_wd_params = self._get_param_groups()
@@ -131,7 +131,7 @@ class TextKDPreTrainingLightningModule(L.LightningModule):
         return sd
         
     def log(self, *args, **kwargs):
-        super().log(batch_size=self.cfg.data.dataloader.batch_size, sync_dist=True, *args, **kwargs)
+        super().log(batch_size=self.cfg.data.batch_size, sync_dist=True, *args, **kwargs)
 
 @dataclass
 class TextKDConfig():
