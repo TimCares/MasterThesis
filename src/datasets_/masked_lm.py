@@ -136,7 +136,7 @@ class MaskedLMDataset(BaseDataset):
             with open(self.index_file, 'wb') as f_idx:
                 pickle.dump(index, f_idx)
 
-        self.log(f'Preprocessing complete. Processed {n_total_tokens}, found {n_unk_tokens}({n_unk_tokens/n_total_tokens:.05f}) unknown tokens.')
+        self.log(f'Preprocessing complete. Processed {n_total_tokens}, found {n_unk_tokens}({n_unk_tokens/n_total_tokens*100:.05f}%) unknown tokens.')
 
     def build_sequences(self):
         """Slice the tokenized data into blocks of a specific size."""
