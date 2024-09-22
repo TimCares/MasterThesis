@@ -9,7 +9,10 @@ from .base_datasets import BaseDataset
 from data2vec_fairseq.data.modality import Modality
 import subprocess
 import tempfile
-import pyarrow.plasma as plasma
+try:
+    import pyarrow.plasma as plasma
+except ImportError:
+    plasma = None
 
 def init_worker(tokenizer_path):
     global tokenizer
