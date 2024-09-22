@@ -51,6 +51,7 @@ class TextKDPreTrainingLightningModule(L.LightningModule):
             target = self.teacher(
                 input_ids=text,
                 attention_mask=1-padding_mask,
+                output_hidden_states=True,
             ).hidden_states # [1:]
         
         output_dict = self(input_dict) # call "forward"
@@ -156,6 +157,7 @@ class TextKDModel(nn.Module):
         out = self.model(
             input_ids=text,
             attention_mask=1-padding_mask,
+            output_hidden_states=True,
         )
         out_dict = {
             'layer_results': out.hidden_states,
