@@ -48,7 +48,7 @@ class TextKDPreTrainingLightningModule(L.LightningModule):
         }
 
         with torch.no_grad():
-            target = self.model(
+            target = self.teacher(
                 input_ids=text,
                 attention_mask=1-padding_mask,
             ).hidden_states # [1:]
