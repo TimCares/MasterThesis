@@ -31,6 +31,7 @@ class BaseDataset(torch.utils.data.Dataset):
         self.cls_token_id = self.tokenizer.cls_token_id
         self.sep_token_id = self.tokenizer.sep_token_id
         self.mask_token_id = self.tokenizer.mask_token_id
+        self.unk_token_id = self.tokenizer.unk_token_id
 
     def load(self):
         raise NotImplementedError

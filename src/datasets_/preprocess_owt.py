@@ -37,21 +37,26 @@ def main():
         txt_file = file.replace('.xz', '')
         with open(txt_file, 'wb') as output_file:
             output_file.write(decompressed_data)
+        os.remove(file)
     
     logger.info("Inflated all tar files.")
 
     logger.info("Cleaning...")
     files = os.listdir(extracted_data_path)
     for file in files:
-        with open(os.path.join(extracted_data_path, file), 'r+', encoding='utf-8', errors='ignore') as reader:
-            lines = reader.readlines()
-            reader.seek(0)
-            reader.truncate()
-            for line in lines:
-                line = line.strip()
-                if '\x00' not in line and line != '' and line != '---': # remove null bytes and empty lines
-                    reader.write(line)
-                    reader.write('\n')
+        try:
+            with open(os.path.join(extracted_data_path, file), 'r+', encoding='utf-8') as reader:
+                lines = reader.readlines()
+                reader.seek(0)
+                reader.truncate()
+                for line in lines:
+                    line = line.strip()
+                    if '\x00' not in line and line != '' and line != '---': # remove null bytes and empty lines
+                        reader.write(line)
+                        reader.write('\n')
+        except:
+            logger.error(f"Error cleaning {file}")
+            exit(1)
 
     text_file = os.path.join(data_path, f'openwebtext.txt.{split}')
     logger.info("Joining...")

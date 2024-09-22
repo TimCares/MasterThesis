@@ -87,6 +87,7 @@ class MaskedLMDataset(BaseDataset):
 
     def preprocess(self):
         """Tokenize the text file and store tokenized data into a binary mmap file."""
+        n_unk_tokens = 0
         # Calculate total lines for progress bar
         total_lines = sum(1 for _ in open(self.text_file, 'r', encoding='utf-8'))
         with open(self.text_file, 'r', encoding='utf-8') as f_in, open(self.token_file, 'wb') as f_out:
@@ -107,7 +108,9 @@ class MaskedLMDataset(BaseDataset):
                     # Write tokenized data to file and update index
                     for tokens in tokenized_lines:
                         length = len(tokens)
-                        np.array(tokens, dtype=np.int32).tofile(f_out)
+                        tokens = np.array(tokens, dtype=np.int32)
+                        n_unk_tokens += (tokens == self.unk_token_id).sum()
+                        tokens.tofile(f_out)
                         index.append((offset, length))
                         offset += length * 4  # Each int32 token is 4 bytes
                         pbar.update(1)
@@ -130,6 +133,8 @@ class MaskedLMDataset(BaseDataset):
             # Save the index to a file
             with open(self.index_file, 'wb') as f_idx:
                 pickle.dump(index, f_idx)
+
+        self.log(f'Preprocessing complete. Found {n_unk_tokens} unknown tokens.')
 
     def build_sequences(self):
         """Slice the tokenized data into blocks of a specific size."""
