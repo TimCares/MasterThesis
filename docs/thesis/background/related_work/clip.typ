@@ -1,4 +1,4 @@
-=== CLIP
+=== CLIP <clip_section>
 ==== Method
 
 CLIP is a method developed by OpenAI to train a vision-language model using contrastive learning. CLIP stands for

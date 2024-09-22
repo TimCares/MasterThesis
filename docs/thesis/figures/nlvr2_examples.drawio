@@ -1,0 +1,64 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15" version="24.7.16">
+  <diagram name="Page-1" id="87Xd9ATELcx3g4OPVyuN">
+    <mxGraphModel dx="1170" dy="802" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-1" value="" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=default;verticalAlign=top;aspect=fixed;imageAspect=0;image=https://raw.githubusercontent.com/clic-lab/nlvr/master/nlvr/dev/images/3/dev-3804-1-0.png;imageBorder=default;" vertex="1" parent="1">
+          <mxGeometry y="220" width="400" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-2" value="&lt;span style=&quot;font-style: normal; font-variant-caps: normal; font-weight: 400; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; word-spacing: 0px; -webkit-text-stroke-width: 0px; text-decoration: none; caret-color: rgb(90, 90, 90); font-size: 14px; letter-spacing: 0.07px; float: none; display: inline !important;&quot;&gt;&lt;font face=&quot;Helvetica&quot;&gt;There is exactly one tower with a black block at the top&lt;/font&gt;&lt;/span&gt;" style="text;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="25" y="320" width="350" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-5" value="" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=default;verticalAlign=top;aspect=fixed;imageAspect=0;image=https://raw.githubusercontent.com/clic-lab/nlvr/master/nlvr/dev/images/1/dev-2289-3-4.png;imageBorder=default;" vertex="1" parent="1">
+          <mxGeometry x="420" y="220" width="400" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-10" value="&lt;font style=&quot;font-size: 14px;&quot;&gt;There is 1 tower with a yellow block at the top&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="465" y="320" width="310" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-11" value="" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=default;verticalAlign=top;aspect=fixed;imageAspect=0;image=https://raw.githubusercontent.com/clic-lab/nlvr/master/nlvr/dev/images/1/dev-1494-2-3.png;imageBorder=default;" vertex="1" parent="1">
+          <mxGeometry y="360" width="400" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-12" value="&lt;font style=&quot;font-size: 14px;&quot;&gt;One of the grey box has exactly six objects&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="55" y="460" width="290" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-14" value="" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=default;verticalAlign=top;aspect=fixed;imageAspect=0;image=https://raw.githubusercontent.com/clic-lab/nlvr/master/nlvr/dev/images/2/dev-3949-1-4.png;imageBorder=default;" vertex="1" parent="1">
+          <mxGeometry x="420" y="360" width="400" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-16" value="&lt;font style=&quot;font-size: 14px;&quot;&gt;There are two towers with a blue block at the top&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="460" y="460" width="320" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-17" value="" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=default;verticalAlign=top;aspect=fixed;imageAspect=0;image=https://raw.githubusercontent.com/clic-lab/nlvr/master/nlvr/dev/images/1/dev-3106-0-2.png;imageBorder=default;" vertex="1" parent="1">
+          <mxGeometry y="500" width="400" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-19" value="&lt;font style=&quot;font-size: 14px;&quot;&gt;There is at least one black object above a blue object&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="25" y="600" width="350" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-21" value="" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=default;verticalAlign=top;aspect=fixed;imageAspect=0;image=https://raw.githubusercontent.com/clic-lab/nlvr/master/nlvr/dev/images/5/dev-3520-2-1.png;imageBorder=default;" vertex="1" parent="1">
+          <mxGeometry x="420" y="500" width="400" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-23" value="&lt;font style=&quot;font-size: 14px;&quot;&gt;There is a yellow block as the top of a tower&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 14px;&quot;&gt;with exactly three blocks.&lt;/font&gt;&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="470" y="590" width="300" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-24" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00FF00;" vertex="1" parent="1">
+          <mxGeometry x="374" y="325" width="26" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-25" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF0000;" vertex="1" parent="1">
+          <mxGeometry x="374" y="465" width="26" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-26" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00FF00;" vertex="1" parent="1">
+          <mxGeometry x="794" y="325" width="26" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-27" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00FF00;" vertex="1" parent="1">
+          <mxGeometry x="794" y="465" width="26" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-28" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#00FF00;" vertex="1" parent="1">
+          <mxGeometry x="374" y="605" width="26" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="EFwnSgcsAYjTmBpW-oa5-29" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF0000;" vertex="1" parent="1">
+          <mxGeometry x="794" y="605" width="26" height="20" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

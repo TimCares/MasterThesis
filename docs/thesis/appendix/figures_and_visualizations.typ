@@ -164,3 +164,15 @@
     Examples of random masking applied to images from the COCO test set @coco. The masking probability is set to $p=0.9$.
 ],
 ) <rand_mask_ex>
+
+#figure(
+  image(
+  width: 100%,
+  "../figures/nlvr2_examples.png"),
+  caption: [
+    Example images with corresponding statements from the NLVR2 dataset @nlvr2.
+    Green and red boxes at the bottom right of each example indicate a correct and incorrect statement, respectively.
+    The examples are taken from the
+    official NLVR2 website#footnote[#link("https://lil.nlp.cornell.edu/nlvr/nlvr.html")].
+],
+) <nlvr2_examples> 
