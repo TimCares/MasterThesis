@@ -33,7 +33,7 @@ For example, the distilled model of BERT, DistilBERT, reduced the model size by 
 performance of the original model @distilbert.
 
 
-==== Response-based Knowledge Distillation
+==== Response-based Knowledge Distillation <response_based_knowledge_distillation>
 
 In response-based KD, the teacher must provide a probability distribution over a set of classes for a given sample,
 which is the prediction of the teacher.

@@ -90,18 +90,21 @@ $bold(a) bold(b)^T$ denotes the simple dot product between both representations.
 denote the L2-norm of the representations.
 
 The cosine similarity between all possible image-text pairs can be computed efficiently by organizing all image and text representations
-in a matrix, which is already given in a batch-wise training, and normalizing every representation.
+in a matrix, which is already given in a batch-wise training, and normalizing every representation, which we
+denote by the function $delta(dot)$.
 
 $
-bold(h)' = bold(h) / (||bold(h)||_2)
-$
-
-$
-bold(I) = [bold(h)'_((v, L, mono(["I_CLS"])),1), bold(h)'_((v, L, mono(["I_CLS"])),2), ..., bold(h)'_((v, L, mono(["I_CLS"])),B)] in RR^(B times D)
+delta(bold(h)) = bold(h) / (||bold(h)||_2)
 $
 
 $
-bold(T) = [bold(h)'_((w, L, mono(["T_CLS"])),1), bold(h)'_((w, L, mono(["T_CLS"])),2), ..., bold(h)'_((w, L, mono(["T_CLS"])),B)] in RR^(B times D)
+bold(I) = [delta(bold(h)_((v, L, mono(["I_CLS"])),1)), delta(bold(h)_((v, L, mono(["I_CLS"])),2)),
+..., delta(bold(h)_((v, L, mono(["I_CLS"])),B))] in RR^(B times D)
+$
+
+$
+bold(T) = [delta(bold(h)_((w, L, mono(["T_CLS"])),1)), delta(bold(h)_((w, L, mono(["T_CLS"])),2)),
+..., delta(bold(h)_((w, L, mono(["T_CLS"])),B))] in RR^(B times D)
 $
 
 $bold(I)$ denotes the batch/matrix of image representations, and $bold(T)$ contains the text representations.
