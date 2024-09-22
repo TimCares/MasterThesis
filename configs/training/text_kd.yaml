@@ -31,7 +31,7 @@ data:
   name: openwebtext # name of the (masked) language modeling dataset
   data_path: /workspace
   text_file: /workspace/openwebtext.txt
-  block_size: 196
+  block_size: 256
   mask_prob: 0.0
 
   data_path: ${data_path}
@@ -64,13 +64,13 @@ optimizer:
   betas: [ 0.9,0.98 ]
   eps: 1e-06
   weight_decay: 0.01
-  max_steps: 50040 # 5004*10
+  max_steps: 60000
 
 lightning_trainer:
   default_root_dir: ${log_dir}
   accelerator: gpu
   devices: -1
-  max_epochs: 2
+  max_steps: 60000
   val_check_interval: 6000
   precision: 16-mixed
   log_every_n_steps: 50
