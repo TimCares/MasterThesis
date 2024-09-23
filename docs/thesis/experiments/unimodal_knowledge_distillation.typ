@@ -60,7 +60,7 @@ a sequence representing an image) 768 means and
 standard deviations are calculated, one for each embedding dimension. Then, for each time step $j$, the embedding at time step $j$ is normalized
 by normalizing each dimension of the embedding independently, using the corresponding mean and standard deviation computed for that dimension @instance_norm.
 During the normalization, a small epsilon, e.g. $1e^(-8)=10^(-8)$, is added to the standard deviation to prevent division by zero.
-For an illustrative comparison between instance normalization, batch normalization and layer normalization, see (TODO: cite normalization) in the appendix.
+For an illustrative comparison between instance normalization, batch normalization and layer normalization, see @norm_comparison in the Appendix.
 We define the operation $op("InstanceNorm")(dot)$ as instance normalization on a sequence of embeddings $bold(H)$.
 $
 op("InstanceNorm")(bold(H)) = [bold(h)'_1, bold(h)'_2, ..., bold(h)'_T]
@@ -94,8 +94,7 @@ $ <unimodal_kd_data2vec2_loss>
 
 We denote $bold(y)_i$ and $bold(hat(y))_i$ as the average representation for image patch $i$ over all layers from the teacher and student model, respectively.
 This includes instance norm before averaging, and layer norm after averaging.
-For the definition of $op("LayerNorm")(dot)$, see (TODO: cite notation).
-$cal(L)_("MSE")(dot, dot)$ is the mean squared error between two vectors, defined in (TODO: cite equation).
+$cal(L)_("MSE")(dot, dot)$ is the mean squared error between two vectors, defined in @mean_squared_error.
 
 ==== Distillation <unimodal_kd_data2vec2_distillation>
 We distill the student model by minimizing the loss defined in @unimodal_kd_data2vec2_loss
@@ -115,7 +114,7 @@ give inaccurate representations. The augmentations involve (1) cropping a random
 image resolution (224$times$224), (2) performing a random horizontal flip with probability 0.5, and (3) normalizing the image RGB channels
 with the mean and standard deviation of the ImageNet-1K dataset @data2vec2.
 
-Detailed hyperparameters are provided in (TODO: cite hyperparameters).
+Detailed hyperparameters are provided in @distil_data2vec2_hyperparameters.
 
 We show the evolution of the training and validation loss during training in @distil_d2v2_loss. We observe the traditional convergence behavior
 of a model during training, and the validation loss is consistently lower than the training loss, which is a sign of good generalization.
@@ -148,7 +147,8 @@ linear probing, we only train the added layer norm and linear classifier on top 
 and full finetuning see @image_downstream_forward_pseudocode.
 
 For data augmentation during finetuning we use RandAugment @randaugment, mixup @mixup and cutmix @cutmix augmentation, and random erasing @randerase.
-The hyperparameters for these augmentations are provided in (TODO: cite hyperparameters), and have been selected based on the values used in
+The hyperparameters for these augmentations are provided in @distil_data2vec2_imagenet_finetuning_hyperparameters,
+and have been selected based on the values used in
 BEiTv2 @beitv2, Data2Vec @data2vec, and Data2Vec2 @data2vec2. We refrain from explaining the augmentation techniques in detail here, as they are
 well documented in the respective papers.
 
@@ -196,7 +196,7 @@ before the first Transformer block as layer 0, which includes the weights used f
 encodings. Correspondingly, layer 7 includes the weights for the layer norm and linear classifier on top of the student model, which are initialized
 randomly and can be assigned a higher learning rate than the other layers.
 
-For all hyperparameters used on the downstream tasks, see (TODO: cite hyperparameters).
+For all hyperparameters used on the downstream tasks, see @distil_data2vec2_imagenet_finetuning_hyperparameters.
 
 The results, displayed in @distil_d2v2_imagenet_results and @distil_d2v2_cifar_results, show that while
 the student model is not able to outperform the teacher model (Data2Vec2),
@@ -251,26 +251,95 @@ only supervised.
 ==== Method
 For knowledge distillation of a language model, we decide against the intuitive choice of distilling the corresponding Data2Vec2 language model,
 and opt for distilling a BERT model instead. We do this for two reasons.
-First, for reasons later explained later, we will also use BERT as the text encoder in our multimodal model, so for consistency
+First, we will also use BERT as the text encoder in our multimodal model, so for consistency
 we will use BERT for the unimodal distillation as well. Second, as mentioned before, there already exists a distilled version of BERT, DistilBERT @distilbert,
 to which we can directly compare our results.
 
 We use the same approach as for the image model, and distill a smaller version of BERT from a pretrained BERT model.
-Different to DistilBERT, we again take the first 6 Transformer blocks of the teacher model, and organize them into a smaller model together with
+As with our image model, we take the first 6 Transformer blocks of the teacher model, and organize them into a smaller model together with
 the embedding layer and positional encodings. The student model is therefore, again, initialized with a subset of the teacher's weights.
 
 The distillation loss is defined analogously to the distilled image model, and is defined in @unimodal_kd_data2vec2_loss. We do not need to change
 anything, as the loss is applicable to any Transformer, regardless of the modality, making it a universal loss function for feature-based knowledge distillation.
-This follows Data2Vec2, which uses the same loss @data2vec2.
+This follows the philosophy of Data2Vec2, which uses the same loss for all modalities @data2vec2.
+
+==== Importance of Sequence Length
+
+Setting the maximum sequence length as long as possible is crucial when regressing the mean activation of
+all teacher layers for each token. Self-attention mechanisms enable each token to encode not only its own
+information but also contextual information from other tokens in the sequence. This phenomenon, referred to
+as "contextualized targets" by the authors of Data2Vec @data2vec @data2vec2, becomes more pronounced with
+longer sequences. A larger number of tokens in the sequence increases the opportunities for tokens to attend
+to one another, thereby enriching contextual representations and enhancing the model's ability to capture complex
+token relationships.
+
+For instance, in the short phrase "a dog", each token can attend to only one other token, which
+limits the model's capacity to understand the broader context and relationships. In contrast, the
+sentence "a dog is playing in the garden with a tennis ball" provides a richer context with more tokens.
+This expanded context allows the model to capture a wider variety of relationships between tokens, offering
+the student model more opportunities to learn from the teacher model's outputs. A visualization of the attention
+between the different tokens of both sentences is provided in @bert_attn_examples. Here, we can see that a longer
+sequence allows tokens to attend to a high variety of other tokens, leading to relationships that represent real-world
+scenarios. The token "dog" attends mostly to tokens "playing", "garden", "tennis" and "ball", which combined represent
+the context of the sentence and a real-world scenario. The representation of the token "dog" therefore encodes information
+about a dog and what it is doing, which can be learned by the student model when regressing the teacher's outputs. In contrast,
+the token "dog" in the short sentence "a dog" can only attend to the token "a" (and the special tokens
+$mono(["CLS"])$ and $mono(["SEP"])$), which does not provide any context about the
+dog.
+However, the disadvantage of longer sequences is that they require more memory and computational resources, as the self-attention
+mechanism has a quadratic complexity with respect to the sequence length.
+
+A variable sequence length is less relevant for the image model in @unimodal_kd_vision,
+as the size of an image is fixed to 224$times$244 pixels, so
+there is no variable sequence length.
+
+#figure(
+  image(
+  width: 90%,
+  "../figures/bert_attn_examples.png"),
+  caption: [
+    Visualization of the attention between tokens in a short and longer sentence. Longer sequences allow for more complex
+    relationships between tokens that represent the real-world context of the sentence. Attention scores have been taken from
+    the first attention head of the first Transformer layer of the trained uncased BERT model used for distillation.
+],
+) <bert_attn_examples> 
+
 ==== Distillation
 
-The BERT model is distilled on a subset of the OpenWebText dataset @openwebtext, introduced in (TODO: cite data), of which
-the text is tokenized into subwords using the BERT tokenizer.
-During training, the tokenized text of the dataset is split into sequences of 196 tokens, which is the maximum sequence length
+During training, we set the maximum sequence length to 256, which is the maximum sequence length
 that can fit on a single GPU with 24GB of memory (RTX 4090).
 
-We validate the student model on the dedicated validation dataset of OWT we introduced in (TODO: cite data). The same loss as used as for training.
+The BERT model is distilled on a subset of the OpenWebText dataset @openwebtext, introduced in @unimodal_data, of which
+the text is tokenized into subwords using the BERT tokenizer. We use the uncased variant, meaning all tokens are first converted to lowercase:
+To the model, there is no difference between "Dog" and "dog".
+
+We validate the student model on the dedicated validation dataset of OWT we introduced in @unimodal_data.
+The same loss as used as for training.
+
+The model is trained for only one epoch, as we found the model to converge quickly, and because we the text data we collect yields
+almost 1M batches of size 256, with a sequence length of 256, which is very large. In comparison, the 1.2M images of ImageNet-1K @imagenet
+yield 5004 batches of size 256 for a single epoch.
+
+Other hyperparameters used, including the learning rate, are similar to that of the image model, and are provided in @distil_bert_hyperparameters.
+
 ==== Finetuning
+To get a sense of the language understanding capabilities of the trained/distilled student model, we finetune it on all
+GLUE benchmark tasks @glue, which are described in @unimodal_data, and visualized in @glue_example.
+
+To perform finetuning, we load the weights of the trained student model, and
+add a RoBERTa @roberta classification head on top of it.
+This classification head takes the representation of the $mono(["CLS"])$ token, and passes it through one linear layer followed
+by a Tanh activation function, and then through another linear layer. The first linear layers retrains the input dimensionality of the
+$mono(["CLS"])$ token, which is 768, and the second linear layer maps the representation to the number of classes of the downstream task.
+If the task is a regression task, for example sentence similarity in [0, 5] for STS-B @stsb, the second linear layer returns a scalar value.
+Pytorch pseudocode for the forward pass is provided in @text_downstream_forward_pseudocode.
+
+Since for most tasks the amount of training data is marginal, e.g. CoLA @cola has only 8.5k training samples, we do not use the layer decay
+technique used for the image model, and directly select a very low learning rate. Most of the hyperparameters are inspired by
+BERT @bert, and Data2Vec @data2vec @data2vec2, and are provided in @distil_bert_glue_finetuning_hyperparameters. We increase the number
+of epochs and lower the batch size if the dataset, like CoLA, is very small. This ensures that we have a sufficient number of updates
+for the model to learn from the data.
+
 
 #figure(
   table(
@@ -290,9 +359,9 @@ We validate the student model on the dedicated validation dataset of OWT we intr
       [*Score*],
       table.hline(stroke: .6pt),
     ),
-    [BERT],[86.7], [91.8], [69.3], [88.6], [89.6], [92.7], [56.3], [92.7], [83.5],
-    [DistilBERT],[82.2], [89.2], [59.9], [87.5], [88.5], [86.9], [51.3], [91.3], [79.6],
-    [DistilData2Vec2 (ours)],[-], [-], [-], [-], [-], [-], [-], [-], [-],
+    [BERT @bert],[86.7], [91.8], [69.3], [88.6], [89.6], [92.7], [56.3], [92.7], [83.5],
+    [DistilBERT @distilbert],[82.2], [89.2], [59.9], [87.5], [88.5], [86.9], [51.3], [91.3], [79.6],
+    [Feature-DistilBERT (ours)],[-], [-], [-], [-], [-], [-], [-], [-], [-],
     table.hline(),
   ),
   caption: [Results for BERT and DistilBERT are taken from the DistilBERT paper @distilbert.],

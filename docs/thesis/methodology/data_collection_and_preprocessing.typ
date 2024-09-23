@@ -6,7 +6,7 @@ of multimodal models on downstream tasks. After all, a multimodal model should n
 in tasks that only involve on of the aligned modalities. This also gives us the opportunity to compare the performance of
 unimodal and multimodal distilled models on the same tasks.
 
-==== Unimodal Data
+==== Unimodal Data <unimodal_data>
 Collecting unimodal data does not pose an obstacle, as there are many highly curated and large datasets available.
 For image data, we select ImageNet-1K @imagenet, which is an intuitive choice, as is features a high variety of content,
 is widely used for image classification, and, with 1.2 million training images, can be considered a medium-sized dataset.

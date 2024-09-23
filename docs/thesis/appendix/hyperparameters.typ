@@ -64,7 +64,8 @@
       [Finetune], table.vline(stroke: .3pt), [Linear probe],
     ),
     table.hline(stroke: .6pt),
-    table.cell(rowspan: 11, align:horizon, [*Training*]), 
+    table.cell(rowspan: 12, align:horizon, [*Training*]), 
+    [Num classes], [1k], [1k], [10], [10], [100], [100],
     [Epochs], table.cell(colspan: 6, align:horizon, [15]),
     [Batch size], table.cell(colspan: 6, align:horizon, [256]),
     [Optimizer], table.cell(colspan: 6, align:horizon, [AdamW]),
@@ -72,7 +73,7 @@
     [AdamW $beta$], table.cell(colspan: 6, align:horizon, [(0.9, 0.999)]),
     [Weight decay], table.cell(colspan: 6, align:horizon, [0.01]),
     [Base learning rate], table.cell(colspan: 6, align:horizon, [1e-3]),
-    [Layer Decay], table.cell(colspan: 6, align:horizon, [0.81]),
+    [Layer Decay], [0.81], [-], [0.75], [-], [0.75], [-],
     [Learning rate schedule], table.cell(colspan: 6, align:horizon, [Cosine]),
     [Warmup steps], table.cell(colspan: 6, align:horizon, [10% of total steps]),
     [Hardware], table.cell(colspan: 6, align:horizon, [1 $times$ RTX 4090 24GB]),
@@ -102,6 +103,45 @@
 )<distil_data2vec2_imagenet_finetuning_hyperparameters>
 #show table: set text(12pt)
 
+#figure(
+  table(
+    table.vline(x:1, stroke: .3pt),
+    table.vline(x:2, stroke: .3pt),
+    columns: 3,
+    stroke: none,
+    table.hline(),
+    table.header(
+      [*Type*],
+      [*Hyperparameters*],
+      [*Values*],
+    ),
+    table.hline(stroke: .6pt),
+    table.cell(rowspan: 6, align:horizon, [*Model*]), 
+    [Layers], [6],
+    [Hidden size], [768],
+    [FFN inner hidden size], [3072],
+    [Attention Heads], [12],
+    [Max sequence length], [256],
+    [Vocabulary size], [30522],
+    table.hline(stroke: .6pt),
+    table.cell(rowspan: 11, align:horizon, [*Training*]), 
+    [Epochs], [1],
+    [Total steps], [1M],
+    [Batch size], [256],
+    [Optimizer], [AdamW],
+    [AdamW $epsilon$], [1e-06],
+    [AdamW $beta$], [(0.9,0.98)],
+    [Weight decay], [0.01],
+    [Base learning rate], [1e-4],
+    [Learning rate schedule], [Cosine],
+    [Warmup steps], [10k (1% of total steps)],
+    [Hardware], [1 $times$ RTX 4090 24GB],
+    table.hline(),
+  ),
+  caption: [Hyperparameters used for distilling a BERT model.
+  ],
+)<distil_bert_hyperparameters>
+
 #show table: set text(8pt)
 #figure(
   table(
@@ -123,24 +163,25 @@
       [*SST*],
     ),
     table.hline(stroke: .6pt),
-    table.cell(rowspan: 12, align:horizon, [*Training*]), 
-    [Epochs], table.cell(colspan: 8, align:horizon, [15]),
-    [Batch size], table.cell(colspan: 8, align:horizon, [256]),
+    table.cell(rowspan: 13, align:horizon, [*Training*]), 
+    [Num classes], [3], [2], [2], [3], [2], [1 (Regression)], [2], [2],
+    [Epochs], [10], [10], [20], [20], [10], [20], [20], [10],
+    [Total steps], [61360], [32733], [3113], [5095], [31563], [7187], [10689], [21047],
+    [Batch size], [64], [32], [16], [16], [128], [16], [16], [32],
     [Optimizer], table.cell(colspan: 8, align:horizon, [AdamW]),
-    [AdamW $epsilon$], table.cell(colspan: 8, align:horizon, [1e-8]),
-    [AdamW $beta$], table.cell(colspan: 8, align:horizon, [(0.9, 0.999)]),
-    [Weight decay], table.cell(colspan: 8, align:horizon, [0.01]),
-    [Base learning rate], table.cell(colspan: 8, align:horizon, [1e-3]),
-    [Layer Decay], table.cell(colspan: 8, align:horizon, [0.81]),
-    [Learning rate schedule], table.cell(colspan: 8, align:horizon, [Cosine]),
+    [AdamW $epsilon$], table.cell(colspan: 8, align:horizon, [1e-6]),
+    [AdamW $beta$], table.cell(colspan: 8, align:horizon, [(0.9, 0.98)]),
+    [Weight decay], table.cell(colspan: 8, align:horizon, [0.1]),
+    [Base learning rate], [2e-5], [2e-5], [2e-5], [2e-5], [2e-5], [4e-5], [1e-5], [2e-5],
+    [Learning rate\ schedule], table.cell(colspan: 8, align:horizon, [Polynomial decay]),
     [Warmup steps], table.cell(colspan: 8, align:horizon, [10% of total steps]),
     [Metric], [Accuracy], [Accuracy], [Accuracy], [F1], [F1], [Spearman], [Accuracy], [Accuracy],
     [Hardware], table.cell(colspan: 8, align:horizon, [1 $times$ RTX 4090 24GB]),
     table.hline(),
   ),
-  caption: [Hyperparameters for the GLUE @glue benchmark tasks of the distilled Data2Vec2 image model.
+  caption: [Hyperparameters for the GLUE @glue benchmark tasks of the distilled BERT model.
   ],
-)<distil_data2vec2_glue_finetuning_hyperparameters>
+)<distil_bert_glue_finetuning_hyperparameters>
 #show table: set text(12pt)
 
 #figure(

@@ -32,6 +32,40 @@ supplement: [Code]
 #figure(
   rect(
     ```python
+    # model: pretrained (e.g. distilled) model
+    # cls_head: roberta classification head
+    # x: batch text tokens (B, M+2) -> M: max sequence length, 2: cls and sep token
+    # target: batch of labels (B, )
+    # regression: boolean flag for regression tasks
+    # metric: either Accuracy, F1, or Spearman correlation
+    def glue_forward(model, cls_head, x, target, regression, metric):
+        
+        x = model(x) # (B, M+2, D)
+        
+        x = x[:, 0] # take cls token (B, D)
+        x = cls_head(x) # (B, C) -> C: number of classes
+
+        if regression:
+          x = x.squeeze() # (B, ) -> remove the last dimension, as C=1
+          pred = x
+          loss = mse_loss(x, target)
+        else:
+          pred = x.argmax(dim=-1) # (B, )
+          loss = cross_entropy(x, target)
+
+        score = metric(pred, target)
+
+        return loss, pred, score
+    ```
+  ), 
+caption: [Pytorch pseudocode for the forward pass during finetuning on GLUE benchmark tasks.],
+kind: "code",
+supplement: [Code]
+) <text_downstream_forward_pseudocode>
+
+#figure(
+  rect(
+    ```python
     # teacher_model: ResNet-50-A1 model
     # image_encoder: Image encoder of the multimodal student model
     # text_encoder: Text encoder of the multimodal student model
