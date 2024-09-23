@@ -61,18 +61,18 @@ standard deviations are calculated, one for each embedding dimension. Then, for 
 by normalizing each dimension of the embedding independently, using the corresponding mean and standard deviation computed for that dimension @instance_norm.
 During the normalization, a small epsilon, e.g. $1e^(-8)=10^(-8)$, is added to the standard deviation to prevent division by zero.
 For an illustrative comparison between instance normalization, batch normalization and layer normalization, see @norm_comparison in the Appendix.
-We define the operation $op("InstanceNorm")(dot)$ as instance normalization on a sequence of embeddings $bold(H)$.
+We define the operation $op("IN")(dot)$ as instance normalization on a sequence of embeddings $bold(H)$.
 $
-op("InstanceNorm")(bold(H)) = [bold(h)'_1, bold(h)'_2, ..., bold(h)'_T]
+op("IN")(bold(H)) = [bold(h)'_1, bold(h)'_2, ..., bold(h)'_T]
 $
 
-After instance norm and averaging, parameter-less layer normalization is performed @data2vec @data2vec2.
+After instance norm and averaging, parameter-less layer normalization, denoted as $op("LN")(dot)$, is performed @data2vec @data2vec2.
 We perform all three operations likewise.
 The target and prediction are therefore given by:
 
 $
-bold(H)'^t_(v, l) &= op("InstanceNorm")(bold(H)_(v, l)^t), l in {1, 2, ..., L_t} \
-bold(H)'^s_(v, l) &= op("InstanceNorm")(bold(H)_(v, l)^s), l in {1, 2, ..., L_s}
+bold(H)'^t_(v, l) &= op("IN")(bold(H)_(v, l)^t), l in {1, 2, ..., L_t} \
+bold(H)'^s_(v, l) &= op("IN")(bold(H)_(v, l)^s), l in {1, 2, ..., L_s}
 $
 
 $
@@ -81,14 +81,15 @@ bold(hat(H))^s_v &= 1/L_s sum_(l=1)^(L_s) bold(H)'^s_(v, l)
 $
 
 $
-bold(Y) &= [bold(y)_mono(["I_CLS"]), bold(y)_1, ..., bold(y)_N] = op("LayerNorm")(bold(hat(H))^t_v) \
-bold(hat(Y)) &= [bold(hat(y))_mono(["I_CLS"]), bold(hat(y))_1, ..., bold(hat(y))_N] = op("LayerNorm")(bold(hat(H))^s_v)
+bold(Y) &= [bold(y)_mono(["I_CLS"]), bold(y)_1, ..., bold(y)_N] = op("LN")(bold(hat(H))^t_v) \
+bold(hat(Y)) &= [bold(hat(y))_mono(["I_CLS"]), bold(hat(y))_1, ..., bold(hat(y))_N] = op("LN")(bold(hat(H))^s_v)
 $
 
 The loss for a single sample (image) is defined in the following:
 
 $
-cal(L)_("KD")(bold(Y), bold(hat(Y))) = ||bold(Y) - bold(hat(Y))||_2^2 = 1/(N+1) ( sum_(n=1)^N cal(L)_("MSE")(bold(y)_n, bold(hat(y))_n)
+cal(L)_("KD")(bold(Y), bold(hat(Y))) &= ||bold(Y) - bold(hat(Y))||_2^2 = \
+1/(N+1) ( sum_(n=1)^N cal(L)_("MSE")&(bold(y)_n, bold(hat(y))_n)
 + cal(L)_("MSE")(bold(y)_mono(["I_CLS"]), bold(hat(y))_mono(["I_CLS"])))
 $ <unimodal_kd_data2vec2_loss>
 
@@ -314,13 +315,47 @@ the text is tokenized into subwords using the BERT tokenizer. We use the uncased
 To the model, there is no difference between "Dog" and "dog".
 
 We validate the student model on the dedicated validation dataset of OWT we introduced in @unimodal_data.
-The same loss as used as for training.
 
-The model is trained for only one epoch, as we found the model to converge quickly, and because we the text data we collect yields
+The model is trained for only one epoch, as we found the model to converge quickly, and because the text data we collect yields
 almost 1M batches of size 256, with a sequence length of 256, which is very large. In comparison, the 1.2M images of ImageNet-1K @imagenet
 yield 5004 batches of size 256 for a single epoch.
 
 Other hyperparameters used, including the learning rate, are similar to that of the image model, and are provided in @distil_bert_hyperparameters.
+
+Before the loss, defined in @unimodal_kd_bert_loss, is applied, we perform a similar preprocessing as for the image model.
+However, following Data2Vec2 @data2vec2, we do not apply layer normalization on the averaged activations, and the loss
+is only calculated for non-padding tokens. This was not relevant in the image model, as there is no padding in the image data.
+
+$
+bold(H)'^t_(w, l) &= op("IN")(bold(H)_(w, l)^t), l in {1, 2, ..., L_t} \
+bold(H)'^s_(w, l) &= op("IN")(bold(H)_(w, l)^s), l in {1, 2, ..., L_s}
+$
+
+$
+bold(hat(H))^t_w &= 1/L_t sum_(l=1)^(L_t) bold(H)'^t_(w, l) \
+bold(hat(H))^s_w &= 1/L_s sum_(l=1)^(L_s) bold(H)'^s_(w, l)
+$
+
+$
+bold(Y) &= [bold(y)_mono(["T_CLS"]), bold(y)_1, ..., bold(y)_M, bold(y)_mono(["SEP"])] = bold(hat(H))^t_w \
+bold(hat(Y)) &= [bold(hat(y))_mono(["T_CLS"]), bold(hat(y))_1, ..., bold(hat(y))_M, bold(hat(y))_mono(["SEP"])] = bold(hat(H))^s_w
+$
+
+$
+cal(L)'_("MSE")(bold(y)_m, bold(hat(y))_m) &:= cases(
+  0 &"if" bold(e)^w_m = bold(t)_mono(["PAD"]) \
+  cal(L)_("MSE")(bold(y)_m, bold(hat(y))_m) &"else",
+)
+$
+$
+cal(L)_("KD")(bold(Y), bold(hat(Y))) &= ||bold(Y) - bold(hat(Y))||_2^2 = \
+1/(M+2) ( sum_(m=1)^M cal(L)'_("MSE")(bold(y)_m, bold(hat(y))_m)
++ cal(L)_("MSE")(bold(y)_mono(["T_CLS"])&, bold(hat(y))_mono(["T_CLS"]))
++ cal(L)_("MSE")(bold(y)_mono(["SEP"]), bold(hat(y))_mono(["SEP"])))
+$ <unimodal_kd_bert_loss>
+
+Here, $bold(e)^w_m$ denotes the embedding of token $m$ in the sequence, and the loss is ignored, i.e. 0, if the token is the
+padding token, denoted $bold(t)_mono(["PAD"])$.
 
 ==== Finetuning
 To get a sense of the language understanding capabilities of the trained/distilled student model, we finetune it on all
