@@ -159,3 +159,99 @@ def gather_features(
         return all_image_features, all_text_features, all_padding_mask
 
     return all_image_features, all_text_features
+
+
+class Pooler(nn.Module):
+    def __init__(self, hidden_size):
+        super().__init__()
+        self.dense = nn.Linear(hidden_size, hidden_size)
+        self.activation = nn.Tanh()
+
+    def forward(self, hidden_states):
+        first_token_tensor = hidden_states[:, 0]
+        pooled_output = self.dense(first_token_tensor)
+        pooled_output = self.activation(pooled_output)
+        return pooled_output
+    
+
+class MoMEBlock(nn.Module):
+    def __init__(
+        self,
+        dim,
+        num_heads,
+        mlp_ratio=4.0,
+        qkv_bias=False,
+        qk_scale=None,
+        drop=0.0,
+        attn_drop=0.0,
+        drop_path=0.0,
+        act_layer=nn.GELU,
+        norm_layer=nn.LayerNorm,
+        with_vlffn=False,
+        layer_scale_init_values=0.1,
+        max_text_len=40,
+    ):
+        super().__init__()
+        self.norm1 = norm_layer(dim)
+        self.attn = Attention(
+            dim,
+            num_heads=num_heads,
+            qkv_bias=qkv_bias,
+            qk_scale=qk_scale,
+            attn_drop=attn_drop,
+            proj_drop=drop,
+        )
+        # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
+        self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
+        self.norm2_text = norm_layer(dim)
+        self.norm2_imag = norm_layer(dim)
+        mlp_hidden_dim = int(dim * mlp_ratio)
+        self.mlp_text = Mlp(
+            in_features=dim,
+            hidden_features=mlp_hidden_dim,
+            act_layer=act_layer,
+            drop=drop,
+        )
+        self.mlp_imag = Mlp(
+            in_features=dim,
+            hidden_features=mlp_hidden_dim,
+            act_layer=act_layer,
+            drop=drop,
+        )
+        self.mlp_vl = None
+        if with_vlffn:
+            self.mlp_vl = Mlp(
+                in_features=dim,
+                hidden_features=mlp_hidden_dim,
+                act_layer=act_layer,
+                drop=drop,
+            )
+            self.norm2_vl = norm_layer(dim)
+        
+        self.gamma_1 = \
+            nn.Parameter(layer_scale_init_values * torch.ones((dim)),requires_grad=True) \
+            if layer_scale_init_values is not None else 1.0
+        self.gamma_2 = \
+            nn.Parameter(layer_scale_init_values * torch.ones((dim)),requires_grad=True) \
+            if layer_scale_init_values is not None else 1.0
+
+        self.max_text_len = max_text_len
+
+    def forward(self, x, mask=None, modality_type=None):
+        x = x + self.drop_path(self.gamma_1 * self.attn(self.norm1(x), mask=mask))
+
+        if modality_type == "image":
+            x = x + self.drop_path(self.gamma_2 * self.mlp_imag(self.norm2_imag(x)))
+        elif modality_type == "text":
+            x = x + self.drop_path(self.gamma_2 * self.mlp_text(self.norm2_text(x)))
+        else:
+            if self.mlp_vl is None:
+                x_text = x[:, : self.max_text_len]
+                x_imag = x[:, self.max_text_len :]
+                x_text = x_text + self.drop_path(self.gamma_2 * self.mlp_text(self.norm2_text(x_text)))
+                x_imag = x_imag + self.drop_path(self.gamma_2 * self.mlp_imag(self.norm2_imag(x_imag)))
+                x = torch.cat([x_text, x_imag], dim=1)
+            else:
+                x = x + self.drop_path(self.gamma_2 * self.mlp_vl(self.norm2_vl(x)))
+
+        return x
