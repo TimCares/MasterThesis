@@ -3,23 +3,22 @@ from torch import nn
 import torch.nn.functional as F
 from functools import partial
 from typing import Dict, Any
-from collections import namedtuple
 from omegaconf import OmegaConf
 import os
 import logging
 import pytorch_lightning as L
 import json
+import numpy as np
 from timm.models.vision_transformer import LayerScale
 from dataclasses import dataclass, field
 from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from transformers import BertModel
 from . import MODEL_REGISTRY
-from modules import Block, ClipLoss
+from modules import ClipLoss
 from modules.layers import Pooler, MoMEBlock
-from utils import freeze_module, load_beit2_teacher, MaskingGenerator
+from utils import freeze_module, load_beit2_teacher
 from beit2.modeling_pretrain import VisionTransformerForMaskedImageModeling
-from beit2.run_beitv2_pretraining import get_visual_tokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -32,23 +31,8 @@ class SSMKECPreTrainingLightningModule(L.LightningModule):
 
         self.lm_head = nn.Linear(self.model.cfg.embed_dim, 30522)
         self.lm_head.apply(init_bert_params)
-        self.im_head = nn.Linear(self.model.cfg.embed_dim, 8192)
-        self.im_head.apply(init_bert_params)
 
-        self.masked_position_generator = MaskingGenerator(
-            input_size=(14, 14),
-            num_masking_patches=75,
-            max_num_patches=None,
-            min_num_patches=16,
-        )
-        VQKDArgs = namedtuple('VQKDArgs', ['tokenizer_model', 'tokenizer_weight', 'codebook_size', 'codebook_dim'])
-        vqkd_args = VQKDArgs(
-            **OmegaConf.to_container(self.cfg.vqkd, resolve=True)
-        )
-        self.vqkd = get_visual_tokenizer(vqkd_args)
-        del self.vqkd.decoder
-        del self.vqkd.decoder_task_layer
-        freeze_module(self.vqkd)
+        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
         self.save_hyperparameters()
 
@@ -70,24 +54,25 @@ class SSMKECPreTrainingLightningModule(L.LightningModule):
         return self._step(batch, batch_idx, stage='val')
 
     def _step(self, batch:Dict[str, Any], batch_idx, stage:str='train'):
-        mlm_output = self.mlm_forward(batch)
-        mim_output = self.mim_forward(batch)
+        mlm_output = self.mlm_forward(stage, batch)
+        itc_output = self.itc_forward(stage, batch)
+        itm_output = self.itm_forward(
+            stage=stage,
+            batch=batch,
+            logits_per_image=itc_output['logits_per_image'],
+            logits_per_text=itc_output['logits_per_text']
+        )
 
-        for k, v in mlm_output.items():
-            self.log(f"{stage}/{k}", v, prog_bar=True)
-        
-        loss = mlm_output['mlm_loss'] + mim_output['mim_loss']
-
-        self.log(f"{stage}/loss", loss, prog_bar=True)
+        loss = mlm_output['mlm_loss'] + itc_output['loss'] + itm_output['loss']
         
         return loss
     
-    def mlm_forward(self, batch):
+    def mlm_forward(self, stage, batch):
         x = self.model.encode_shared(
             image=batch['image'],
             text=batch['masked_text'],
             padding_mask=batch['padding_mask'],
-        )[:, :batch['masked_text'].size(1)] # 64 is the max text length
+        )['x'][:, :batch['masked_text'].size(1)] # 64 is the max text length
         x = self.lm_head(x)
 
         input = x.view(-1, 30522)
@@ -104,38 +89,84 @@ class SSMKECPreTrainingLightningModule(L.LightningModule):
         mlm_acc = (input_ == target_).float().mean()
         
         output_dict = {
-            "mlm_loss": mlm_loss,
-            "mlm_acc": mlm_acc,
+            "loss": mlm_loss,
+            "acc": mlm_acc,
         }
+        self.log(f"{stage}/'mlm_loss", mlm_loss)
+        self.log(f"{stage}/'mlm_acc", mlm_acc, prog_bar=True)
+        
         return output_dict
     
-    def mim_forward(self, batch):
-        bool_masked_pos = self.masked_position_generator().flatten(1).to(torch.bool)
-        x = self.model.encode_shared(
+    def itc_forward(self, stage, batch):
+        out_dict = self.model.encode_shared(
             image=batch['image'],
             text=batch['text'],
             padding_mask=batch['padding_mask'],
-            bool_masked_pos=bool_masked_pos,
-        )[:, batch['text'].size(1):] # 64 is the max text length
-
-        input = self.im_head(x[bool_masked_pos]).view(-1, 8192)
-
-        with torch.no_grad():
-            input_ids = self.vqkd.get_codebook_indices(batch['image'])
-            target = input_ids[bool_masked_pos].view(-1)
-        
-        mim_loss = F.cross_entropy(
-            input=input,
-            target=target,
         )
-
-        mim_acc = (input.argmax(dim=-1) == target).float().mean()
         
-        output_dict = {
-            "mim_loss": mim_loss,
-            "mim_acc": mim_acc,
+        self.logit_scale.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
+
+        itc_out = self.clip_loss(
+            image_features=out_dict['img_embed'],
+            text_features=out_dict['text_embed'],
+            logit_scale=self.logit_scale.exp(),
+        )
+        self.log_acc(itc_out['logits_per_image'], itc_out['logits_per_text'], itc_out['targets'], stage, key_prefix='itc_')
+        return itc_out
+    
+    def itm_forward(self, stage, batch, logits_per_image=None, logits_per_text=None):
+        device = self.device
+        bsz = batch['image'].shape[0]
+        itm_labels = torch.cat([
+            torch.ones(bsz), 
+            torch.zeros(bsz), 
+            torch.zeros(bsz)]).to(device)
+
+        if logits_per_image is not None and logits_per_text is not None: # ... then hard-negative mining
+            with torch.no_grad():       
+                weights_i2t = F.softmax(logits_per_image[:bsz, :bsz].float(), dim=1)
+                weights_t2i = F.softmax(logits_per_text[:bsz, :bsz].float(), dim=1)
+
+                weights_i2t.fill_diagonal_(0)
+                weights_t2i.fill_diagonal_(0)
+        else: # ... then random sampling
+            weights_i2t = torch.ones(bsz, bsz)
+            weights_i2t.fill_diagonal_(0)
+            weights_t2i = weights_i2t
+
+        neg_text_idx = torch.multinomial(weights_i2t, 1).squeeze()
+        neg_image_idx = torch.multinomial(weights_t2i, 1).squeeze()
+
+        pos_pred = self.model.encode_shared(
+            image=batch['image'],
+            text=batch['text'],
+            padding_mask=batch['padding_mask'],
+        )['matched']
+
+        neg_text_pred = self.model.encode_shared(
+            image=batch['image'],
+            text=batch['text'][neg_text_idx],
+            padding_mask=batch['padding_mask'],
+        )['matched']
+
+        neg_img_pred = self.model.encode_shared(
+            image=batch['image'][neg_image_idx],
+            text=batch['text'],
+            padding_mask=batch['padding_mask'],
+        )['matched']
+
+        input = torch.cat([pos_pred, neg_text_pred, neg_img_pred], dim=0)
+
+        result_dict = {
+            'loss': F.cross_entropy(input, itm_labels.long()),
+            'logits': input,
+            'targets': itm_labels,
         }
-        return output_dict
+        self.log(f"{stage}/'itm_loss", result_dict['loss'])
+        acc = (input.argmax(dim=1) == itm_labels).float().mean()
+        self.log(f"{stage}/'itm_acc", acc, prog_bar=True)
+
+        return result_dict
     
     def log_acc(self, logits_per_image, logits_per_text, target, stage, key_prefix=""):
         img_itc_acc = (logits_per_image.argmax(dim=1) == target).float().mean()
@@ -244,9 +275,17 @@ class SSMKEC(nn.Module):
         super(SSMKEC, self).__init__()
         self.cfg = cfg
         make_layer_norm = partial(nn.LayerNorm, eps=1e-6)
+        self.post_norm = make_layer_norm(cfg.embed_dim)
 
         self.token_type_embeddings = nn.Embedding(2, self.cfg.embed_dim)
         self.tte_scale = LayerScale(self.cfg.embed_dim, init_values=1e-5)
+
+        self.pooler = Pooler(self.cfg.embed_dim)
+
+        self.itc_img_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+        self.itc_text_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
+
+        self.itm_head = nn.Linear(self.cfg.embed_dim, 2)
 
         self.shared_blocks = nn.ModuleList([
             MoMEBlock(
@@ -331,10 +370,29 @@ class SSMKEC(nn.Module):
             image_mask = torch.zeros(image.size(0), image.size(1)).to(padding_mask.device)
             padding_mask = torch.cat([padding_mask, image_mask], dim=1)
 
+        return self.encode_shared_only(x, padding_mask, modality_type)
+
+    
+    def encode_shared_only(self, x, padding_mask=None, modality_type=None):
+        modality_type = modality_type if modality_type is not None else 'vl'
+
         for block in self.shared_blocks:
             x = block(x=x, mask=padding_mask, modality_type=modality_type)
-        
-        return x
+
+        pooled = self.pooler(self.post_norm(x))
+        matched = self.itm_head(pooled)
+
+        img_embed = self.itc_img_head(x)
+        text_embed = self.itc_text_head(x)
+
+        result_dict = {
+            'x': x,
+            'pooled': pooled,
+            'img_embed': img_embed,
+            'text_embed': text_embed,
+            'matched': matched,
+        }
+        return result_dict
         
 
 MODEL_REGISTRY['SSMKEC'] = {
