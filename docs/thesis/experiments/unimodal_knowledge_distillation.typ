@@ -121,9 +121,9 @@ We show the evolution of the training and validation loss during training in @di
 of a model during training, and the validation loss is consistently lower than the training loss, which is a sign of good generalization.
 There are some peaks in the training loss, which are likely due to a high learning rate, but they do not affect the validation loss, which is
 why do not investigate them further.
-As we do not have access to any other metric than the MSE loss during training we have to evaluate the student by finetuning
+As we do not have access to any other metric than the MSE loss during training, we have to evaluate the student by finetuning
 on downstream tasks, which follows in the next section. This will answer whether the distillation actually yields a model
-competetive in performance to the teacher model and if the knowledge transfer was successful.
+competetive in performance to the teacher model, and if the knowledge transfer was successful.
 
 
 #figure(
@@ -357,6 +357,12 @@ $ <unimodal_kd_bert_loss>
 Here, $bold(e)^w_m$ denotes the embedding of token $m$ in the sequence, and the loss is ignored, i.e. 0, if the token is the
 padding token, denoted $bold(t)_mono(["PAD"])$.
 
+We refrain from showing and analyzing the training and validation loss, as it is difficult to judge the quality of the student model
+just by looking at the distillation loss. Even though a low distillation loss is a good sign,
+there are no additional metrics to express how well the language understanding of our student is
+(we actually observe a similar behavior of the loss as in the image KD, see @distil_d2v2_loss). We therefore directly
+advance to finetuning the distilled student model on downstream tasks.
+
 ==== Finetuning
 To get a sense of the language understanding capabilities of the trained/distilled student model, we finetune it on all
 GLUE benchmark tasks @glue, which are described in @unimodal_data, and visualized in @glue_example.
@@ -368,10 +374,10 @@ After an example (e.g. sentence pair) is passed through the Transformer layer, t
 of the $mono(["CLS"])$ token is extracted, and passed through the BERT pooler @bert, which is a linear layer
 followed by a Tanh activation function. The linear layer retrains the input dimensionality of the $mono(["CLS"])$ token, which is 768.
 The weights of the pooler come directly from the BERT model, and are also fine-tuned.
-The pooler is followed by a dropout layer, for which the dropout probability differs between tasks
+The pooler is followed by a dropout layer, for which the dropout probability is set to $p=0.1$ for all tasks
 (shown in @distil_bert_glue_finetuning_hyperparameters), and is followed by a linear classification layer, which maps the representation
 to the number of classes of the downstream task.
-If the task is a regression task, for example sentence similarity in [0, 5] for STS-B @stsb, the
+If the task is regression, for example sentence similarity in [0, 5] for STS-B @stsb, the
 second linear layer returns a scalar value.
 The classification layer is initialized randomly, and trained from scratch.
 Pytorch pseudocode for the forward pass is provided in @text_downstream_forward_pseudocode.
@@ -437,6 +443,24 @@ of epochs and lower the batch size if the dataset, like CoLA, is very small. Thi
 for the model to learn from the data.
 
 *Results*
+
+The results of finetuning our distilled BERT model, which we denote as F-DistilBERT (for feature-based distilled BERT),
+are shown in @distil_d2v2_glue_results, and we observe a similar performance to DistilBERT @distilbert.
+All scores are based on the dev sets of the respective tasks, as the test datasets, if available, usually do not provide labels.
+
+We are able
+to retain 96.7% of the performance of BERT, which is almost the same as the 96.8% of DistilBERT. Noteably, we outperform
+DistilBERT on the RTE @rte1 task by more than 7 percentage points, and even record the best score of all methods compared on WNLI @wnli.
+The latter is most likely due to the fact that WNLI is a very small dataset, with 635 training and
+only 71 dev samples. Both DistilBERT and F-DistilBERT
+have considerable less parameters than BERT, which makes them less prone to overfitting on small datasets,
+and the performance on 71 samples will be prone to noise. F-DistilBERT is also able to achieve a higher performance on
+CoLA @cola and SST @sst2, compared to DistilBERT, which is a sign that the knowledge transfer through feature-based distillation
+was successful.
+
+We do not investigate possible improvements, as the focus of this work lies on multimodal models. Nonetheless, the results
+of unimodal distillation provide a good foundation on which we can build in the following sections, and we will now proceed
+to multimodal distillation.
 
 #show table: set text(8pt)
 #figure(

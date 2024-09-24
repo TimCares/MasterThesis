@@ -132,7 +132,7 @@
     [AdamW $epsilon$], [1e-06],
     [AdamW $beta$], [(0.9,0.98)],
     [Weight decay], [0.01],
-    [Base learning rate], [1e-4],
+    [Base learning rate], [5e-4],
     [Learning rate schedule], [Cosine],
     [Warmup steps], [10k (1% of total steps)],
     [Hardware], [1 $times$ RTX 4090 24GB],
