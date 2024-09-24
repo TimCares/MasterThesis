@@ -460,7 +460,7 @@ for the model to learn from the data.
     [BERT @bert],[*86.7*], [*91.8*], [*69.3*], [*88.6*], [*89.6*], [*89.0*], [*56.3*], [*92.7*], [*83.0*],
     table.hline(stroke: .3pt),
     [DistilBERT @distilbert],[82.2], [89.2], [59.9], [87.5], [88.5], [86.9], [51.3], [91.3], [79.31],
-    [F-DistilBERT (ours)],[-], [88.0], [-], [85.0], [-], [-], [#underline[55.1]], [-], [-],
+    [F-DistilBERT (ours)],[-], [88.0], [#underline[67.64]], [85.0], [86.5], [-], [#underline[55.1]], [#underline[91.4]], [-],
     table.hline(),
   ),
   caption: [

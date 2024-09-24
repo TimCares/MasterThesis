@@ -288,6 +288,17 @@ class MNLI(RTE):
     def _dataset_name(self):
         return 'mnli'
     
+class WNLI(RTE):
+    def _dataset(self, split):
+        return torchtext.datasets.WNLI(root=self.path_to_data, split=split)
+    
+    def _get_max_length(self, data_loader) -> int:
+        return self.num_max_bpe_tokens # dataset is very large, looping through it is too slow
+    
+    @property
+    def _dataset_name(self):
+        return 'wnli'
+    
 
 GLUE_DATASET_REGISTRY = {
     'cola_glue': CoLA,
@@ -298,4 +309,5 @@ GLUE_DATASET_REGISTRY = {
     'qqp_glue': QQP,
     'stsb_glue': STSB,
     'mnli_glue': MNLI,
+    'wnli_glue': WNLI,
 }
