@@ -26,7 +26,7 @@ class BaseDataset(torch.utils.data.Dataset):
         self.data_path = data_path
         self.split = split
 
-        self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+        self.tokenizer:BertTokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
         self.pad_token_id = self.tokenizer.pad_token_id
         self.cls_token_id = self.tokenizer.cls_token_id
         self.sep_token_id = self.tokenizer.sep_token_id

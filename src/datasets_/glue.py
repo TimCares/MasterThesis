@@ -39,26 +39,14 @@ class GLUE(BaseDataset):
         write_data_into_jsonl(items, self.out_jsonl_path)
         shutil.rmtree(f'{self.path_to_data}/datasets')
 
-    def prepare_sentence_pair(self, sentence1:str, sentence2:str) -> Tuple[List[int], List[int], List[int], int]:
-        tokens1 = self.tokenize_text(sentence1)
-        tokens2 = self.tokenize_text(sentence2)
+    def prepare_sentence_pair(self, sentence1:str, sentence2:str) -> Dict[str, List[int]]:
+        result_dict = self.tokenizer.encode_plus(sentence1, sentence2, padding='max_length',
+                                                 max_length=self.num_tokens_upper_bound,
+                                                 truncation=True, return_attention_mask=True)
         
-        trunc = 0
-        skip = 0
-        max_len_text = self.num_max_bpe_tokens - len(tokens1) - 3 # -3 for bos token and 2x separator (eos)
-        if len(text_tokens) > max_len_text:
-            trunc = 1
-            text_tokens = text_tokens[:max_len_text]
-
-        tokens = text_tokens + [self.sep_token_id] + tokens2
-        assert len(tokens) <= self.num_max_bpe_tokens
-        
-        language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_tokens_upper_bound,
-                                                          pad_idx=self.pad_token_id, bos_idx=self.cls_token_id,
-                                                          eos_idx=self.sep_token_id)
-        if self.sep_token_id not in language_tokens:# both text and question should still be there after potential truncation
-            skip = 1
-        return language_tokens, padding_mask, trunc, skip
+        trunc = len(self.tokenizer.encode(sentence1, sentence2)) > self.num_tokens_upper_bound
+        result_dict['trunc'] = trunc
+        return result_dict
             
     @property
     def modality(self) -> Modality:
@@ -155,21 +143,17 @@ class QNLI(GLUE):
     def _make_index(self) -> List[Dict[str, Any]]:
         items = []
         n_trunc = 0
-        n_skip = 0
         for target, text1, text2 in iter(self._dataset(split=self.split)):
-            language_tokens, padding_mask, trunc, skip = self.prepare_sentence_pair(sentence1=text1, sentence2=text2)
-            if skip:
-                n_skip += 1
-                continue
-            if trunc:
+            result_dict = self.prepare_sentence_pair(sentence1=text1, sentence2=text2)
+            if result_dict['trunc']:
                 n_trunc += 1
 
-            items.append({'x': language_tokens,
-                          'padding_mask': padding_mask,
+            items.append({'x': result_dict['input_ids'],
+                          'padding_mask': result_dict['attention_mask'],
+                          'token_type_ids': result_dict['token_type_ids'],
                           'target': target})
         
         self.log(f"Truncated {n_trunc} examples.")
-        self.log(f"Skipped {n_skip} examples.")
             
         return items
     
@@ -233,23 +217,19 @@ class QQP(GLUE):
 
         items = []
         n_trunc = 0
-        n_skip = 0
         for _, example in df.iterrows():
             question1_tokens = self.tokenize_text(example['question1'])
             question2_tokens = self.tokenize_text(example['question2'])
-            language_tokens, padding_mask, trunc, skip = self.prepare_sentence_pair(sentence1=question1_tokens, sentence2=question2_tokens)
-            if skip:
-                n_skip += 1
-                continue
-            if trunc:
+            result_dict = self.prepare_sentence_pair(sentence1=question1_tokens, sentence2=question2_tokens)
+            if result_dict['trunc']:
                 n_trunc += 1
 
-            items.append({'x': language_tokens,
-                          'padding_mask': padding_mask,
+            items.append({'x': result_dict['input_ids'],
+                          'padding_mask': result_dict['attention_mask'],
+                          'token_type_ids': result_dict['token_type_ids'],
                           'target': example['is_duplicate']})
         
         self.log(f"Truncated {n_trunc} examples.")
-        self.log(f"Skipped {n_skip} examples.")
         return items
     
 

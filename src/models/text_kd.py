@@ -147,21 +147,23 @@ class TextKDModel(nn.Module):
         
         self.model = BertModel.from_pretrained("bert-base-uncased")
         self.model.encoder.layer = self.model.encoder.layer[:self.cfg.depth]
-        self.model.pooler = None # remove pooler
 
     def forward(
         self,
         text:torch.Tensor,
         padding_mask:torch.Tensor,
+        token_type_ids=None,
     ):
         out = self.model(
             input_ids=text,
             attention_mask=1-padding_mask,
+            token_type_ids=token_type_ids,
             output_hidden_states=True,
         )
         out_dict = {
             'layer_results': out.hidden_states,
             'last_hidden_state': out.last_hidden_state,
+            'pooler_output': out.pooler_output,
         }
         return out_dict
 

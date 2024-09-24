@@ -55,6 +55,8 @@ class TextClassificationLightningModule(L.LightningModule):
     def _step(self, batch:Dict[str, Any], batch_idx:int, stage:str='train'):
         target = batch.pop('target')
         input_dict = {'text': batch['text'], 'padding_mask': batch['padding_mask']}
+        if 'token_type_ids' in batch:
+            input_dict['token_type_ids'] = batch['token_type_ids']
         
         logits = self(input_dict) # call "forward"
 
@@ -112,21 +114,13 @@ class TextClassificationModel(nn.Module):
         self.model = model_cls.load_from_checkpoint(self.cfg.model_path).model
 
         embed_dim = 768
-        self.classification_head = RobertaClassificationHead(
-            input_dim=embed_dim,
-            inner_dim=embed_dim,
-            num_classes=self.cfg.num_classes,
-            activation_fn='tanh',
-            pooler_dropout=0.0,
-            q_noise=0,
-            qn_block_size=8,
-            do_spectral_norm=False,
-        )
+        self.classification_head = nn.Linear(embed_dim, self.cfg.num_classes)
 
     def forward(
         self,
         text,
         padding_mask,
+        token_type_ids=None,
     ):
-        x = self.model(text=text, padding_mask=padding_mask)['x']
+        x = self.model(text=text, padding_mask=padding_mask, token_type_ids=token_type_ids)['pooler_output']
         return self.classification_head(x)
