@@ -29,7 +29,7 @@ model:
 
 data:
   _name: mnli_m_glue
-  num_max_bpe_tokens: 196
+  num_max_bpe_tokens: 256
 
   data_path: ${data_path}
   batch_size: 64
