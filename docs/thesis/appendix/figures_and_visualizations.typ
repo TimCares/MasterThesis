@@ -44,6 +44,7 @@
     [MNLI], [[CLS] Conceptually cream skimming has two basic dimensions - product and geography. [SEP] Product and geography are what make cream skimming work. [SEP]], [1],
     [QNLI], [[CLS] When did the third Digimon series begin? [SEP] Unlike the two seasons before it and most of the seasons that followed, Digimon Tamers takes a darker and more realistic approach to its story featuring Digimon who do not reincarnate after their deaths and more complex character development in the original Japanese. [SEP]], [1],
     [RTE], [[CLS] No Weapons of Mass Destruction Found in Iraq Yet. [SEP] Weapons of Mass Destruction Found in Iraq. [SEP]], [1],
+    [WNLI], [[CLS] I stuck a pin through a carrot. When I pulled the pin out, it had a hole. [SEP] The carrot had a hole. [SEP]], [1],
   ),
   caption: [Training examples of the GLUE benchmark tasks (one example per task). Examples are taking from the GLUE dataset card on Hugging Face
   #footnote[#link("https://huggingface.co/datasets/nyu-mll/glue")].],

@@ -39,40 +39,60 @@ All 8 datasets are publicly available, and can also be accessed through HuggingF
 
 The 8 datasets measure the performance of language models on the following tasks:
 
-===== SST-2
+*SST-2*
+
 Sentence classification of rotten tomatoes movie reviews into "negative" (1), "somewhat negative" (2), "somewhat positive" (3), and "positive" (4) @sst2.
 
-===== CoLA
+*CoLA*
+
 Is a binary classification tasks to test a models understanding of grammar:
 Model should output whether a sentence is grammatically correct (label: "acceptable" -> 1) or not (label: "unacceptable" -> 0) @cola.
 
-===== STS-B
+*STS-B*
+
 A regression task. The model is tasked with predicting the similarity between two sentences.
 The similarity score is in the interval $[0, 5] subset RR$ @stsb.
 
-===== MRPC
+*MRPC*
+
 Is a binary classification taks. The training objective is paraphrase detection,
 meaning whether two sentences describe the same semantic concept @mrpc.
 
-===== QQP
+*QQP*
+
 The same as MRPC, instead of a simple sentence pair, the goal is to detect wethere two questions are semantic
 duplicates, i.e. ask the same thing #footnote[https://quoradata.quora.com/First-Quora-Dataset-Release-Question-Pairs].
 
-===== QNLI
+*QNLI*
+
 A binary classification task, where the model has to predict whether one sentence is the answer to a question represented by another sentence.
 Examples are of the form (question, sentence) @squad @glue.
 
-===== RTE
+*RTE*
+
 A dataset of text pairs, where the model has to predict whether a hypothesis (sentence 2) can be inferred from a text (sentence 1) @rte1 @rte2 @rte3 @rte5 @glue.
 The task is binary classification (hypothesis can be inferred, or not).
 
-===== MNLI
+*MNLI*
+
 A classification task, where the model has to predict whether a hypothesis can be inferred from the premise (entailment),
 contradicts the premise (contradiction), or is neutral (neutral). There a two versions available, MNLI matched and MNLI mismatched.
 Both consists of the same training dataset, but test set of MNLI mismatched consists of out-of-domain data, so sentence pairs about
 concepts not seen during training. It is therefore a better measure of generalization, compared to MNLI matched @mnli.
 
-Concrete examples can be found in (TODO: cite glue examples) in the Appendix.
+*MNLI*
+
+A classification task, where the model has to predict whether a hypothesis can be inferred from the premise (entailment),
+contradicts the premise (contradiction), or is neutral (neutral). There a two versions available, MNLI matched and MNLI mismatched.
+Both consists of the same training dataset, but test set of MNLI mismatched consists of out-of-domain data, so sentence pairs about
+concepts not seen during training. It is therefore a better measure of generalization, compared to MNLI matched @mnli.
+
+*WNLI*
+
+A binary classification task, where the model has to predict whether a hypothesis can be inferred
+from the premise (entailment) or not (contradiction) @wnli.
+
+Concrete examples can be found in @glue_example in the Appendix.
 
 #figure(
   table(

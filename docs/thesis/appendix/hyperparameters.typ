@@ -142,12 +142,12 @@
   ],
 )<distil_bert_hyperparameters>
 
-#show table: set text(8pt)
+#show table: set text(7pt)
 #figure(
   table(
     table.vline(x:1, stroke: .3pt),
     table.vline(x:2, stroke: .3pt),
-    columns: 10,
+    columns: 11,
     stroke: none,
     table.hline(),
     table.header(
@@ -161,26 +161,28 @@
       [*STS-B*],
       [*CoLA*],
       [*SST*],
+      [*WNLI*],
     ),
     table.hline(stroke: .6pt),
     table.cell(rowspan: 14, align:horizon, [*Training*]), 
-    [Num classes], [3], [2], [2], [3], [2], [1 (Regression)], [2], [2],
-    [Head Dropout prob.], [0.2], [0.2], [0.1], [0.1], [0.1], [0.1], [0.1], [0.1],
-    [Epochs], [10], [10], [20], [20], [10], [20], [20], [10],
-    [Total steps], [61360], [32733], [3113], [5095], [31563], [7187], [10689], [21047],
-    [Batch size], [64], [32], [16], [16], [128], [16], [16], [32],
-    [Optimizer], table.cell(colspan: 8, align:horizon, [AdamW]),
-    [AdamW $epsilon$], table.cell(colspan: 8, align:horizon, [1e-6]),
-    [AdamW $beta$], table.cell(colspan: 8, align:horizon, [(0.9, 0.98)]),
-    [Weight decay], table.cell(colspan: 8, align:horizon, [0.1]),
-    [Base learning rate], [2e-5], [2e-5], [2e-5], [2e-5], [2e-5], [4e-5], [1e-5], [2e-5],
-    [Learning rate\ schedule], table.cell(colspan: 8, align:horizon, [Polynomial decay]),
-    [Warmup steps], table.cell(colspan: 8, align:horizon, [10% of total steps]),
-    [Metric], [Accuracy], [Accuracy], [Accuracy], [F1], [F1], [Spearman], [Accuracy], [Accuracy],
-    [Hardware], table.cell(colspan: 8, align:horizon, [1 $times$ RTX 4090 24GB]),
+    [Num classes], [3], [2], [2], [3], [2], [-], [2], [2], [2],
+    [Head Dropout prob.], table.cell(colspan: 9, align:horizon, [0.1]),
+    [Epochs], [10], [10], [20], [20], [10], [20], [20], [10], [20],
+    [Total steps], [61360], [32733], [3113], [5095], [31563], [7187], [10689], [21047], [1588],
+    [Batch size], [64], [32], [16], [16], [128], [16], [16], [32], [8],
+    [Optimizer], table.cell(colspan: 9, align:horizon, [AdamW]),
+    [AdamW $epsilon$], table.cell(colspan: 9, align:horizon, [1e-6]),
+    [AdamW $beta$], table.cell(colspan: 9, align:horizon, [(0.9, 0.98)]),
+    [Weight decay], table.cell(colspan: 9, align:horizon, [0.1]),
+    [Base learning rate], [2e-5], [2e-5], [2e-5], [2e-5], [2e-5], [4e-5], [1e-5], [2e-5], [1e-5],
+    [Learning rate\ schedule], table.cell(colspan: 9, align:horizon, [Polynomial decay]),
+    [Warmup steps], table.cell(colspan: 9, align:horizon, [10% of total steps]),
+    [Metric], [Accuracy], [Accuracy], [Accuracy], [F1], [F1], [Spearman], [Accuracy], [Accuracy], [Accuracy],
+    [Hardware], table.cell(colspan: 9, align:horizon, [1 $times$ RTX 4090 24GB]),
     table.hline(),
   ),
   caption: [Hyperparameters for the GLUE @glue benchmark tasks of the distilled BERT model.
+  STS-B @stsb is a regression task, and therefore does not have any classes. Here, the head returns a scalar.
   ],
 )<distil_bert_glue_finetuning_hyperparameters>
 #show table: set text(12pt)
