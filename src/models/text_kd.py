@@ -151,12 +151,14 @@ class TextKDModel(nn.Module):
     def forward(
         self,
         text:torch.Tensor,
-        padding_mask:torch.Tensor,
-        token_type_ids=None,
+        padding_mask:torch.Tensor=None,
+        token_type_ids:torch.Tensor=None,
+        attention_mask:torch.Tensor=None,
     ):
+        mask = 1-padding_mask if attention_mask is None else attention_mask
         out = self.model(
             input_ids=text,
-            attention_mask=1-padding_mask,
+            attention_mask=mask,
             token_type_ids=token_type_ids,
             output_hidden_states=True,
         )

@@ -12,7 +12,6 @@ from scipy.stats import spearmanr as spearmanr_
 import numpy as np
 from . import MODEL_REGISTRY
 from pytorch_lightning import LightningModule
-from fairseq.models.roberta.model import RobertaClassificationHead
 from transformers.optimization import get_polynomial_decay_schedule_with_warmup
 
 logger = logging.getLogger(__name__)
@@ -54,7 +53,7 @@ class TextClassificationLightningModule(L.LightningModule):
 
     def _step(self, batch:Dict[str, Any], batch_idx:int, stage:str='train'):
         target = batch.pop('target')
-        input_dict = {'text': batch['text'], 'padding_mask': batch['padding_mask']}
+        input_dict = {'text': batch['text'], 'attention_mask': batch['attention_mask']}
         if 'token_type_ids' in batch:
             input_dict['token_type_ids'] = batch['token_type_ids']
         
@@ -119,8 +118,8 @@ class TextClassificationModel(nn.Module):
     def forward(
         self,
         text,
-        padding_mask,
+        attention_mask,
         token_type_ids=None,
     ):
-        x = self.model(text=text, padding_mask=padding_mask, token_type_ids=token_type_ids)['pooler_output']
+        x = self.model(text=text, attention_mask=attention_mask, token_type_ids=token_type_ids)['pooler_output']
         return self.classification_head(x)

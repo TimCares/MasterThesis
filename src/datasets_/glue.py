@@ -39,7 +39,7 @@ class GLUE(BaseDataset):
         write_data_into_jsonl(items, self.out_jsonl_path)
         shutil.rmtree(f'{self.path_to_data}/datasets')
 
-    def prepare_sentence_pair(self, sentence1:str, sentence2:str) -> Dict[str, List[int]]:
+    def prepare_sentence_pair(self, sentence1:str, sentence2:str=None) -> Dict[str, List[int]]:
         result_dict = self.tokenizer.encode_plus(sentence1, sentence2, padding='max_length',
                                                  max_length=self.num_tokens_upper_bound,
                                                  truncation=True, return_attention_mask=True)
@@ -92,15 +92,17 @@ class CoLA(GLUE):
     
     def _make_index(self) -> List[Dict[str, Any]]:
         items = []
+        n_trunc = 0
         for _, target, text in iter(self._dataset(split=self.split)):
-            tokens = self.tokenize_text(text)
-            language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_tokens_upper_bound,
-                                                              pad_idx=self.pad_token_id, bos_idx=self.cls_token_id,
-                                                              eos_idx=self.sep_token_id)
-            items.append({'x': language_tokens,
-                          'padding_mask': padding_mask,
+            result_dict = self.prepare_sentence_pair(sentence1=text)
+            if result_dict['trunc']:
+                n_trunc += 1
+
+            items.append({'x': result_dict['input_ids'],
+                          'attention_mask': result_dict['attention_mask'],
                           'target': target})
-            
+        
+        self.log(f"Truncated {n_trunc} examples.")
         return items
     
 
@@ -117,14 +119,17 @@ class SST(GLUE):
     
     def _make_index(self) -> List[Dict[str, Any]]:
         items = []
+        n_trunc = 0
         for text, target in iter(self._dataset(split=self.split)):
-            tokens = self.tokenize_text(text)
-            language_tokens, padding_mask = pad_text_sequence(tokens=tokens, num_max_bpe_tokens=self.num_tokens_upper_bound,
-                                                              pad_idx=self.pad_token_id, bos_idx=self.cls_token_id,
-                                                              eos_idx=self.sep_token_id)
-            items.append({'x': language_tokens,
-                          'padding_mask': padding_mask,
+            result_dict = self.prepare_sentence_pair(sentence1=text)
+            if result_dict['trunc']:
+                n_trunc += 1
+
+            items.append({'x': result_dict['input_ids'],
+                          'attention_mask': result_dict['attention_mask'],
                           'target': target})
+        
+        self.log(f"Truncated {n_trunc} examples.")
             
         return items
     
@@ -149,7 +154,7 @@ class QNLI(GLUE):
                 n_trunc += 1
 
             items.append({'x': result_dict['input_ids'],
-                          'padding_mask': result_dict['attention_mask'],
+                          'attention_mask': result_dict['attention_mask'],
                           'token_type_ids': result_dict['token_type_ids'],
                           'target': target})
         
@@ -218,14 +223,12 @@ class QQP(GLUE):
         items = []
         n_trunc = 0
         for _, example in df.iterrows():
-            question1_tokens = self.tokenize_text(example['question1'])
-            question2_tokens = self.tokenize_text(example['question2'])
-            result_dict = self.prepare_sentence_pair(sentence1=question1_tokens, sentence2=question2_tokens)
+            result_dict = self.prepare_sentence_pair(sentence1=example['question1'], sentence2=example['question2'])
             if result_dict['trunc']:
                 n_trunc += 1
 
             items.append({'x': result_dict['input_ids'],
-                          'padding_mask': result_dict['attention_mask'],
+                          'attention_mask': result_dict['attention_mask'],
                           'token_type_ids': result_dict['token_type_ids'],
                           'target': example['is_duplicate']})
         
