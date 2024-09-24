@@ -361,20 +361,82 @@ padding token, denoted $bold(t)_mono(["PAD"])$.
 To get a sense of the language understanding capabilities of the trained/distilled student model, we finetune it on all
 GLUE benchmark tasks @glue, which are described in @unimodal_data, and visualized in @glue_example.
 
-To perform finetuning, we load the weights of the trained student model, and
-add a RoBERTa @roberta classification head on top of it.
-This classification head takes the representation of the $mono(["CLS"])$ token, and passes it through one linear layer followed
-by a Tanh activation function, and then through another linear layer. The first linear layers retrains the input dimensionality of the
-$mono(["CLS"])$ token, which is 768, and the second linear layer maps the representation to the number of classes of the downstream task.
-If the task is a regression task, for example sentence similarity in [0, 5] for STS-B @stsb, the second linear layer returns a scalar value.
+*Model Setup*
+
+To perform finetuning, we load the weights of the trained student model.
+After an example (e.g. sentence pair) is passed through the Transformer layer, the representation $bold(h)_(w, L, mono(["T_CLS"]))$
+of the $mono(["CLS"])$ token is extracted, and passed through the BERT pooler @bert, which is a linear layer
+followed by a Tanh activation function. The linear layer retrains the input dimensionality of the $mono(["CLS"])$ token, which is 768.
+The weights of the pooler come directly from the BERT model, and are also fine-tuned.
+The pooler is followed by a dropout layer, for which the dropout probability differs between tasks
+(shown in @distil_bert_glue_finetuning_hyperparameters), and is followed by a linear classification layer, which maps the representation
+to the number of classes of the downstream task.
+If the task is a regression task, for example sentence similarity in [0, 5] for STS-B @stsb, the
+second linear layer returns a scalar value.
+The classification layer is initialized randomly, and trained from scratch.
 Pytorch pseudocode for the forward pass is provided in @text_downstream_forward_pseudocode.
 
+*Details on Tokens*
+
+There are two important things to consider when tokenizing the input for the GLUE tasks.
+
+First, we set the maximum sequence length to 256, which is the same as for the distillation process.
+In theory, it is possible to set the maximum sequence length to 512, which is the maximum sequence length BERT can handle @bert
+without interpolation. However, this would (1) cause problems with memory, as those sequences are too long for a
+24GB GPU. Furthermore, (2) the positional encoding of the student model comes directly from the teacher model, which
+is BERT. The positional encoding $bold(T)^"pos"_w$ of BERT is trainable, and has one
+positional encoding $bold(t)^w_"pos"$ for each position in the sequence.
+Since we only distill with a sequence length of 256, only the first 256 positional encodings are actually trained during distillation,
+meaning that the positional encodings for positions 257 to 512 are not trained further, and therefore still the
+same as in the normal BERT model.
+That means they are not "used" to a BERT model that has only 6, instead of 12, Transformer blocks, and therefore might not be optimal
+for the student model.
+
+In general, a sequence length of 256 is acceptable, as most of the GLUE tasks rarely have examples that
+exceed this length. If an example is longer than 256 tokens, it is truncated to the first 256 tokens. If an example
+consists of a sentence pair, both sentences are tuncated equally, so that the total length of the sequence is 256.
+
+Second, if the task consists of sentence pairs, we add a special token-type embedding to each token before
+the positional encoding is added. This, together with the
+$mono(["T_SEP"])$ between both sentences, helps the model to better differentiate between the two sentences in the sentence pair,
+and the first token-type embedding $bold(t)^w_mono(["TYP_1"])$ is added to each token of the first sentence,
+and the second token-type embedding $bold(t)^w_mono(["TYP_2"])$ is added to each token
+of the second sentence:
+
+$
+bold(E)_w = &[bold(e)^w_mono(["T_CLS"]), bold(e)^w_1, bold(e)^w_2, ..., bold(e)^w_M_1, bold(e)^w_mono(["T_SEP"]),\
+&bold(e)^w_(M_1+1), bold(e)^w_(M_1+2), ..., bold(e)^w_(M_1+M_2), bold(e)^w_mono(["T_SEP"])] in RR^((M_1+M_2+3) times D)
+$
+
+$
+bold(E)'_w = &[bold(t)^w_mono(["TYP_1"])+bold(e)^w_mono(["T_CLS"]), bold(t)^w_mono(["TYP_1"])+bold(e)^w_1,\
+&bold(t)^w_mono(["TYP_1"])+bold(e)^w_2, ..., bold(t)^w_mono(["TYP_1"])+bold(e)^w_M_1,\
+&bold(t)^w_mono(["TYP_1"])+bold(e)^w_mono(["T_SEP"]), bold(t)^w_mono(["TYP_2"])+bold(e)^w_(M_1+1),\
+&bold(t)^w_mono(["TYP_2"])+bold(e)^w_(M_1+2), ..., bold(t)^w_mono(["TYP_2"])+bold(e)^w_(M_1+M_2),\
+&bold(t)^w_mono(["TYP_2"])+bold(e)^w_mono(["T_SEP"])]
+$
+
+$
+bold(H)_(w, 0)=[bold(h)_(w, 0, mono(["T_CLS"])), bold(h)_(w, 0, 1), ..., bold(h)_(w, 0, M_1+M_2), bold(h)_(w, 0, mono(["T_SEP"]))]
+= bold(E)'_w + bold(T)^"pos"_w
+$ <text_representation_glue_pair>
+
+The representations $bold(t)^w_mono(["TYP_1"])$ and $bold(t)^w_mono(["TYP_2"])$ of the token-type embeddings are part of the
+BERT model @bert, but are not used during distillation, as there are no sentence pairs during distillation. However, during finetuning
+on sentence pairs, they are required, and we take the pretrained token-type embeddings from the
+BERT model and also train them during finetuning.
+
+For examples of sentence pairs, see @glue_example.
+
+*Hyperparameters*
+
 Since for most tasks the amount of training data is marginal, e.g. CoLA @cola has only 8.5k training samples, we do not use the layer decay
-technique used for the image model, and directly select a very low learning rate. Most of the hyperparameters are inspired by
+technique as for the image model, and directly select a very low learning rate. Most of the hyperparameters are inspired by
 BERT @bert, and Data2Vec @data2vec @data2vec2, and are provided in @distil_bert_glue_finetuning_hyperparameters. We increase the number
 of epochs and lower the batch size if the dataset, like CoLA, is very small. This ensures that we have a sufficient number of updates
 for the model to learn from the data.
 
+*Results*
 
 #figure(
   table(
@@ -394,10 +456,18 @@ for the model to learn from the data.
       [*Score*],
       table.hline(stroke: .6pt),
     ),
-    [BERT @bert],[86.7], [91.8], [69.3], [88.6], [89.6], [92.7], [56.3], [92.7], [83.5],
-    [DistilBERT @distilbert],[82.2], [89.2], [59.9], [87.5], [88.5], [86.9], [51.3], [91.3], [79.6],
-    [Feature-DistilBERT (ours)],[-], [-], [-], [-], [-], [-], [-], [-], [-],
+    [ELMo @elmo],[68.6], [71.1], [53.4], [76.7], [86.2], [70.4], [44.1], [91.5], [70.24],
+    [BERT @bert],[*86.7*], [*91.8*], [*69.3*], [*88.6*], [*89.6*], [*89.0*], [*56.3*], [*92.7*], [*83.0*],
+    table.hline(stroke: .3pt),
+    [DistilBERT @distilbert],[82.2], [89.2], [59.9], [87.5], [88.5], [86.9], [51.3], [91.3], [79.31],
+    [F-DistilBERT (ours)],[-], [88.0], [-], [85.0], [-], [-], [#underline[55.1]], [-], [-],
     table.hline(),
   ),
-  caption: [Results for BERT and DistilBERT are taken from the DistilBERT paper @distilbert.],
+  caption: [
+    Comparison of finetuning results on the GLUE benchmark tasks @glue with other models.
+    Results for BERT @bert, DistilBERT @distilbert, and ELMo @elmo are taken from the DistilBERT paper @distilbert.
+    Bold scores indicate the best score for the respective task, while underlined scores indicate the best score for distilled models.
+    The metrics, and therefore the scores shown, to evaluate the models are task-specific, and shown in
+    @distil_bert_glue_finetuning_hyperparameters.
+  ],
 )<distil_d2v2_glue_results>

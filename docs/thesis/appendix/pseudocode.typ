@@ -33,16 +33,20 @@ supplement: [Code]
   rect(
     ```python
     # model: pretrained (e.g. distilled) model
+    # bert_pooler: pretrained BERT pooler layer with tanh activation
+    # dropout: dropout layer
     # cls_head: roberta classification head
     # x: batch text tokens (B, M+2) -> M: max sequence length, 2: cls and sep token
     # target: batch of labels (B, )
     # regression: boolean flag for regression tasks
     # metric: either Accuracy, F1, or Spearman correlation
-    def glue_forward(model, cls_head, x, target, regression, metric):
+    def glue_forward(model, bert_pooler, dropout, cls_head,
+                     x, target, regression, metric):
         
         x = model(x) # (B, M+2, D)
         
         x = x[:, 0] # take cls token (B, D)
+        x = dropout(bert_pooler(x)) # (B, D)
         x = cls_head(x) # (B, C) -> C: number of classes
 
         if regression:

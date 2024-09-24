@@ -27,7 +27,7 @@ model:
   model_path:
   model_name: text_kd
   num_classes: 3
-  dropout: 0.1
+  dropout: 0.2
 
 data:
   _name: mnli_glue
