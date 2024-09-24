@@ -256,6 +256,26 @@ class STSB(RTE):
     def _dataset_name(self):
         return 'stsb'
     
+    def _get_max_length(self, data_loader) -> int:
+        return self.num_max_bpe_tokens
+    
+    def _make_index(self) -> List[Dict[str, Any]]:
+        items = []
+        n_trunc = 0
+        for _, target, text1, text2 in iter(self._dataset(split=self.split)):
+            result_dict = self.prepare_sentence_pair(sentence1=text1, sentence2=text2)
+            if result_dict['trunc']:
+                n_trunc += 1
+
+            items.append({'text': result_dict['input_ids'],
+                          'attention_mask': result_dict['attention_mask'],
+                          'token_type_ids': result_dict['token_type_ids'],
+                          'target': target})
+        
+        self.log(f"Truncated {n_trunc} examples.")
+            
+        return items
+    
 
 class MNLI(RTE):
     def _dataset(self, split):
