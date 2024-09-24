@@ -21,11 +21,13 @@ id:
 model_name: text_classification
 
 metric: accuracy
+regression: False
 
 model:
   model_path:
   model_name: text_kd
   num_classes: 2
+  dropout: 0.1
 
 data:
   _name: rte_glue

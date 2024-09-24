@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 def accuracy(target, pred):
     pred = np.array(pred)
     target = np.array(target)
-    return {'accuracy': round(((pred == target).sum() / target.shape[0])*100, 2)}
+    return round(((pred == target).sum() / target.shape[0])*100, 2)
 
 def spearman(target, pred):
     return spearmanr_(pred, target)[0]
@@ -39,7 +39,7 @@ class TextClassificationLightningModule(L.LightningModule):
         self.model = TextClassificationModel(cfg=self.cfg.model)
 
         self.metric = _METRIC_REGISTRY[self.cfg.metric]
-        
+
         self.save_hyperparameters()
 
     def forward(self, input_dict):
@@ -48,10 +48,16 @@ class TextClassificationLightningModule(L.LightningModule):
     def training_step(self, batch:Dict[str, Any], batch_idx:int):
         return self._step(batch, batch_idx, stage='train')
     
-    def validation_step(self, batch:Dict[str, Any], batch_idx:int):
-        return self._step(batch, batch_idx, stage='val')
+    def validation_step(self, batch:Dict[str, Any], batch_idx:int, dataloader_idx=0):
+        log_prefix = ""
+        if self.cfg.data._name == 'mnli_glue':
+            if dataloader_idx==0:
+                log_prefix = "dev_matched_"
+            else:
+                log_prefix = "dev_mismatched_"
+        return self._step(batch, batch_idx, stage='val', log_prefix=log_prefix)
 
-    def _step(self, batch:Dict[str, Any], batch_idx:int, stage:str='train'):
+    def _step(self, batch:Dict[str, Any], batch_idx:int, stage:str='train', log_prefix:str=""):
         target = batch.pop('target')
         input_dict = {'text': batch['text'], 'attention_mask': batch['attention_mask']}
         if 'token_type_ids' in batch:
@@ -72,9 +78,9 @@ class TextClassificationLightningModule(L.LightningModule):
         target = target.detach().cpu().tolist()
 
         score = self.metric(target, pred)
-        self.log(f"{stage}/{self.cfg.metric}", score, prog_bar=True)
+        self.log(f"{stage}/{log_prefix}{self.cfg.metric}", score, prog_bar=True)
         
-        self.log(f"{stage}/loss", loss, prog_bar=True)
+        self.log(f"{stage}/{log_prefix}loss", loss, prog_bar=True)
 
         return loss
 
@@ -102,6 +108,7 @@ class TextClassificationConfig:
     model_path: str = MISSING
     model_name: str = MISSING
     num_classes: int = 2
+    dropout: float = 0.0
 
 
 class TextClassificationModel(nn.Module):
@@ -110,9 +117,10 @@ class TextClassificationModel(nn.Module):
         self.cfg = cfg
 
         model_cls:LightningModule = MODEL_REGISTRY[self.cfg.model_name]['module']
-        self.model = model_cls.load_from_checkpoint(self.cfg.model_path).model
+        self.model = model_cls.load_from_checkpoint(self.cfg.model_path, strict=False).model
 
         embed_dim = 768
+        self.dropout = nn.Dropout(self.cfg.dropout)
         self.classification_head = nn.Linear(embed_dim, self.cfg.num_classes)
 
     def forward(
@@ -122,4 +130,9 @@ class TextClassificationModel(nn.Module):
         token_type_ids=None,
     ):
         x = self.model(text=text, attention_mask=attention_mask, token_type_ids=token_type_ids)['pooler_output']
-        return self.classification_head(x)
+        return self.classification_head(self.dropout(x))
+
+MODEL_REGISTRY['text_classification'] = {
+    'cfg': TextClassificationConfig,
+    'module': TextClassificationLightningModule
+}

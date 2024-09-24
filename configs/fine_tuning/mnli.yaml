@@ -16,19 +16,21 @@ data_path: ${base_dir}
 log_dir: ${base_dir}/logs
 seed: 42
 
-run_name: text_classification_m_mnli
+run_name: text_classification_mnli
 id:
 model_name: text_classification
 
 metric: accuracy
+regression: False
 
 model:
   model_path:
   model_name: text_kd
   num_classes: 3
+  dropout: 0.1
 
 data:
-  _name: mnli_m_glue
+  _name: mnli_glue
   num_max_bpe_tokens: 256
 
   data_path: ${data_path}

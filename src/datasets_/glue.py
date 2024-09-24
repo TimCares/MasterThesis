@@ -10,6 +10,8 @@ from typing import List, Dict, Any
 import shutil
 from torchvision.datasets.utils import download_url
 import pandas as pd
+import zipfile
+from transformers import BertTokenizer
 
 class GLUE(BaseDataset):
     def __init__(
@@ -98,7 +100,7 @@ class CoLA(GLUE):
             if result_dict['trunc']:
                 n_trunc += 1
 
-            items.append({'x': result_dict['input_ids'],
+            items.append({'text': result_dict['input_ids'],
                           'attention_mask': result_dict['attention_mask'],
                           'target': target})
         
@@ -125,7 +127,7 @@ class SST(GLUE):
             if result_dict['trunc']:
                 n_trunc += 1
 
-            items.append({'x': result_dict['input_ids'],
+            items.append({'text': result_dict['input_ids'],
                           'attention_mask': result_dict['attention_mask'],
                           'target': target})
         
@@ -153,7 +155,7 @@ class QNLI(GLUE):
             if result_dict['trunc']:
                 n_trunc += 1
 
-            items.append({'x': result_dict['input_ids'],
+            items.append({'text': result_dict['input_ids'],
                           'attention_mask': result_dict['attention_mask'],
                           'token_type_ids': result_dict['token_type_ids'],
                           'target': target})
@@ -195,6 +197,15 @@ class QQP(GLUE):
         self.path_to_data = os.path.join(self.data_path, self._dataset_name)
         self.out_jsonl_path = os.path.join(self.path_to_data, f'{self.split}.jsonl')
 
+        self.tokenizer:BertTokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+        self.pad_token_id = self.tokenizer.pad_token_id
+        self.cls_token_id = self.tokenizer.cls_token_id
+        self.sep_token_id = self.tokenizer.sep_token_id
+        self.mask_token_id = self.tokenizer.mask_token_id
+        self.unk_token_id = self.tokenizer.unk_token_id
+        
+        self.num_tokens_upper_bound = num_max_bpe_tokens
+
         if os.path.exists(self.out_jsonl_path):
             self.log(f"Found {self.out_jsonl_path}. Skip preprocessing.")
             return
@@ -204,7 +215,8 @@ class QQP(GLUE):
         URL='https://dl.fbaipublicfiles.com/glue/data/QQP-clean.zip'
         download_url(url=URL, root=self.path_to_data)
         filepath = os.path.join(self.path_to_data, os.path.basename(URL))
-        os.system(f"unzip {filepath} -d {self.path_to_data}")
+        with zipfile.ZipFile(filepath, 'r') as zip_ref:
+            zip_ref.extractall(self.path_to_data)
         os.remove(filepath)
 
         items = self._make_index()
@@ -227,7 +239,7 @@ class QQP(GLUE):
             if result_dict['trunc']:
                 n_trunc += 1
 
-            items.append({'x': result_dict['input_ids'],
+            items.append({'text': result_dict['input_ids'],
                           'attention_mask': result_dict['attention_mask'],
                           'token_type_ids': result_dict['token_type_ids'],
                           'target': example['is_duplicate']})

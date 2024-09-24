@@ -1,3 +1,5 @@
+import sys
+sys.path.append('beit2')
 import hydra
 from omegaconf import OmegaConf, DictConfig, open_dict
 import os
@@ -6,8 +8,7 @@ import logging
 from pytorch_lightning import seed_everything, Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, ModelSummary
 from pytorch_lightning.loggers import WandbLogger
-
-from fine_tuning import TextClassificationConfig, TextClassificationLightningModule
+from models.text_classification import TextClassificationConfig, TextClassificationLightningModule
 from datamodules import DATAMODULE_REGISTRY
 from callbacks import WallClockCallback
 
@@ -40,12 +41,13 @@ def main(cfg: DictConfig) -> None:
         ModelSummary(),
         LearningRateMonitor(logging_interval="step"),
         WallClockCallback(),
-        ModelCheckpoint(
+    ]
+    if 'checkpoint' in cfg:
+        callbacks.append(ModelCheckpoint(
                 **OmegaConf.to_container(cfg.checkpoint, resolve=True)
-            )
+        ))
         # checkpoint last, so that zero shot has been performed before saving 
         # (ModelCheckpoint usually executed last automatically, but just to be sure)
-    ]
 
     torch.set_float32_matmul_precision("high") # or: "highest"
     trainer = Trainer(
@@ -57,9 +59,9 @@ def main(cfg: DictConfig) -> None:
     if trainer.global_rank == 0:
         wandb_logger.experiment.config.update(OmegaConf.to_container(cfg, resolve=True))
 
-    with open_dict(cfg):
-        dataset_key = cfg.data.pop('dataset')
-    dataset = DATAMODULE_REGISTRY[dataset_key](**cfg.data)
+    dataset_args = OmegaConf.to_container(cfg.data, resolve=True)
+    dataset_key = dataset_args.pop('_name')
+    dataset = DATAMODULE_REGISTRY[dataset_key](**dataset_args)
 
     if 'load_checkpoint' in cfg and cfg.load_checkpoint is not None:
         logger.info(f'Resuming from checkpoint: {cfg.load_checkpoint}')
