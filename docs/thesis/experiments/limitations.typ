@@ -1,5 +1,5 @@
 === Limitations and Insights <mm_kd_limitations>
-While the proposed methods is an efficient way to traing comparatively small multimodal models, and can easily be
+While the proposed method is an efficient way to traing comparatively small multimodal models, and can easily be
 adapted to other modalities, e.g. audio, it has two main limitations.
 
 First, our method relies on knowledge distillation of a self-supervised image model as the teacher. The fact that there
@@ -7,9 +7,9 @@ has been no incentive for the teacher to learn a representation that is independ
 to learn a representation that is truly modality-invariant and aligned across the modalities of the student model. This
 has repeatedly been shown when comparing the loss between image-to-image and text-to-image distillation, where the former
 is consistently lower. Interestingly, we were still able to outperform the approach of a supervised teacher, showing that
-even though the ImageNet-1K classes, which we predict (with KL-Divergence, see @transformer_shre), are independent
+even though the ImageNet-1K classes, which we predict using KL-Divergence (see @transformer_shre), are real-world concepts independent
 of the image modality, they might not capture the content of an image's caption better than
-an image-specific representation (used with the self-supervised teacher), which is what we first assumed.
+a image-specific representation (used with the self-supervised teacher), which is what we first assumed.
 
 #figure(
   image(
@@ -22,7 +22,7 @@ an image-specific representation (used with the self-supervised teacher), which 
 ],
 ) <kd_loss_shre_vs_ssmke>
 
-A glance at the comparison between the components of the knowledge distillation loss when using a supervised teacher (so KL-Divergence)
+A glance at the comparison between the components of the knowledge distillation loss (KL-Divergence) when using a supervised teacher 
 also shows that this approach suffers from the same problem as when using a self-supervised teacher
 (see @kd_loss_shre_vs_ssmke). Here, the KL-Divergence
 for the image-to-image loss $cal(L)^v_"KD"$ is also consistently lower than for the text-to-image loss $cal(L)^w_"KD"$, and the loss 
@@ -30,7 +30,7 @@ components between both approaches (Transformer SHRe and S-SMKE) generally perfo
 
 We conclude that using an unimodal teacher in general is a limitation regarding alignment, and therefore performance. Still,
 due to the fact that it does not require a multimodal teacher, the approach is far more flexible and can be applied to any
-modality, as long as a suitable teacher (of one of the modalities used) is available.
+modality, as long as a suitable teacher is available.
 
 Second, S-SMKE (and (Transformer) SHRe) processes image and text seperately, in a forward pass for the image and a forward pass
 for the text. This is similar to CLIP @clip (see @clip_section). Because there is no attention mechanism between

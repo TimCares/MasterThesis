@@ -135,7 +135,7 @@ competetive in performance to the teacher model, and if the knowledge transfer w
 ) <distil_d2v2_loss>
 
 
-==== Finetuning
+==== Finetuning <unimodal_kd_data2vec2_finetuning>
 To get a sense of how well the student model has learned from the teacher, we evaluate the student model by finetuning it on the downstream 
 image classification tasks of CIFAR-10 @cifar_10_100, CIFAR-100 @cifar_10_100 and ImageNet-1K @imagenet.
 For that, we load the trained student model and add Layer Normalization and a linear classifier on top of it.
@@ -247,7 +247,7 @@ only supervised.
   caption: [Results of finetuning and linear probing of our distilled Data2Vec2 image model on CIFAR-10 and CIFAR-100.],
 )<distil_d2v2_cifar_results>
 
-=== Language
+=== Language <unimodal_kd_text>
 
 ==== Method
 For knowledge distillation of a language model, we decide against the intuitive choice of distilling the corresponding Data2Vec2 language model,
@@ -363,7 +363,7 @@ there are no additional metrics to express how well the language understanding o
 (we actually observe a similar behavior of the loss as in the image KD, see @distil_d2v2_loss). We therefore directly
 advance to finetuning the distilled student model on downstream tasks.
 
-==== Finetuning
+==== Finetuning <unimodal_kd_bert_finetuning>
 To get a sense of the language understanding capabilities of the trained/distilled student model, we finetune it on all
 GLUE benchmark tasks @glue, which are described in @unimodal_data, and visualized in @glue_example.
 

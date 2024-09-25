@@ -249,3 +249,114 @@ consistent. Whether the quantization actually helps to reduce the gap between th
 is yet to be seen, and will be evaluated in the next section.
 
 ==== Training S-SMKE with Image VQ
+
+We train S-SMKE using a classification task, which is now our knowledge distillation loss. The goal is to predict
+the class, or rather index $m$, of the closest prototype $bold(q)_m$ to the representation $bold(h)^t_(v, L_t, mono(["I_CLS"]))$
+of a candidate image, produced by BEiTv2. BEiTv2 is part of the image quantizer.
+Because the index $m$ indirectly encodes what prototype $bold(q)_m$ semantically encodes,
+it can be considered as a class label for the image. This class label is predicted by the student model when receiving the same
+image, and again for the caption of the image.
+The representations used as the predictions are $bold(h)'''_(v, K, mono(["I_CLS"])) in RR^J$ and $bold(h)'''_(w, K, mono(["T_CLS"])) in RR^J$
+for the image and caption, respectively. As they now represent logits for the class/codebook prediction they have
+as many dimensions as there are codebook embeddings, which is $J=1024$. Let $m$ denote the index of the closest prototype to
+$bold(h)^t_(v, L_t, mono(["I_CLS"]))$, then $m$ is the correct class that needs to be predicted by the student. The loss, which is
+the cross-entropy loss, for a single image-caption pair is then:
+
+$
+bold(hat(y))^w &= bold(h)'''_(w, K, mono(["T_CLS"])) \
+cal(L)^"t2i"_"KD" &= -log exp(hat(y)^w_m) / (sum_(j=1)^(J) exp(hat(y)^w_j)) \
+
+bold(hat(y))^v &= bold(h)'''_(v, K, mono(["I_CLS"])) \
+cal(L)^"i2i"_"KD" &= -log exp(hat(y)^v_m) / (sum_(j=1)^(J) exp(hat(y)^v_j)) \
+$
+
+We introduce $bold(hat(y))^w$ and $bold(hat(y))^v$ for better readability, and $hat(y)^w_m$ denotes the logit for the correct class $m$
+based on the caption, and $hat(y)^v_m$ the logit for the correct class $m$ based on the image. The loss is again the mean of both losses:
+
+$
+cal(L)_"KD" = 1/2 * (cal(L)^"t2i"_"KD" + cal(L)^"i2i"_"KD")
+$
+
+All other components, including hyperparameters, of the training process remain the same. Pytorch pseudocode for the training process
+is shown in @s_smke_vq_forward_pseudocode.
+
+==== Insights
+
+Unfortunately, the training of S-SMKE with the image quantizer does not work as expected. The performance on all metrics decreases
+significantly compared to memory bank contrastive target loss, displayed in @contrastive_target_vs_vq. Further, the quantization
+is not able to reduce the gap between the image component $cal(L)^"i2i"_"KD"$ and text component $cal(L)^"t2i"_"KD"$
+of the knowledge distillation loss. The accuracy, shown in @kd_acc_components_vq, is significantly higher for the image component, reflecting 
+the lower loss for the image component seen in previous experiments.
+
+#figure(
+  image(
+  width: 50%,
+  "../figures/kd_acc_components_vq.png"),
+  caption: [
+    Comparison of accuracy between the image and text component of the knowledge distillation.
+    Predicting to which codebook embedding index $m$ a candidate image belongs to is easier when the image itself is used
+    as an input. In contrast, the model struggles to predict the correct index $m$ when it receives the caption of the image.
+  ],
+) <kd_acc_components_vq>
+
+#figure(
+  table(
+  columns: 4,
+  stroke: none,
+  table.hline(),
+  table.header(
+    table.cell(rowspan: 2, colspan: 1, align:horizon, [KD Loss]),
+    table.cell(rowspan: 2, colspan: 1, align:horizon, [ImageNet-1K]),
+    table.cell(colspan: 2, align:horizon, [Retrieval]),
+    [MSCOCO],
+    [Flickr30K],
+  ),
+  table.hline(stroke: .6pt),
+  [S-SMKE#sub[CTL_MB]], [*33.0*], [*67.15*], [*78.3*],
+  [S-SMKE#sub[VQ]], [25.1], [61.2], [75.3],
+  table.hline(),
+),
+    caption: [
+      A classifcation of prototype membership of images from image-text pairs decreases the performance on all benchmarks.
+    ]
+) <contrastive_target_vs_vq>
+
+To find the reason for the decrease in performance, it is helpful to visualize to which prototypes different image-text pairs
+from our training set are mapped to. In @caption_vq_clusters, we show a selection
+of the training examples belonging to the same prototype an image from an image-text pair is mapped to.
+The examples show that applying the quantization process to the image representation shows only partial similarities
+between the members of a prototype $bold(q)_m$ and the image that was mapped to it, which was already noted before.
+Especially the similarity between the caption of the mapped image should show a high similarity to the members of the prototype.
+In the best case scenario, the caption should also be able to describe the members of the prototype, meaning it could also be
+used as a caption for all images that are mapped to the prototype. However, this is not the case, and in most cases
+the caption is completely unrelated to the members of the prototype.
+
+We suspect that while precise captions of images in the training set are important for alignment, they are harmful when
+the quantization is used. The last examples of @caption_vq_clusters show that while the image can be considered as semantically
+similar to the members of a prototype, only the token "airplane" of the caption may be considered as a correct text/caption
+for the semantics (represented by the members) the prototype encodes.
+Additional context, like "parked in a stationary position", is accurately describing its paired image, but this does not match
+other members of the prototype. The same holds for examples 2, where there are multiple members that contain a "plate", but none
+of them are placed on a mat. In other cases, both image and text are completely unrelated to the members of the prototype.
+
+Even though the quantization process can be considered a failure,
+the approach still provides valuable insights with respect to clustering image representations.
+If images contain only a single concept, like a "tucan" or a "turtle" (see @image_vq_8_examples),
+then the quantization process is able to capture this high-level semantic content in a prototype embeddings.
+
+It can be considered as an alternative to clustering image representations with e.g. k-means, as the process not only focuses
+on moving the prototypes to the center of their cluster, which is done by k-means, but also on compressing the most important
+information of the image into the prototypes. In contrast, k-means only operates on the raw representations. While it is possible
+to compress raw representations using algorithms like PCA, those methods are more generic and do not explicitly
+focus on capturing high-level semantic content. In contrast, the quantization process effectively learns which information
+in the raw representation is important, and retrains them in the prototypes.
+
+#figure(
+  image(
+  width: 100%,
+  "../figures/caption_vq_clusters.png"),
+  caption: [
+    We visualize members of a prototype $bold(q)_m$ an image, from an image-text pair, is mapped to.
+    In most cases, both caption and image are unrelated to the members of their matching prototype.
+  ],
+) <caption_vq_clusters>
