@@ -40,7 +40,7 @@ We aim to apply vector-quantization not on the patch-level representations, but 
 The goal is discretize the representation space of a self-supervised image model, such as the teacher we use, to obtain a set of prototype
 embeddings we can map the representations produced by the model to. This way, we 
 could find something similar to classes produced by a supervised model, but without the need for labels, which should
-remove large amounts image-specific information.
+remove large amounts of image-specific information.
 Intuitively, this can be seen as some form of clustering the representations produced by a self-supervised model, and closely resembles
 applying k-means clustering on representations produced by a model from a set of images.
 
@@ -170,12 +170,14 @@ inspired by the vector quantization process in BEiTv2 @beitv2.
 
 
 ==== Training Image VQ
-For training, we use an embedding dimension of the codebook of $S=16$. For comparison, BEiTv2 uses $S=32$ for its patch-level
+For training, we experiment with embedding dimensions of $S=16$ and $S=8$ for codebook.
+For comparison, BEiTv2 uses $S=32$ for its patch-level
 codebook. As might have come apparent from the previous section, we heavily orient on the vector quantization process in BEiTv2 @beitv2,
 which is why we originally used $S=32$ as well. However, we found that this led to codebook collapse in preliminary experiments, which
-is why we opt for a lower dimensionality. We experiment with two different codebook sizes, $J=1024$ and $J=8192$. The former is motivated
+is why we opt for a lower dimensionality. For the codebook size, we experiment with $J=1024$. This is motivated
 by the fact that we aim to learn a set of prototypes that represent different semantic concepts in the image, like classes in a supervised model.
-Since we BEiTv2, which is our encoder, was pretrained on ImageNet-1K @beitv2, we orient the number of possible concepts on the number of classes
+Since we use BEiTv2, which is our encoder, was pretrained on ImageNet-1K @beitv2,
+we orient the number of possible concepts on the number of classes
 in ImageNet-1K, which is 1000 @imagenet. The latter is used to investigate whether a larger codebook size can still capture semantic concepts
 without image-specific information.
 
@@ -192,5 +194,58 @@ Simultaneously, we use a frozen teacher model, which acts as a feature extractor
 
 After each epoch, we validate the loss $cal(L)_(I-V Q)$ on the validation set of ImageNet-1K, and, most importantly,
 calculate the codebook usage over the whole validation set to check for codebook collapse.
+
+==== Insights
+
+While the goal of the quantization process can only be measured by using the codebook embeddings when training S-SMKE,
+we can still gain insights by visualizing the generated codebook embeddings and the codebook usage. We show the codebook usage
+for different codebook configurations in @vq_codebook_usage. The codebook usage is calculated by collecting
+all indices of the closest prototype for each image in the validation set, and then counting how many prototypes did not get
+selected at all, from which we calculate the percentage.
+
+#figure(
+  image(
+  width: 75%,
+  "../figures/vq_codebook_usage.png"),
+  caption: [
+    Comparison of codebook utilization on the ImageNet-1K validation set for different codebook configurations. Variants are
+    denoted in the form "VQ-$J$-$S$", with $J$ being the number of codebook embeddings, and $S$ the dimensionality of the embeddings.
+  ],
+) <vq_codebook_usage>
+
+We observe that the codebook usage is generally higher for a lower dimension, where the configuration
+with $J=1024$ and $S=8$ achieves a utilization of 100% early in training and maintains it throughout the whole training process.
+In contrast, our configuration with a codebook size of 16 needs until the end of the training process to reach the same utilization.
+
+We generally aim for a pattern that shows a codebook utilization of close to 100% early in training, and then maintains it
+throughout the whole training process. This is because the model is forced to use all prototypes to best reconstruct the image
+representation, but since there is no more capacity in the codebook (after all are used), the model is forced to make the prototypes
+themselves as distinct from each other as possible. This will retain as much information as possible from the original representation,
+but since at the same time
+the codebook dimension is also low, the model is forced to compress the most important information into the codebook embeddings.
+Consequently, the lower the codebook size, the more distinct the prototypes have to be, and the lower the codebook dimensionality,
+the more information has to be compressed into the codebook embeddings, which leads to more high-level semantic content being captured.
+
+The content that is captured by the codebook embeddings can be visualized by showing the set of images that are closest to a certain
+prototype, which yields clusters of images that should be semantically similar. Examples of clusters for VQ-1024-8 are
+shown in @image_vq_8_examples, and for VQ-1024-16 in @image_vq_examples. While both approaches show clusters of semantically
+similar images, the clusters for VQ-1024-8 appear to be more distinct. Some clusters can even be considered as classes.
+For example, codebook embedding 784 appears to capture the concept of a "tucan", and codebook embedding 1022 the concept of
+a "turtle". However, in both cases the images of some codebook embeddings are not always as similar as one would expect
+from a class level semantics. While
+the images usually have common color or show similar objects with the same form,
+they are not always semantically related. One examples of this can be
+seen in codebook embedding 533 of VQ-1024-16 in @image_vq_examples.
+
+Is is important to note that 
+we do not select the quantizer configuration to use for training S-SMKE based on the reconstruction loss
+$1 - delta(bold(h)^t_(v, F, mono(["I_CLS"])))delta(bold(h)^t_(v, L_t, mono(["I_CLS"])))^T$, because a larger codebook size and
+dimensionality will always lead to a lower reconstruction loss. This is because more information from the original representation
+can be captured by the codebook embeddings, thereby making the reconstruction easier.
+
+Based on the examples provided in both @image_vq_8_examples and @image_vq_examples, we can conclude that the quantization process
+is able to capture high-level semantic content in the image representation, although the members of the clusters are not always
+consistent. Whether the quantization actually helps to reduce the gap between the image and text component of the knowledge distillation
+is yet to be seen, and will be evaluated in the next section.
 
 ==== Training S-SMKE with Image VQ

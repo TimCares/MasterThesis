@@ -40,7 +40,7 @@ on some metrics, there is still room for improvement. However, we believe that t
 for our approach. Wrong retrievals are often still similar to the query, and only differ in little token-level details.
 Since our representations are based on the global content of the image and text, those details are not captured in most
 cases, leading to a "false" retrieval. Examples of this can be seen with example retrievals on the full MSCOCO test set
-in /@,
+in @coco25k_retrieval_examples,
 which is the exact dataset we publish our results on (previous visualizations are based on 1k subsets as in SHRe @shre,
 and are therefore a simpler task since there are less possible retrieval candidates). 
 
