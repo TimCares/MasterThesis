@@ -77,7 +77,10 @@ class SSMKECPreTrainingLightningModule(L.LightningModule):
             padding_mask=batch['mlm_padding_mask'],
         )['x_mm']
         x = torch.cat([text_output, image_output['x_mm']], dim=1)
-        padding_mask = torch.cat([batch['padding_mask'], torch.zeros_like(batch['image'], dtype=torch.long)], dim=1)
+
+        image_mask = torch.zeros(image_output['x_mm'].size(0), image_output['x_mm'].size(1)).to(padding_mask.device)
+        padding_mask = torch.cat([padding_mask, image_mask], dim=1)
+
         x = self.model.encode_shared_only(
             x=x,
             padding_mask=padding_mask,
@@ -111,10 +114,13 @@ class SSMKECPreTrainingLightningModule(L.LightningModule):
         text_embed = self.model.encode_text_only(
             text=batch['text'],
             padding_mask=batch['padding_mask'],
-        )['x_mm']
-        image_embed = image_output['x_mm']
+        )['x_mm'][:, 0]
+        image_embed = image_output['x_mm'][:, 0]
         
         self.logit_scale.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
+
+        image_embed = image_embed / image_embed.norm(dim=-1, keepdim=True)
+        text_embed = text_embed / text_embed.norm(dim=-1, keepdim=True)
 
         itc_out = self.clip_loss(
             image_features=image_embed,
@@ -132,8 +138,8 @@ class SSMKECPreTrainingLightningModule(L.LightningModule):
         device = self.device
         bsz = batch['image'].shape[0]
         itm_labels = torch.cat([
-            torch.ones(bsz), 
-            torch.zeros(bsz), 
+            torch.ones(bsz),
+            torch.zeros(bsz),
             torch.zeros(bsz)]).to(device)
         
         logits_per_image = itc_output['logits_per_image']
@@ -157,7 +163,8 @@ class SSMKECPreTrainingLightningModule(L.LightningModule):
         text_embed = itc_output['text_embed']
         image_embed = itc_output['image_embed']
 
-        padding_mask = torch.cat([batch['padding_mask'], torch.zeros_like(batch['image'], dtype=torch.long)], dim=1)
+        image_mask = torch.zeros(image_embed.size(0), image_embed.size(1)).to(padding_mask.device)
+        padding_mask = torch.cat([padding_mask, image_mask], dim=1)
 
         x = torch.cat([text_embed, image_embed], dim=1)
         pos_pred = self.model.encode_shared_only(
@@ -400,7 +407,7 @@ class SSMKEC(nn.Module):
         x_image = img_out['x_mm']
         x_text = text_out['x_mm']
         x = torch.cat([x_text, x_image], dim=1)
-        image_mask = torch.zeros(image.size(0), image.size(1)).to(padding_mask.device)
+        image_mask = torch.zeros(x_image.size(0), x_image.size(1)).to(padding_mask.device)
         padding_mask = torch.cat([padding_mask, image_mask], dim=1)
         result_dict.update({
             'x': x,
@@ -422,7 +429,7 @@ class SSMKEC(nn.Module):
             x_text = self.encode_text_only(text, padding_mask)['x_mm']
 
             x = torch.cat([x_text, x_image], dim=1)
-            image_mask = torch.zeros(image.size(0), image.size(1)).to(padding_mask.device)
+            image_mask = torch.zeros(x_image.size(0), x_image.size(1)).to(padding_mask.device)
             padding_mask = torch.cat([padding_mask, image_mask], dim=1)
 
         return self.encode_shared_only(x, padding_mask)
