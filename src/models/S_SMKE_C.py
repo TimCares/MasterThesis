@@ -9,14 +9,14 @@ import logging
 import pytorch_lightning as L
 import json
 import numpy as np
-from timm.models.vision_transformer import LayerScale
+from timm.models.vision_transformer import LayerScale, Mlp
 from dataclasses import dataclass, field
 from transformers.optimization import get_cosine_schedule_with_warmup
 from fairseq.modules.transformer_sentence_encoder import init_bert_params
 from transformers import BertModel
 from . import MODEL_REGISTRY
 from modules import ClipLoss
-from modules.layers import Pooler, MoMEBlock
+from modules.layers import Pooler, Block
 from utils import freeze_module, load_beit2_teacher
 from beit2.modeling_pretrain import VisionTransformerForMaskedImageModeling
 
@@ -54,30 +54,33 @@ class SSMKECPreTrainingLightningModule(L.LightningModule):
         return self._step(batch, batch_idx, stage='val')
 
     def _step(self, batch:Dict[str, Any], batch_idx, stage:str='train'):
-        unimodal_output = self.model.encode_unimodal(
+        image_output = self.model.encode_image_only(
             image=batch['image'],
-            text=batch['text'],
-            padding_mask=batch['padding_mask'],
+            bool_masked_pos=batch['bool_masked_pos'],
         )
 
-        mlm_output = self.mlm_forward(stage, batch, unimodal_output)
-        itc_output = self.itc_forward(stage, batch, unimodal_output)
+        mlm_output = self.mlm_forward(stage, batch, image_output)
+        itc_output = self.itc_forward(stage, batch, image_output)
         itm_output = self.itm_forward(
             stage=stage,
             batch=batch,
-            unimodal_output=unimodal_output,
-            logits_per_image=itc_output['logits_per_image'],
-            logits_per_text=itc_output['logits_per_text']
+            itc_output=itc_output,
         )
 
         loss = mlm_output['mlm_loss'] + itc_output['loss'] + itm_output['loss']
         
         return loss
     
-    def mlm_forward(self, stage, batch, unimodal_output):
+    def mlm_forward(self, stage, batch, image_output):
+        text_output = self.model.encode_text_only(
+            text=batch['masked_text'],
+            padding_mask=batch['mlm_padding_mask'],
+        )['x_mm']
+        x = torch.cat([text_output, image_output['x_mm']], dim=1)
+        padding_mask = torch.cat([batch['padding_mask'], torch.zeros_like(batch['image'], dtype=torch.long)], dim=1)
         x = self.model.encode_shared_only(
-            x=unimodal_output['x'],
-            padding_mask=unimodal_output['padding_mask'],
+            x=x,
+            padding_mask=padding_mask,
         )['x'][:, :batch['masked_text'].size(1)] # 64 is the max text length
 
         x = self.lm_head(x)
@@ -104,34 +107,37 @@ class SSMKECPreTrainingLightningModule(L.LightningModule):
         
         return output_dict
     
-    def itc_forward(self, stage, batch, unimodal_output):
-        img_embed = self.model.encode_shared_only(
-            x=unimodal_output['x_tte_image'],
-            modality_type='image',
-        )['img_embed']
-        text_embed = self.model.encode_shared_only(
-            x=unimodal_output['x_tte_text'],
+    def itc_forward(self, stage, batch, image_output):
+        text_embed = self.model.encode_text_only(
+            text=batch['text'],
             padding_mask=batch['padding_mask'],
-            modality_type='text',
-        )['text_embed']
+        )['x_mm']
+        image_embed = image_output['x_mm']
         
         self.logit_scale.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
 
         itc_out = self.clip_loss(
-            image_features=img_embed,
+            image_features=image_embed,
             text_features=text_embed,
             logit_scale=self.logit_scale.exp(),
         )
         self.log_acc(itc_out['logits_per_image'], itc_out['logits_per_text'], itc_out['targets'], stage, key_prefix='itc_')
+        self.log(f"{stage}/'itc_loss", itc_out['loss'])
+
+        itc_out['text_embed'] = text_embed
+        itc_out['image_embed'] = image_embed
         return itc_out
     
-    def itm_forward(self, stage, batch, unimodal_output, logits_per_image=None, logits_per_text=None):
+    def itm_forward(self, stage, batch, itc_output):
         device = self.device
         bsz = batch['image'].shape[0]
         itm_labels = torch.cat([
             torch.ones(bsz), 
             torch.zeros(bsz), 
             torch.zeros(bsz)]).to(device)
+        
+        logits_per_image = itc_output['logits_per_image']
+        logits_per_text = itc_output['logits_per_text']
 
         if logits_per_image is not None and logits_per_text is not None: # ... then hard-negative mining
             with torch.no_grad():       
@@ -148,25 +154,31 @@ class SSMKECPreTrainingLightningModule(L.LightningModule):
         neg_text_idx = torch.multinomial(weights_i2t, 1).squeeze()
         neg_image_idx = torch.multinomial(weights_t2i, 1).squeeze()
 
+        text_embed = itc_output['text_embed']
+        image_embed = itc_output['image_embed']
+
+        padding_mask = torch.cat([batch['padding_mask'], torch.zeros_like(batch['image'], dtype=torch.long)], dim=1)
+
+        x = torch.cat([text_embed, image_embed], dim=1)
         pos_pred = self.model.encode_shared_only(
-            x=unimodal_output['x'],
-            padding_mask=unimodal_output['padding_mask'],
+            x=x,
+            padding_mask=padding_mask,
         )['matched']
 
-        x_text = unimodal_output['x_tte_text'][neg_text_idx]
-        x_image = unimodal_output['x_tte_image']
+        x_text = text_embed[neg_text_idx]
+        x_image = image_embed
         x = torch.cat([x_text, x_image], dim=1)
         neg_text_pred = self.model.encode_shared_only(
             x=x,
-            padding_mask=unimodal_output['padding_mask'],
+            padding_mask=padding_mask,
         )['matched']
 
-        x_text = unimodal_output['x_tte_text']
-        x_image = unimodal_output['x_tte_image'][neg_image_idx]
+        x_text = text_embed
+        x_image = image_embed[neg_image_idx]
         x = torch.cat([x_text, x_image], dim=1)
         neg_img_pred = self.model.encode_shared_only(
             x=x,
-            padding_mask=unimodal_output['padding_mask'],
+            padding_mask=padding_mask,
         )['matched']
 
         input = torch.cat([pos_pred, neg_text_pred, neg_img_pred], dim=0)
@@ -292,24 +304,34 @@ class SSMKEC(nn.Module):
         self.post_norm = make_layer_norm(cfg.embed_dim)
 
         self.token_type_embeddings = nn.Embedding(2, self.cfg.embed_dim)
-        self.tte_scale = LayerScale(self.cfg.embed_dim, init_values=1e-5)
 
-        self.pooler = Pooler(self.cfg.embed_dim)
+        self.image_to_mm = Mlp(
+            in_features=self.cfg.embed_dim,
+            out_features=self.cfg.embed_dim,
+            norm_layer=make_layer_norm,
+        )
+
+        self.text_to_mm = Mlp(
+            in_features=self.cfg.embed_dim,
+            out_features=self.cfg.embed_dim,
+            norm_layer=make_layer_norm,
+        )
 
         self.itc_img_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
         self.itc_text_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
 
+        self.pooler = Pooler(self.cfg.embed_dim)
         self.itm_head = nn.Linear(self.cfg.embed_dim, 2)
 
         self.shared_blocks = nn.ModuleList([
-            MoMEBlock(
+            Block(
                 dim=self.cfg.embed_dim,
                 num_heads=12,
                 mlp_ratio=4.0,
                 qkv_bias=True,
-                layer_scale_init_values=0.2,
+                init_values=0.2,
                 norm_layer=make_layer_norm,
-                max_text_len=64,
+                mlp_layer=Mlp,
             ) for _ in range(self.cfg.shared_depth)
         ])
 
@@ -338,15 +360,16 @@ class SSMKEC(nn.Module):
             bool_masked_pos=bool_masked_pos,
         )
 
+        x_mm = self.image_to_mm(x)
+
         img_tte = self.token_type_embeddings(
             torch.ones_like(x[:, :, 0], dtype=torch.long)
         )
-        img_tte = self.tte_scale(img_tte)
-        x_tte = x + img_tte
+        x_mm = x_mm + img_tte
 
         return {
             'x': x,
-            'x_tte': x_tte,
+            'x_mm': x_mm,
         }
 
     def encode_text_only(self, text, padding_mask):
@@ -355,15 +378,16 @@ class SSMKEC(nn.Module):
             attention_mask=1-padding_mask,
         ).last_hidden_state
 
+        x_mm = self.text_to_mm(x)
+
         text_tte = self.token_type_embeddings(
             torch.zeros_like(padding_mask)
         )
-        text_tte = self.tte_scale(text_tte)
-        x_tte = x + text_tte
+        x_mm = x_mm + text_tte
 
         return {
             'x': x,
-            'x_tte': x_tte,
+            'x_mm': x_mm,
         }
     
     def encode_unimodal(self, image, text, padding_mask, bool_masked_pos=None):
@@ -373,8 +397,8 @@ class SSMKEC(nn.Module):
         text_out = self.encode_text_only(text, padding_mask)
         result_dict.update({k+'_text': v for k, v in text_out.items()})
 
-        x_image = img_out['x_tte']
-        x_text = text_out['x_tte']
+        x_image = img_out['x_mm']
+        x_text = text_out['x_mm']
         x = torch.cat([x_text, x_image], dim=1)
         image_mask = torch.zeros(image.size(0), image.size(1)).to(padding_mask.device)
         padding_mask = torch.cat([padding_mask, image_mask], dim=1)
@@ -389,31 +413,24 @@ class SSMKEC(nn.Module):
         return self.encode_shared(image, text, padding_mask, bool_masked_pos)
     
     def encode_shared(self, image=None, text=None, padding_mask=None, bool_masked_pos=None):
-        modality_type = None
         if text is None:
-            x = self.encode_image_only(image, bool_masked_pos=bool_masked_pos)['x_tte']
-            modality_type = "image"
-        if image is None:
-            x = self.encode_text_only(text, padding_mask)['x_tte']
-            modality_type = "text"
-
-        if modality_type is None:
-            x_image = self.encode_image_only(image, bool_masked_pos=bool_masked_pos)['x_tte']
-            x_text = self.encode_text_only(text, padding_mask)['x_tte']
-            modality_type = 'vl'
+            x = self.encode_image_only(image, bool_masked_pos=bool_masked_pos)['x_mm']
+        elif image is None:
+            x = self.encode_text_only(text, padding_mask)['x_mm']
+        else:
+            x_image = self.encode_image_only(image, bool_masked_pos=bool_masked_pos)['x_mm']
+            x_text = self.encode_text_only(text, padding_mask)['x_mm']
 
             x = torch.cat([x_text, x_image], dim=1)
             image_mask = torch.zeros(image.size(0), image.size(1)).to(padding_mask.device)
             padding_mask = torch.cat([padding_mask, image_mask], dim=1)
 
-        return self.encode_shared_only(x, padding_mask, modality_type)
+        return self.encode_shared_only(x, padding_mask)
 
     
-    def encode_shared_only(self, x, padding_mask=None, modality_type=None):
-        modality_type = modality_type if modality_type is not None else 'vl'
-
+    def encode_shared_only(self, x, padding_mask=None):
         for block in self.shared_blocks:
-            x = block(x=x, mask=padding_mask, modality_type=modality_type)
+            x = block(x=x, mask=padding_mask)
         x = self.post_norm(x)
 
         matched = self.itm_head(self.pooler(x))
