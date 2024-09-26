@@ -76,10 +76,11 @@ class SSMKECPreTrainingLightningModule(L.LightningModule):
             text=batch['masked_text'],
             padding_mask=batch['mlm_padding_mask'],
         )['x_mm']
-        x = torch.cat([text_output, image_output['x_mm']], dim=1)
+        x = torch.cat([image_output['x_mm'], text_output], dim=1)
 
+        padding_mask = batch['padding_mask']
         image_mask = torch.zeros(image_output['x_mm'].size(0), image_output['x_mm'].size(1)).to(padding_mask.device)
-        padding_mask = torch.cat([padding_mask, image_mask], dim=1)
+        padding_mask = torch.cat([image_mask, padding_mask], dim=1)
 
         x = self.model.encode_shared_only(
             x=x,
@@ -167,9 +168,9 @@ class SSMKECPreTrainingLightningModule(L.LightningModule):
         image_embed = itc_output['image_embed']
 
         image_mask = torch.zeros(image_embed.size(0), image_embed.size(1)).to(padding_mask.device)
-        padding_mask = torch.cat([padding_mask, image_mask], dim=1)
+        padding_mask = torch.cat([image_mask, padding_mask], dim=1)
 
-        x = torch.cat([text_embed, image_embed], dim=1)
+        x = torch.cat([image_embed, text_embed], dim=1)
         pos_pred = self.model.encode_shared_only(
             x=x,
             padding_mask=padding_mask,
@@ -177,7 +178,7 @@ class SSMKECPreTrainingLightningModule(L.LightningModule):
 
         x_text = text_embed[neg_text_idx]
         x_image = image_embed
-        x = torch.cat([x_text, x_image], dim=1)
+        x = torch.cat([x_image, x_text], dim=1)
         neg_text_pred = self.model.encode_shared_only(
             x=x,
             padding_mask=padding_mask,
@@ -185,7 +186,7 @@ class SSMKECPreTrainingLightningModule(L.LightningModule):
 
         x_text = text_embed
         x_image = image_embed[neg_image_idx]
-        x = torch.cat([x_text, x_image], dim=1)
+        x = torch.cat([x_image, x_text], dim=1)
         neg_img_pred = self.model.encode_shared_only(
             x=x,
             padding_mask=padding_mask,
@@ -406,9 +407,9 @@ class SSMKEC(nn.Module):
 
         x_image = img_out['x_mm']
         x_text = text_out['x_mm']
-        x = torch.cat([x_text, x_image], dim=1)
+        x = torch.cat([x_image, x_text], dim=1)
         image_mask = torch.zeros(x_image.size(0), x_image.size(1)).to(padding_mask.device)
-        padding_mask = torch.cat([padding_mask, image_mask], dim=1)
+        padding_mask = torch.cat([image_mask, padding_mask], dim=1)
         result_dict.update({
             'x': x,
             'padding_mask': padding_mask,
@@ -428,9 +429,9 @@ class SSMKEC(nn.Module):
             x_image = self.encode_image_only(image, bool_masked_pos=bool_masked_pos)['x_mm']
             x_text = self.encode_text_only(text, padding_mask)['x_mm']
 
-            x = torch.cat([x_text, x_image], dim=1)
+            x = torch.cat([x_image, x_text], dim=1)
             image_mask = torch.zeros(x_image.size(0), x_image.size(1)).to(padding_mask.device)
-            padding_mask = torch.cat([padding_mask, image_mask], dim=1)
+            padding_mask = torch.cat([image_mask, padding_mask], dim=1)
 
         return self.encode_shared_only(x, padding_mask)
 
