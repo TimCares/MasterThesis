@@ -111,13 +111,16 @@ class SSMKECPreTrainingLightningModule(L.LightningModule):
         return output_dict
     
     def itc_forward(self, stage, batch, image_output):
-        text_embed = self.model.encode_text_only(
+        x_text = self.model.encode_text_only(
             text=batch['text'],
             padding_mask=batch['padding_mask'],
-        )['x_mm'][:, 0]
-        image_embed = image_output['x_mm'][:, 0]
+        )['x_mm']
+        x_image = image_output['x_mm']
         
         self.logit_scale.data.clamp_(0, 4.6052) # as per FLAVA, also max value of VLMo
+
+        image_embed = x_image[:, 0]
+        text_embed = x_text[:, 0]
 
         image_embed = image_embed / image_embed.norm(dim=-1, keepdim=True)
         text_embed = text_embed / text_embed.norm(dim=-1, keepdim=True)
@@ -130,8 +133,8 @@ class SSMKECPreTrainingLightningModule(L.LightningModule):
         self.log_acc(itc_out['logits_per_image'], itc_out['logits_per_text'], itc_out['targets'], stage, key_prefix='itc_')
         self.log(f"{stage}/'itc_loss", itc_out['loss'])
 
-        itc_out['text_embed'] = text_embed
-        itc_out['image_embed'] = image_embed
+        itc_out['text_embed'] = x_text
+        itc_out['image_embed'] = x_image
         return itc_out
     
     def itm_forward(self, stage, batch, itc_output):
@@ -324,9 +327,6 @@ class SSMKEC(nn.Module):
             norm_layer=make_layer_norm,
         )
 
-        self.itc_img_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
-        self.itc_text_head = nn.Linear(self.cfg.embed_dim, self.cfg.embed_dim, bias=False)
-
         self.pooler = Pooler(self.cfg.embed_dim)
         self.itm_head = nn.Linear(self.cfg.embed_dim, 2)
 
@@ -442,13 +442,8 @@ class SSMKEC(nn.Module):
 
         matched = self.itm_head(self.pooler(x))
 
-        img_embed = self.itc_img_head(x[:, 0])
-        text_embed = self.itc_text_head(x[:, 0])
-
         result_dict = {
             'x': x,
-            'img_embed': img_embed,
-            'text_embed': text_embed,
             'matched': matched,
         }
         return result_dict
