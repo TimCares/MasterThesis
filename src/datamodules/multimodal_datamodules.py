@@ -180,17 +180,15 @@ class VQAv2DataModule(BaseImageTextDataModule):
     def __init__(self,
                  data_path,
                  num_max_bpe_tokens,
-                 transform_jitter=False,
+                 color_jitter=False,
                  beit_transforms=False,
-                 no_transform=False,
                  crop_scale=(0.6, 1.0),
                  *args,
                  **kwargs):
         super().__init__(data_path, *args, **kwargs)
         self.num_max_bpe_tokens = num_max_bpe_tokens
-        self.transform_jitter = transform_jitter
+        self.color_jitter = color_jitter
         self.beit_transforms = beit_transforms
-        self.no_transform = no_transform
         self.crop_scale = crop_scale
 
 
@@ -198,43 +196,40 @@ class VQAv2DataModule(BaseImageTextDataModule):
         self.train_dataset = VQAv2(data_path=self.data_path,
                                    split='train',
                                    num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                   transform_jitter=self.transform_jitter,
+                                   color_jitter=self.color_jitter,
                                    beit_transforms=self.beit_transforms,
-                                   no_transform=self.no_transform,
                                    crop_scale=self.crop_scale,)
 
     def set_val_dataset(self):
         self.val_dataset = VQAv2(data_path=self.data_path,
                                  split='val',
                                  num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                 transform_jitter=False,
+                                 color_jitter=False,
                                  beit_transforms=False,
-                                 no_transform=True,)
+                                 crop_scale=(1.0, 1.0),)
 
     def set_test_dataset(self):
         self.test_dataset = VQAv2(data_path=self.data_path,
-                                  split='test', # TODO: add test-dev?
+                                  split='test',
                                   num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                  transform_jitter=False,
+                                  color_jitter=False,
                                   beit_transforms=False,
-                                  no_transform=True,)
+                                  crop_scale=(1.0, 1.0),)
         
 
 class NLVR2DataModule(BaseImageTextDataModule):
     def __init__(self,
                  data_path,
                  num_max_bpe_tokens,
-                 transform_jitter=False,
+                 color_jitter=False,
                  beit_transforms=False,
-                 no_transform=False,
                  crop_scale=(0.6, 1.0),
                  *args,
                  **kwargs):
         super().__init__(data_path, *args, **kwargs)
         self.num_max_bpe_tokens = num_max_bpe_tokens
-        self.transform_jitter = transform_jitter
+        self.color_jitter = color_jitter
         self.beit_transforms = beit_transforms
-        self.no_transform = no_transform
         self.crop_scale = crop_scale
 
 
@@ -242,26 +237,25 @@ class NLVR2DataModule(BaseImageTextDataModule):
         self.train_dataset = NLVR2(data_path=self.data_path,
                                    split='train',
                                    num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                   transform_jitter=self.transform_jitter,
+                                   color_jitter=self.color_jitter,
                                    beit_transforms=self.beit_transforms,
-                                   no_transform=self.no_transform,
                                    crop_scale=self.crop_scale,)
 
     def set_val_dataset(self):
         self.val_dataset = NLVR2(data_path=self.data_path,
                                 split='val',
                                 num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                transform_jitter=False,
+                                color_jitter=False,
                                 beit_transforms=False,
-                                no_transform=True,)
+                                crop_scale=(1.0, 1.0),)
 
     def set_test_dataset(self):
         self.test_dataset = NLVR2(data_path=self.data_path,
                                   split='test',
                                   num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                  transform_jitter=False,
+                                  color_jitter=False,
                                   beit_transforms=False,
-                                  no_transform=True,)
+                                  crop_scale=(1.0, 1.0),)
 
 
 class Flickr30DataModule(BaseImageTextDataModule):

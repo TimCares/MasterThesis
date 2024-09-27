@@ -384,6 +384,8 @@ class BaseImageText(ImageDataset):
             batch_tensors['masked_text'] = batch_tensors['text'].clone()
             batch_tensors['masked_text'][batch_tensors['mask_labels'].bool()] = self.mask_token_id
             batch_tensors['targets'][~batch_tensors['mask_labels'].bool()] = -100
+
+            batch_tensors['mlm_padding_mask'] = batch_tensors['padding_mask'].long() | batch_tensors['mask_labels'].long()
         return batch_tensors
     
 

@@ -559,17 +559,15 @@ class VQAv2(BaseImageText):
             data_path,
             split,
             num_max_bpe_tokens,
-            transform_jitter=False,
+            color_jitter=False,
             beit_transforms=False,
-            no_transform=False,
             crop_scale=(0.6, 1.0),
             ):
         super().__init__(data_path=data_path, 
                          split=split, 
                          num_max_bpe_tokens=num_max_bpe_tokens, 
-                         transform_jitter=transform_jitter, 
-                         beit_transforms=beit_transforms, 
-                         no_transform=no_transform, 
+                         color_jitter=color_jitter, 
+                         beit_transforms=beit_transforms,
                          crop_scale=crop_scale)
         self.path_to_data = os.path.join(self.data_path, "coco")
         os.makedirs(self.path_to_data, exist_ok=True)
@@ -622,11 +620,11 @@ class VQAv2(BaseImageText):
 
     def __getitem__(self, index: int):
         data = super().__getitem__(index)
-        if "targets" in self.items[index] and len(self.items[index]["targets"]) > 0:
+        if "target" in self.items[index] and len(self.items[index]["target"]) > 0:
             targets = [0.] * len(self.label2ans)
-            for l, s in zip(self.items[index]["targets"], self.items[index]["scores"]):
+            for l, s in zip(self.items[index]["target"], self.items[index]["scores"]):
                 targets[l] = s
-            data["targets"] = torch.FloatTensor(targets)
+            data["target"] = torch.FloatTensor(targets)
         else:
             data["qid"] = self.items[index]["qid"]
         return data
@@ -660,8 +658,6 @@ class VQAv2(BaseImageText):
 
         annotations = dict()
 
-        bpe_encoder = self.get_encoder()
-
         for split, questions in zip(
             ["train", "val", "test", "test-dev"],
             [questions_train2014, questions_val2014, questions_test2015, questions_test_dev2015],
@@ -669,7 +665,7 @@ class VQAv2(BaseImageText):
             _annot = defaultdict(dict)
             for q in questions:
                 question_text = q["question"]
-                token_ids = bpe_encoder.encode(question_text)
+                token_ids = self.tokenize_text(question_text)
 
                 assert q["question_id"] not in _annot[q["id"]]
                 _annot[q["id"]][q["question_id"]] = {
@@ -713,10 +709,10 @@ class VQAv2(BaseImageText):
                     score = self.get_score(answer_count[answer])
                     scores.append(score)
 
-                assert "labels" not in _annot[q["id"]][q["question_id"]]
-                assert "question" in _annot[q["id"]][q["question_id"]]
-                _annot[q["id"]][q["question_id"]]["labels"] = labels
-                _annot[q["id"]][q["question_id"]]["scores"] = scores
+                assert "labels" not in _annot[q["image_id"]][q["question_id"]]
+                assert "question" in _annot[q["image_id"]][q["question_id"]]
+                _annot[q["image_id"]][q["question_id"]]["labels"] = labels
+                _annot[q["image_id"]][q["question_id"]]["scores"] = scores
 
         for split in ["train", "val"]:
             filtered_annot = dict()
@@ -807,17 +803,15 @@ class NLVR2(BaseImageText):
             data_path,
             split,
             num_max_bpe_tokens,
-            transform_jitter=False,
+            color_jitter=False,
             beit_transforms=False,
-            no_transform=False,
             crop_scale=(0.6, 1.0),
             ):
         super().__init__(data_path=data_path, 
                          split=split, 
                          num_max_bpe_tokens=num_max_bpe_tokens, 
-                         transform_jitter=transform_jitter, 
+                         color_jitter=color_jitter, 
                          beit_transforms=beit_transforms, 
-                         no_transform=no_transform, 
                          crop_scale=crop_scale)
         self.path_to_data = os.path.join(self.data_path, "nlvr2")
         assert os.path.exists(os.path.join(self.path_to_data, 'images')), f"Data not found, "
@@ -846,13 +840,12 @@ class NLVR2(BaseImageText):
 
     def _preprocess_json(self, prefix, json_file, index_file):
         items = []
-        bpe_encoder = self.get_encoder()
         with open(json_file, mode="r", encoding="utf-8") as reader:
             for line in reader:
                 data = json.loads(line)
                 path = os.path.join(prefix, str(data["directory"])) if "directory" in data else prefix
                 path = os.path.join(path, "-".join(data["identifier"].split("-")[:-1]))
-                token_ids = bpe_encoder.encode(data["sentence"])
+                token_ids = self.tokenize_text(data["sentence"])
                 items.append({
                     "image_path": path + "-img0.png",
                     "image2_path": path + "-img1.png",
