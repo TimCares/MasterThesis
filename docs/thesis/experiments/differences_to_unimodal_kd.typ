@@ -114,7 +114,7 @@ $bold(h)'''^s_(v, K, mono(["I_CLS"])) in RR^768$ and $bold(h)'''^s_(w, K, mono([
 As a side note, the student's classification head is technically not a classification head anymore, as it does not predict any classes
 but rather a representation of the teacher. We will refer to it as the regression head from now on.
 
-==== Results
+==== Results <s_smke_results>
 Apart from the change in the teacher and the impact on the loss, the training setup remains the same, and no hyperparameters are changed.
 As we now do not follow the approach of SHRe, that is, predicting a probability distribution over ImageNet-1K classes @shre,
 we name the new approach "#text(weight: "bold")[S]elf#text(weight: "bold")[-S]upervised #text(weight: "bold")[M]ultimodal

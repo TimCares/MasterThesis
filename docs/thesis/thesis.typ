@@ -123,6 +123,11 @@
 
   body
 
+  include("introduction/motivation.typ")
+  include("introduction/goals_and_contributions.typ")
+  include("introduction/overview.typ")
+  include("introduction/required_background_knowledge.typ")
+
   include("background/basic_loss_functions.typ")
   include("background/knowledge_distillation.typ")
   include("background/transformer.typ")

@@ -20,7 +20,23 @@ are comparable in terms of model size and complexity.
 Although the goal of this work is to explicitly _not_ use a multimodal teacher, we will still examine the impact of using one, and we
 expect our student to reach a better performance than when using a unimodal teacher.
 
+For the multimodal teacher we select the ViT-B/16 @vit variant of BEiT-3 @beit3, which is currently, as of September 2024,
+the best approach to vision-language models. We use the model that has been trained with image-text contrastive learning.
+Since the model is multimodal, so it can process both image and text, we could train our student to predict the teacher's
+representation of the $mono(["I_CLS"])$ token for when the student processes an image, and the representation of the $mono(["T_CLS"])$
+token for when the student processes text. However, since we directly want to compare what effect predicting a representation
+that is aligned across image and text has, compared to a representation that is only aligned within the same modality, which is the
+case with our unimodal image teacher BEiTv2 @beitv2, we will only predict the representation of the $mono(["I_CLS"])$ token.
 
+A problem that comes with using a multimodal teacher like BEiT-3 is that, due to its image and text encoders, it has
+more than 220M parameters,
+which is, combined with the memory requirements to train the student, too much for our current setup. However, since we only aim to
+predict the representation of the $mono(["I_CLS"])$ token, meaning that our BEiT-3 teacher only has to process images, we can delete
+all text-related layers from the teacher, which reduces the number of parameters to 86M, which is the same number of parameters as
+BEiTv2 @beitv2.
+
+The setup remains the same as in the previous experiments, with the exception that we now predict the representation of the $mono(["I_CLS"])$
+token of BEiT-3 (vision-language model), instead of BEiTv2 (vision model).
 
 ==== Removing Distillation
 Throughout the previous sections we repeatedly attempted to improve our approach by reducing the gap between the text-to-image and image-to-text
@@ -41,6 +57,10 @@ needed.
 
 Everything else about the model architecture and training process remains the same, both the image and text encoder
 are still initialized with layers from Data2Vec2 @data2vec2 and BERT @bert, respectively.
+
+Since we are now not using a teacher that has been trained on ImageNet-1K (we are not using a teacher at all), no information about
+the ImageNet-1K dataset can leak to our student model (see @s_smke_results). The performance on ImageNet-1K using CLIP zero-shot
+classification is therefore, for the first time in this work, an actual zero-shot application.
 
 ==== Results
 
@@ -65,17 +85,21 @@ are still initialized with layers from Data2Vec2 @data2vec2 and BERT @bert, resp
       table.hline(start: 10, end: 13, stroke: .2pt),
       [R@1], [R@5], [R@10], [R@1], [R@5], [R@10], [R@1], [R@5], [R@10], [R@1], [R@5], [R@10]
     ),
-    table.hline(stroke: .4pt),
-    [BEiTv2 @beitv2], [53.54], [81.1], [*89.52*], [35.65], [66.0], [77.77], [70.9], [92.1], [96.0], [52.72], [80.2], [87.46],
-    [Data2Vec2 @data2vec2], [53.54], [81.1], [*89.52*], [35.65], [66.0], [77.77], [70.9], [92.1], [96.0], [52.72], [80.2], [87.46],
     table.hline(stroke: .2pt),
-    [BEiT-3 @beit3], [53.54], [81.1], [*89.52*], [35.65], [66.0], [77.77], [70.9], [92.1], [96.0], [52.72], [80.2], [87.46],
+    table.cell(colspan: 13, align: left, [_Unimodal_]),
+    [BEiTv2 @beitv2 (Baseline)], [53.54], [81.1], [*89.52*], [35.65], [66.0], [77.77], [70.9], [92.1], [96.0], [52.72], [80.2], [87.46],
+    [Data2Vec2 @data2vec2 (8.68 $arrow.b$)], [43.08], [73.24], [83.84], [29.89], [59.59], [72.41], [55.0], [81.8], [87.7], [41.84], [70.2], [80.24],
     table.hline(stroke: .2pt),
-    [-], [47.48], [76.46], [85.98], [34.20], [64.02], [75.94], [61.0], [86.0], [92.1], [47.1], [74.82], [83.78],
+    table.cell(colspan: 13, align: left, [_Multimodal_]),
+    [BEiT-3 @beit3 (8.68 $arrow.t$)], [53.54], [81.1], [*89.52*], [35.65], [66.0], [77.77], [70.9], [92.1], [96.0], [52.72], [80.2], [87.46],
+    table.hline(stroke: .2pt),
+    table.cell(colspan: 13, align: left, [_None_]),
+    [$-$ (4.17 $arrow.b$)], [47.48], [76.46], [85.98], [34.20], [64.02], [75.94], [61.0], [86.0], [92.1], [47.1], [74.82], [83.78],
     table.hline(),
   ),
   caption: [
-    Comparison of the retrieval performance when using different teachers for knowledge distillation.
+    Comparison of the retrieval performance when using different teachers for knowledge distillation. The value in parentheses next to the teacher
+    indicates the average drop or gain of percentage points with respect to our default teacher BEiTv2 @beitv2.
   ],
 )<image_text_retrieval_teachers>
 #show table: set text(12pt)
@@ -93,11 +117,33 @@ are still initialized with layers from Data2Vec2 @data2vec2 and BERT @bert, resp
   ),
   table.hline(stroke: .6pt),
   [BEiTv2 @beitv2], [37.0], [7.3],
-  [Data2Vec2 @data2vec2], [*73.0*], [67.15],
-  [-], [25.8$dagger$], [*4.5*],
+  [Data2Vec2 @data2vec2], [24.5], [7.4],
+  [BEiT-3 @beit3], [5.8*$dagger$*], [67.15],
+  [$-$], [25.8*$dagger$*], [*4.5*],
   table.hline(),
 ),
     caption: [
-      $dagger$ indicates zero-shot.
+      Comparison of ImageNet-1K performance, using CLIP-like zero-shot classification, and training time for various teachers.
+      *$dagger$* indicates zero-shot, and $-$ indicates no teacher.
     ]
 ) <imagenet_of_teachers>
+
+We show a detailed comparison of the retrieval performance between different teacher in @image_text_retrieval_teachers, and the performance on
+ImageNet-1K, including the training time for the distillation, in @imagenet_of_teachers. We observe that the choice of the teacher is significant
+for the performance of the student, especially in the unimodal case. The performance when using the Data2Vec2 @data2vec2 teacher is significantly
+lower compared to our baseline, which is BEiTv2 @beitv2. On average, lose 8.68 percentage points over all retrieval metrics, and 12.5 percentage points
+on ImageNet-1K CLIP-like classification. We assume that this can be attributed to the different strategies used to train BEiTv2 and Data2Vec2.
+In contrast to Data2Vec2, the architecture and loss of BEiTv2 forces the model to aggregate as much (global) information
+as possible in the $mono(["I_CLS"])$ token @beitv2, which is the token we predict in the student model. Aggregating global information in one token
+leads to it being less sensitive to smaller regions of the image, which crucial when we predict the representation of the $mono(["I_CLS"])$ token
+using the caption of the image. Data2Vec2, on the other hand, only includes a small term in the loss that forces the model to aggregate global
+information in the $mono(["I_CLS"])$ token. However, this term has a weight of only 1% of the total loss @data2vec2.
+
+This loss term of Data2Vec2, which they refer to as the CLS loss @data2vec2, has such a small weight that even using no teacher at all, and only
+the contrastive loss, leads to a better performance than when using Data2Vec2. It is particularly striking that the performance on ImageNet-1K
+using CLIP-like zero-shot classification is increasing by over 1 percentage points when using no teacher at all, compared to using Data2Vec2
+(see @imagenet_of_teachers). We observe this increase even though using no teacher at all is an actual zero-shot application, while when using
+Data2Vec2, information about ImageNet-1K can leak to the student model (Data2Vec2 has been trained on Imagenet-1K @data2vec2),
+making it _not_ a zero-shot application.
+
+Less surprising is that the performance when using BEiT-3 @beit3 as a teacher
