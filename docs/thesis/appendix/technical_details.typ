@@ -4,6 +4,22 @@
 
 === Data
 
+=== Software
+
+All implementations in this research were conducted using PyTorch @pytorch and PyTorch Lightning @pytorch_lightning.
+PyTorch Lightning is a high-level library built on top of PyTorch that provides functionalities such as checkpointing,
+logging, and distributed training. These features are particularly important for the distributed data parallel (DDP)
+training we perform (see Section @larger_batch_sizes_ddp). By leveraging PyTorch Lightning, we avoid the need
+to manually implement these functionalities in PyTorch, which, although it offers a high-level API, can be more prone to errors.
+This approach allows us to save time and focus on the actual implementation of our models, as errors in
+vanilla PyTorch are likely and can be difficult to debug, especially in the context of distributed training.
+
+All experiments were performed using Python 3.10, with PyTorch 2.2.0, PyTorch Lightning 2.4.0, and CUDA 12.1.1, on an Ubuntu 22.04 machine.
+
+Given that research inevitably involves a significant amount of experimentation and iterative development,
+we utilized the experiment tracking tool Weights & Biases#footnote[#link("https://wandb.ai")] to keep track of all experiments.
+  
+
 === Hardware
 To train the models and store the data, we used the GPU cloud platform runpod.io#footnote[#link("https://www.runpod.io")].
 This platform provides access to a wide range of GPU types, including the NVIDIA RTX 4090 24GB, which we use for training almost all
@@ -15,7 +31,7 @@ costs \$3.06
 and based on the on-demand price for the region us-east (North-Virginia).]
 per GPU hour. This price difference is despite the fact that the V100 was released in 2017, while the RTX 4090
 was released in 2022. The RTX 4090 is also faster than the V100, with a higher memory bandwidth and more CUDA cores, so training
-on the RTX 4090 is more cost-effective by a margin.
+on the RTX 4090 is more cost-effective by a margin. This evaluation is significant, as there is no external funding for this work.
 
 To store all of our data, which is a total of >900 GB, we use a network volume provided by runpod.io. This volume is mounted
 on a virtual machine on start-up, allowing to access the data for training on the GPUs and provides high flexibility.

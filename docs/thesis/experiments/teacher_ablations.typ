@@ -66,12 +66,12 @@ are still initialized with layers from Data2Vec2 @data2vec2 and BERT @bert, resp
       [R@1], [R@5], [R@10], [R@1], [R@5], [R@10], [R@1], [R@5], [R@10], [R@1], [R@5], [R@10]
     ),
     table.hline(stroke: .4pt),
-    [BEiTv2 @flava], [53.54], [81.1], [*89.52*], [35.65], [66.0], [77.77], [70.9], [92.1], [96.0], [52.72], [80.2], [87.46],
+    [BEiTv2 @beitv2], [53.54], [81.1], [*89.52*], [35.65], [66.0], [77.77], [70.9], [92.1], [96.0], [52.72], [80.2], [87.46],
     [Data2Vec2 @data2vec2], [53.54], [81.1], [*89.52*], [35.65], [66.0], [77.77], [70.9], [92.1], [96.0], [52.72], [80.2], [87.46],
     table.hline(stroke: .2pt),
     [BEiT-3 @beit3], [53.54], [81.1], [*89.52*], [35.65], [66.0], [77.77], [70.9], [92.1], [96.0], [52.72], [80.2], [87.46],
     table.hline(stroke: .2pt),
-    [-], [53.54], [81.1], [*89.52*], [35.65], [66.0], [77.77], [70.9], [92.1], [96.0], [52.72], [80.2], [87.46],
+    [-], [47.48], [76.46], [85.98], [34.20], [64.02], [75.94], [61.0], [86.0], [92.1], [47.1], [74.82], [83.78],
     table.hline(),
   ),
   caption: [
@@ -79,3 +79,25 @@ are still initialized with layers from Data2Vec2 @data2vec2 and BERT @bert, resp
   ],
 )<image_text_retrieval_teachers>
 #show table: set text(12pt)
+
+#show table: set text(8pt)
+#figure(
+  table(
+  columns: 3,
+  stroke: none,
+  table.hline(),
+  table.header(
+    [Teacher],
+    [ImageNet-1K],
+    [Training time (h)],
+  ),
+  table.hline(stroke: .6pt),
+  [BEiTv2 @beitv2], [37.0], [7.3],
+  [Data2Vec2 @data2vec2], [*73.0*], [67.15],
+  [-], [25.8$dagger$], [*4.5*],
+  table.hline(),
+),
+    caption: [
+      $dagger$ indicates zero-shot.
+    ]
+) <imagenet_of_teachers>
