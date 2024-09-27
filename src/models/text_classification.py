@@ -118,10 +118,19 @@ class TextClassificationModel(nn.Module):
 
         model_cls:LightningModule = MODEL_REGISTRY[self.cfg.model_name]['module']
         self.model = model_cls.load_from_checkpoint(self.cfg.model_path, strict=False).model
+        if hasattr(self.model, 'prepare_text_finetuning'):
+            self.model.prepare_text_finetuning()
 
         embed_dim = 768
         self.dropout = nn.Dropout(self.cfg.dropout)
         self.classification_head = nn.Linear(embed_dim, self.cfg.num_classes)
+
+    @property
+    def model_call_fn(self):
+        if hasattr(self.model, 'encode_text_only'):
+            return self.model.encode_text_only
+        else:
+            return self.model
 
     def forward(
         self,
@@ -129,7 +138,7 @@ class TextClassificationModel(nn.Module):
         attention_mask,
         token_type_ids=None,
     ):
-        x = self.model(text=text, attention_mask=attention_mask, token_type_ids=token_type_ids)['pooler_output']
+        x = self.model_call_fn(text=text, attention_mask=attention_mask, token_type_ids=token_type_ids)['pooler_output']
         return self.classification_head(self.dropout(x))
 
 MODEL_REGISTRY['text_classification'] = {

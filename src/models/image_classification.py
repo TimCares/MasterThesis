@@ -169,6 +169,8 @@ class ImageClassificationModel(nn.Module):
 
         model_cls:LightningModule = MODEL_REGISTRY[self.cfg.model_name]['module']
         self.model = model_cls.load_from_checkpoint(self.cfg.model_path).model
+        if hasattr(self.model, 'prepare_image_finetuning'):
+            self.model.prepare_image_finetuning()
 
         self.linear_classifier = cfg.linear_classifier
 
@@ -184,6 +186,13 @@ class ImageClassificationModel(nn.Module):
         nn.init.trunc_normal_(self.head.weight, std=0.02)
         nn.init.constant_(self.head.bias, 0)
 
+    @property
+    def model_call_fn(self):
+        if hasattr(self.model, 'encode_image_only'):
+            return self.model.encode_image_only
+        else:
+            return self.model
+
     def forward(
         self,
         image,
@@ -191,9 +200,9 @@ class ImageClassificationModel(nn.Module):
         
         if self.linear_classifier:
             with torch.no_grad():
-                x = self.model(image)['x']
+                x = self.model_call_fn(image)['x']
         else:
-            x = self.model(image)['x']
+            x = self.model_call_fn(image)['x']
 
         if self.cfg.prediction_mode == 'mean_pooling':
             x = x[:, 1:].mean(dim=1)

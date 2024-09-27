@@ -338,6 +338,50 @@ class Sx3HRe(nn.Module):
         x_interm = x_interm / x_interm.norm(dim=-1, keepdim=True)
         out_dict["x_interm"] = x_interm
         return out_dict
+    
+    def encode_text_only(
+        self,
+        text:torch.Tensor,
+        padding_mask:torch.Tensor=None,
+        token_type_ids:torch.Tensor=None,
+        attention_mask:torch.Tensor=None,
+    ):
+        mask = 1-padding_mask if attention_mask is None else attention_mask
+        out = self.text_model(
+            input_ids=text,
+            attention_mask=mask,
+            token_type_ids=token_type_ids,
+            output_hidden_states=True,
+        )
+        out_dict = {
+            'layer_results': out.hidden_states,
+            'last_hidden_state': out.last_hidden_state,
+            'pooler_output': out.pooler_output,
+        }
+        return out_dict
+
+    def encode_image_only(self, image):
+        return self.image_model.extract_features(
+            source=image,
+            remove_extra_tokens=False,
+        )
+    
+    def prepare_text_finetuning(self):
+        self.text_model.pooler = BertModel.from_pretrained("bert-base-uncased").pooler # add pooler back
+        self.prepare_finetuning()
+        del self.image_model
+    
+    def prepare_image_finetuning(self):
+        self.prepare_finetuning()
+        del self.text_model
+
+    def prepare_finetuning(self):
+        del self.token_type_embeddings
+        del self.tte_scale
+        del self.shared
+        del self.fc_norm
+        del self.head
+        
 
 MODEL_REGISTRY['Sx3HRe'] = {
     'cfg': Sx3HReConfig,
