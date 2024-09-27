@@ -2,6 +2,8 @@
 While the proposed method is an efficient way to traing comparatively small multimodal models, and can easily be
 adapted to other modalities, e.g. audio, it has two main limitations.
 
++ terrible on unimodal downstream tasks
+
 First, our method relies on knowledge distillation of a self-supervised image model as the teacher. The fact that there
 has been no incentive for the teacher to learn a representation that is independent of the image modality makes it difficult
 to learn a representation that is truly modality-invariant and aligned across the modalities of the student model. This

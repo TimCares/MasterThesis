@@ -125,8 +125,8 @@
 
   include("introduction/motivation.typ")
   include("introduction/goals_and_contributions.typ")
-  include("introduction/overview.typ")
   include("introduction/required_background_knowledge.typ")
+  include("introduction/overview.typ")
 
   include("background/basic_loss_functions.typ")
   include("background/knowledge_distillation.typ")
@@ -155,19 +155,22 @@
   include("experiments/modality_invariant_targets.typ")
   include("experiments/quantizing_visual_features.typ")
   
-  include("experiments/limitations.typ")
-
   include("experiments/teacher_ablations.typ")
+  include("experiments/fine_tuning.typ")
+  include("experiments/limitations.typ")
 
 
   include("experiments/fine_grained_alignment.typ")
 
-  include("experiments/fine_tuning.typ")
 
   include("experiments/ablation_study_data.typ")
   include("experiments/ablation_study_final.typ")
 
   include("experiments/discussion_of_results.typ")
+
+  include("conclusion/conclusion.typ")
+  include("conclusion/outlook.typ")
+  include("conclusion/impact.typ")
 
   // Appendix.
   set heading(numbering: "A")

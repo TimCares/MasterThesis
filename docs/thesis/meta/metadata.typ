@@ -1,5 +1,5 @@
 #let details = (
-  title: "Extracting Multimodal Knowledge from Pretrained Vision Models",
+  title: "Leveraging Pretrained Unimodal Models for Efficient Multimodal Learning",
   date: "9. Oktober 2024",
   language: "en",
   degree: "Master",
