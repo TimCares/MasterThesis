@@ -11,6 +11,8 @@ understanding of a model by evaluating it on the GLUE benchmark @glue, which is 
 language distillation experiments of @unimodal_kd_text.
 We therefore evaluate our best multimodal models on both image and text classification tasks.
 
+==== Vision
+
 For image classification, we take the image encoder of the multimodal model and finetune it using the same strategy as done
 for the image-only distilled model: The output $bold(H)_(v, L_s)$ of the image encoder is pooled by taking the mean of all
 patch representations, with the exception of the $mono(["I_CLS"])$ token. This pooled representation is then passed through a
@@ -23,6 +25,76 @@ is not desired for image-specific tasks. The image encoder returns a representat
 we want to use for image classification. The hyperparameters (see @distil_data2vec2_imagenet_finetuning_hyperparameters),
 and all other settings, are the same as for the image-only distilled model,
 and we refer to @unimodal_kd_data2vec2_finetuning for more details.
+
+#show table: set text(8pt)
+#figure(
+  table(
+  columns: 3,
+  stroke: none,
+  table.hline(),
+  table.header(
+  table.cell(rowspan: 2, colspan: 1, align:horizon, [Method]),
+  table.cell(colspan: 2, align:horizon, [ImageNet-1K]),
+    [Lin eval],
+    [Finetune],
+  ),
+  table.hline(stroke: .6pt),
+    [Data2Vec2 @data2vec2], [84.5],[-], 
+    [BEiTv2 @beitv2], [*85.0*], [*80.1*],
+    [ResNet-101 @resnet], [80.1], [-], 
+  table.hline(stroke: .3pt),
+    [DistilData2Vec2 (ours)], [75.0], [56.2],
+    [DistilBEiTv2 (ours)], [-], [-],
+    [S-SMKE (ours)], [#underline[75.5]], [#underline[65.0]],
+  table.hline(),
+),
+    caption: [
+      
+    ]
+) <imagenet_finetune_results_s_smke>
+#show table: set text(12pt)
+
+#show table: set text(8pt)
+#figure(
+  table(
+  columns: 5,
+  stroke: none,
+  table.hline(),
+  table.header(
+  table.cell(rowspan: 2, colspan: 1, align:horizon, [Method]),
+  table.cell(colspan: 2, align:horizon, [CIFAR-10]),
+  table.cell(colspan: 2, align:horizon, [CIFAR-100]),
+    [Lin eval],
+    [Finetune],
+    [Lin eval],
+    [Finetune],
+  ),
+  table.hline(stroke: .6pt),
+    [DistilData2Vec2 (ours)], [68.4], [97.0], [46.2], [85.1],
+    [DistilBEiTv2 (ours)], [-], [-], [-], [-],
+    [S-SMKE (ours)], [*89.7*], [*97.6*], [*71.3*], [*85.2*],
+  table.hline(),
+),
+  caption: [
+    
+  ],
+)<cifar_finetune_results_s_smke>
+#show table: set text(12pt)
+
+The results on ImageNet-1K @imagenet and CIFAR-10/100 @cifar_10_100 are shown
+in @imagenet_finetune_results_s_smke and @cifar_finetune_results_s_smke,
+respectively. We observe an increase in performance, compared to DistilData2Vec2, on all finetuning tasks, and a significant increase
+for linear evaluation over all datasets.
+However, it has to be noted that the image encoder of the multimodal model was initialized with weights from BEiTv2 @beitv2
+and distilled using BEiTv2. This is in contrast to DistilData2Vec2, which, as the name suggests,
+was initialized with weights from Data2Vec2 @data2vec2 and distilled using Data2Vec2. Since BEiTv2 performs slightly better than
+Data2Vec2 (see @imagenet_finetune_results_s_smke), we also train a distilled variant of BEiTv2, which we call DistilBEiTv2.
+DistilBEiTv2 was trained in the same way as DistilData2Vec2 (described in @unimodal_kd_vision), so including it in the comparison
+allows us to see if the performance increase, achieved with the image encoder from S-SMKE, is due to different teacher models
+and weight initialization (Data2Vec2 vs. BEiTv2) or
+due to unimodal vs. multimodal distillation.
+
+==== Language
 
 Analogue to image classification, we extract the text encoder of the multimodal model and finetune it on the GLUE benchmark @glue.
 We follow the same strategy as for the text-only distilled model: From the output $bold(H)_(w, L_s)$ of the text encoder, we take
