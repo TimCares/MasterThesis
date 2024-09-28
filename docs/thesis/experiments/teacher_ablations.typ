@@ -1,8 +1,8 @@
-=== Teacher Ablation Studies <teacher_ablations>
+== Teacher Ablation Studies <teacher_ablations>
 In this section we will investigate the impact of using teachers different from BEiTv2 @beitv2, but still self-supervised. We will compare
 the results with an approach that does not make use of knowledge distillation at all.
 
-==== Unimodal
+=== Unimodal
 First, we will train the same model as in the previous experiments, but this time using two different self-supervised image teachers:
 Data2Vec2 @data2vec2 and DINO @dino. The choice of Data2Vec2 @data2vec2 is motivated by the fact that we already used it in
 the unimodal image distillation in @unimodal_kd_vision, and because we initialize the image encoder of the multimodal model with
@@ -16,7 +16,7 @@ representation of the teacher we keep using the representation of the $mono(["I_
 Both models are based on the same ViT-B/16 @vit @data2vec2 @dino architecture, which is the same as used by BEiTv2 @beitv2, so all teachers
 are comparable in terms of model size and complexity.
 
-==== Multimodal
+=== Multimodal
 Although the goal of this work is to explicitly _not_ use a multimodal teacher, we will still examine the impact of using one, and we
 expect our student to reach a better performance than when using a unimodal teacher.
 
@@ -38,7 +38,7 @@ BEiTv2 @beitv2.
 The setup remains the same as in the previous experiments, with the exception that we now predict the representation of the $mono(["I_CLS"])$
 token of BEiT-3 (vision-language model), instead of BEiTv2 (vision model).
 
-==== Removing Distillation
+=== Removing Distillation
 Throughout the previous sections we repeatedly attempted to improve our approach by reducing the gap between the text-to-image and image-to-text
 knowledge distillation losses. Unfortunately, only one of them, the contrastive target loss, was successful, but only increased the performance
 marginally. That is why we will now investigate whether the knowledge distillation process is beneficial at all.
@@ -62,7 +62,7 @@ Since we are now not using a teacher that has been trained on ImageNet-1K (we ar
 the ImageNet-1K dataset can leak to our student model (see @s_smke_results). The performance on ImageNet-1K using CLIP zero-shot
 classification is therefore, for the first time in this work, an actual zero-shot application.
 
-==== Results
+=== Results
 
 #show table: set text(8pt)
 #figure(

@@ -1,4 +1,4 @@
-=== Finetuning on Unimodal Tasks <fine_tuning_unimodal_tasks>
+== Evaluation on Unimodal Benchmarks <fine_tuning_unimodal_tasks>
 What is often lost sight of in multimodal models is the performance on unimodal downstream tasks.
 While the main goal of multimodal models is to learn a joint representation of text and images, a multimodal model should also excel
 at unimodal tasks. In our case: image classification and text classification. When it comes to
@@ -11,7 +11,7 @@ understanding of a model by evaluating it on the GLUE benchmark @glue, which is 
 language distillation experiments of @unimodal_kd_text.
 We therefore evaluate our best multimodal models on both image and text classification tasks.
 
-==== Vision
+=== Vision
 
 For image classification, we take the image encoder of the multimodal model and finetune it using the same strategy as done
 for the image-only distilled model: The output $bold(H)_(v, L_s)$ of the image encoder is pooled by taking the mean of all
@@ -94,7 +94,7 @@ allows us to see if the performance increase, achieved with the image encoder fr
 and weight initialization (Data2Vec2 vs. BEiTv2) or
 due to unimodal vs. multimodal distillation.
 
-==== Language
+=== Language
 
 Analogue to image classification, we extract the text encoder of the multimodal model and finetune it on the GLUE benchmark @glue.
 We follow the same strategy as for the text-only distilled model: From the output $bold(H)_(w, L_s)$ of the text encoder, we take

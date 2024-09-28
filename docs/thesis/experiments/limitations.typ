@@ -1,4 +1,4 @@
-=== Limitations and Insights <mm_kd_limitations>
+== Limitations and Insights <mm_kd_limitations>
 While the proposed method is an efficient way to traing comparatively small multimodal models, and can easily be
 adapted to other modalities, e.g. audio, it has two main limitations.
 

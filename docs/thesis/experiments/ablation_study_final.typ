@@ -1,1 +1,1 @@
-== Ablation Study: Scaling up the final Approach <ablation_study_scaling_up>
+== Scaling up the final Approach <scaling_up>

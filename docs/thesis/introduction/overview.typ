@@ -40,6 +40,10 @@ presented in an iterative and incremental manner. Sections such as "Token-Type E
 Throughout these sections, we repeatedly evaluate our approach on various multimodal benchmarks
 and compare it with other state-of-the-art multimodal methods.
 
+#h(1cm)*Limitations and Insights*\
+In follows a detailed evaluation of the limitations of our approach, followed by ablation studies on teacher models and
+dataset sizes. These studies aim to evaluate the impact of different components on the performance of our approach.
+
 #h(1cm)*Evaluation on Unimodal Benchmarks*\
 With our final approach established, we evaluate its performance on unimodal image and text benchmarks,
 directly comparing it to the unimodal distilled models from section @unimodal_knowledge_distillation.
@@ -47,9 +51,7 @@ This evaluation is crucial for determining whether the multimodal models not onl
 modalities but also perform effectively on unimodal tasks.
 Demonstrating parity or superiority would suggest that our multimodal models can serve as replacements for the earlier unimodal models.
 
-#h(1cm)*Limitations and Ablation Studies*\
-In follows a detailed evaluation of the limitations of our approach, followed by ablation studies on teacher models and
-dataset sizes. These studies aim to evaluate the impact of different components on the performance of our approach.
+#h(1cm)*Teacher Ablation Studies*\
 
 #h(1cm)*Discussiuon, Conclusion, Outlook, and Impact*\
 Finally, we discuss the results of our work, providing insights into the implications of our findings.

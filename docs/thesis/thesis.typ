@@ -155,10 +155,9 @@
   include("experiments/modality_invariant_targets.typ")
   include("experiments/quantizing_visual_features.typ")
   
-  include("experiments/teacher_ablations.typ")
-  include("experiments/fine_tuning.typ")
   include("experiments/limitations.typ")
-
+  include("experiments/fine_tuning.typ")
+  include("experiments/teacher_ablations.typ")
 
   include("experiments/fine_grained_alignment.typ")
 
