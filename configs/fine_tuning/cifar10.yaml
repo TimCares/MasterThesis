@@ -42,7 +42,6 @@ model:
 
 data:
   _name: cifar10
-  pretraining: False
   aa: rand-m9-mstd0.5-inc1
   reprob: 0.25
   remode: pixel
