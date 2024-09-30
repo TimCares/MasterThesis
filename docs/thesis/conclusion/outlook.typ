@@ -1,4 +1,4 @@
-= Outlook
+== Outlook
 This work has demonstrated the feasibility of generating a vision-language model from unimodal
 components through an end-to-end self-supervised learning approach. The resulting model,
 while not reaching the performance of state-of-the-art vision-language models, shows

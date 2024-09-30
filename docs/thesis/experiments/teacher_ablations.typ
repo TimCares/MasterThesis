@@ -2,7 +2,7 @@
 In this section we will investigate the impact of using teachers different from BEiTv2 @beitv2, but still self-supervised. We will compare
 the results with an approach that does not make use of knowledge distillation at all.
 
-=== Unimodal
+=== Different Teachers
 First, we will train the same model as in the previous experiments, but this time using two different self-supervised image teachers:
 Data2Vec2 @data2vec2 and DINO @dino. The choice of Data2Vec2 @data2vec2 is motivated by the fact that we already used it in
 the unimodal image distillation in @unimodal_kd_vision, and because we initialize the image encoder of the multimodal model with
@@ -15,28 +15,6 @@ In both cases, we will use the contrastive target loss with a memory bank for th
 representation of the teacher we keep using the representation of the $mono(["I_CLS"])$ token, $bold(h)_(v, L_s, mono(["I_CLS"]))$.
 Both models are based on the same ViT-B/16 @vit @data2vec2 @dino architecture, which is the same as used by BEiTv2 @beitv2, so all teachers
 are comparable in terms of model size and complexity.
-
-=== Multimodal
-Although the goal of this work is to explicitly _not_ use a multimodal teacher, we will still examine the impact of using one, and we
-expect our student to reach a better performance than when using a unimodal teacher.
-
-For the multimodal teacher we select the ViT-B/16 @vit variant of BEiT-3 @beit3, which is currently, as of September 2024,
-the best approach to vision-language models. We use the model that has been trained with image-text contrastive learning.
-Since the model is multimodal, so it can process both image and text, we could train our student to predict the teacher's
-representation of the $mono(["I_CLS"])$ token for when the student processes an image, and the representation of the $mono(["T_CLS"])$
-token for when the student processes text. However, since we directly want to compare what effect predicting a representation
-that is aligned across image and text has, compared to a representation that is only aligned within the same modality, which is the
-case with our unimodal image teacher BEiTv2 @beitv2, we will only predict the representation of the $mono(["I_CLS"])$ token.
-
-A problem that comes with using a multimodal teacher like BEiT-3 is that, due to its image and text encoders, it has
-more than 220M parameters,
-which is, combined with the memory requirements to train the student, too much for our current setup. However, since we only aim to
-predict the representation of the $mono(["I_CLS"])$ token, meaning that our BEiT-3 teacher only has to process images, we can delete
-all text-related layers from the teacher, which reduces the number of parameters to 86M, which is the same number of parameters as
-BEiTv2 @beitv2.
-
-The setup remains the same as in the previous experiments, with the exception that we now predict the representation of the $mono(["I_CLS"])$
-token of BEiT-3 (vision-language model), instead of BEiTv2 (vision model).
 
 === Removing Distillation
 Throughout the previous sections we repeatedly attempted to improve our approach by reducing the gap between the text-to-image and image-to-text
@@ -86,14 +64,8 @@ classification is therefore, for the first time in this work, an actual zero-sho
       [R@1], [R@5], [R@10], [R@1], [R@5], [R@10], [R@1], [R@5], [R@10], [R@1], [R@5], [R@10]
     ),
     table.hline(stroke: .2pt),
-    table.cell(colspan: 13, align: left, [_Unimodal_]),
     [BEiTv2 @beitv2 (Baseline)], [53.54], [81.1], [*89.52*], [35.65], [66.0], [77.77], [70.9], [92.1], [96.0], [52.72], [80.2], [87.46],
     [Data2Vec2 @data2vec2 (8.68 $arrow.b$)], [43.08], [73.24], [83.84], [29.89], [59.59], [72.41], [55.0], [81.8], [87.7], [41.84], [70.2], [80.24],
-    table.hline(stroke: .2pt),
-    table.cell(colspan: 13, align: left, [_Multimodal_]),
-    [BEiT-3 @beit3 (8.68 $arrow.t$)], [53.54], [81.1], [*89.52*], [35.65], [66.0], [77.77], [70.9], [92.1], [96.0], [52.72], [80.2], [87.46],
-    table.hline(stroke: .2pt),
-    table.cell(colspan: 13, align: left, [_None_]),
     [$-$ (4.17 $arrow.b$)], [47.48], [76.46], [85.98], [34.20], [64.02], [75.94], [61.0], [86.0], [92.1], [47.1], [74.82], [83.78],
     table.hline(),
   ),
@@ -118,7 +90,6 @@ classification is therefore, for the first time in this work, an actual zero-sho
   table.hline(stroke: .6pt),
   [BEiTv2 @beitv2], [37.0], [7.3],
   [Data2Vec2 @data2vec2], [24.5], [7.4],
-  [BEiT-3 @beit3], [5.8*$dagger$*], [67.15],
   [$-$], [25.8*$dagger$*], [*4.5*],
   table.hline(),
 ),
@@ -145,5 +116,3 @@ using CLIP-like zero-shot classification is increasing by over 1 percentage poin
 (see @imagenet_of_teachers). We observe this increase even though using no teacher at all is an actual zero-shot application, while when using
 Data2Vec2, information about ImageNet-1K can leak to the student model (Data2Vec2 has been trained on Imagenet-1K @data2vec2),
 making it _not_ a zero-shot application.
-
-Less surprising is that the performance when using BEiT-3 @beit3 as a teacher

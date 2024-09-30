@@ -51,7 +51,7 @@ gained from self-supervised can be transferred to downstream tasks. For instance
 to extract the meaning of a sentence and express it as a representation, then it
 becomes significantly simpler to classify the sentiment of the sentence using this representation.
 
-=== The Problem: Multimodality
+=== Multimodality
 While representation learning has seen success in areas like computer vision and natural language processing, creating
 interpretable representations of their respective input data, these models often lack the ability to understand that real-world
 concepts are not bound to the method in which they are expressed. Consider @image_text_example: For a human, both
@@ -82,7 +82,7 @@ shows the same concept in different modalities, so the representations should be
 This is achieved through *multimodal representation learning*, where "multimodal" refers to the ability of the model to understand and
 process multiple types of data, such as text and images.
 
-=== The Problem: Model Size
+=== Efficiency
 In recent years, the idea of multimodal representation learning has received increased attention from the scientific community.
 Methods like OpenAI's CLIP @clip, Meta's FLAVA @flava, or Microsoft's BEiT-3 @beit3 have shown that models are able to learn a joint representation
 of multiple modalities, in this case text and images. However, these models, and deep learning models in general, have also become increasingly large
