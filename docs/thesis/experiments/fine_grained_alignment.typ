@@ -1,1 +1,0 @@
-== Fine-Grained Alignment <fine_grained_alignment>
