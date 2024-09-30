@@ -1,5 +1,5 @@
 == Teacher Ablation Studies <teacher_ablations>
-In this section we will investigate the impact of using teachers different from BEiTv2 @beitv2, but still self-supervised. We will compare
+In this section we will investigate the impact of using teachers different from BEiTv2 @beitv2. We will compare
 the results with an approach that does not make use of knowledge distillation at all.
 
 === Different Teachers
@@ -13,10 +13,13 @@ used to better align image and text, or if the features are too image-specific t
 
 In both cases, we will use the contrastive target loss with a memory bank for the knowledge distillation process. As the output
 representation of the teacher we keep using the representation of the $mono(["I_CLS"])$ token, $bold(h)_(v, L_s, mono(["I_CLS"]))$.
+
 Both models are based on the same ViT-B/16 @vit @data2vec2 @dino architecture, which is the same as used by BEiTv2 @beitv2, so all teachers
 are comparable in terms of model size and complexity.
 
-=== Removing Distillation
+Additionally, we will use a supervised teacher, also based on the ViT-B/16 @vit architecture.
+
+=== Removing Distillation <teacher_ablations_no_kd>
 Throughout the previous sections we repeatedly attempted to improve our approach by reducing the gap between the text-to-image and image-to-text
 knowledge distillation losses. Unfortunately, only one of them, the contrastive target loss, was successful, but only increased the performance
 marginally. That is why we will now investigate whether the knowledge distillation process is beneficial at all.

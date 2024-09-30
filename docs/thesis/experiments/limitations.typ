@@ -1,13 +1,32 @@
 == Limitations and Insights <mm_kd_limitations>
-While the proposed method is an efficient way to traing comparatively small multimodal models, and can easily be
-adapted to other modalities, e.g. audio, it has two main limitations.
+While the proposed method is an efficient way to train comparatively small multimodal models, and can easily be
+adapted to other modalities, e.g. audio, it has its limitations.
 
-+ terrible on unimodal downstream tasks
+=== Performance on Unimodal Downstream Tasks
+When finetuning S-SMKE on unimodal downstream tasks in @fine_tuning_unimodal_tasks, we found that the performance
+is generally worse compared to the performance of the unimodal distilled models. While this is nothing unusual,
+it is still a limitation considering that the goal of multimodal models is to excel at both unimodal and multimodal tasks.
 
-First, our method relies on knowledge distillation of a self-supervised image model as the teacher. The fact that there
+Fortunately, this can be solved by not only training the multimodal model on aligning the modalities, but simultaneously
+training the modality-specific encoders, in our case the image and text encoder, on modality-specific pretraining tasks.
+A good example of this is the approach of BEiT-3 @beit3, which trains the whole model on alignment of image and text,
+but also trains the image encoder to reconstruct masked images, and the text encoder to predict masked tokens. This way,
+both encoders are encouraged to learn representations that are still specific to their modality, while providing representations
+that can also be used for multimodal tasks and therefore alignment.
+The result is that BEiT-3 reaches a finetuning accuracy of 85.4%
+#footnote[This score was not published in the original paper, but can be found in the official BEiT-3 repository:
+#link("https://github.com/microsoft/unilm/tree/master/beit3").]
+on ImageNet-1K using its image encoder, which is better than
+the performance of BEiTv2, which is an image-only model and reaches a finetuning accuracy of 85.0% @beitv2.
+Since both the image encoder of BEiT-3 and BEiTv2 are based on the same ViT-B/16 @vit architecture, the results are directly comparable
+and show that modality-specific tasks can strengthen the performance of multimodal models on unimodal tasks.
+
+=== Modality-Specific Bias
+Our method relies on knowledge distillation of a self-supervised *unimodal* image model as the teacher. The fact that there
 has been no incentive for the teacher to learn a representation that is independent of the image modality makes it difficult
-to learn a representation that is truly modality-invariant and aligned across the modalities of the student model. This
-has repeatedly been shown when comparing the loss between image-to-image and text-to-image distillation, where the former
+for the teacher to provide guidance to the student model on how to align the modalities because the teacher representations are
+not aligned and modality-agnostic themselves.
+This has repeatedly been shown when comparing the loss between image-to-image and text-to-image distillation, where the former
 is consistently lower. Interestingly, we were still able to outperform the approach of a supervised teacher, showing that
 even though the ImageNet-1K classes, which we predict using KL-Divergence (see @transformer_shre), are real-world concepts independent
 of the image modality, they might not capture the content of an image's caption better than
@@ -29,12 +48,17 @@ also shows that this approach suffers from the same problem as when using a self
 (see @kd_loss_shre_vs_ssmke). Here, the KL-Divergence
 for the image-to-image loss $cal(L)^v_"KD"$ is also consistently lower than for the text-to-image loss $cal(L)^w_"KD"$, and the loss 
 components between both approaches (Transformer SHRe and S-SMKE) generally perform very similar.
+In @shre_coco_prob_dist, which we originally showed
+to illustrate that the ImageNet-1K classes can be used to describe the image caption, we can actually see that the top-5 predicted
+classes only partly match the caption, which is a sign 
 
-We conclude that using an unimodal teacher in general is a limitation regarding alignment, and therefore performance. Still,
-due to the fact that it does not require a multimodal teacher, the approach is far more flexible and can be applied to any
-modality, as long as a suitable teacher is available.
+Consequently, when we compare our approach to that of SHRe @shre, then the inbalance between the losses
+is actually not a limitation, as SHRe suffers from the same problem, and their results generally lead to a worse performance
+compared to our approach.
 
-Second, S-SMKE (and (Transformer) SHRe) processes image and text seperately, in a forward pass for the image and a forward pass
+
+=== Fine-Grained Alignment
+S-SMKE (and (Transformer) SHRe) processes image and text seperately, in a forward pass for the image and a forward pass
 for the text. This is similar to CLIP @clip (see @clip_section). Because there is no attention mechanism between
 individual image patches and text tokens, both approaches miss a fine-grained alignment between the modalities.
 Even though our model performs quite well on the retrieval task, even outperforming well-established research papers

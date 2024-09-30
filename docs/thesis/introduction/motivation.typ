@@ -82,7 +82,7 @@ shows the same concept in different modalities, so the representations should be
 This is achieved through *multimodal representation learning*, where "multimodal" refers to the ability of the model to understand and
 process multiple types of data, such as text and images.
 
-=== Efficiency
+=== Efficiency <introduction_efficiency>
 In recent years, the idea of multimodal representation learning has received increased attention from the scientific community.
 Methods like OpenAI's CLIP @clip, Meta's FLAVA @flava, or Microsoft's BEiT-3 @beit3 have shown that models are able to learn a joint representation
 of multiple modalities, in this case text and images. However, these models, and deep learning models in general, have also become increasingly large

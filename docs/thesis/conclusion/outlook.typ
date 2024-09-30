@@ -1,8 +1,46 @@
+== Future Work
+*Positional Encoding*\
+We initialized our multimodal model with components from pretrained unimodal models, which were Data2Vec2 @data2vec2
+for the image encoder and BERT @bert for the text encoder. The representations of these models were they passed seperately
+through a shared Transformer encoder. However, we only briefly considered what implications this has for the shared
+Transformer encoder: We introduced a learnable token-type embedding, which is used to distinguish between both modalities
+(see @token_type_embeddings), which is especially important for the self-attention mechanism of the Transformer as the sequence
+of representations has an inherently different meaning for each modality: 1D for text and 2D for images.
+
+A part of these sequences are the positional encodings of the image and text encoder, respectively. These positional encodings
+are used to provide the Transformer with information about the position of each token in the sequence. However, the positional
+encodings of the image and text encoder are of a different type. While the positional encodings of the text encoder (BERT)
+are learnable representations for each position, so a learnable absolute positional encoding, the positional encoding of the
+image encoder (Data2Vec2) is a fixed sinusoidal positional encoding. Therefore, the shared Transformer encoder not only has
+to account for the difference between the modalities, but also for the difference in positional encodings.
+In contrast, other vision-langaue models like BEiT-3 @beit3 or VLMo @vlmo use the same positional encoding for both modalities,
+so it would also be worth investigating the impact of using the same positional encoding for both modalities.
+
+A caveat of using the same positional encoding type for both modalities is that it greatly restricts the flexibility of the
+choice of the pretrained unimodal models we use to initialize the modality-specific encoders. One would have to find
+pretrained unimodal models that all use the same positional encoding type, which becomes increasingly difficult with
+more modalities.
+
+*Strengthening Unimodal Encoders*\
+Finetuning S-SMKE on unimodal downstream tasks showed that our performance is generally worse on those taks compared to the performance
+of unimodal models, including our unimodal distilled models. Since this is a limitation of our approach, it is worth investigating
+how the performance of our model can be improved on unimodal tasks. 
+BEiT-3 @beit3 solves this problem by including modality-specific pretraining tasks during the training of the multimodal model,
+which we find as worth investigating for our approach as well. It would be relatively easy to include unimodal tasks
+such as masked language modeling for the text encoder and masked patch prediction for the image encoder.
+
+*Fine-Grained Alignment*\
+As already mentioned in the limitations of S-SMKE (see @mm_kd_limitations), the model processes image and text seperately.
+Even though this makes alignment on the level of global representations possible, it does not allow for fine-grained alignment
+of image and text on the level of individual image patches and text tokens. This is a limitation that is shared with approaches
+like CLIP @clip. This *limits* the actual application of S-SMKE to image-text retrieval, as other vision language tasks
+like image captioning, visial question answering, or visual reasoning require individual image patches
+to attend to individual text tokens, and vice versa. This is only possible through cross-modal attention, which is not
+part of our approach. To ensure a wider applicability of our approach, it would be necessary to include such a cross-modal
+attention mechanism by e.g. concatenating the image and text representations and passing them through the shared Transformer
+layer(s). For details on cross-modal attention through concatenation we refer to BEiT-3 @beit3.
+
 == Outlook
-This work has demonstrated the feasibility of generating a vision-language model from unimodal
-components through an end-to-end self-supervised learning approach. The resulting model,
-while not reaching the performance of state-of-the-art vision-language models, shows
-promising results across various benchmarks.
 
 *Towards a General Framework*\
 While this work introduces efficient multimodal
@@ -52,29 +90,3 @@ this leads to suboptimal performance).
 
 We therefore deem it as critical to explore the alignment of more than two modalities with an end-to-end self-supervised
 learning approach so that our philosophy of general modality-invariant representations can be fully realized.
-
-*Positional Encoding*\
-We initialized our multimodal model with components from pretrained unimodal models, which were Data2Vec2 @data2vec2
-for the image encoder and BERT @bert for the text encoder. The representations of these models were they passed seperately
-through a shared Transformer encoder. However, we only briefly considered what implications this has for the shared
-Transformer encoder: We introduced a learnable token-type embedding, which is used to distinguish between both modalities
-(see @token_type_embeddings), which is especially important for the self-attention mechanism of the Transformer as the sequence
-of representations has an inherently different meaning for each modality: 1D for text and 2D for images.
-
-A part of these sequences are the positional encodings of the image and text encoder, respectively. These positional encodings
-are used to provide the Transformer with information about the position of each token in the sequence. However, the positional
-encodings of the image and text encoder are of a different type. While the positional encodings of the text encoder (BERT)
-are learnable representations for each position, so a learnable absolute positional encoding, the positional encoding of the
-image encoder (Data2Vec2) is a fixed sinusoidal positional encoding. Therefore, the shared Transformer encoder not only has
-to account for the difference between the modalities, but also for the difference in positional encodings.
-In contrast, other vision-langaue models like BEiT-3 @beit3 or VLMo @vlmo use the same positional encoding for both modalities,
-so it would also be worth investigating the impact of using the same positional encoding for both modalities.
-
-A caveat of using the same positional encoding type for both modalities is that it greatly restricts the flexibility of the
-choice of the pretrained unimodal models we use to initialize the modality-specific encoders. One would have to find
-pretrained unimodal models that all use the same positional encoding type, which becomes increasingly difficult with
-more modalities.
-
-*Modality-Specific Bias*\
-
-//*Fine-Grained Alignment*\
