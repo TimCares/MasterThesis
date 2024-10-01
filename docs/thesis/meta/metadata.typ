@@ -1,5 +1,5 @@
 #let details = (
-  title: "Leveraging Pretrained Unimodal Models for Efficient Multimodal Learning",
+  title: "Leveraging Pretrained Unimodal Models for Efficient Vision-Language Pretraining",
   date: "9. Oktober 2024",
   language: "en",
   degree: "Master",

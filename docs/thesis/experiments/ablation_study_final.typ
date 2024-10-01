@@ -44,18 +44,16 @@ the model and increase the computational cost, as the contrastive loss has to be
 The contrastive loss now changes from:
 
 $
-cal(L)_("CL") &= \
-1/2 * (cal(L)_("CL"') &+ cal(L)_("CL"'')) = \
-1/4cal(L)_("CL"')^("i2t") &+ 1/4cal(L)_("CL"')^("t2i") + \
-1/4cal(L)_("CL"'')^("i2t") &+ 1/4cal(L)_("CL"'')^("t2i")
+cal(L)_("CL") &= 1/2 * (cal(L)_("CL"') + cal(L)_("CL"''))\
+&= 1/4cal(L)_("CL"')^("i2t") + 1/4cal(L)_("CL"')^("t2i") + \
+& quad thin 1/4cal(L)_("CL"'')^("i2t") + 1/4cal(L)_("CL"'')^("t2i")
 $ <contrastive_loss_small>
 
 To the following:
 
 $
-cal(L)_("CL") &= \
-1/2 * cal(L)_("CL"'') &= \
-1/2cal(L)_("CL"'')^("i2t") &+ 1/2cal(L)_("CL"'')^("t2i")
+cal(L)_("CL") &= 1/2 * cal(L)_("CL"'')\
+&= 1/2cal(L)_("CL"'')^("i2t") + 1/2cal(L)_("CL"'')^("t2i")
 $ <contrastive_loss_big>
 
 For the loss $cal(L)_("CL"'')$ we keep using the representation $bold(h)''_(v, K, mono(["I_CLS"]))$ for the image and
@@ -68,8 +66,8 @@ $U=2$ and $K=2+12=14$.
 *Training*\
 As previously mentioned, we now train for 15 epochs, and use 2 NVIDIA A100 80GB GPUs. The batch size is increased
 to the maximum that fits into the memory of the GPUs, which is 512. We keep communicating the representations used
-for the contrastive loss between both GPUs, so that the batch size on which the contrastive loss is computed is
-1024. We keep using BEiTv2 @beitv2 as the teacher, and the contrastive target loss with a memory bank for the
+for the contrastive loss between both GPUs, so that the batch size on which the contrastive loss is computed is 1024.
+We keep using BEiTv2 @beitv2 as the teacher, and the contrastive target loss with a memory bank for the
 knowledge distillation loss stays the same as well.
 
 The authors of METER @meter suggest to use a lower learning rate for the pretrained unimodal (image and text) encoders,

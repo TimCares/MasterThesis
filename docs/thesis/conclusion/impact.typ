@@ -1,9 +1,4 @@
 == Broader Impact
-This work focused on reducing the computational cost of training vision-language models by leveraging pretrained unimodal models.
-Even though our approach does not reach state-of-the-art performance, which is not to be expected given that the models we compare to
-have been developed by organizations such as OpenAI, Meta, and Microsoft, it clearly demonstrates the potential of leveraging existing
-components to generate new model paradigms, such as multimodal models.
-
 This work focuses on reducing the computational cost of training vision-language models by
 leveraging pretrained unimodal models. While our approach does not achieve state-of-the-art
 performance, which is not surprising given that we compare against models developed by large organizations

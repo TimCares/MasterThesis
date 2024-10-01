@@ -149,8 +149,8 @@ Again, this is not surprising, as models like BEiTv2 @beitv2 and Data2Vec2 @data
 comparison with FLAVA @flava, which is a multimodal model that also uses its image encoder for downstream image classification tasks.
 We can see that FLAVA outperforms S-SMKE on all tasks, but since the image encoder of FLAVA is a full ViT-B/16 @vit @flava model with 12 layers,
 and the image encoder of S-SMKE has only 6 layers, FLAVA's results are based on a model twice as large as S-SMKE's image encoder.
-We therefore consider the performance of S-SMKE on ImageNet-1K as acceptable, even though we do not consider it is obviously
-not the strength of our model,
+We therefore consider the performance of S-SMKE on ImageNet-1K as acceptable, even though we do not consider it as
+the strength of our model,
 which lies more in image-text retrieval.
 
 === Language <fine_tuning_text_classification>
