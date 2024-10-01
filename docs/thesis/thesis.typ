@@ -3,7 +3,6 @@
   import "meta/cover.typ": cover
   import "meta/disclaimer.typ": disclaimer
   import "meta/acknowledgement.typ": acknowledgement
-  import "meta/abstract.typ": abstract
   import "meta/metadata.typ": details
 
   // ==========================================================================
@@ -57,7 +56,7 @@
 
   acknowledgement()
 
-  abstract()
+  include("meta/abstract.typ")
 
   // ============================================================================
   // TOC
