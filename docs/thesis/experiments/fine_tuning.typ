@@ -73,15 +73,19 @@ and we refer to @unimodal_kd_data2vec2_finetuning for more details.
     [Finetune],
   ),
   table.hline(stroke: .6pt),
-    [FLAVA*$dagger$* @flava], [*93.44*], [-], [*78.37*], [-],
+    [BEiTv2 @beitv2], [*94.4*], [*98.8*], [*78.5*], [*91.1*],
+    [FLAVA*$dagger$* @flava], [93.44], [-], [78.37], [-],
   table.hline(stroke: .3pt),
     [DistilData2Vec2], [68.4], [97.0], [46.2], [85.1],
     [S-SMKE*$dagger$*], [89.7], [97.6], [71.3], [85.2],
-    [C-DistilData2Vec2], [#underline[93.2]], [*97.7*], [#underline[77.3]], [*87.2*],
+    [C-DistilData2Vec2], [#underline[93.2]], [#underline[97.7]], [#underline[77.3]], [#underline[87.2]],
   table.hline(),
 ),
   caption: [
     Results of performing linear evaluation and full finetuning of the image encoder from S-SMKE on CIFAR-10/100 @cifar_10_100.
+    Note that the authors of BEiTv2 did not publish results on CIFAR-10 and CIFAR-100, so we perform finetuning and linear evaluation
+    on the models ourselves. The procedure for linear evaluation and finetuning is the same as for our own models, with the exception
+    that we use a batch size of 128 for finetuning, instead of 256. This is required to avoid out-of-memory errors.
   ],
 )<cifar_finetune_results_s_smke>
 #show table: set text(12pt)
