@@ -70,7 +70,7 @@ optimizer:
   betas: [ 0.9,0.98 ]
   eps: 1e-06
   weight_decay: 0.01
-  max_steps: 89273
+  max_steps: 11080
 
 lightning_trainer:
   default_root_dir: ${log_dir}

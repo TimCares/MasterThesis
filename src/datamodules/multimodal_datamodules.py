@@ -278,17 +278,29 @@ class Flickr30DataModule(BaseImageTextDataModule):
     def set_train_dataset(self):
         self.train_dataset = Flickr30Dataset(data_path=self.data_path,
                                              split='train',
-                                             num_max_bpe_tokens=self.num_max_bpe_tokens,)
+                                             num_max_bpe_tokens=self.num_max_bpe_tokens,
+                                             color_jitter=self.color_jitter,
+                                             beit_transforms=self.beit_transforms,
+                                             crop_scale=self.crop_scale,
+                                             text_token_mask_prob=self.text_token_mask_prob,)
 
     def set_val_dataset(self):
         self.val_dataset = Flickr30Dataset(data_path=self.data_path,
                                            split='val',
-                                           num_max_bpe_tokens=self.num_max_bpe_tokens,)
+                                           num_max_bpe_tokens=self.num_max_bpe_tokens,
+                                           color_jitter=False,
+                                           beit_transforms=False,
+                                           crop_scale=(1.0, 1.0),
+                                           text_token_mask_prob=self.text_token_mask_prob,)
 
     def set_test_dataset(self):
         self.test_dataset = Flickr30Dataset(data_path=self.data_path,
                                             split='test',
-                                            num_max_bpe_tokens=self.num_max_bpe_tokens,)
+                                            num_max_bpe_tokens=self.num_max_bpe_tokens,
+                                            color_jitter=False,
+                                            beit_transforms=False,
+                                            crop_scale=(1.0, 1.0),
+                                            text_token_mask_prob=self.text_token_mask_prob,)
         
 
 class Flickr8AudioDataModule(BaseImageAudioDataModule):

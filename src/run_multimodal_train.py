@@ -49,10 +49,11 @@ def main(cfg: DictConfig) -> None:
         resume='allow',
     )
     
-    cfg_cls = MODEL_REGISTRY[cfg.model_name]['cfg']
+    if 'cfg' in MODEL_REGISTRY[cfg.model_name].keys():
+        cfg_cls = MODEL_REGISTRY[cfg.model_name]['cfg']
+        cfg.model = merge_with_parent(dc=cfg_cls(), cfg=cfg.model, remove_missing=False)
     module_cls = MODEL_REGISTRY[cfg.model_name]['module']
     
-    cfg.model = merge_with_parent(dc=cfg_cls(), cfg=cfg.model, remove_missing=False)
     if 'seed' in cfg and cfg.seed is not None:
         seed_everything(seed=cfg.seed, workers=True)
     else:
