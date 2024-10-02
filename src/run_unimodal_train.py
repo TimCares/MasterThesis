@@ -11,7 +11,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint, Mo
 from pytorch_lightning.loggers import WandbLogger
 from models import MODEL_REGISTRY
 from datamodules import DATAMODULE_REGISTRY
-from callbacks import WallClockCallback
+from callbacks import WallClockCallback, RetrievalCallback
 from datetime import datetime
 import git
 from fairseq.dataclass.utils import merge_with_parent
@@ -84,6 +84,8 @@ def main(cfg: DictConfig) -> None:
     name = datamodule_args.pop('_name')
     datamodule = DATAMODULE_REGISTRY[name](**datamodule_args)
     logger.info(f"Datamodule {name}: {datamodule_args}")
+
+    callbacks.append(RetrievalCallback(datamodule=datamodule, name=name))
 
     logger.info("Setting up datamodules:")
     datamodule.prepare_data()

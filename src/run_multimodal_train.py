@@ -19,7 +19,7 @@ from callbacks import (
     WallClockCallback,
     GracefulStoppingCallback,
     ResumeCheckModelCheckpoint,
-    COCOCallback,
+    RetrievalCallback,
 )
 from fairseq.dataclass.utils import merge_with_parent
 
@@ -116,7 +116,7 @@ def main(cfg: DictConfig) -> None:
         logger.info(f"Train datamodule {datamodule_key}: {dataset_args}")
 
         if datamodule_key == 'coco_captions':
-            callbacks.append(COCOCallback(datamodule=dm_))
+            callbacks.append(RetrievalCallback(datamodule=dm_, name='coco_captions'))
     
     multi_datamodule = MultiDataModule(datamodules=datamodules, **dataloader_args)
 
