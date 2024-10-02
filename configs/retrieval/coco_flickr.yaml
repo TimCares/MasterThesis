@@ -26,4 +26,7 @@ data:
       beit_transforms: False
       crop_scale: [1.0, 1.0]
 
-    flickr30: {}
+    flickr30:
+      color_jitter: # None
+      beit_transforms: False
+      crop_scale: [1.0, 1.0]
