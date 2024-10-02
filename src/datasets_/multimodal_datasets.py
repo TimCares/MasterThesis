@@ -121,19 +121,22 @@ class COCOCaptions(BaseImageText):
 
 
 class Flickr30Dataset(BaseImageText):
-    def __init__(self, 
+    def __init__(self,
                  data_path,
                  split,
                  num_max_bpe_tokens,
-                 text_token_mask_prob=0.0,
+                 color_jitter,
+                 beit_transforms,
+                 crop_scale,
+                 text_token_mask_prob=0.0
                  ):
         super().__init__(
             data_path=data_path,
             split=split,
             num_max_bpe_tokens=num_max_bpe_tokens,
-            color_jitter=None,
-            beit_transforms=False,
-            crop_scale=(1.0, 1.0),
+            color_jitter=color_jitter,
+            beit_transforms=beit_transforms,
+            crop_scale=crop_scale,
             text_token_mask_prob=text_token_mask_prob
         )
 

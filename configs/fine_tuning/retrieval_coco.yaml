@@ -1,0 +1,86 @@
+# @package _global_
+
+hydra:
+  run:
+    dir: .
+
+defaults:
+  - _self_ # this first, so that the base config can be overridden by others
+  
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+
+dry_run: False
+base_dir: "/workspace"
+model_path: ${base_dir}/models
+data_path: ${base_dir}
+log_dir: ${base_dir}/logs
+seed: 42
+
+run_name: retrieval_finetune_coco
+id:
+model_name: retrieval_finetune
+
+model_path:
+model_name: 
+
+load_checkpoint:
+
+nlp_context_length: 64 # inspired by BEiT3
+
+data:
+  dataloader:
+    batch_size: 1024
+    num_workers: 8
+    shuffle: True
+    drop_last: True
+
+  common: # keys used for all datasets
+    data_path: ${data_path}
+    num_max_bpe_tokens: ${nlp_context_length}
+    color_jitter: # None
+    beit_transforms: False
+    crop_scale: [0.9, 1.0]
+    text_token_mask_prob: 0.0
+
+  datamodules:
+    coco_captions:
+      task: captioning
+
+checkpoint:
+  common:
+    dirpath: ${model_path}/${run_name}
+    enable_version_counter: False
+    every_n_epochs: 1
+    save_on_train_epoch_end: False # False -> run at end of validation
+    verbose: True
+    auto_insert_metric_name: False
+
+  checkpoints:
+    - monitor: val/loss
+      mode: min
+      filename: model-{step}-{${.monitor}:.4f}-val
+
+    - monitor: train/loss
+      mode: min
+      filename: model-{step}-{${.monitor}:.4f}-train
+
+optimizer:
+  lr: 5e-5
+  betas: [ 0.9,0.98 ]
+  eps: 1e-06
+  weight_decay: 0.01
+  max_steps: 89273
+
+lightning_trainer:
+  default_root_dir: ${log_dir}
+  accelerator: gpu
+  devices: -1
+  max_epochs: 20
+  num_sanity_val_steps: 0 # would run zero shot at the beginning if > 0
+  precision: 16-mixed
+  log_every_n_steps: 50
+
+  ddp:
+    gradient_as_bucket_view: True # optimizes memory usage
+    static_graph: True # optimizes memory usage

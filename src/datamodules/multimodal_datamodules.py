@@ -262,34 +262,33 @@ class Flickr30DataModule(BaseImageTextDataModule):
     def __init__(self,
                  data_path,
                  num_max_bpe_tokens,
+                 color_jitter=None,
+                 beit_transforms=False,
+                 crop_scale=(0.6, 1.0),
+                 text_token_mask_prob=0.0,
                  *args,
                  **kwargs):
         super().__init__(data_path, *args, **kwargs)
         self.num_max_bpe_tokens = num_max_bpe_tokens
+        self.color_jitter = color_jitter
+        self.beit_transforms = beit_transforms
+        self.crop_scale = crop_scale
+        self.text_token_mask_prob = text_token_mask_prob
 
-    def prepare_data(self):
-        if not hasattr(self, 'test_dataset'):
-            self.set_test_dataset()
+    def set_train_dataset(self):
+        self.train_dataset = Flickr30Dataset(data_path=self.data_path,
+                                             split='train',
+                                             num_max_bpe_tokens=self.num_max_bpe_tokens,)
 
-    def setup(self, stage=None):
-        if stage == 'test' or stage is None:
-            self.test_dataset.load()
+    def set_val_dataset(self):
+        self.val_dataset = Flickr30Dataset(data_path=self.data_path,
+                                           split='val',
+                                           num_max_bpe_tokens=self.num_max_bpe_tokens,)
 
-    # def set_train_dataset(self):
-    #     self.train_dataset = Flickr30Dataset(data_path=self.data_path,
-    #                                          split='train',
-    #                                          num_max_bpe_tokens=self.num_max_bpe_tokens,)
-
-    # def set_val_dataset(self):
-    #     self.val_dataset = Flickr30Dataset(data_path=self.data_path,
-    #                                        split='val',
-    #                                        num_max_bpe_tokens=self.num_max_bpe_tokens,)
-
-    def set_test_dataset(self): # to be used for zero-shot retrieval
+    def set_test_dataset(self):
         self.test_dataset = Flickr30Dataset(data_path=self.data_path,
                                             split='test',
-                                            num_max_bpe_tokens=self.num_max_bpe_tokens,
-                                            text_token_mask_prob=0.0,)
+                                            num_max_bpe_tokens=self.num_max_bpe_tokens,)
         
 
 class Flickr8AudioDataModule(BaseImageAudioDataModule):

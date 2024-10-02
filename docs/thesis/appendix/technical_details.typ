@@ -43,6 +43,68 @@ proportionally with the number of GPUs used, so for us, a two-GPU instance costs
 
 === Costs Breakdown
 
+#show table: set text(8pt)
+#figure(
+  table(
+    columns: 8,
+    stroke: 0.6pt,
+    table.hline(),
+    table.header(
+      [*Model*],
+      [*Hardware*],
+      [*Compute Time (hrs)*],
+      [*Compute Cost (\$)*],
+      [*Data*],
+      [*Additional Costs (\$)*],
+      [*Total Cost (\$)*],
+      [*Estim. AWS\ Cost (\$)*],
+    ),
+    table.hline(stroke: .6pt),
+    [DistilData2Vec2], [1x RTX 4090], [], [], [], [], [], [],
+    [C-DistilData2Vec2], [1x RTX 4090], [], [], [], [], [], [],
+    [F-DistilBERT], [1x RTX 4090], [], [], [], [], [], [],
+    [SHRe], [2x RTX 4090], [], [], [], [], [], [],
+    [Transformer SHRe], [2x RTX 4090], [], [], [], [], [], [],
+    [S-SMKE], [2x RTX 4090], [], [], [], [], [], [],
+    [S-SMKE#sub[CTL\_MB]], [2x RTX 4090], [], [], [], [], [], [],
+    [S-SMKE+], [*2x A100 80GB*], [], [], [], [], [], [],
+    table.hline(),
+  ),
+  caption: [
+    
+  ],
+)<cost_breakdown>
+#show table: set text(11pt)
+
+#show table: set text(8pt)
+#figure(
+  table(
+    columns: 4,
+    stroke: none,
+    table.hline(),
+    table.header(
+      [],
+      [*Amount*],
+      [*Total Cost (\$)*],
+      [*Estim. AWS Cost (\$)*],
+    ),
+    table.hline(stroke: .6pt),
+    [Pretraining], [], [1,603], [], 
+    [Finetuning], [138h], [141], [],
+    [Data Transfer], [1TB], [38.8], [-],
+    [Data Storage], [1TB], [190], [1,470#footnote[Cost was calculated based on the price for 1TB of storage on AWS S3 in the region (Europe)
+    Frankfurt, which is, as of September 2024, \$0.0245 per GB per month: #link("https://aws.amazon.com/s3/pricing/")]], 
+    table.hline(),
+    table.hline(),
+    [Total], [-], [1,744], [],
+    table.hline(),
+  ),
+  caption: [
+    
+  ],
+)<cost_breakdown>
+#show table: set text(11pt)
+
 // cost of each model training and storage
 
 // total table, combining all costs and comparing if AWS was used
