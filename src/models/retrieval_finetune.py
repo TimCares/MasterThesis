@@ -16,8 +16,8 @@ class RetrievalLightningModule(L.LightningModule):
         super().__init__()
         self.cfg = cfg
         
-        model_cls:LightningModule = MODEL_REGISTRY[self.cfg.model_name]['module']
-        self.module = model_cls.load_from_checkpoint(self.cfg.model_path)
+        model_cls:LightningModule = MODEL_REGISTRY[self.cfg.pretrained.model_name]['module']
+        self.module = model_cls.load_from_checkpoint(self.cfg.pretrained.model_path, strict=False)
         del self.module.teacher
         del self.module.logit_scale_target
         
