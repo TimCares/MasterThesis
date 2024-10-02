@@ -16,7 +16,7 @@ that can also be used for multimodal tasks and therefore alignment.
 The result is that BEiT-3 reaches a finetuning accuracy of 85.4%
 #footnote[This score was not published in the original paper, but can be found in the official BEiT-3 repository:
 #link("https://github.com/microsoft/unilm/tree/master/beit3").]
-on ImageNet-1K using its image encoder, which is better than
+on ImageNet-1K using its image encoder. This is better than
 the performance of BEiTv2, which is an image-only model and reaches a finetuning accuracy of 85.0% @beitv2.
 Since both the image encoder of BEiT-3 and BEiTv2 are based on the same ViT-B/16 @vit architecture, the results are directly comparable
 and show that modality-specific tasks can strengthen the performance of multimodal models on unimodal tasks.
@@ -48,22 +48,18 @@ also shows that this approach suffers from the same problem as when using a self
 (see @kd_loss_shre_vs_ssmke). Here, the KL-Divergence
 for the image-to-image loss $cal(L)^v_"KD"$ is also consistently lower than for the text-to-image loss $cal(L)^w_"KD"$, and the loss 
 components between both approaches (Transformer SHRe and S-SMKE) generally perform very similar.
-In @shre_coco_prob_dist, which we originally showed
-to illustrate that the ImageNet-1K classes can be used to describe the image caption, we can actually see that the top-5 predicted
-classes only partly match the caption, which is a sign 
 
-Consequently, when we compare our approach to that of SHRe @shre, then the inbalance between the losses
-is actually not a limitation, as SHRe suffers from the same problem, and their results generally lead to a worse performance
-compared to our approach.
-
+Consequently, a bias towards the teacher modality is not specific to S-SMKE, but generally a problem
+when using an unimodal teacher for distilling knowledge to a multimodal model.
 
 === Fine-Grained Alignment
-S-SMKE (and (Transformer) SHRe) processes image and text seperately, in a forward pass for the image and a forward pass
+S-SMKE (and SHRe) processes image and text seperately through a forward pass for the image and a forward pass
 for the text. This is similar to CLIP @clip (see @clip_section). Because there is no attention mechanism between
 individual image patches and text tokens, both approaches miss a fine-grained alignment between the modalities.
 Even though our model performs quite well on the retrieval task, even outperforming well-established research papers
 on some metrics, there is still room for improvement. However, we believe that there is not much more performance to gain
-for our approach. Wrong retrievals are often still similar to the query, and only differ in little token-level details.
+for our approach. Wrong retrievals, mostly wrong image retrievals, are often still semantically
+similar to the query, and only differ in little (token-level) details.
 Since our representations are based on the global content of the image and text, those details are not captured in most
 cases, leading to a "false" retrieval. Examples of this can be seen with example retrievals on the full MSCOCO test set
 in @coco25k_retrieval_examples,
@@ -79,15 +75,18 @@ Still, the problem remains, and is actually relevant when it comes to applicatio
 This includes tasks like visual question answering and visual reasoning, benchmarked by the datasets VQAv2 @vqav2 and
 NLVR2 @nlvr2, respectively.
 
-For instance, in NLVR2, the task is to decide whether a given sentence about an image is either true or false.
-The sentence, so the statement about the image, often focuses on fine-grained details, for which there is no guarantee
-that they are captured just by global representations. Furthermore, the statement can often not even be considered as
-a caption, as is can also be a false statement about the image. Examples of this can be seen in @nlvr2_examples.
+For instance, in NLVR2 the task is to decide whether a given sentence about an image is either true or false.
+The sentence, so the statement about the image, often focuses on fine-grained details for which there is no guarantee
+that they are captured by just global representations. Further,
+even if statements are false, then the differences between the image and the statement are often so subtle that the statement,
+on a high level,
+can still be considered as a caption for the image. If e.g. the cosine similarity between the global representations
+of image and statement would be used as the binary classifier, then the model would likely fail on such tasks.
+Examples of NLVR2 can be seen in @nlvr2_examples.
 
 That simply aligning global representations is not enough to excel in such tasks was also shown by the authors
 of ViLT @vilt, who were one of the first to propose a model that aligns image and text on a fine-grained level.
-They found that when finetuning CLIP @clip on the NLVR2 dataset, using the dot-product of the global representations
-of image and statement as the binary classifier, the model achieved an accuracy of only 51% @vilt. Considering that the task
+They found that when finetuning CLIP @clip on the NLVR2 dataset the model achieved an accuracy of only 51% @vilt. Considering that the task
 is a binary classification, and both classes are equally distributed, this is only slightly better than random guessing
 and therefore unusable for practical applications. Since our model works on a similar level of alignment, the same
 will likely apply with our approach.

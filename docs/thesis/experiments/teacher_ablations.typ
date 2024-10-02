@@ -1,6 +1,7 @@
 == Teacher Ablation Studies <teacher_ablations>
-In this section we will investigate the impact of using teachers different from BEiTv2 @beitv2. We will compare
-the results with an approach that does not make use of knowledge distillation at all. To avoid repretition, we will
+In this section we will investigate how sensitive our approach is to teachers different from BEiTv2 @beitv2, and
+we will test if a teacher is needed at all. 
+To avoid repretition, we will
 will first introduce the individual ablations, and then present the results at the end of this section.
 
 === Different Teachers
@@ -34,7 +35,6 @@ are comparable in terms of model size and complexity.
 Throughout the previous sections we repeatedly attempted to improve our approach by reducing the gap between the text-to-image and image-to-text
 knowledge distillation losses. Unfortunately, only one of them, the contrastive target loss, was successful, but only increased the performance
 marginally. That is why we will now investigate whether the knowledge distillation process is beneficial at all.
-
 To test this, we will train a version without any knowledge distillation, and only use the contrastive loss:
 
 $
@@ -43,16 +43,12 @@ $
 
 Since we now only focus on the alignment of the visual and textual features, we remove the linear layer that produced
 the representations $bold(h)'''_(v, K, mono(["I_CLS"]))$ and $bold(h)'''_(w, K, mono(["T_CLS"]))$. They were used to predict
-the teacher representation $bold(h)_(v, L_s, mono(["I_CLS"]))$ using the mse loss in earlier experiments, and using
+the teacher representation $bold(h)_(v, L_s, mono(["I_CLS"]))$ using the mean squared error loss in earlier experiments, and using
 the contrastive target loss in the latest successful experiments. However, without knowledge distillation, they are no longer
 needed.
 
 Everything else about the model architecture and training process remains the same, both the image and text encoder
 are still initialized with layers from Data2Vec2 @data2vec2 and BERT @bert, respectively.
-
-Since we are now not using a teacher that has been trained on ImageNet-1K (we are not using a teacher at all), no information about
-the ImageNet-1K dataset can leak to our student model (see @s_smke_results). The performance on ImageNet-1K using CLIP zero-shot
-classification is therefore, for the first time in this work, an actual zero-shot application.
 
 === Results
 
@@ -111,13 +107,13 @@ classification is therefore, for the first time in this work, an actual zero-sho
   [BEiTv2 FT @beitv2], [34.6], [72.5], [*61.16*], [82.23], [72.07],
   [Data2Vec2 @data2vec2], [24.5], [66.72], [53.96], [74.83], [64.09],
   [DINO @dino], [*37.5*], [71.88], [57.63], [82.07], [69.45],
-  [$-$], [25.8*$dagger$*], [69.97], [58.05], [79.7], [68.57],
+  [$-$], [25.8], [69.97], [58.05], [79.7], [68.57],
   table.hline(),
 ),
     caption: [
       Comparison of the retrieval performance when using different teachers for knowledge distillation.
       "I2T" and "T2I" denote text retrieval from image and image retrieval from text, respectively.
-      We denote a BEiTv2 finetuned on ImageNet-1K as "BEiTv2 FT". Zero-shot performance is indicated by *$dagger$*.
+      We denote a BEiTv2 finetuned on ImageNet-1K as "BEiTv2 FT".
     ]
 ) <image_text_retrieval_teachers>
 
@@ -142,39 +138,49 @@ classification is therefore, for the first time in this work, an actual zero-sho
 // ),
 //     caption: [
 //       Comparison of ImageNet-1K performance, using CLIP-like zero-shot classification, and training time for various teachers.
-//       *$dagger$* indicates zero-shot, and $-$ indicates no teacher.
+//       $-$ indicates no teacher.
 //     ]
 // ) <imagenet_of_teachers>
 
 We show a comparison of the retrieval performance between different teacher, and the performance on
 ImageNet-1K, in @image_text_retrieval_teachers. We observe that the choice of the teacher is significant
 for the performance of the student, especially in the unimodal case. We observe a significant reduction across
-all benchmarks when using Data2Vec2 @data2vec2 as the teacher, and a lower reduction when using DINO @dino.
-For Data2Vec2, we lose up to 12 in the retrieval metrics, and 12.5 percentage points
+all benchmarks when using Data2Vec2 @data2vec2 as the teacher, and a slight reduction when using DINO @dino.
+For Data2Vec2, we lose up to 12 percentage points in the retrieval metrics, and 12.5 percentage points
 on ImageNet-1K CLIP-like classification, while for DINO, we lose up to 4 percentage points in the retrieval metrics, but gain
 half a percentage point on ImageNet-1K.
 
-We assume that this can be attributed to the different strategies used to train BEiTv2, Data2Vec2, and DINO.
+*Self-Supervised Teachers*\
+We assume that the decrease in performance can be attributed to the different strategies used to train BEiTv2, Data2Vec2, and DINO.
 In contrast to Data2Vec2, the architecture and loss of BEiTv2 forces the model to aggregate as much (global) information
 as possible in the $mono(["I_CLS"])$ token @beitv2, which is the token we predict
-in the student model. Aggregating global information in one token
+with the student model. Aggregating global information in one token
 leads to it being less sensitive to smaller regions of the image, which is crucial
 when we predict the representation of the $mono(["I_CLS"])$ token
-using the caption of the image. Data2Vec2, on the other hand, only includes a small
+using the caption of the image ($cal(L)^("t2i")_"KD"$ loss). Data2Vec2, on the other hand, only includes a small
 term in the loss that forces the model to aggregate global
-information in the $mono(["I_CLS"])$ token. However, this term has a weight of only 1% of the total loss @data2vec2.
+information in the $mono(["I_CLS"])$ token. However, this term has a weight of only 1% w.r.t the total loss @data2vec2.
 
 For DINO, aggregating global information in the $mono(["I_CLS"])$ token is, similar to BEiTv2, forced by
-the architecture and the loss function. The loss function actually only operates the result for the $mono(["I_CLS"])$ token,
+the architecture and the loss function. The loss function only operates on the representation of the $mono(["I_CLS"])$ token,
 forcing the model to push all information to this token. This is why we observe a better performance when using DINO
-compared to Data2Vec2, but still a worse performance compared to BEiTv2.
-We assume this is because DINO only reaches 78.2% accuracy on ImageNet-1K when performing linear evaluation @dino,
-compared to the 80.1% of BEiTv2 @beitv2. So the quality of the representation of the $mono(["I_CLS"])$ token seems to be
+compared to Data2Vec2.
+We assume the performance with DINO is worse than with BEiTv2, because DINO
+only reaches 78.2% accuracy on ImageNet-1K when performing linear evaluation @dino,
+compared to the 80.1% of BEiTv2 @beitv2. So the quality of the representation for the $mono(["I_CLS"])$ token seems to be
 higher for BEiTv2 than for DINO.
 
-It is particularly striking that the performance on ImageNet-1K
-using CLIP-like zero-shot classification is increasing by over 1 percentage points when using no teacher at all, compared to using Data2Vec2
-(see @image_text_retrieval_teachers). We observe this increase even though
-using no teacher at all is an actual zero-shot application, while when using
-Data2Vec2, information about ImageNet-1K can leak to the student model (Data2Vec2 has been trained on Imagenet-1K @data2vec2),
-making it _not_ a zero-shot application.
+*Supervised Teacher*\
+Using a BEiTv2 finetuned on ImageNet-1K also generally leads to a drop in performance, although it is
+less pronounced than with Data2Vec2. However, we observe an increase in image retrieval from text on MSCOCO by
+around 1.2 percentage points. This comparison between self-supervised and supervised teacher, which is now unbiased
+due to the same model size, reflects our previous findings that using representations from self-supervised models
+are more beneficial that probability distributions from supervised models. Consequently, our approach not only
+does not rely on labeled data in the end-to-end training process, but also leads to better performance, compared
+to the method proposed by the authors of SHRe @shre.
+
+*S-SMKE without Distillation*\
+We further observe that using no knowledge distillation at all, leads, as with Data2Vec2, to a significant drop in performance.
+This shows that guiding the alignment with knowledge distillation is crucial for the performance of S-SMKE. However, as we can
+see when comparing this performance with the Data2Vec2 teacher, the advantage of using knowledge distillation can only be
+exploited when the teacher's representation of the $mono(["I_CLS"])$ aggregates as much global information as possible.

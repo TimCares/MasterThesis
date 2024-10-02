@@ -16,5 +16,7 @@ only 0.75% of the data used by CLIP and 4.3% by FLAVA.
 These finding underscore the potential for designing efficient multimodal models,
 and therefore lay the foundation for future research on financially accessible
 models, promoting broader participation in multimodal learning.
+To promote transparency and facilitate further research, we have made our code for training and
+evaluating our model publicly available.
 ]
 #pagebreak()
