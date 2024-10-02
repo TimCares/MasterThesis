@@ -53,6 +53,11 @@ checkpoint:
     verbose: True
     auto_insert_metric_name: False
 
+  checkpoints:
+    - monitor: val/coco_captions
+      mode: min
+      filename: model-{step}-{${.monitor}:.4f}-val
+
     - monitor: train/loss
       mode: min
       filename: model-{step}-{${.monitor}:.4f}-train
