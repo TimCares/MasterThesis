@@ -41,16 +41,19 @@ is the case for most training runs in this work. As of September 2024, the price
 is \$0.69 per GPU hour, while the price for a spot instance is just \$0.35 per GPU hour. The price for an instance increases
 proportionally with the number of GPUs used, so for us, a two-GPU instance costs \$1.38 per GPU hour.
 
-=== Costs Breakdown
+=== Cost Breakdown
+We present a summary of the costs for training individual models in @cost_breakdown_models and the cumulative costs for pretraining, fine-tuning, data transfer, and data storage in @full_cost_breakdown. The total expenses for this thesis amount to \$1,744, which, thanks to the cost-effective GPU instances on runpod.io, is significantly lower than the estimated costs on AWS, which would
+be more than \$6,195.
 
 #show table: set text(8pt)
 #figure(
   table(
-    columns: 6,
+    columns: 7,
     stroke: 0.6pt,
     table.hline(),
     table.header(
       [*Model*],
+      [*Parameters*],
       [*Data\ (Samples)*],
       [*Hardware*],
       [*Compute Time (hrs)*],
@@ -58,20 +61,20 @@ proportionally with the number of GPUs used, so for us, a two-GPU instance costs
       [*Estim. AWS\ Cost (\$)*@v100_aws_cost],
     ),
     table.hline(stroke: .6pt),
-    [DistilData2Vec2], [1.28M], [1$times$ RTX 4090], [6.9], [4.8], [21.1], 
-    [C-DistilData2Vec2], [1.28M], [1$times$ RTX 4090], [6.9], [4.8], [21.1],
-    [F-DistilBERT], [13M], [1$times$ RTX 4090], [27], [18.6], [82.6], 
-    [SHRe], [3.3M], [1$times$ RTX 4090], [13.1], [9.1], [40.1],
-    [Transformer SHRe], [3.3M], [2$times$ RTX 4090], [7.7], [10.6], [47.1],
-    [S-SMKE], [3.3M], [2$times$ RTX 4090], [11.1], [15.3], [67.9], 
-    [S-SMKE#sub[CTL\_MB]], [3.3M], [2$times$ RTX 4090], [11.2], [15.5], [68.5],
-    [S-SMKE+], [3.3M], [2$times$ A100 80GB], [], [], [],
+    [DistilData2Vec2], [43M], [1.28M], [1$times$ RTX 4090], [6.9], [4.8], [21.1], 
+    [C-DistilData2Vec2], [43M], [1.28M], [1$times$ RTX 4090], [6.9], [4.8], [21.1],
+    [F-DistilBERT], [66M], [13M], [1$times$ RTX 4090], [27], [18.6], [82.6], 
+    [SHRe], [115M], [3.3M], [1$times$ RTX 4090], [13.1], [9.1], [40.1],
+    [Transformer SHRe], [117M], [3.3M], [2$times$ RTX 4090], [7.7], [10.6], [47.1],
+    [S-SMKE], [117M], [3.3M], [2$times$ RTX 4090], [11.1], [15.3], [67.9], 
+    [S-SMKE#sub[CTL\_MB]], [117M], [3.3M], [2$times$ RTX 4090], [11.2], [15.5], [68.5],
+    [S-SMKE+], [], [3.3M], [2$times$ A100 80GB], [], [], [],
     table.hline(),
   ),
   caption: [
     Cost breakdown of all major models trained in this work.
   ],
-)<cost_breakdown>
+)<cost_breakdown_models>
 #show table: set text(11pt)
 
 #show table: set text(8pt)
@@ -103,5 +106,37 @@ proportionally with the number of GPUs used, so for us, a two-GPU instance costs
     Total costs for pretraining, finetuning, data transfer, and data storage on runpod.io@runpod_fn. We compare to the estimated costs
     on AWS for similar services.
   ],
-)<cost_breakdown>
+)<full_cost_breakdown>
 #show table: set text(11pt)
+
+Although S-SMKE, with more than 100 million parameters, is still a large model, utilizing knowledge
+distillation and pretrained unimodal models greatly reduces the costs compared to training a model from scratch.
+Training our final model, S-SMKE#sub[CTL_MB], costs \$15.5, which is negligible compared to the cost of
+training CLIP @clip, estimated at approximately \$77,414#footnote[CLIP uses 256 NVIDIA V100 32GB GPUs for 12 days
+of training. Although the exact cost per GPU hour is unknown, we estimate it to be around \$1.05 per hour, which is
+the price for a V100 16GB on AWS with a 3-year reserved instance. Since OpenAI trains models on a daily basis,
+we consider using the reserved instance price as realistic. The on-demand price for a V100 32GB is \$3.06 per hour.] <clip_cost_estimate_explained>, and the large variant of VLMo @vlmo, trained on 4 million image-text pairs,
+which costs around \$9,676#footnote[VLMo uses 128 NVIDIA V100 32GB GPUs for 3 days of training.
+Since this model was developed by researchers at Microsoft, we assume the same price as for CLIP@clip_cost_estimate_explained.].
+
+The authors of VLMo did not publish the compute used for their variant trained on 1 billion image-text pairs,
+which is the one we compare to, so the true cost will be significantly higher. Nonetheless, our model is
+approximately *99.84%* cheaper than VLMo and an astounding *99.98%* cheaper to train than CLIP. Other papers,
+such as BEiT-3 @beit3 and FLAVA @flava, unfortunately do not provide any information on the GPUs used
+or the duration of training, which is how we estimated the costs for VLMo and CLIP.
+
+While the end-to-end process of training our model is technically more expensive when accounting for
+the costs of training the unimodal models and the teacher used for distillation, these models already
+existed and were originally trained for other purposes, which is why we do not consider them in our calculation.
+Moreover, VLMo @vlmo also utilizes pretrained components in their model.
+
+It is important to note that the cost reduction does not account for the size of the datasets
+and the number of parameters of the models. Our dataset is smaller than those used by VLMo and
+significantly smaller than that used by CLIP (see @models_data_size_comparison), which is a major
+factor in the cost reduction. Additionally, we acknowledge that VLMo achieves significantly better
+results, and we only outperform CLIP on retrieval tasks. Therefore, whether the comparison can be
+considered fair is debatable, and it would be more significant if we outperformed, or were on par with,
+VLMo and CLIP on all tasks. When it comes to raw performance (and a multimodal model already exists for the use case),
+we encourage the use of pretrained multimodal models like VLMo, CLIP, or BEiT.
+Nonetheless, when it comes to building cheap and efficient multimodal models
+from scratch—that is, without any pretrained *multimodal* components—our approach excels.

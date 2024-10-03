@@ -96,7 +96,7 @@
     ),
     [FLAVA @flava], [70M],
     [CLIP @clip], [400M], 
-    [VLMo @vlmo], [10M],
+    [VLMo @vlmo], [4M/1B],
     [CoCa @coca], [>3B],
     [BEiT-3 @beit3], [21M],
     table.hline(stroke: .6pt),
@@ -104,7 +104,12 @@
     table.hline(),
   ),
   caption: [A comparison of the number of image-text pairs used for pretraining in different approaches. We use significantly
-  fewer pairs compared to other approaches.],
+  fewer pairs compared to other approaches.
+  We compare the 1B variant of VLMo @vlmo to our models,
+  and compare the cost of training our final model to the cost of
+  VLMo with 4M pairs. This is because the authors of
+  VLMo did not publish the compute used for their 1B variant. 
+  ],
 )<models_data_size_comparison>
 
 #figure(
