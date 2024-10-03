@@ -75,8 +75,6 @@ lightning_trainer:
   devices: -1
   max_epochs: 20
   num_sanity_val_steps: 0 # would run zero shot at the beginning if > 0
-  limit_val_batches: 0 # disables validation
-  num_sanity_val_steps: 0 # disables validation
   precision: 16-mixed
   log_every_n_steps: 50
 

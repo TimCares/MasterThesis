@@ -221,3 +221,6 @@ explain the performance on CoLA @cola, which is the lowest among all models (14.
 While we continously perform worse than FLAVA @flava, which again uses a text encoder with twice the number of layers of our text
 encoder, S-SMKE outperforms CLIP @clip in all tasks, with the exception of CoLA.
 A visually more appealing version of @s_smke_glue_results is shown when discussing all results in @discussion_of_results.
+
+
+=== Retrieval <fine_tuning_retrieval>
