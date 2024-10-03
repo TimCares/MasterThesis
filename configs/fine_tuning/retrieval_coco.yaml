@@ -24,7 +24,6 @@ model_name: retrieval_finetune
 pretrained:
   model_path: /workspace/models/Sx3HRe_ibn_mb/model-44632-4.0723-train.ckpt
   model_name: Sx3HRe
-dropout: 0.1
 
 load_checkpoint:
 
