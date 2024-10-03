@@ -243,6 +243,7 @@ class Sx3HReConfig():
 
     embed_dim: int = 768
     depth: int = 6
+    dropout: float = 0.0
 
 class Sx3HRe(nn.Module):
     def __init__(self,
@@ -262,6 +263,7 @@ class Sx3HRe(nn.Module):
             qkv_bias=True,
             init_values=0.2,
             norm_layer=make_layer_norm,
+            proj_drop=self.cfg.dropout,
         )
 
         self.fc_norm = make_layer_norm(self.cfg.embed_dim)

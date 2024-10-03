@@ -15,9 +15,13 @@ class RetrievalLightningModule(L.LightningModule):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
+
+        pretrained_args = torch.load(self.cfg.pretrained.model_path)['hyper_parameters']['cfg']
+        if 'dropout' in self.cfg:
+            pretrained_args['model']['dropout'] = self.cfg.dropout
         
         model_cls:LightningModule = MODEL_REGISTRY[self.cfg.pretrained.model_name]['module']
-        self.module = model_cls.load_from_checkpoint(self.cfg.pretrained.model_path, strict=False)
+        self.module = model_cls.load_from_checkpoint(self.cfg.pretrained.model_path, strict=False, cfg=pretrained_args)
         del self.module.teacher
         del self.module.logit_scale_target
         

@@ -16,7 +16,7 @@ we utilized the experiment tracking tool Weights & Biases#footnote[#link("https:
 The code is available at #link("https://github.com/TimCares/EV-LP").
 
 === Hardware
-To train the models and store the data, we used the GPU cloud platform runpod.io#footnote[#link("https://www.runpod.io")].
+To train the models and store the data, we used the GPU cloud platform runpod.io#footnote[#link("https://www.runpod.io")] <runpod_fn>.
 This platform provides access to a wide range of GPU types, including the NVIDIA RTX 4090 24GB, which we use for training almost all
 of our models. The reason for choosing this platform over traditional cloud providers like AWS or GCP is that the price per
 GPU hour is significantly lower, which allows us to train more models for the same budget. For example, as of September 2024,
@@ -46,32 +46,30 @@ proportionally with the number of GPUs used, so for us, a two-GPU instance costs
 #show table: set text(8pt)
 #figure(
   table(
-    columns: 8,
+    columns: 6,
     stroke: 0.6pt,
     table.hline(),
     table.header(
       [*Model*],
+      [*Data\ (Samples)*],
       [*Hardware*],
       [*Compute Time (hrs)*],
       [*Compute Cost (\$)*],
-      [*Data*],
-      [*Additional Costs (\$)*],
-      [*Total Cost (\$)*],
-      [*Estim. AWS\ Cost (\$)*],
+      [*Estim. AWS\ Cost (\$)*@v100_aws_cost],
     ),
     table.hline(stroke: .6pt),
-    [DistilData2Vec2], [1x RTX 4090], [], [], [], [], [], [],
-    [C-DistilData2Vec2], [1x RTX 4090], [], [], [], [], [], [],
-    [F-DistilBERT], [1x RTX 4090], [], [], [], [], [], [],
-    [SHRe], [2x RTX 4090], [], [], [], [], [], [],
-    [Transformer SHRe], [2x RTX 4090], [], [], [], [], [], [],
-    [S-SMKE], [2x RTX 4090], [], [], [], [], [], [],
-    [S-SMKE#sub[CTL\_MB]], [2x RTX 4090], [], [], [], [], [], [],
-    [S-SMKE+], [*2x A100 80GB*], [], [], [], [], [], [],
+    [DistilData2Vec2], [1.28M], [1$times$ RTX 4090], [6.9], [4.8], [21.1], 
+    [C-DistilData2Vec2], [1.28M], [1$times$ RTX 4090], [6.9], [4.8], [21.1],
+    [F-DistilBERT], [13M], [1$times$ RTX 4090], [27], [18.6], [82.6], 
+    [SHRe], [3.3M], [1$times$ RTX 4090], [13.1], [9.1], [40.1],
+    [Transformer SHRe], [3.3M], [2$times$ RTX 4090], [7.7], [10.6], [47.1],
+    [S-SMKE], [3.3M], [2$times$ RTX 4090], [11.1], [15.3], [67.9], 
+    [S-SMKE#sub[CTL\_MB]], [3.3M], [2$times$ RTX 4090], [11.2], [15.5], [68.5],
+    [S-SMKE+], [3.3M], [2$times$ A100 80GB], [], [], [],
     table.hline(),
   ),
   caption: [
-    
+    Cost breakdown of all major models trained in this work.
   ],
 )<cost_breakdown>
 #show table: set text(11pt)
@@ -89,22 +87,21 @@ proportionally with the number of GPUs used, so for us, a two-GPU instance costs
       [*Estim. AWS Cost (\$)*],
     ),
     table.hline(stroke: .6pt),
-    [Pretraining], [], [1,603], [], 
-    [Finetuning], [138h], [141], [],
-    [Data Transfer], [1TB], [38.8], [-],
+    [Pretraining], [1,399h], [1,373], [4,281#footnote[Cost was calculated based on the on-demand price of one NVIDIA V100 32GB
+    AWS in the region US East (Northern Virginia), which is, as of September 2024, \$3.06 per hour:
+    #link("https://aws.amazon.com/ec2/instance-types/p3/"). The GPU is slightly slower than the RTX 4090, so the actual cost
+    is likely higher.] <v100_aws_cost>], 
+    [Finetuning], [145h], [142], [444@v100_aws_cost],
+    [Data Transfer], [1TB], [39], [-],
     [Data Storage], [1TB], [190], [1,470#footnote[Cost was calculated based on the price for 1TB of storage on AWS S3 in the region (Europe)
     Frankfurt, which is, as of September 2024, \$0.0245 per GB per month: #link("https://aws.amazon.com/s3/pricing/")]], 
     table.hline(),
-    table.hline(),
-    [Total], [-], [1,744], [],
+    [Total], [-], [1,744], [>6,195],
     table.hline(),
   ),
   caption: [
-    
+    Total costs for pretraining, finetuning, data transfer, and data storage on runpod.io@runpod_fn. We compare to the estimated costs
+    on AWS for similar services.
   ],
 )<cost_breakdown>
 #show table: set text(11pt)
-
-// cost of each model training and storage
-
-// total table, combining all costs and comparing if AWS was used

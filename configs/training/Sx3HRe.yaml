@@ -46,6 +46,7 @@ model:
 
   embed_dim: 768
   depth: 6
+  dropout: 0.0
 
 data:
   dataloader:
