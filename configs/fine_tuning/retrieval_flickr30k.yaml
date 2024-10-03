@@ -24,7 +24,6 @@ model_name: retrieval_finetune
 pretrained:
   model_path: /workspace/models/Sx3HRe_ibn_mb/model-44632-4.0723-train.ckpt
   model_name: Sx3HRe
-dropout: 0.1
 
 load_checkpoint:
 
@@ -36,7 +35,7 @@ data:
   num_max_bpe_tokens: ${nlp_context_length}
   color_jitter: # None
   beit_transforms: False
-  crop_scale: [0.9, 1.0]
+  crop_scale: [0.5, 1.0]
   text_token_mask_prob: 0.0
   
   batch_size: 1024
@@ -63,7 +62,7 @@ checkpoint:
       filename: model-{step}-{${.monitor}:.4f}-train
 
 optimizer:
-  lr: 5e-5
+  lr: 3e-5
   betas: [ 0.9,0.98 ]
   eps: 1e-06
   weight_decay: 0.01
