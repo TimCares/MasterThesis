@@ -1,4 +1,4 @@
-==== Increasing Negative Examples for ITC <memory_bank_section>
+=== Increasing Negative Examples for ITC <memory_bank_section>
 
 Our current approach utilizes Distributed Data Parallel (DDP) @pytorch_ddp with a batch size of 256 per GPU.
 With two GPUs, the combined batch size is 512 and image/text features are gathered from all devices to increase the number of negative examples,

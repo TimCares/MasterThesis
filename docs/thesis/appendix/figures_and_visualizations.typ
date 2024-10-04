@@ -213,3 +213,12 @@
     official NLVR2 website#footnote[#link("https://lil.nlp.cornell.edu/nlvr/nlvr.html")].
 ],
 ) <nlvr2_examples> 
+
+#figure(
+  image(
+  width: 100%,
+  "../figures/ev_lp.png"),
+  caption: [
+    Visualization of the overall framework of S-SMKE. The teacher remains frozen during training, indicated by the snowflakes.
+],
+) <ev_lp> 

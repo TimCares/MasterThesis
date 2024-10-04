@@ -17,3 +17,5 @@ teacher instead of a supervised one. Our experiments demonstrate that this adapt
 across all benchmarks. Furthermore, we showed that our approach achieves competitive performance with vision-language
 models such as CLIP @clip and FLAVA @flava on retrieval tasks, and even outperforms them on certain scoring metrics,
 all while using only 0.75% of the data used by CLIP and 4.3% of the data used by FLAVA.
+
+The overall framework of our method is presented in @ev_lp. 

@@ -146,7 +146,7 @@
   include("experiments/tte.typ")
 
   //include("experiments/region_descriptions.typ")
-  include("experiments/itm.typ")
+  //nclude("experiments/itm.typ")
   include("experiments/memory_bank.typ")
 
   include("experiments/cmli.typ")
