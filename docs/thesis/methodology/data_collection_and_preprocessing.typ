@@ -70,7 +70,8 @@ Examples are of the form (question, sentence) @squad @glue.
 
 *RTE*
 
-A dataset of text pairs, where the model has to predict whether a hypothesis (sentence 2) can be inferred from a text (sentence 1) @rte1 @rte2 @rte3 @rte5 @glue.
+A dataset of text pairs, where the model has to predict whether a hypothesis (sentence 2) can be inferred from a text (sentence 1) @rte
+@glue.
 The task is binary classification (hypothesis can be inferred, or not).
 
 *MNLI*

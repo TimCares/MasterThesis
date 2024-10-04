@@ -435,12 +435,12 @@ pages={211-252}
   number = {1}, 
   issn = {1532-4435}, 
   journal = {Journal of Machine Learning Research},
-  month = January,
+  month = Jan,
   articleno = {120},
   numpages = {39},
 }
 
-@INPROCEEDINGS {9157636,
+@INPROCEEDINGS {moco,
 author = {K. He and H. Fan and Y. Wu and S. Xie and R. Girshick},
 booktitle = {2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
 title = {Momentum Contrast for Unsupervised Visual Representation Learning},
@@ -719,15 +719,6 @@ address = {Los Alamitos, CA, USA},
 month = {jun}
 }
 
-@INPROCEEDINGS{amazon_mechanical_turk,
-  author={Sorokin, Alexander and Forsyth, David},
-  booktitle={2008 IEEE Computer Society Conference on Computer Vision and Pattern Recognition Workshops}, 
-  title={Utility data annotation with Amazon Mechanical Turk}, 
-  year={2008},
-  volume={},
-  number={},
-  pages={1-8},}
-
 @inproceedings{amazon_mechanical_turk,
 author       = {Sorokin, Alexander and Forsyth, David},
 title        = {Utility data annotation with Amazon Mechanical Turk},
@@ -834,30 +825,40 @@ month = {nov}
 
 @inproceedings{resnet,
    title={Deep Residual Learning for Image Recognition},
-   url={http://dx.doi.org/10.1109/cvpr.2016.90},
-   DOI={10.1109/cvpr.2016.90},
    booktitle={2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
    publisher={IEEE},
    author={He, Kaiming and Zhang, Xiangyu and Ren, Shaoqing and Sun, Jian},
    year={2016},
-   month=jun }
+   month=jun,
+   pages={770-778}, }
 
-@misc{word2vec,
-  title={Efficient Estimation of Word Representations in Vector Space},
-  author={Tomas Mikolov and Kai Chen and Greg Corrado and Jeffrey Dean},
-  year={2013},
-  eprint={1301.3781},
-  archivePrefix={arXiv},
-  primaryClass={cs.CL}
+@inproceedings{word2vec,
+  author       = {Tom{\'{a}}s Mikolov and
+                  Kai Chen and
+                  Greg Corrado and
+                  Jeffrey Dean},
+  editor       = {Yoshua Bengio and
+                  Yann LeCun},
+  title        = {Efficient Estimation of Word Representations in Vector Space},
+  booktitle    = {1st International Conference on Learning Representations, {ICLR} 2013,
+                  Scottsdale, Arizona, USA, May 2-4, 2013, Workshop Track Proceedings},
+  year         = {2013},
 }
 
-@misc{layer_norm,
-    title={Layer Normalization},
-    author={Jimmy Lei Ba and Jamie Ryan Kiros and Geoffrey E. Hinton},
-    year={2016},
-    eprint={1607.06450},
-    archivePrefix={arXiv},
-    primaryClass={stat.ML}
+@article{layer_norm,
+  author       = {Lei Jimmy Ba and
+                  Jamie Ryan Kiros and
+                  Geoffrey E. Hinton},
+  title        = {Layer Normalization},
+  journal      = {CoRR},
+  volume       = {abs/1607.06450},
+  year         = {2016},
+  url          = {http://arxiv.org/abs/1607.06450},
+  eprinttype    = {arXiv},
+  eprint       = {1607.06450},
+  timestamp    = {Tue, 23 Jul 2019 17:33:23 +0200},
+  biburl       = {https://dblp.org/rec/journals/corr/BaKH16.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
 }
 
 @article{gpt2,
@@ -875,93 +876,149 @@ month = {nov}
     primaryClass={cs.CV}
 }
 
-@inproceedings{meter,
-   title={An Empirical Study of Training End-to-End Vision-and-Language Transformers},
-   url={http://dx.doi.org/10.1109/CVPR52688.2022.01763},
-   DOI={10.1109/cvpr52688.2022.01763},
-   booktitle={2022 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
-   publisher={IEEE},
-   author={Dou, Zi-Yi and Xu, Yichong and Gan, Zhe and Wang, Jianfeng and Wang, Shuohang and Wang, Lijuan and Zhu, Chenguang and Zhang, Pengchuan and Yuan, Lu and Peng, Nanyun and Liu, Zicheng and Zeng, Michael},
-   year={2022},
-   month=jun }
+  @INPROCEEDINGS{meter,
+  author={Dou, Zi-Yi and Xu, Yichong and Gan, Zhe and Wang, Jianfeng and Wang, Shuohang and Wang, Lijuan and Zhu, Chenguang and Zhang, Pengchuan and Yuan, Lu and Peng, Nanyun and Liu, Zicheng and Zeng, Michael},
+  booktitle={2022 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)}, 
+  title={An Empirical Study of Training End-to-End Vision-and-Language Transformers}, 
+  year={2022},
+  month=jun, 
+  volume={},
+  number={},
+  pages={18145-18155},}
 
-@inproceedings{dino,
-  title={Emerging Properties in Self-Supervised Vision Transformers},
-  url={http://dx.doi.org/10.1109/ICCV48922.2021.00951},
-  DOI={10.1109/iccv48922.2021.00951},
-  booktitle={2021 IEEE/CVF International Conference on Computer Vision (ICCV)},
-  publisher={IEEE},
-  author={Caron, Mathilde and Touvron, Hugo and Misra, Ishan and Jegou, Herve and Mairal, Julien and Bojanowski, Piotr and Joulin, Armand},
+@INPROCEEDINGS{dino,
+  author={Caron, Mathilde and Touvron, Hugo and Misra, Ishan and Jegou, Hervé and Mairal, Julien and Bojanowski, Piotr and Joulin, Armand},
+  booktitle={2021 IEEE/CVF International Conference on Computer Vision (ICCV)}, 
+  title={Emerging Properties in Self-Supervised Vision Transformers}, 
   year={2021},
-  month=oct }
+  month=oct,
+  volume={},
+  number={},
+  pages={9630-9640},}
 
-@misc{neural_discrete_representation_learning,
-    title={Neural Discrete Representation Learning},
-    author={Aaron van den Oord and Oriol Vinyals and Koray Kavukcuoglu},
-    year={2017},
-    eprint={1711.00937},
-    archivePrefix={arXiv},
-    primaryClass={cs.LG}
+@inproceedings{neural_discrete_representation_learning,
+  author       = {A{\"{a}}ron van den Oord and
+                  Oriol Vinyals and
+                  Koray Kavukcuoglu},
+  editor       = {Isabelle Guyon and
+                  Ulrike von Luxburg and
+                  Samy Bengio and
+                  Hanna M. Wallach and
+                  Rob Fergus and
+                  S. V. N. Vishwanathan and
+                  Roman Garnett},
+  publisher = {Curran Associates, Inc.},
+  title        = {Neural Discrete Representation Learning},
+  booktitle    = {Advances in Neural Information Processing Systems 30: Annual Conference
+                  on Neural Information Processing Systems 2017, December 4-9, 2017,
+                  Long Beach, CA, {USA}},
+  pages        = {6306--6315},
+  year         = {2017},
+  volume = {30},}
+
+  @inproceedings{nlvr2,
+    title = "A Corpus for Reasoning about Natural Language Grounded in Photographs",
+    author = "Suhr, Alane  and
+      Zhou, Stephanie  and
+      Zhang, Ally  and
+      Zhang, Iris  and
+      Bai, Huajun  and
+      Artzi, Yoav",
+    editor = "Korhonen, Anna  and
+      Traum, David  and
+      M{\`a}rquez, Llu{\'\i}s",
+    booktitle = "Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics",
+    month = jul,
+    year = "2019",
+    address = "Florence, Italy",
+    publisher = "Association for Computational Linguistics",
+    pages = "6418--6428",
 }
 
-@inproceedings{nlvr2,
-   title={A Corpus for Reasoning about Natural Language Grounded in Photographs},
-   url={http://dx.doi.org/10.18653/v1/P19-1644},
-   DOI={10.18653/v1/p19-1644},
-   booktitle={Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics},
-   publisher={Association for Computational Linguistics},
-   author={Suhr, Alane and Zhou, Stephanie and Zhang, Ally and Zhang, Iris and Bai, Huajun and Artzi, Yoav},
-   year={2019} }
-
-@article{vqav2,
-   title={VQA: Visual Question Answering: www.visualqa.org},
-   volume={123},
-   ISSN={1573-1405},
-   url={http://dx.doi.org/10.1007/s11263-016-0966-6},
-   DOI={10.1007/s11263-016-0966-6},
-   number={1},
-   journal={International Journal of Computer Vision},
-   publisher={Springer Science and Business Media LLC},
-   author={Agrawal, Aishwarya and Lu, Jiasen and Antol, Stanislaw and Mitchell, Margaret and Zitnick, C. Lawrence and Parikh, Devi and Batra, Dhruv},
-   year={2016},
-   month=nov, pages={4–31} }
-
-@misc{vilt,
-    title={ViLT: Vision-and-Language Transformer Without Convolution or Region Supervision},
-    author={Wonjae Kim and Bokyung Son and Ildoo Kim},
-    year={2021},
-    eprint={2102.03334},
-    archivePrefix={arXiv},
-    primaryClass={stat.ML}
+@inproceedings{vqav2,
+  author       = {Stanislaw Antol and
+                  Aishwarya Agrawal and
+                  Jiasen Lu and
+                  Margaret Mitchell and
+                  Dhruv Batra and
+                  C. Lawrence Zitnick and
+                  Devi Parikh},
+  title        = {{VQA:} Visual Question Answering},
+  booktitle    = {2015 {IEEE} International Conference on Computer Vision, {ICCV} 2015,
+                  Santiago, Chile, December 7-13, 2015},
+  pages        = {2425--2433},
+  publisher    = {{IEEE} Computer Society},
+  year         = {2015},
 }
 
-@misc{roberta,
-    title={RoBERTa: A Robustly Optimized BERT Pretraining Approach},
-    author={Yinhan Liu and Myle Ott and Naman Goyal and Jingfei Du and Mandar Joshi and Danqi Chen and Omer Levy and Mike Lewis and Luke Zettlemoyer and Veselin Stoyanov},
-    year={2019},
-    eprint={1907.11692},
-    archivePrefix={arXiv},
-    primaryClass={cs.CL}
+@inproceedings{vilt,
+  author       = {Wonjae Kim and
+                  Bokyung Son and
+                  Ildoo Kim},
+  editor       = {Marina Meila and
+                  Tong Zhang},
+  title        = {ViLT: Vision-and-Language Transformer Without Convolution or Region
+                  Supervision},
+  booktitle    = {Proceedings of the 38th International Conference on Machine Learning,
+                  {ICML} 2021, 18-24 July 2021, Virtual Event},
+  series       = {Proceedings of Machine Learning Research},
+  volume       = {139},
+  pages        = {5583--5594},
+  publisher    = {{PMLR}},
+  year         = {2021},
+}
+
+@article{roberta,
+  author       = {Yinhan Liu and
+                  Myle Ott and
+                  Naman Goyal and
+                  Jingfei Du and
+                  Mandar Joshi and
+                  Danqi Chen and
+                  Omer Levy and
+                  Mike Lewis and
+                  Luke Zettlemoyer and
+                  Veselin Stoyanov},
+  title        = {RoBERTa: {A} Robustly Optimized {BERT} Pretraining Approach},
+  journal      = {CoRR},
+  volume       = {abs/1907.11692},
+  year         = {2019},
+  url          = {http://arxiv.org/abs/1907.11692},
+  eprinttype    = {arXiv},
+  eprint       = {1907.11692},
 }
 
 @inproceedings{elmo,
-   title={Deep Contextualized Word Representations},
-   url={http://dx.doi.org/10.18653/v1/N18-1202},
-   DOI={10.18653/v1/n18-1202},
-   booktitle={Proceedings of the 2018 Conference of the North American Chapter of
-          the Association for Computational Linguistics: Human Language
-          Technologies, Volume 1 (Long Papers)},
-   publisher={Association for Computational Linguistics},
-   author={Peters, Matthew and Neumann, Mark and Iyyer, Mohit and Gardner, Matt and Clark, Christopher and Lee, Kenton and Zettlemoyer, Luke},
-   year={2018} }
+title = "Deep Contextualized Word Representations",
+author = "Peters, Matthew E.  and
+  Neumann, Mark  and
+  Iyyer, Mohit  and
+  Gardner, Matt  and
+  Clark, Christopher  and
+  Lee, Kenton  and
+  Zettlemoyer, Luke",
+editor = "Walker, Marilyn  and
+  Ji, Heng  and
+  Stent, Amanda",
+booktitle = "Proceedings of the 2018 Conference of the North {A}merican Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long Papers)",
+month = jun,
+year = "2018",
+address = "New Orleans, Louisiana",
+publisher = "Association for Computational Linguistics",
+pages = "2227--2237",
+}
 
 @inproceedings{wnli,
-  title={The {W}inograd schema challenge},
-  author={Levesque, Hector J and Davis, Ernest and Morgenstern, Leora},
-  booktitle={{AAAI} Spring Symposium: Logical Formalizations of Commonsense Reasoning},
-  volume={46},
-  pages={47},
-  year={2011}
+author = {Levesque, Hector J. and Davis, Ernest and Morgenstern, Leora},
+title = {The Winograd schema challenge},
+year = {2012},
+isbn = {9781577355601},
+publisher = {AAAI Press},
+booktitle = {Proceedings of the Thirteenth International Conference on Principles of Knowledge Representation and Reasoning},
+pages = {552–561},
+numpages = {10},
+location = {Rome, Italy},
+series = {KR'12}
 }
 
 @misc{pytorch_lightning,
@@ -974,35 +1031,45 @@ month = {nov}
   doi          = {10.5281/zenodo.3828935},
   url          = {https://www.pytorchlightning.ai},
   license      = {Apache-2.0},
-  keywords     = {machine learning, deep learning, artificial intelligence},
-  repository   = {https://github.com/Lightning-AI/lightning}
 }
 
 @inproceedings{pytorch,
-  title        = {PyTorch 2: Faster Machine Learning Through Dynamic Python Bytecode Transformation and Graph Compilation},
-  author       = {Jason Ansel et al.},
-  booktitle    = {Proceedings of the 29th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 2 (ASPLOS '24)},
-  year         = {2024},
-  month        = {April},
-  publisher    = {ACM},
-  doi          = {10.1145/3620665.3640366},
-  url          = {https://pytorch.org/assets/pytorch2-2.pdf}
+author = {Ansel, Jason and Yang, Edward and He, Horace and Gimelshein, Natalia and Jain, Animesh and Voznesensky, Michael and Bao, Bin and Bell, Peter and Berard, David and Burovski, Evgeni and Chauhan, Geeta and Chourdia, Anjali and Constable, Will and Desmaison, Alban and DeVito, Zachary and Ellison, Elias and Feng, Will and Gong, Jiong and Gschwind, Michael and Hirsh, Brian and Huang, Sherlock and Kalambarkar, Kshiteej and Kirsch, Laurent and Lazos, Michael and Lezcano, Mario and Liang, Yanbo and Liang, Jason and Lu, Yinghai and Luk, C. K. and Maher, Bert and Pan, Yunjie and Puhrsch, Christian and Reso, Matthias and Saroufim, Mark and Siraichi, Marcos Yukio and Suk, Helen and Zhang, Shunting and Suo, Michael and Tillet, Phil and Zhao, Xu and Wang, Eikan and Zhou, Keren and Zou, Richard and Wang, Xiaodong and Mathews, Ajit and Wen, William and Chanan, Gregory and Wu, Peng and Chintala, Soumith},
+title = {PyTorch 2: Faster Machine Learning Through Dynamic Python Bytecode Transformation and Graph Compilation},
+year = {2024},
+isbn = {9798400703850},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+booktitle = {Proceedings of the 29th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 2},
+pages = {929–947},
+numpages = {19},
+location = {La Jolla, CA, USA},
+series = {ASPLOS '24}
 }
 
-@misc{neural_scaling_law,
-    title={Scaling Laws for Neural Language Models},
-    author={Jared Kaplan and Sam McCandlish and Tom Henighan and Tom B. Brown and Benjamin Chess and Rewon Child and Scott Gray and Alec Radford and Jeffrey Wu and Dario Amodei},
-    year={2020},
-    eprint={2001.08361},
-    archivePrefix={arXiv},
-    primaryClass={cs.LG}
+@article{neural_scaling_law,
+  author       = {Jared Kaplan and
+                  Sam McCandlish and
+                  Tom Henighan and
+                  Tom B. Brown and
+                  Benjamin Chess and
+                  Rewon Child and
+                  Scott Gray and
+                  Alec Radford and
+                  Jeffrey Wu and
+                  Dario Amodei},
+  title        = {Scaling Laws for Neural Language Models},
+  journal      = {CoRR},
+  volume       = {abs/2001.08361},
+  year         = {2020},
+  url          = {https://arxiv.org/abs/2001.08361},
+  eprinttype    = {arXiv},
+  eprint       = {2001.08361},
 }
 
 @inproceedings{audio_clip,
    title={Audioclip: Extending Clip to Image, Text and Audio},
    volume={2017},
-   url={http://dx.doi.org/10.1109/icassp43922.2022.9747631},
-   DOI={10.1109/icassp43922.2022.9747631},
    booktitle={ICASSP 2022 - 2022 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)},
    publisher={IEEE},
    author={Guzhov, Andrey and Raue, Federico and Hees, Jorn and Dengel, Andreas},

@@ -450,7 +450,7 @@ All scores are based on the dev sets of the respective tasks, as the test datase
 
 We are able
 to retain 96.7% of the performance of BERT, which is almost the same as the 96.8% of DistilBERT. Noteably, we outperform
-DistilBERT on the RTE @rte1 task by more than 7 percentage points, and even record the best score of all methods compared on WNLI @wnli.
+DistilBERT on the RTE @rte task by more than 7 percentage points, and even record the best score of all methods compared on WNLI @wnli.
 The latter is most likely due to the fact that WNLI is a very small dataset, with 635 training and
 only 71 dev samples. Both DistilBERT and F-DistilBERT
 have considerable less parameters than BERT, which makes them less prone to overfitting on small datasets,
