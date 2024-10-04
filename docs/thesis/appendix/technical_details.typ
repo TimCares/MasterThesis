@@ -68,7 +68,6 @@ be more than \$6,195.
     [Transformer SHRe], [117M], [3.3M], [2$times$ RTX 4090], [7.7], [10.6], [47.1],
     [S-SMKE], [117M], [3.3M], [2$times$ RTX 4090], [11.1], [15.3], [67.9], 
     [S-SMKE#sub[CTL\_MB]], [117M], [3.3M], [2$times$ RTX 4090], [11.2], [15.5], [68.5],
-    [S-SMKE+], [], [3.3M], [2$times$ A100 80GB], [], [], [],
     table.hline(),
   ),
   caption: [

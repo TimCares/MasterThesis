@@ -224,3 +224,77 @@ A visually more appealing version of @s_smke_glue_results is shown when discussi
 
 
 === Retrieval <fine_tuning_retrieval>
+After pretraining, papers like VLMo @vlmo perform finetuning on MSCOCO @coco and Flickr30K @flickr30k as an additional step.
+Here, only the contrastive loss is used:
+
+$
+cal(L)_"S-SMKE" = cal(L)_"CL"
+$
+
+This essentially means that the model is finetuned once _exclusively_ on the MSCOCO train dataset, and then evaluated
+on image-text retrieval with the MSCOCO test dataset, and the same for Flickr30K. This will strengthen the alignment of text and images
+on the respective datasets, and is a common practice in vision-language models @vlmo @beit3.
+
+We follow this strategy and finetune S-SMKE on MSCOCO and Flickr30K. We finetune the whole model, and train for only 5 epochs,
+as we found it to be sufficient for the model to converge. Since the quality of the results is highly dependent on the batch size,
+i.e. the number of negative samples, we increase the batch size to 1024. During pretraining, we used a batch size of 256
+per device, which resulted in a contrastive loss with 511 negative samples. For finetuning, we only use one GPU instead of two,
+but switch from the RTX 4090 24GB to the A100 80GB. Even though this GPU is more expensive, it allows us to increase the batch size
+to 1024, resulting in 1023 negative samples. Since COCO and Flickr30K are smaller datasets, and we only finetune for 5 epochs,
+the increased cost per GPU hour is acceptable. Naturally, we also use a smaller peak learning rate of 3e-5 and warmup
+for 10% of the total steps. All hyperparameters are shown in @s_smke_finetune_itr_hyperparams.
+The results of finetuning S-SMKE on MSCOCO and Flickr30K are shown in @image_text_retrieval_finetune.
+
+#show table: set text(8pt)
+#figure(
+  table(
+  columns: (25%, auto, auto, auto, auto, auto, auto, auto, auto, auto, auto, auto, auto),
+    stroke: none,
+    table.hline(),
+    table.header(
+      table.cell(rowspan: 3, colspan: 1, align:horizon, [*Model*]),
+      table.cell(colspan: 6, [*MSCOCO (5K test set)*]),
+      table.cell(colspan: 6, [*Flickr30K (1K test set)*]),
+      table.cell(colspan: 3, [Image $arrow.r$ Text]),
+      table.cell(colspan: 3, [Text $arrow.r$ Image]),
+      table.vline(stroke: .4pt),
+      table.cell(colspan: 3, [Image $arrow.r$ Text]),
+      table.cell(colspan: 3, [Text $arrow.r$ Image]),
+      table.hline(start: 1, end: 4, stroke: .2pt),
+      table.hline(start: 4, end: 7, stroke: .2pt),
+      table.hline(start: 7, end: 10, stroke: .2pt),
+      table.hline(start: 10, end: 13, stroke: .2pt),
+      [R@1], [R@5], [R@10], [R@1], [R@5], [R@10], [R@1], [R@5], [R@10], [R@1], [R@5], [R@10]
+    ),
+    table.hline(stroke: .4pt),
+    [FLAVA @flava], [42.74], [76.76], [-], [38.38], [67.47], [-], [67.7], [94.0], [-], [65.22], [89.38], [-],
+    [CLIP @clip], [*58.4*], [81.5], [88.1], [37.8], [62.4], [72.2], [*88.0*],[*98.7*], [*99.4*], [*68.7*], [*90.6*], [*95.2*],
+    table.hline(stroke: .3pt),
+    [S-SMKE#sub[CTL_MB]], [53.54], [81.1], [89.52], [35.65], [66.0], [77.77], [70.9], [92.1], [96.0], [52.72], [80.2], [87.46],
+    [S-SMKE#sub[CTL_MB] *$dagger$* (4.8 $arrow.t$)], [56.2], [*83.3*], [*91.1*], [*39.8*], [*69.2*], [*79.8*], [82.0], [95.4], [98.0], [64.6], [87.5], [93.1],
+    table.hline(),
+  ),
+  caption: [
+    Image-text retrieval results of finetuning S-SMKE on MSCOCO and Flickr30K. We compare to FLAVA @flava and CLIP @clip.
+    *$dagger$* indicates the finetuned variant of our model.
+  ],
+)<image_text_retrieval_finetune>
+#show table: set text(12pt)
+
+Finetuning S-SMKE on MSCOCO and Flickr30K increases the performance on all metrics compared to the pretrained model, we
+gain on average 4.8 percentage points over all metrics.
+Especially the performance on Flickr30K is significantly increased, with image retrieval increasing by almost 12 percentage points
+on the R@1 metric. On MSCOCO, the performance is also increased, but not as much as on Flickr30K. This can be explained by the fact
+that the COCO train dataset is part of the data that we use for pretraining, so the model has already seen the data
+of COCO. Consequently, there is less room for improvement since the data is not completely new to the model.
+This is different for Flickr30K, where the model has not seen the data during pretraining, so there is much more to gain
+from finetuning on this dataset. Overall, we outperform CLIP @clip and FLAVA @flava on all metrics in COCO, except for text retrieval
+on the R@1 metric (CLIP). On Flickr30K, CLIP still outperforms us on all metrics.
+
+It has to be noted that the retrieval results of both CLIP and FLAVA are not the result of finetuning on the respective datasets,
+but the direct application of the pretrained model on the test set @clip @flava. We did the same when we reported
+results on retrieval before, which is shown by S-SMKE#sub[CTL_MB] without *$dagger$*.
+If one would finetune CLIP or FLAVA on the respective datasets,
+then both models would likely outperform S-SMKE due to their size. The goal of finetuning is *not* to claim that S-SMKE is better
+than CLIP or FLAVA, but to show that finetuning on retrieval tasks after pretraining is *beneficial* for the alignment of text and images
+in our model.

@@ -2,7 +2,7 @@
 While the proposed method is an efficient way to train comparatively small multimodal models, and can easily be
 adapted to other modalities, e.g. audio, it has its limitations.
 
-=== Performance on Unimodal Downstream Tasks
+=== Performance on Unimodal Downstream Tasks <problem_fine_tuning_unimodal_tasks>
 When finetuning S-SMKE on unimodal downstream tasks in @fine_tuning_unimodal_tasks, we found that the performance
 is generally worse compared to the performance of the unimodal distilled models. While this is nothing unusual,
 it is still a limitation considering that the goal of multimodal models is to excel at both unimodal and multimodal tasks.

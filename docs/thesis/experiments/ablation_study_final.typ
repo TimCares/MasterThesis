@@ -1,4 +1,4 @@
-== Scaling up the final Approach <scaling_up>
+== Scalability <scaling_up>
 Even though our approach is specifically build for efficiency, and therefore smaller than traditional
 vision-language models like BEiT-3 @beit3, VLMo @vlmo, or CLIP @clip, we still want to investigate
 how our approach scales with more parameters. This will help us understand whether the approach

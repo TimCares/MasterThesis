@@ -17,9 +17,3 @@ teacher instead of a supervised one. Our experiments demonstrate that this adapt
 across all benchmarks. Furthermore, we showed that our approach achieves competitive performance with vision-language
 models such as CLIP @clip and FLAVA @flava on retrieval tasks, and even outperforms them on certain scoring metrics,
 all while using only 0.75% of the data used by CLIP and 4.3% of the data used by FLAVA.
-
-As part of our research, we tested new loss functions for distilling unimodal models, which led to results
-that are competitive with existing methods. Inspired by vector quantization, we also introduced the idea of
-quantizing global visual features to group images based on high-level visual concepts. Although this approach
-did not lead to an improvement in performance, we consider it an interesting direction for clustering representations,
-especially on out-of-domain data where the classes of supervised models are not applicable.

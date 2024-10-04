@@ -109,48 +109,48 @@ kind: "code",
 supplement: [Code],
 ) <transformer_shre_forward_pseudocode>
 
-#figure(
-  rect(
-    ```python
-    # image_vq: Pretraing image vector quantizer
-    # image_encoder: Image encoder of the multimodal student model (Data2Vec2)
-    # text_encoder: Text encoder of the multimodal student model (BERT)
-    # shared_encoder: Shared Transformer layer of the multimodal student model
-    # cls_head: Classification head of the multimodal student model
-    # imgs: batch of images (B, 3, H, W)
-    # captions: batch of image captions (B, 64)
-    # clip_loss: Contrastive loss used in CLIP
-    def forward(image_vq, image_encoder, text_encoder, 
-                shared_encoder, cls_head, imgs, captions):
+// #figure(
+//   rect(
+//     ```python
+//     # image_vq: Pretraing image vector quantizer
+//     # image_encoder: Image encoder of the multimodal student model (Data2Vec2)
+//     # text_encoder: Text encoder of the multimodal student model (BERT)
+//     # shared_encoder: Shared Transformer layer of the multimodal student model
+//     # cls_head: Classification head of the multimodal student model
+//     # imgs: batch of images (B, 3, H, W)
+//     # captions: batch of image captions (B, 64)
+//     # clip_loss: Contrastive loss used in CLIP
+//     def forward(image_vq, image_encoder, text_encoder, 
+//                 shared_encoder, cls_head, imgs, captions):
         
-        with torch.no_grad():
-          target = image_vq.quantize_image(imgs) # (B,)
+//         with torch.no_grad():
+//           target = image_vq.quantize_image(imgs) # (B,)
 
-        img_layer_res = shared_encoder(image_encoder(imgs))
-        # [(B, 3072), (B, 768)]
+//         img_layer_res = shared_encoder(image_encoder(imgs))
+//         # [(B, 3072), (B, 768)]
 
-        image_pred = cls_head(img_layer_res[1]) # (B, 1024)
+//         image_pred = cls_head(img_layer_res[1]) # (B, 1024)
 
-        text_layer_res = shared_encoder(text_encoder(captions))
-        # [(B, 3072), (B, 768)]
+//         text_layer_res = shared_encoder(text_encoder(captions))
+//         # [(B, 3072), (B, 768)]
 
-        text_pred = cls_head(text_layer_res[1]) # (B, 1024)
+//         text_pred = cls_head(text_layer_res[1]) # (B, 1024)
         
-        kd_loss = 1/2*cross_entropy(target, image_pred) +
-                  1/2*cross_entropy(target, text_pred)
+//         kd_loss = 1/2*cross_entropy(target, image_pred) +
+//                   1/2*cross_entropy(target, text_pred)
         
-        itc_loss = 1/2*clip_loss(img_layer_res[0], text_layer_res[0]) +
-                   1/2*clip_loss(img_layer_res[1], text_layer_res[1])
+//         itc_loss = 1/2*clip_loss(img_layer_res[0], text_layer_res[0]) +
+//                    1/2*clip_loss(img_layer_res[1], text_layer_res[1])
 
-        loss = kd_loss + itc_loss
+//         loss = kd_loss + itc_loss
 
-        return loss
-    ```
-  ), 
-caption: [
-  Pytorch pseudocode used in the forward pass for distilling S-SMKE with quantized image representations.
-  The vector quantizer returns the index $m$ of the closest codebook vector $bold(q)_m$ for each image in the batch.
-],
-kind: "code",
-supplement: [Code],
-) <s_smke_vq_forward_pseudocode>
+//         return loss
+//     ```
+//   ), 
+// caption: [
+//   Pytorch pseudocode used in the forward pass for distilling S-SMKE with quantized image representations.
+//   The vector quantizer returns the index $m$ of the closest codebook vector $bold(q)_m$ for each image in the batch.
+// ],
+// kind: "code",
+// supplement: [Code],
+// ) <s_smke_vq_forward_pseudocode>
