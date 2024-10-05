@@ -12,18 +12,18 @@ describes the average of the squared differences between the prediction $bold(ha
 in this work the predictions and targets will exclusively be in the form of D-dimensional vectors, the MSE is defined as:
 
 $
-cal(L)_("MSE")(bold(y), bold(hat(y))) = ||bold(y)- bold(hat(y))||_2^2 = frac(1, D) sum_(d=1)^D (y_d - hat(y)_d)^2
+cal(L)_("MSE")(bold(y), bold(hat(y))) = ||bold(y)- bold(hat(y))||_2^2 = frac(1, D) sum_(d=0)^(D-1) (y_d - hat(y)_d)^2
 $ <mean_squared_error>
 
 === Kullback-Leibler Divergence <kl_divergence_section>
-The Kullback-Leibler Divergence (KL-Divergence) is used to measure the difference between two probability distributions.
-Specifically, in the context of Machine Learning, we are comparing a predicted probability distribution $bold(q) in RR^C$
+The kullback-keibler divergence (KL-Divergence) is used to measure the difference between two probability distributions.
+Specifically, in the context of machine learning, we are comparing a predicted probability distribution $bold(q) in RR^C$
 with a target distribution $bold(p) in RR^C$.
 Since we are using the KL-Divergence in the context of classification tasks, which are
 discrete distributions over $C$ classes, the KL-Divergence is defined as:
 
 $
-cal(L)_("KD")(bold(p) || bold(q)) = D_("KL")(bold(p) || bold(q)) = sum_(j)p_j log frac(p_j, q_j)
+cal(L)_("KD")(bold(p) || bold(q)) = D_("KL")(bold(p) || bold(q)) = sum_(j=0)^(C-1)p_j log frac(p_j, q_j)
 $ <kl_divergence>
 
 $p_j$ and $q_j$ are the probabilities of class $j$ according to the target and
@@ -37,7 +37,7 @@ $ <kl_constraint>
 @kl_constraint is defined analogously for $bold(q)$.
 
 === Cross-Entropy Loss <cross_entropy_section>
-The Cross-Entropy Loss (CE) is quite similar to the KL-Divergence in that it compares two probability distributions in
+The cross-entropy Loss (CE) is quite similar to the KL-Divergence in that it compares two probability distributions in
 classification tasks. It is defined as:
 
 $
@@ -87,7 +87,7 @@ as the one-hot encoded target distribution. $i$ is the index of the correct clas
 and hence each element in $bold(x)$ corresponds to the raw logit for one class.
 
 A comparison between the target distribution $bold(p)$ for cross-entropy and KL-Divergence
-is shown in the following @target_dist.
+is shown in @target_dist.
 
 #figure(
   image("../figures/target_dist.png", width: 75%),

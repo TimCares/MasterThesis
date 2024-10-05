@@ -1,6 +1,6 @@
 == Self-Supervised Learning <self_supervised_learning>
 === Motivation
-While we previously identified large Deep Learning models as generally expensive to train,
+While we previously identified large deep learning models as generally expensive to train,
 we now focus on the problem of scalability in the context of supervised learning, the most common form of training AI models.
 
 Supervised models, while powerful, are not inherently scalable. Although their architecture can be
@@ -17,7 +17,8 @@ labeled data, but in contrast to supervised learning labels are generated direct
 A prominent example of self-supervised learning is Masked Language Modeling (MLM) in Natural Language Processing (NLP),
 which is used in the popular NLP model BERT, being one of the first models trained using self-supervised
 methods to achieve state-of-the-art performance in NLP @bert.
-In BERT, certain tokens, or words, are masked, i.e., removed, from a sentence, and the model is tasked with predicting the masked tokens.
+In BERT, certain tokens, or words, are masked, i.e. removed from a sentence, and the model is tasked with predicting the masked tokens
+(see @self_supervised_learning_dark_matter_fig).
 Since the labels are derived from the data itself — the words to predict are part of the original data — no human annotation is needed @bert.
 This allows for the utilization of large amounts of unlabeled data, as any text data can be used.
 
@@ -33,14 +34,13 @@ Through this process of predicting masked words, the model learns about the conc
 
 While this example is specific to text data, the same principle can be applied to other types of hierarchical data, e.g. images and audio.
 
-Consequently, self-supervised learning allows makes models scalable, as they can be trained on large amounts of unlabeled data.
+Consequently, self-supervised learning makes models scalable, and allows/forces them to understand the meaning
+and underlying concepts of the data they are trained on. This is particularly important when aligning multiple modalities.
 
 #figure(
   image(
   width: 50%,
   "../figures/self_supervised_learning_dark_matter.png"),
   caption: [In self-supervised learning parts of the data are masked (grey), and the task of a model is to predict the
-  masked parts using the visible data (green) @self_supervised_learning_dark_matter.],
+  masked parts using the visible data (green) (Figure is taken directly from@self_supervised_learning_dark_matter).],
 ) <self_supervised_learning_dark_matter_fig>
-
-=== Relationship to Multimodal Models

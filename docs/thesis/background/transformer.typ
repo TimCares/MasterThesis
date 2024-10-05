@@ -3,7 +3,7 @@
 While we previously introduced concepts to train smaller models in a cost-efficient way, we
 now introduce the architecture of the models used in this work. We will exclusively make
 use of the Transformer architecture @transformer, which has been shown to be highly effective
-across vision @beit and language @bert. Consequtively, we will define the interpretation of
+across vision @beit and language @bert. Consequtively, we will also define the interpretation of
 image and text in the context of the Transformer.
 
 === Language Transformer <language_transformer>
@@ -12,10 +12,10 @@ In Transformers, text is represented as a sequence of discrete tokens, which are
 embedded into D-dimensional vectors using an embedding matrix.
 A single token $i$, being a (sub)word like "hell", "hello", "a", is represented as $bold(e)^w_i in RR^D$, which is the embedding of the token
 resulting from the embedding matrix. A text or sentence is represented as a sequence of $M$ token embeddings/represenations
-$bold(E)_w = [bold(e)^w_1, bold(e)^w_2, ..., bold(e)^w_M] in RR^(M times D)$.
+$bold(E)_w = [bold(e)^w_1, bold(e)^w_2, ..., bold(e)^w_M] in RR^(M times D)$. $w$ denotes the modality being text.
 
 In addition, each sequence is prepended
-with a $mono(["T_CLS"]) in RR^D$ token, and appended with an $mono(["T_SEP"]) in RR^D$ token, often referred to as the cls and
+with a $mono(["T_CLS"]) in RR^D$ token, and appended with a $mono(["T_SEP"]) in RR^D$ token, often referred to as the cls and
 end-of-sequence token, respectively. As with all word embeddings, they are learnable and part of the embedding matrix.
 The purpose of the $mono(["T_CLS"])$ token is to aggregate the global information/content of the text, while
 the $mono(["T_SEP"])$ token is used to indicate the end of the text sequence. The resulting text representation is:
@@ -32,7 +32,7 @@ the Transformer does not have any sense of order in the sequence. It is therefor
 to the text embeddings, giving the Transformer a sense of order in the text sequence.
 This positional encoding $bold(T)^"pos"$ is a sequence of $D$-dimensional vectors with the same length as $bold(E)_w$, and can
 therefore simply be added to the text embeddings. The positional encoding, i.e. the embedding of each time step, is either learned or fixed,
-and we refer to the original Attention is all you need paper @transformer for more details.
+and we refer to the original "Attention is all you need paper" @transformer for more details.
 
 $
 bold(T)^"pos"_w &= [bold(t)^w_"pos"_mono(["T_CLS"]), bold(t)^w_"pos"_1, bold(t)^w_"pos"_2, ..., bold(t)^w_"pos"_M, bold(t)^w_"pos"_mono(["T_SEP"])]
@@ -44,8 +44,7 @@ $
 bold(H)_(w, 0)=[bold(h)_(w, 0, mono(["T_CLS"])), bold(h)_(w, 0, 1), ..., bold(h)_(w, 0, M), bold(h)_(w, 0, mono(["T_SEP"]))] = bold(E)_w + bold(T)^"pos"_w
 $ <text_representation>
 
-We refer to $0$ as the layer number of the Transformer, which we will clarify in the next section, and $w$ as the modality being text
-or language, respectively.
+We refer to $0$ as the layer number of the Transformer, which we will clarify in the next section.
 
 ==== Transformer Layer
 The actual Transformer consists of a set of $L$ layers, also referred to as blocks, which are stacked on top of each other.
@@ -58,7 +57,7 @@ The architecture of a Transformer is displayed in @transformer_encoder.
 #figure(
   image("../figures/transformer_encoder.png", width: 25%),
   caption: [The architecture of the Transformer encoder. The original architecture also includes a Transformer decoder, which is not
-  relevant for our work and therefore omitted. The encoder consists of $N$ (or $L$) Transformer layers. The output of a layer
+  relevant for our work and therefore omitted. The encoder consists of $N$ (we use $L$) Transformer layers. The output of a layer
   is the input to the subsequent layer. Figure is adjusted from the original Transformer paper @transformer.
   ],
 ) <transformer_encoder>
@@ -70,11 +69,11 @@ bold(H)'_l &= op("LN")(op("MHA")(bold(H)_(l-1)) + bold(H)_(l-1)) \
 bold(H)_l &= op("LN")(op("FFN")(bold(H)'_l) + bold(H)'_l)
 $
 
-$op("LN")(dot)$ denotes layer normalization, or short LayerNorm. as defined in @layer_norm.
+$op("LN")(dot)$ denotes layer normalization, or short LayerNorm, as defined in @layer_norm.
 Simply put, it normalizes each embedding (or time step respectively) of a sequence individually, so that the mean is zero and the variance is one.
 
 $
-h'_j = (h_j - mu_j) / sqrt(sigma_j^2 + epsilon), wide mu_k = 1/D sum_(d=1)^D h_d, wide sigma_k^2 = 1/D sum_(d=1)^D (h_d - mu_k)^2
+h'_j = (h_j - mu_j) / sqrt(sigma_j^2 + epsilon), wide mu_k = 1/D sum_(d=0)^(D-1) h_d, wide sigma_k^2 = 1/D sum_(d=0)^(D-1) (h_d - mu_k)^2
 $ <layer_norm_eq>
 
 $epsilon$ is a small constant to avoid division by zero, and $D$ is the embedding dimension of the tokens. The operation is applied to each time step $bold(h)$ individually, and its relation to other normalization techniques, like BatchNorm, is shown in @norm_comparison.
@@ -90,18 +89,19 @@ A popular choice for the intermediate dimension $D_"ff"$ is $D_"ff"=4 times D$. 
 respectively, is defined as:
 
 $
-op("FFN")(bold(h)) = op("LN")(op("GELU")(bold(h)bold(W)_1 + bold(b)_1))bold(W)_2 + bold(b)_2
+op("FFN")(bold(h)) = op("LN")(op("GELU")(bold(h)bold(W)_1^T + bold(b)_1))bold(W)_2^T + bold(b)_2
 $ <transformer_ffn_eq>
 
 For a sequence of embeddings $bold(H)$, the operation is applied to each time step $bold(h)$ individually, which includes the $mono(["T_CLS"])$
-and $mono(["T_SEP"])$ token, though not displayed in @point_wise_ffn. Since the output of $op("FFN")(dot)$ is also in $RR^D$, the embedding
-dimension of the tokens, referred to as _hidden size_ or _hidden dim_ of a Transformer, does not change across layers.
+and $mono(["T_SEP"])$ token. Since the output of $op("FFN")(dot)$ is also in $RR^D$, the embedding
+dimension of the tokens, referred to as the _hidden size_ or _hidden dim_ of a Transformer, does not change across layers.
 
 $
-op("FFN")(bold(H)) = [op("FFN")(bold(h)_1), op("FFN")(bold(h)_2), ..., op("FFN")(bold(h)_M)]
+op("FFN")(bold(H)) = [op("FFN")(bold(h)_mono(["T_CLS"])), op("FFN")(bold(h)_1), op("FFN")(bold(h)_2), ..., op("FFN")(bold(h)_M),
+op("FFN")(bold(h)_mono(["T_SEP"]))]
 $ <point_wise_ffn>
 
-For the definition of the Multi-Head Attention $op("MHA")(dot)$, performing Self-Attention,
+For the definition of Multi-Head Attention $op("MHA")(dot)$, performing self-attention between the tokens,
 we refer to the original Transformer paper @transformer for a detailed explanation.
 
 The output of the last layer $L$ is the final text representation $bold(H)_(w, L)$. To use this representation for downstream tasks
@@ -110,14 +110,14 @@ by taking the representation of the $mono(["T_CLS"])$ token, which is then passe
 a single linear layer:
 
 $
-bold(hat(y))_w = bold(h)_(w, L, mono(["T_CLS"]))bold(W_mono(["CLS"])) + bold(b)_mono(["CLS"]) in RR^C
+bold(hat(y))_w = bold(h)_(w, L, mono(["T_CLS"]))bold(W_mono(["T_CLS"]))^T + bold(b)_mono(["T_CLS"]) in RR^C
 $ <transformer_classification_head>
 
 === Vision Transformer <vision_transformer>
 
 After the success of the Transformer architecture in NLP, breaking various benchmarks with architectures like BERT @bert,
-leading to its widespread adoption especially in Large Language Models (LLMs) like GPT-2 @gpt2, researchers explored
-the potential of this architecture beyond text. This exploration led to the development of the Vision Transformer (ViT) @vit,
+which led to its widespread adoption especially in Large Language Models (LLMs) like GPT-2 @gpt2, researchers explored
+the potential of this architecture beyond text. This exploration led to the development of the vision Transformer (ViT) @vit,
 marking a significant shift in computer vision.
 
 Diffent from traditional Convolutional Neural Networks (CNNs), which have been the dominant architecture in computer vision 
@@ -131,8 +131,8 @@ flattened into a 256-dimensional vector, and projected into a 768-dimensional em
 $v$ denotes the image modality.
 
 Similar to text, the resulting sequence of patches is prepended with a special learnable $mono(["I_CLS"]) in RR^768$ token, which is used
-to aggregate the global information/content of the image. A $mono(["I_SEP"])$ does not exist, as images can not be intuitively concatenated like
-multiple sentences of text. The image representation is defined as:
+to aggregate the global information/content of the image. The image representation is defined as a sequence of N patch embeddings
+and the $mono(["I_CLS"])$ token:
 
 $
 bold(E)_v = [bold(e)^v_mono(["I_CLS"]), bold(e)^v_1, bold(e)^v_2, ..., bold(e)^v_N]
@@ -156,7 +156,7 @@ For an image size of $224 times 224$ pixels, and a patch size of $16 times 16$ p
 
 The architecture of a vision Transformer layer is almost identical to a language Transformer layer, with the only difference being
 that the LayerNorm operation $op("LN")(dot)$ is applied before Multi-Head Attention $op("MHA")(dot)$ @vit, as illustrated in @vit_img.
-This type of Transformer is referred to as the Pre-LN Transformer, and the operations performed by one layer change to:
+This type of Transformer is referred to as the Pre-LN Transformer, and the operations performed by one layer changes to:
 
 $
 bold(H)'_l &= op("MHA")(op("LN")(bold(H)_(l-1))) + bold(H)_(l-1) \
@@ -176,7 +176,7 @@ layer @vit (see @transformer_classification_head).
 
 With the introducion of the vision Transformer came the division into three different model variants, each having the same architecture
 but different scales. The smallest model is the ViT-B/16, followed by the ViT-L/16. The largest model is the ViT-H/14. The number
-of layers $L$ and the hidden size $D$ are different for each model, and the ViT-B/16 has $L=12$ layers and $D=768$ hidden dim, the ViT-L/16
+of layers $L$ and the hidden size $D$ are different for each variant, and the ViT-B/16 has $L=12$ layers and $D=768$ hidden dim, the ViT-L/16
 has $L=24$ layers and $D=1024$ hidden dim, and the ViT-H/14 has $L=32$ layers and $D=1280$ hidden dim @vit. 
 Both ViT-B/16 and ViT-L/16 have a patch size of $16 times 16$ pixels, while the ViT-H/14 has a patch size of $14 times 14$ pixels.
 As might have come apparent,
@@ -193,8 +193,8 @@ is expressed, the interpretation and understanding remains the same.
 Please note that since our focus is on vision-language models, all further explanations of multimodality will be
 in the context of vision and language.
 
-In the context of Deep Learning this means that the representations, the embedding/representation
-of e.g. the $mono(["I_CLS"])$ or $mono(["T_CLS"])$ token, of a concept should be the same (or at least close to each other),
+In the context of deep learning this means that the representations, the embedding/representation
+of e.g. the $mono(["I_CLS"])$ and $mono(["T_CLS"])$ token, of a concept should be the same (or at least close to each other),
 no matter if is expressed through image or text, which is also called alignment.
 However, in most existing models this is not the case. These models are typically unimodal, meaning they process only one modality,
 making alignment of multiple modalities impossible.
@@ -205,7 +205,7 @@ is aligned across modalities (@different_latent_spaces), resulting in different 
 While it is possible to compare the representations of two unimodal models, e.g. through cosine similarity,
 a similarity close to 1 (the maximum) does not necessarily mean that the concepts expressed in the representations are the same.
 There simply is no semantic relationship between the representations of the same concept produced by two unimodal models.
-A proof of this will be shown in @first_results_transformer_shre.
+A practical example of this will be shown in @first_results_transformer_shre.
 
 To overcome this limitation, a model is required that can produce modality-invariant representations, i.e. representations that are
 independent of the modality of the input.
@@ -227,7 +227,7 @@ inherent differences between modalities, e.g. image and text: Images are 2D and 
 Unimodal encoders encode the input into a modality-specific representation space, so they are normal
 unimodal models, e.g. a ResNet for images. In this work, all encoders will be based on the Transformer architecture.
 
-Multimodal models require components that enforce a common representation space for the different modalities.
+Multimodal models require components that enforce a shared representation space for the modalities.
 There are two options: A multimodal (or shared) encoder, or a loss function (training objective).
 
 The multimodal encoder is responsible for mapping the modality-specific representations into a unified/shared representation space,
@@ -248,7 +248,7 @@ The loss function is usually the contrastive loss, and its implementation for vi
   width: 75%,
   "../figures/multimodal_model.png"),
   caption: [An abstract illustration of a vision-language model. Image and text are first passed through unimodal
-  Transformer encoders, the cls tokens are extracted, and passed seperately into the MLP that maps the
+  Transformer encoders, the cls tokens are extracted and passed seperately into the MLP that maps the
   modality-specific representations into a common representation space.
   A contrastive loss ensures the alignment and repulsion of similar and dissimilar concepts, respectively. We indicate this through
   purple arrows.],
@@ -257,9 +257,9 @@ The loss function is usually the contrastive loss, and its implementation for vi
 When it comes to the actual implementation of multimodal models, Transformers are a very suitable choice, as they can be used for
 both vision and language, and even other modalities not covered in this work, like audio. Furthermore, both the language and vision
 Transformer require their input to be a sequence of embeddings, which makes alignment more straightforward: For each unimodal encoder
-of a multimodal (vision-language) model one distinct Transformer can be used, and the output of a unimodal encoder, which is the respective
+of a multimodal (vision-language) model one distinct Transformer can be used, and the output of an unimodal encoder, which is the respective
 cls token ($mono(["I_CLS"])$ or $mono(["T_CLS"])$) can then be passed (seperately) to a shared encoder, which can be implemented as a simple
-multi-layer MLP (feed forward).
+feed forward network (MLP).
 The output of the shared encoder is then still _one_ representation for the image, and _one_ for the text. However,
 both represenations will be close to each other under cosine similarity, which is useful
 for multimodal tasks like image-text retrieval, introduced in @image_text_retrieval. An abstract illustration of a vision-language model

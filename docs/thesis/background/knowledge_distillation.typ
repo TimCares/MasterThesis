@@ -1,16 +1,16 @@
 #set math.equation(numbering: "(1)")
 == Knowledge Distillation <knowledge_distillation>
 
-Training large Deep Learning models is computationally expensive, and therefore finanically infeasible for researchers outside
-of large corporations. Models often need more than 100 million parameters to achieve state-of-the-art (SOTA) performance, and training
+Training large deep learning models is computationally expensive, and therefore finanically infeasible for researchers outside
+of large corporations. Models often require more than 500 million parameters to achieve state-of-the-art (SOTA) performance, and training
 those models requires a lot of computational resources, e.g. GPUs, time and data. For example, CoCa, a vision model
-reaching SOTA performance of 91% validation accuracy on ImageNet-1K @imagenet @coca, has 2.1 billion parameters, was trained on more than
-3 billion images @vlmo. Based on our approximation, it should have cost over 350 thousand USD to train
+reaching SOTA performance of 91% validation accuracy on ImageNet-1K @imagenet, has 2.1 billion parameters, and was trained on more than
+3 billion images @coca. Based on our approximation, it should have cost over 350 thousand USD to train
 #footnote[Calculation done based on the price per TPU hour of the CloudTPUv4 on Google Cloud Platform with a three year commitment.
 CoCa was trained for 5 days using 2048 CloudTPUv4s @coca. At a price of 1.449 USD per TPU hour (as of August 2024), the total cost is
 $1.449 "USD/h" * 24 "h/day" * 5 "days" * 2048 "TPUs" = 356,106.24 "USD"$.].
 
-One strategy to avoid high computational costs is transfer learning. Here, a, potentially large, pretrained model is used as a starting point
+One strategy to avoid high computational costs is transfer learning. Here, a potentially large pretrained model is used as a starting point
 and finetuned on a specific task, for a potentially different use case. That way, features learned by the model during pretraining
 can be reused, and the model can be adapted to the new task with less data.
 The disadvantage of this approach is that the model size does not change,
@@ -36,7 +36,7 @@ performance of the original model @distilbert.
 ==== Response-based Knowledge Distillation <response_based_knowledge_distillation>
 
 In response-based KD, the teacher must provide a probability distribution over a set of classes for a given sample,
-which is the prediction of the teacher.
+which is the teacher's prediction.
 The student model tries to replicate this probability distribution. This is also called soft targets, because the probability distribution
 is, unless the teacher is 100% sure, not one-hot encoded, but rather a smooth distribution over the classes.
 This increases the relative importance of logits with lower values, e.g. the classes with the second and third highest logits, and
@@ -46,7 +46,7 @@ on less data, compared to a model trained from scratch @kd @kd_survey.
 
 The loss function typically used in response-based KD is the KL-Divergence, introduced in @kl_divergence_section, measuring the difference between
 two probability distributions. The mathematical formulation is as follows:
-Let $f(dot)$ be the teacher model, $g(dot)$ the student model, and $bold(x)$ the input sample of any modalitiy, e.g. an image.
+Let $f(dot)$ be the teacher model, $g(dot)$ the student model, and $bold(x)$ the input sample of the modalitiy used, e.g. an image.
 We define $bold(u)=g(bold(x))$ and $bold(z)=f(bold(x))$ as the output of the teacher and student model, respectively.
 Those are the logits, and for a classification task of e.g. 1000 classes, vectores of length 1000 ($bold(u) in RR^1000 and bold(z) in RR^1000$).
 A best practice is to divide the logits by a temperature parameter $tau$, before applying the softmax function @kd @kd_survey, which
@@ -58,8 +58,8 @@ smooothes the probability distribution further, as illustrated in @prob_dist_kd.
     We present a similar figure as @target_dist.
     A temperature parameter
     $tau$ further smoothens an already soft distribution. In response-based KD, this soft distribution is the prediction of a teacher
-    model for a given samle (middle). Further smoothing (right) increases the relative importance of classes with lower scores. Especially in
-    distributions with large number of classes some classes will have semantic similarities.
+    model for a given sample (middle). Further smoothing (right) increases the relative importance of classes with lower scores. Especially in
+    distributions with large number of classes some of them will have semantic similarities.
     Consider the classes "German Shorthaired Pointer" and "Labrador Retriever" of ImageNet-1K @imagenet,
     which are both dog breeds. The temperature parameter brings the scores
     for those classes closer together, which helps the student model to learn the hidden encoded information the teacher model has
@@ -82,26 +82,6 @@ $i$ and $j$ denote indices of the classes, and $p_i$ and $q_i$ the probabilities
 student model $f(dot)$, respectively. The goal is to minimize the difference between both distributions (the probabilities over all classes),
 computed by the KL-Divergence.
 
-Consequently, recalling the definition of the KL-Divergence in @kl_divergence, the training objective of response-based knowledge distillation
-is to bring the probability distributions of the student model for a given sample, or rather for all sample in the training set,
-as close as possible to the probability distributions of the teacher model for the respective sample(s). 
-
-==== Feature-based Knowledge Distillation
-
-In feature-based KD, the teacher model does not need to provide a probability distribution over classes.
-Instead, the student model tries to replicate the (intermediate) activations of the teacher model,
-and therefore does not necessarily have to only predict the final output (probability distribution) of the teacher model.
-
-The activations of the teacher model are usually regressed using the Mean Squared Error (MSE) as the loss function
-(defined in @mean_squared_error_section). The
-Mean Absolute Error (MAE) can also be used as a criterion, although it is less common @kd_survey @data2vec @data2vec2.
-
-How the activations of the teacher model are regressed by the student model can be adjusted to the specific use case.
-However, this choice is greatly influenced by the architecture of the student model. For example, if the student model
-has the same architecture as the teacher, but only half the number of layers, then the student model can't replicate the activations
-of the teacher 1:1. In this case, other strategies have to be used, and we will introduce one of them in @unimodal_knowledge_distillation.
-An illustration of response-based vs. feature-based KD is shown in @kd_fig.
-
 #figure(
   image("../figures/kd.png", width: 75%),
   caption: [
@@ -114,3 +94,24 @@ An illustration of response-based vs. feature-based KD is shown in @kd_fig.
     Figure adapted and inspired by @kd_survey, image is taken from COCO train set @coco.
   ],
 ) <kd_fig>
+
+
+Consequently, recalling the definition of the KL-Divergence in @kl_divergence, the training objective of response-based knowledge distillation
+is to bring the probability distributions of the student model for a given sample, or rather for all sample in the training set,
+as close as possible to the probability distributions of the teacher model for the respective sample(s). 
+
+==== Feature-based Knowledge Distillation
+
+In feature-based KD, the teacher model does not need to provide a probability distribution over classes.
+Instead, the student model tries to replicate the (intermediate) activations of the teacher model,
+and therefore does not have to predict the final output (probability distribution) of the teacher.
+
+The activations of the teacher model are usually regressed using the mean squared error (MSE) as the loss function
+(defined in @mean_squared_error_section). The
+mean absolute error (MAE) can also be used as a criterion, although it is less common @kd_survey @data2vec @data2vec2.
+
+How the activations of the teacher model are regressed by the student model can be adjusted to the specific use case.
+However, this choice is greatly influenced by the architecture of the student model. For example, if the student model
+has the same architecture as the teacher, but only half the number of layers, then the student model can't replicate the activations
+of the teacher 1:1. In this case, other strategies have to be used, and we will introduce one of them in @unimodal_knowledge_distillation.
+An illustration of response-based vs. feature-based KD is shown in @kd_fig.
