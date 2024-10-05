@@ -133,7 +133,7 @@ To calculate the loss, the cross-entropy loss is used. For a batch, the loss for
 
 $
 cal(L)_"CL"^("i2t") = 1/B sum_(i=0)^(B-1) -log exp(L_(i, i))/(sum_(k=0)^(B-1) exp(L_(i, k)))
-$
+$ <contrastive_loss_i2t>
 
 $exp(L_(i, i))/(sum_(k=0)^(B-1) exp(L_(i, k)))$ denotes the softmax-normalized similarity between an image and its correct caption,
 which is the usual way to calculate the cross-entropy. The result of this normalization is a probability distribution for each image,
@@ -144,7 +144,7 @@ Accordingly, the loss for selecting the correct image for each caption is given 
 
 $
 cal(L)_"CL"^("t2i") = 1/B sum_(i=0)^(B-1) -log exp(L_(i, i))/(sum_(k=0)^(B-1) exp(L_(k, i)))
-$
+$ <contrastive_loss_t2i>
 
 Here, the softmax-normalization is with respect to the similarity of a text with all other images in the batch. The final loss is the mean
 of the image-to-text and text-to-image loss:
