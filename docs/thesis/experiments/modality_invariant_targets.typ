@@ -1,4 +1,4 @@
-=== Modality-Invariant Targets <modality_invariant_targets>
+=== Contrastive Distillation <modality_invariant_targets>
 Throughout the previous experiments, we have seen that the misalignment between image patches and text tokens leads to problems when regressing the image features
 of the teacher. While we are already exceeding the performance of the supervised teacher by predicting the $mono(["I_CLS"])$ of the teacher,
 there is still room for improvement.

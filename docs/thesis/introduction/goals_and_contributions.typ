@@ -2,11 +2,13 @@
 Given the challenges associated with training large multimodal models from scratch,
 we identify the opportunity to utilize the vast amount of existing pretrained unimodal models.
 By extracting and combining knowledge from these models, we can generate multimodal models,
-for the proof-of-concept of this work vision-language models, that are _smaller_ in size and significantly _cheaper_ to train.
-Importantly, the approach is not limited to vision and language, meaning it can be adapted to other combinations of modalities wherever pretrained unimodal models are available.
+for the proof-of-concept developed in this work vision-language models, that are _smaller_ in size and
+significantly _cheaper_ to train.
+Importantly, the approach is not limited to vision and language, meaning it can be
+adapted to other combinations of modalities wherever pretrained unimodal models are available.
 
 Pretrained unimodal models, such as those for computer vision and natural language processing,
-have already learned rich representations within their respective domains through extensive training.
+have already learned rich representations within their respective domains through extensive (pre-)training.
 By aligning and integrating these representations, we can create a multimodal model without the need for large-scale training from scratch.
 This methodology can be extended to other modalities, such as audio, video, by leveraging existing pretrained models in those domains.
 
@@ -14,7 +16,7 @@ It is particularly interesting to use an end-to-end self-supervised approach bec
 that it avoids the scalability issues associated with supervised
 learning, such as the need for large labeled datasets. Self-supervised learning allows us to leverage the raw data available
 across modalities, making the training process more scalable and cost-effective. Additionally, using self-supervised methods throughout,
-including the pretrained parts, ensures that the entire process benefits from scalable learning techniques,
+including the pretrained parts, ensures that the entire end-to-end process benefits from scalable learning techniques,
 regardless of the specific modalities involved.
 
 The goal is to develop a multimodal model that performs well enough to serve as a successful proof-of-concept

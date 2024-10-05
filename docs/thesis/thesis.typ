@@ -157,7 +157,7 @@
   include("experiments/teacher_ablations.typ")
   include("experiments/fine_tuning.typ")
 
-  include("experiments/ablation_study_data.typ")
+  //include("experiments/ablation_study_data.typ")
   include("experiments/limitations.typ")
 
   include("experiments/discussion_of_results.typ")
