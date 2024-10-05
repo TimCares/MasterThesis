@@ -5,19 +5,17 @@ we will first conduct experiments on unimodal knowledge distillation. We will th
 === Vision <unimodal_kd_vision>
 
 ==== Method <unimodal_kd_data2vec2_method>
-Our approach to vision KD involves using a pretrained Data2Vec2 @data2vec2 image model as the teacher model, and distilling
+Our approach to vision KD involves using a pretrained Data2Vec2 @data2vec2 image model as the teacher, and distilling
 a shallow version of this model, which is the student. 
 We attribute our choice of Data2Vec2 to its effectiveness and consistency in self-supervised learning across image, text and audio.
-Data2Vec2 is a general framework to pretrained _unimodal_ image, text, and audio models using self-supervised learning @data2vec @data2vec2, which
+Data2Vec2 is a general framework to pretrain _unimodal_ image, text, and audio models using self-supervised learning @data2vec @data2vec2, which
 fits our philosophy of aligning modalities.
 
 We approach the distillation by taking the first 6 Transformer blocks of the _pretrained_ teacher model, which are exactly half
 of the 12 Transformer blocks in the teacher,
 and organize them into a smaller model. This smaller model also includes the pretrained cls token, patch projection, and positional encodings.
 Consequently, the student model is not trained from scratch, but already initialized with a subset of the teacher's weights.
-This is inspired by DistilBERT @distilbert, a small BERT variant distilled from the normal BERT model,
-selecting every second layer from a pretrained BERT @bert model and organizing them into
-a smaller model.
+This is inspired by DistilBERT @distilbert, a small BERT variant distilled from the normal BERT model @bert.
 As mentioned before, we use the first 6 Transformer blocks of the teacher model, which we found leads to better results than using every second layer.
 The resulting student model is with 43.1M parameters almost half the size of the teacher model, which has 85.9M parameters.
 
@@ -28,8 +26,9 @@ One option would be to predict the teacher's output for the cls token $bold(h)^t
 content of the image, and then use the mean squared error as the loss function.
 However, this neglects the activations for individual image patches and activations of intermediate layers.
 
-This argument is quite similar to that of Data2Vec. The authors introduce "contextualized representations", which are the activations of all layers of a model
-for each time step of the input. Because of Self-Attention in Transformers, the activations for each image patch (time step) are influenced by
+This argument is quite similar to that of Data2Vec. The authors introduce "contextualized representations", which are the activations of all layers
+for each time step (image patch) of the input. Because of self-attention in Transformers, the activations for each image patch
+are influenced by
 all other image patches, and therefore not only encode information about a patches content, but also about its context in the image, i.e. the
 relationship to other patches @data2vec @data2vec2. Consequently, contextualized representations are more informative than a single cls token, as they encode
 information about the image at different levels of abstraction, and how the model aggregates low level features to high level concepts.
@@ -59,7 +58,7 @@ $sigma_d$ are calculated over all time steps $T$. In the case of an embedding di
 a sequence representing an image) 768 means and
 standard deviations are calculated, one for each embedding dimension. Then, for each time step $j$, the embedding at time step $j$ is normalized
 by normalizing each dimension of the embedding independently, using the corresponding mean and standard deviation computed for that dimension @instance_norm.
-During the normalization, a small epsilon, e.g. $1e^(-8)=10^(-8)$, is added to the standard deviation to prevent division by zero.
+During the normalization, a small epsilon, e.g. $epsilon = 1e-8$, is added to the standard deviation to prevent division by zero.
 For an illustrative comparison between instance normalization, batch normalization and layer normalization, see @norm_comparison in the Appendix.
 We define the operation $op("IN")(dot)$ as instance normalization on a sequence of embeddings $bold(H)$.
 $
@@ -100,8 +99,8 @@ $cal(L)_("MSE")(dot, dot)$ is the mean squared error between two vectors, define
 ==== Distillation <unimodal_kd_data2vec2_distillation>
 We distill the student model by minimizing the loss defined in @unimodal_kd_data2vec2_loss
 using the AdamW optimizer @adamW with a base learning rate of 5e-4. We train for 10 epochs with a batch size of 256 on the training set
-of ImageNet-1K @imagenet, and run validation after every epoch on the validation set of ImageNet-1K. As Data2Vec2
-our approach does not involve labels, we use the loss defined in @unimodal_kd_data2vec2_loss also for validation.
+of ImageNet-1K @imagenet, and run validation after every epoch on the validation set of ImageNet-1K. As with Data2Vec2,
+our approach does not involve labels, so we also use the loss defined in @unimodal_kd_data2vec2_loss for validation.
 The total number of parameters involved in the distillation process is 129M, of which 43.1M trainable
 belong to the student model, and 85.9M frozen parameters to the teacher model.
 
@@ -142,9 +141,9 @@ For that, we load the trained student model and add Layer Normalization and a li
 The output of the student model is a sequence of embeddings, one embedding for each image patch, and one cls token embedding.
 We follow the approach of Data2Vec @data2vec @data2vec2 and BEiTv2 @beitv2, and take the mean over all
 patch embeddings as the output of the student model, which is then
-passed to the layer normalization and linear classifier (cls token embedding is ingnored).
+passed to the layer normalization and linear classifier (cls token embedding is ignored).
 For all three tasks we perform full finetuning, i.e. we finetune all layers of the student model on the downstream task, and
-linear probing, we only train the added layer norm and linear classifier on top of the student model. For pytorch pseudocode of linear probing
+linear evaluation, we only train the added layer norm and linear classifier on top of the student model. For pytorch pseudocode of linear evaluation
 and full finetuning see @image_downstream_forward_pseudocode.
 
 For data augmentation during finetuning we use RandAugment @randaugment, mixup @mixup and cutmix @cutmix augmentation, and random erasing @randerase.
@@ -153,8 +152,8 @@ and have been selected based on the values used in
 BEiTv2 @beitv2, Data2Vec @data2vec, and Data2Vec2 @data2vec2. We refrain from explaining the augmentation techniques in detail here, as they are
 well documented in the respective papers.
 
-For finetuning on ImageNet-1K we use a base learning rate of 1-e3 in combination with layer decay. Layer decay is a technique to reduce the
-base learning rate for each layer of the model by a certain factor. The goal is to have lower learning rates for layers closer to the input,
+For finetuning on ImageNet-1K we use a base learning rate of 1e-3 in combination with layer decay. Layer decay is a technique to reduce the
+base learning rate for each layer of the model by a certain factor @data2vec2 @beit. The goal is to have lower learning rates for layers closer to the input,
 and higher learning rates for layers closer to the output. This ensures that low-level features learned during pretraining or distillation
 are not destroyed during finetuning. We use a decay factor of 0.81, which is derived by scaling the layer decay used in Data2Vec2 @data2vec2,
 from which we extract layers for the student model, by the square root. We use scaling instead of the value used in Data2Vec2, which is 0.65
@@ -163,10 +162,12 @@ as we only have half the number of layers in the student model, and can therefor
 The actual learning rate for a layer $l$ is then calculated by:
 
 $
-"lr"_(l) = "base_lr" * "layer_decay"^(L_s + 1 - l)
+lr_(l) = lr_"base" * "d"^(L_s + 1 - l)
 $
 
-The learning rates can be seen in the following table:
+$lr_"base"$ denotes the base learning rate, which is 1e-3, $L_s$ is the number of layers in the student model (6), and $d$
+is the decay factor, which is 0.81.
+The resulting learning rates can be seen in @unimodal_kd_imagenet_finetuning_layer_decay_lr.
 
 #figure(
   table(
@@ -197,7 +198,7 @@ before the first Transformer block as layer 0, which includes the weights used f
 encodings. Correspondingly, layer 7 includes the weights for the layer norm and linear classifier on top of the student model, which are initialized
 randomly and can be assigned a higher learning rate than the other layers.
 
-For all hyperparameters used on the downstream tasks, see @distil_data2vec2_imagenet_finetuning_hyperparameters.
+For all hyperparameters used on the downstream tasks see @distil_data2vec2_imagenet_finetuning_hyperparameters.
 
 The results, displayed in @distil_d2v2_imagenet_results and @distil_d2v2_cifar_results, show that while
 the student model is not able to outperform the teacher model (Data2Vec2),
@@ -214,7 +215,7 @@ only supervised.
     table.header(
       [*Method*],
       [*Finetune*],
-      [*Linear Probe*],
+      [*Linear eval*],
       table.hline(stroke: .6pt),
     ),
     [Data2Vec2], [84.5],[-], 
@@ -223,7 +224,7 @@ only supervised.
     [*DistilData2Vec2 (ours)*], [75.0], [56.2],
     table.hline(),
   ),
-  caption: [Comparison of finetuning and linear probing results with SOTA self-supervised models on ImageNet-1K.],
+  caption: [Comparison of finetuning and linear evaluation results with SOTA self-supervised models on ImageNet-1K.],
 )<distil_d2v2_imagenet_results>
 
 #figure(
@@ -244,7 +245,7 @@ only supervised.
     [Linear Probe],[46.2], 
     table.hline(),
   ),
-  caption: [Results of finetuning and linear probing of our distilled Data2Vec2 image model on CIFAR-10 and CIFAR-100.],
+  caption: [Results of finetuning and linear evaluation of our distilled Data2Vec2 image model on CIFAR-10 and CIFAR-100.],
 )<distil_d2v2_cifar_results>
 
 === Language <unimodal_kd_text>
@@ -257,11 +258,10 @@ we will use BERT for the unimodal distillation as well. Second, as mentioned bef
 to which we can directly compare our results.
 
 We use the same approach as for the image model, and distill a smaller version of BERT from a pretrained BERT model.
-As with our image model, we take the first 6 Transformer blocks of the teacher model, and organize them into a smaller model together with
+As with our image model, we take the first 6 Transformer blocks of the teacher model and organize them into a smaller model together with
 the embedding layer and positional encodings. The student model is therefore, again, initialized with a subset of the teacher's weights.
 
-The distillation loss is defined analogously to the distilled image model, and is defined in @unimodal_kd_data2vec2_loss. We do not need to change
-anything, as the loss is applicable to any Transformer, regardless of the modality, making it a universal loss function for feature-based knowledge distillation.
+The distillation loss is defined analogously to the distilled image model, and is defined in @unimodal_kd_data2vec2_loss. We do not need to introduce changes, as the loss is applicable to any Transformer, regardless of the modality, making it a universal loss function for feature-based knowledge distillation.
 This follows the philosophy of Data2Vec2, which uses the same loss for all modalities @data2vec2.
 
 ==== Importance of Sequence Length
@@ -317,12 +317,12 @@ To the model, there is no difference between "Dog" and "dog".
 We validate the student model on the dedicated validation dataset of OWT we introduced in @unimodal_data.
 
 The model is trained for only one epoch, as we found the model to converge quickly, and because the text data we collect yields
-almost 1M batches of size 256, with a sequence length of 256, which is very large. In comparison, the 1.2M images of ImageNet-1K @imagenet
+almost 1M batches with a sequence length of 256 per sample. For comparison, the 1.2M images of ImageNet-1K @imagenet
 yield 5004 batches of size 256 for a single epoch.
 
 Other hyperparameters used, including the learning rate, are similar to that of the image model, and are provided in @distil_bert_hyperparameters.
 
-Before the loss, defined in @unimodal_kd_bert_loss, is applied, we perform a similar preprocessing as for the image model.
+Before the loss (@unimodal_kd_bert_loss) is applied, we perform a similar preprocessing as for the image model.
 However, following Data2Vec2 @data2vec2, we do not apply layer normalization on the averaged activations, and the loss
 is only calculated for non-padding tokens. This was not relevant in the image model, as there is no padding in the image data.
 
@@ -343,8 +343,8 @@ $
 
 $
 cal(L)'_("MSE")(bold(y)_m, bold(hat(y))_m) &:= cases(
-  0 &"if" bold(e)^w_m = bold(t)_mono(["PAD"]) \
-  cal(L)_("MSE")(bold(y)_m, bold(hat(y))_m) &"else",
+  0 &\,"if" bold(e)^w_m = bold(t)_mono(["PAD"]) \
+  cal(L)_("MSE")(bold(y)_m, bold(hat(y))_m) &\,"else",
 )
 $
 $
@@ -370,10 +370,10 @@ GLUE benchmark tasks @glue, which are described in @unimodal_data, and visualize
 *Model Setup*
 
 To perform finetuning, we load the weights of the trained student model.
-After an example (e.g. sentence pair) is passed through the Transformer layer, the representation $bold(h)_(w, L, mono(["T_CLS"]))$
-of the $mono(["CLS"])$ token is extracted, and passed through the BERT pooler @bert, which is a linear layer
+After an example (e.g. sentence pair) is passed through the Transformer layer, the representation $bold(h)_(w, L_s, mono(["T_CLS"]))$
+of the $ mono(["T_CLS"])$ token is extracted, and passed through the BERT pooler @bert, which is a linear layer
 followed by a Tanh activation function. The linear layer retrains the input dimensionality of the $mono(["CLS"])$ token, which is 768.
-The weights of the pooler come directly from the BERT model, and are also fine-tuned.
+The weights of the pooler come directly from the BERT model, and are also further trained as part of our finetuning.
 The pooler is followed by a dropout layer, for which the dropout probability is set to $p=0.1$ for all tasks
 (shown in @distil_bert_glue_finetuning_hyperparameters), and is followed by a linear classification layer, which maps the representation
 to the number of classes of the downstream task.
@@ -392,7 +392,7 @@ without interpolation. However, this would (1) cause problems with memory, as th
 24GB GPU. Furthermore, (2) the positional encoding of the student model comes directly from the teacher model, which
 is BERT. The positional encoding $bold(T)^"pos"_w$ of BERT is trainable, and has one
 positional encoding $bold(t)^w_"pos"$ for each position in the sequence.
-Since we only distill with a sequence length of 256, only the first 256 positional encodings are actually trained during distillation,
+Since we only distill with a sequence length of 256, only the first 256 positional encodings are actually further trained during distillation,
 meaning that the positional encodings for positions 257 to 512 are not trained further, and therefore still the
 same as in the normal BERT model.
 That means they are not "used" to a BERT model that has only 6, instead of 12, Transformer blocks, and therefore might not be optimal
@@ -404,8 +404,8 @@ consists of a sentence pair, both sentences are tuncated equally, so that the to
 
 Second, if the task consists of sentence pairs, we add a special token-type embedding to each token before
 the positional encoding is added. This, together with the
-$mono(["T_SEP"])$ between both sentences, helps the model to better differentiate between the two sentences in the sentence pair,
-and the first token-type embedding $bold(t)^w_mono(["TYP_1"])$ is added to each token of the first sentence,
+$mono(["T_SEP"])$ between both sentences, helps the model to better differentiate between the two sentences in the sentence pair.
+The first token-type embedding $bold(t)^w_mono(["TYP_1"])$ is added to each token of the first sentence,
 and the second token-type embedding $bold(t)^w_mono(["TYP_2"])$ is added to each token
 of the second sentence:
 
@@ -432,7 +432,7 @@ BERT model @bert, but are not used during distillation, as there are no sentence
 on sentence pairs, they are required, and we take the pretrained token-type embeddings from the
 BERT model and also train them during finetuning.
 
-For examples of sentence pairs, see @glue_example.
+For examples of sentence pairs see @glue_example.
 
 *Hyperparameters*
 
@@ -450,7 +450,8 @@ All scores are based on the dev sets of the respective tasks, as the test datase
 
 We are able
 to retain 96.7% of the performance of BERT, which is almost the same as the 96.8% of DistilBERT. Noteably, we outperform
-DistilBERT on the RTE @rte task by more than 7 percentage points, and even record the best score of all methods compared on WNLI @wnli.
+DistilBERT on the RTE @rte task by more than 7 percentage points, and even record the best score of all methods
+we compare to on WNLI @wnli.
 The latter is most likely due to the fact that WNLI is a very small dataset, with 635 training and
 only 71 dev samples. Both DistilBERT and F-DistilBERT
 have considerable less parameters than BERT, which makes them less prone to overfitting on small datasets,

@@ -34,9 +34,9 @@ supplement: [Code]
     ```python
     # model: pretrained (e.g. distilled) model
     # bert_pooler: pretrained BERT pooler layer with tanh activation
-    # dropout: dropout layer
+    # dropout: dropout layer (p=0.1)
     # cls_head: roberta classification head
-    # x: batch text tokens (B, M+2) -> M: max sequence length, 2: cls and sep token
+    # x: batch of text tokens (B, M+2) -> M: max sequence length, 2: cls and sep token
     # target: batch of labels (B, )
     # regression: boolean flag for regression tasks
     # metric: either Accuracy, F1, or Spearman correlation
