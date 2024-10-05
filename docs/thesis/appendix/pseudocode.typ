@@ -7,7 +7,10 @@
     # layer_norm: layer normalization layer
     # cls_head: linear classifier -> nn.Linear(D, C)
     # x: batch of images (B, 3, H, W)
-    def image_downstream_forward(model, layer_norm, cls_head, x, linear_probe):
+    # target: batch of labels (B, )
+    # linear_probe: boolean flag for linear evaluation
+    def image_downstream_forward(model, layer_norm, cls_head, x,
+      target, linear_probe):
         
         if linear_probe:
           with torch.no_grad():
@@ -19,12 +22,13 @@
         x = x.mean(dim=1) # mean over all patches (B, D)
         x = layer_norm(x)
         x = cls_head(x) # (B, C)
+
+        loss = cross_entropy(x, target)
         pred = x.argmax(dim=-1) # (B, )
-        return pred
+        return loss, pred
     ```
   ), 
-caption: [Pytorch pseudocode for the forward pass during finetuning or linear probing of a pretrained model on an image classification tasks. The output
-of the forward pass is the predicted class index for each image in the batch.],
+caption: [Pytorch pseudocode for the forward pass during finetuning or linear evaluation of a pretrained model on an image classification tasks. "pred" contains the predicted class index for each image in the batch.],
 kind: "code",
 supplement: [Code]
 ) <image_downstream_forward_pseudocode>
@@ -104,6 +108,8 @@ supplement: [Code]
   ), 
 caption: [
   Abstract code used in the forward pass for distilling the multimodal Transformer SHRe from a pretrained ResNet-50-A1 model.
+  The shared encoder returns a list of represenations. Each element corresponds to the activations of one linear
+  layer in the shared encoder.
 ],
 kind: "code",
 supplement: [Code],

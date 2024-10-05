@@ -1,7 +1,7 @@
 == Multimodal Knowledge Distillation <multimodal_knowledge_distillation>
 === Transformer SHRe <transformer_shre>
 Before we develop an end-to-end self-supervised approach to multimodal knowledge distillation, we first follow the approach
-of SHRe @shre and develop a multimodal knowledge distillation with a probability distribution over the classes as the prediction
+of SHRe @shre and train a multimodal model with a probability distribution over the classes as the prediction
 target. This allows us to closely observe the impact of switching from a supervised to a self-supervised teacher model on the
 student model's performance. Moreover, it allows us to gradually increase the complexity of our approach and build on our
 previous advancements.
@@ -11,19 +11,18 @@ previous advancements.
 What makes our approach different from SHRe is that we use a language Transformer as the text encoder, and
 a vision Transformer as the image encoder, bringing us closer to a unified architecture.
 In contrast, SHRe uses 2D convolutions and 1D convolutions for the image and text, respectively. For now, the shared encoder remains
-a 3-layer MLP, as in SHRe @shre. Since the output of the image and text encoder is a sequence of features, but we use a normal MLP as the shared encoder,
-we have to reduce the sequence of features to a single feature vector. This is done by taking the representation of the $mono(["I_CLS"])$
+a 3-layer MLP as in SHRe @shre. Since the output of the image and text encoder is a sequence of features, but we use a normal MLP as the shared encoder,
+we have to reduce the sequence of features to a single represenation. This is done by taking the representation of the $mono(["I_CLS"])$
 and $mono(["T_CLS"])$
 token from the image and text encoder, respectively, and aligns with our first implementation of a multimodal model shown in @multimodal_model.
 This represenation, namely $bold(h)_(v, L_s, mono(["I_CLS"]))$
 and $bold(h)_(w, L_s, mono(["T_CLS"]))$, is then passed to the shared encoder, which produces the final multimodal representations.
 Here, $L_s$ denotes the number of Transformer layers in the image and text encoder, respectively, which is
-defined as $L_s=6$. We remove the token indicator $mono(["I_CLS"])$ and $mono(["T_CLS"])$ from the notation,
-as the MLP only receives those cls token representations as input. There are no more time steps to distinguish between.
+defined as $L_s=6$.
 
 To keep the model size manageable, we will resort the the same approach as in our unimodal experiment, and use 6 Transformer layers
 for the image and text encoder, respectively. This also gives us the opportunity
-to directly compare the performance of the image and text encoder from our multimodal model to that of the unimodal models (@unimodal_knowledge_distillation). This can be done by evaluating e.g. the image encoder of the multimodal model on image classification tasks, and
+to directly compare the performance of the image and text encoder from our multimodal model to that of the unimodal models (@unimodal_knowledge_distillation). This can be done by evaluating for instance the image encoder of the multimodal model on image classification tasks, and
 then comparing its performance to the results observed for the unimodal image KD model of @unimodal_kd_vision
 on the same tasks.
 A performance similar to that of the strictly unimodal models would indicate that multimodal pretraining
@@ -32,8 +31,7 @@ requirement for multimodal models. This can be attributed to the fact that an al
 the shared encoder is only possible if the unimodal encoders generate features from which the shared encoder
 can extract modality-invariant information, like the semantic content of an image or text. If the unimodal encoders are not able to extract
 high-level features, then neither will the shared encoder be able to extract modality-invariant information,
-nor will the features be useful in the corresponding unimodal downstream tasks, like for example image classification
-using the image encoder of the multimodal model.
+nor will the features be useful in the corresponding unimodal downstream tasks.
 
 As done in our unimodal experiments, we initialize the image and text encoder using the embeddings, positional encodings,
 and the first 6 Transformer layers from Data2Vec2 @data2vec2 and BERT @bert, respectively. The shared encoder will be initialized
@@ -46,12 +44,12 @@ and adding an additional LayerNorm and linear layer on top of it. Given the outp
 is then given in the following, and changes for the image encoder accordingly:
 
 $
-bold(h)'_(w, K) &= bold(h)_(w, L_s, mono(["T_CLS"]))bold(W)_1 + bold(b)_1 \
-bold(h)''_(w, K) &= op("LN")(op("GELU")(bold(h)'_(w, K)))bold(W)_2 + bold(b)_2 \
+bold(h)'_(w, K) &= bold(h)_(w, L_s, mono(["T_CLS"]))bold(W)_1^T + bold(b)_1 \
+bold(h)''_(w, K) &= op("LN")(op("GELU")(bold(h)'_(w, K)))bold(W)_2^T + bold(b)_2 \
 $ <transformer_shre_shared_encoder_ffn_computation>
 
 $
-bold(bold(h))'''_(w, K) &= op("LN")(bold(h)''_(w, K))bold(W)_3 + bold(b)_3 \
+bold(bold(h))'''_(w, K) &= op("LN")(bold(h)''_(w, K))bold(W)_3^T + bold(b)_3 \
 $ <transformer_shre_shared_encoder_head_computation>
 
 We consider the 3-layer MLP as a single layer stacked on the image and text encoder, and therefore denote the layer
@@ -59,7 +57,7 @@ number as $K=L_s+1=7$.
 The operation done in @transformer_shre_shared_encoder_ffn_computation is analogous to the definition of the
 MLP layers in a Transformer layer, defined in @transformer_ffn_eq. We choose a different notation here
 to also capture the result $bold(h)'_(w, K)$, or $bold(h)'_(v, K)$ for an image, of the first linear layer
-(given by parameters $bold(W)_1$ and $bold(b)_1$),
+(the latter is represented by parameters $bold(W)_1$ and $bold(b)_1$),
 which is important when defining the loss in the next section.
 
 The whole model has a total of around 114.2M parameters, which is broken down in @transformer_shre_param_table.
@@ -87,11 +85,11 @@ The whole model has a total of around 114.2M parameters, which is broken down in
 The 24M parameters the text encoder has more than the image encoder can be attributed to the embedding matrix of the text encoder, which
 alone has 23.4M parameters. Since we use parts of a pretrained BERT model, we also have to resort to using the BERT tokenizer and
 vocabulary. The vocabulary consists of 30522 (sub)words, and the embedding matrix has a dimensionality of 768 ($30522*768=23.4M$).
-The rest of parameters the text encoder has more is related to BERT's specific implementation of positional encodings.
+The remaining parameters are related to the BERT-specific implementation of positional encodings.
 
-While 115M parameters can be considered as quite large, considering we strive to build smaller models, 
+While 115M parameters can be considered as quite large, considering we strive to build efficient(/smaller) models, 
 it is still significantly smaller than the vision-language models we compare to.
-For example, VLMo @vlmo has 175M
+For example, VLMo @vlmo has 562M
 #footnote[#link("https://github.com/microsoft/unilm/tree/master/vlmo")], CLIP @clip has more than 400M
 #footnote[#link("https://huggingface.co/openai/clip-vit-large-patch14")], and BEiT-3 @beit3 has 1.9B parameters @beit3.  
 
@@ -102,8 +100,8 @@ As the application of the KL-Divergence is two-fold, once for the prediction bas
 we provide a refined version of the loss function. As a preliminary step, we define the softmax normalization of a vector $bold(u)$ as follows:
 
 $
-pi(bold(u)) = bold(z) &= [z_1, z_2, dots, z_n] in RR^n \
-z_i &= exp(u_i) / (sum_(j=1)^n exp(u_j))
+pi(bold(u)) = bold(z) &= [z_0, z_2, dots, z_(C-1)] in RR^C \
+z_i &= exp(u_i) / (sum_(j=0)^(C-1) exp(u_j))
 $
 
 This allows us to generate a probability distribution over the classes for the logits generated by the teacher for the image, and for the
@@ -136,12 +134,13 @@ cal(L)_("CL") &= \
 $ <full_contrastive_loss_transformer_shre>
 
 Let's break this down: The prime ($prime$) symbol defines on which outputs
-from @transformer_shre_shared_encoder_ffn_computation and @transformer_shre_shared_encoder_head_computation
+from the shared encoder (@transformer_shre_shared_encoder_ffn_computation and @transformer_shre_shared_encoder_head_computation)
 the contrastive loss is applied. Since we have three linear
 layers in our shared encoder, and we want to enforce alignment in the whole shared encoder,
 we apply the contrastive loss on all three layers, but seperately.
 The superscripts $"i2t"$ and $"t2i"$ denote if we apply the contrastive loss
-from image to text or from text to image, and should already be known from @vision_language_contrast. To sum up, we apply the contrastive loss on all
+from image to text or from text to image, and should already be known from 
+when we introduced vision-language contrast (@vision_language_contrast). To sum up, we apply the contrastive loss on all
 three linear layers of the shared encoder, and we weight the loss equally for each layer. The contrastive loss 
 itself weights image-to-text and text-to-image equally, which is why each component of the contrastive loss is weighted with $1/6$.
 For each contrastive loss $cal(L)_("CL"')$, $cal(L)_("CL"'')$, and $cal(L)_("CL"''')$
@@ -164,25 +163,25 @@ on HuggingFace#footnote[#link("https://huggingface.co/timm/resnet50.a1_in1k")].
 
 We train the student model on all 3.3M image-text pairs we collected (@vl_dataset_summary) for 7 epochs, using a batch size of 256.
 We do not train for longer, as (1) we want to keep the training time manageable, and (2) we use a lot of pretrained components, which
-need less training time to converge. As done in prior experiments, we use the AdamW optimizer @adamW, and use a learning rate of $1e^-4$.
+need less training time to converge. As done in prior experiments, we use the AdamW optimizer @adamW and a learning rate of 1e-4.
 After every epoch, we validate the model on CLIP's zero-shot image classification approach,
 introduced in @clip_zero_shot_section, and select the best model based on the achieved accuracy. The representations for the zero-shot
 classification are generated by the shared encoder of the student model, which we define as $bold(h)'''_(v, K)$ and $bold(h)'''_(w, K)$.
 The classification is performed on the validation set of ImageNet-1K @imagenet. At this point it is important to note that
 the accuracy we report with CLIP zero-shot classification is actually not zero-shot. This is because the teacher model is trained
 supervised on ImageNet-1K, and the student model is trained using the teacher's probability distribution over the ImageNet-1K classes.
-Our student model therefore learns the ImageNet-1K classes directly, even though we do not train on ImageNet-1K directly.
+Our student model therefore learns the ImageNet-1K classes even though we do not train on ImageNet-1K directly.
 However, the accuracy we achieve still gives us a good indication of the quality of the student model's representations.
 
 As mentioned before, we tokenize the text using the uncased BERT tokenizer. Again, uncased means that all text is lowercased before tokenization.
-Inspired by BEiT-3, weset the maximum text length, the length of the captions, to 64 tokens @beit3, truncate longer captions and pad shorter captions.
+Inspired by BEiT-3, we set the maximum text length, the length of the captions, to 64 tokens @beit3, truncate longer captions and pad shorter captions.
 This reduces the time required for a forward pass of the text encoder, and the captions of the data we collect are on average not larger than
 15 tokens anyway (see @vl_dataset_summary).
 
 For image augmentation, we use the same techniques as in the unimodal image KD experiment (@unimodal_kd_data2vec2_distillation).
 However, we make one important distinction in the size of the random crop: As seen in @distil_data2vec2_hyperparameters, the range of the random crop
 size is between 0.08 and 1.0 of the original image size. The lower bound is quite small, but because student and teacher receive the same
-crop, even if it is very small, the student can still learn the teacher's representation for a small part of an image, generated by the crop.
+crop, even if it is very small, the student can still learn the teacher's representation for a small part of the image.
 However, this gets problematic with image text pairs. If the crop is very small, then important semantic information of the image might be lost,
 which is still present in the text. Therefore, the resulting probability distribution of the teacher for that small crop might not be representative
 of the image's high-level content, which is described by the text. This could result in the student predicting a probability distribution that is
@@ -190,13 +189,13 @@ correct with respect to the whole image, but not with respect to the small crop.
 to 0.9, which is also the value used by VLMo @vlmo. This ensures that the crop is large enough to capture the high-level content of the image.
 A visualization of too small crops is shown in @vl_crop_size_bad, and a visualization of a minimum crop size of 0.9 is shown in @vl_crop_size_good.
 
-All hyperparameters as summarized in @transformer_shre_hyperparams, pytorch pseudocode for the forward pass can be found in @transformer_shre_forward_pseudocode.
+All hyperparameters are summarized in @transformer_shre_hyperparams, pytorch pseudocode for the forward pass can be found in @transformer_shre_forward_pseudocode.
 
 ===== Results <first_results_transformer_shre>
 We report the results of
-image-text retrieval on the test sets of COCO @coco and Flickr30k @flickr30k, which is shown in @image_text_retrieval_shre_transformer_first.
+image-text retrieval on the test sets of COCO @coco and Flickr30k @flickr30k, which are shown in @image_text_retrieval_shre_transformer_first.
 Note that we do not report results on unimodal downstream tasks like image classification
-or text classification. This is because finetuning is expensive, which is why will refrain from doing so until we reach our final improved
+or text classification. This is because finetuning is expensive, which is why will refrain from doing so until we reach our final
 approach.
 
 While the results on image-text retrieval are significantly worse than the state-of-the-art, we can still observe that we are not far off
@@ -247,30 +246,33 @@ CLIP @clip, with CLIP being an actual zero-shot application (see previous sectio
     table.hline(stroke: .1pt),
     [FLAVA @flava], [42.74], [76.76], [-], [38.38], [67.47], [-], [67.7], [94.0], [-], [65.22], [89.38], [-],
     [CLIP @clip], [58.4], [81.5], [88.1], [37.8], [62.4], [72.2], [88.0],[98.7], [99.4], [68.7], [90.6], [95.2],
-    [VLMo @vlmo], [74.8], [93.1], [96.9], [57.2], [82.6], [89.8], [92.3], [99.4], [99.9], [79.3], [95.7], [97.8],
+    [VLMo @vlmo], [83.1], [96.0], [98.2], [65.2], [86.5], [92.2], [96.8], [100], [100], [88.1], [98.4], [99.3],
     [BEiT-3 @beit3], [*84.8*], [*96.5*],[*98.3*], [*67.2*], [*87.7*], [*92.8*], [*98*], [*100*], [*100*], [*90.3*], [*98.7*], [*99.5*],
     table.hline(stroke: .3pt),
     [$"SHRe"_T$ (ours)], [37.06], [67.74], [79.7], [25.3], [54.73], [68.19], [49.9], [78.5], [88.5], [37.04], [67.34], [77.38],
     table.hline(),
   ),
-  caption: [],
+  caption: [
+    Results of image-text retrieval on the COCO and Flickr30K test sets for Transformer SHRe.
+    The results are compared to FLAVA @flava, CLIP @clip, VLMo @vlmo, and BEiT-3 @beit3.
+  ],
 )<image_text_retrieval_shre_transformer_first>
 #show table: set text(12pt)
 
 Since we are using the same approach as SHRe, we also provide a comparison of the average median rank on the COCO test set.
 How SHRe reports the average median rank is described in @shre_section. Unfortunately, the authors 
-do not provide which pairs they exacly use to calculate the average median rank. We therefore opt for an approach that should closely
+do not provide the exact pairs used to calculate the average median rank. We therefore opt for an approach that should closely
 resemble that of SHRe: We select all 5k images from the COCO test set, and split them into 5 distinct sets of 1k images each.
 For each set we do the following: For each image one caption, out of the 5 captions available, is selected.
 We then have 5 splits of 1k image-caption pairs each. In each split, for one candidate there is only one correct target and 999 incorrect targets.
-We the perform retrieval on each split, and calculate the median rank of the correct target. The average median rank is then the average
+We then perform retrieval on each split, and calculate the median rank of the correct target. The average median rank is then the average
 of the median ranks over all 5 splits. This procedure itself is repeated 5 times, so that each image is paired with each of its
 5 correct captions exactly once. The result is 5 average median ranks, which are then averaged to
 get the metric reported in @transformer_shre_amr_results.
 Our approach significantly improves the baseline of SHRe, and the results indicate that the correct pair for a query is
-mostly either the first or second retrieved item, though the results do not account for outliers, since the median rank is used.
+in most cases either the first or second retrieved item, though the results do not account for outliers, since the median rank is used.
 The reason for the almost perfect results, considering the minimum possible value is 1, can be attributed to the advances in
-Deep Learning research since SHRe was published, which was in 2017 @shre. Some of the advances include the Transformer architecture,
+deep learning research since SHRe was published, which was in 2017 @shre. Some of the advances include the Transformer architecture,
 and the use of contrastive learning. Furthermore, we can assume that the quality of the teacher model, which is a ResNet-50-A1 @resnet_50_a1,
 is also higher than the teacher model used in SHRe, which they do not specify explicitly, but they mention AlexNet as an example teacher model.
 Lastly, our approach is a vision-language model, while SHRe is a vision-language-audio model, which might make the task of alignment more difficult.
@@ -297,10 +299,10 @@ Lastly, our approach is a vision-language model, while SHRe is a vision-language
 )<transformer_shre_amr_results>
 
 As mentioned in the introduction of SHRe @shre, the idea of not only predicting the probability distribution over the ImageNet-1K classes
-for a given image, but also for a given caption, works because the ImageNet-1K classes can also be used to describe the content of a caption.
-The main reason for this being that the ImageNet-1K classes describe real-world objects, which are independent of the image modality, and
+for a given image, but also for its caption, works because the ImageNet-1K classes can also be used to describe the content of a caption.
+The main reason for this is that the ImageNet-1K classes describe real-world objects, which are independent of the image modality, and
 can therefore also be used to describe the content of a text. A visualization of that is shown on image-text pairs from COCO,
-which is the data we use for training, in @shre_coco_prob_dist.
+which is part of the data we use for training, in @shre_coco_prob_dist.
 
 ==== Larger Batch Sizes with DDP <larger_batch_sizes_ddp>
 As mentioned in the introduction of contrastive learning (@vision_language_contrast), a large batch size is crucial
@@ -309,11 +311,11 @@ finding the correct pair among those negatives more difficult.  Unfortunately, w
 as we run out of memory with our current GPU setup (1 $times$ NVIDIA RTX 4090).
 
 To overcome this limitation, we utilize Distributed Data Parallel (DDP) @pytorch_ddp, which allows us to train our model on multiple GPUs.
-Each GPU has its own replica (copy) of the model, and for a single forward pass, each GPU processes a different batch of the data.
+Each GPU has its own replica (copy) of the model, and for a single forward pass each GPU processes a different batch of the data.
 The forward pass and backward pass are then computed on each GPU seperately, based on the mini-batch of data it received. The resulting
-gradients for each replica a then aggregated across all GPUs/replicas, and each replica updates its weights based on the aggregated gradients.
+gradients for each replica are then aggregated across all GPUs/replicas, and each replica updates its weights based on the aggregated gradients.
 We are therefore able to increase the batch size by the number of GPUs we use, and update the weights of the model based on gradients
-that have been computed on a larger batch size than a single model received in a single forward pass @pytorch_ddp. An illustration of DDP with 2 GPUs
+that have been computed on a larger batch size than a single model received in a forward pass @pytorch_ddp. An illustration of DDP with 2 GPUs
 is shown in @ddp_illustration.
 
 A side effect of DDP is that after the forward pass of each replica, there now exists not just a single batch of image-text representations,
@@ -337,7 +339,8 @@ we do not want to make the success of our approach too dependent on the hardware
 that is feasible even for researchers with limited resources. We therefore limit the number of GPUs to 2, effectively increasing the batch size
 to 512. The architecture, loss, and training procedure remain the same as described in the previous sections.
 
-As shown in @ddp_result_comparison, introducing DDP with a second GPU lead to an absolute gain of more than 4% on the COCO and Flickr30K retrieval tasks,
+As shown in @ddp_result_comparison, introducing DDP with a second GPU lead to an absolute gain of more than 4
+percentage points on the COCO and Flickr30K retrieval tasks,
 while almost reaching perfect performance on the average median rank task of SHRe @shre.
 This underlines the importance of a large batch size for contrastive learning.
 However, we observe no improvement on the (zero-shot) ImageNet classification task.
@@ -349,6 +352,9 @@ helps the model better distinguish between relevant and irrelevant image-text pa
 As a result, an increase in batch size translates more directly into better retrieval performance,
 while its effect on zero-shot classification is less pronounced.
 
+Further, the average median rank (AMR) for image-to-text and text-to-image retrieval on COCO
+decreases to almost perfect scores, seen in @ddp_result_amr_comparison.
+
 The training time, displayed in @ddp_result_time_comparison behaves as expected: The wall clock time per batch (the time
 needed for one full training step, including weight updates) is higher when using DDP,
 but the total training duration is significantly lower. Again, the latter is due to the fact that the
@@ -357,32 +363,48 @@ number of steps per epoch is reduced by a factor equal to the number of GPUs use
 #show table: set text(8pt)
 #figure(
   table(
-    columns: (15%, auto, auto, auto, auto, auto),
+  columns: 4,
+  stroke: none,
+  table.hline(),
+  table.header(
+    table.cell(rowspan: 2, colspan: 1, align:horizon, [DDP]),
+    table.cell(rowspan: 2, colspan: 1, align:horizon, [ImageNet-1K]),
+    table.cell(colspan: 2, align:horizon, [Retrieval]),
+    [MSCOCO],
+    [Flickr30K],
+  ),
+  table.hline(stroke: .6pt),
+  [$times$], [*40.26*], [55.45], [66.44],
+  [$checkmark$], [40.0], [*59.59*], [*70.78*],
+  table.hline(),
+),
+    caption: [
+    DDP improves the performance of the model on the COCO and Flickr30K retrieval tasks, but not on (zero-shot) ImageNet classification.]
+) <ddp_result_comparison>
+
+#figure(
+  table(
+  columns: 5,
     stroke: none,
     table.hline(),
     table.header(
-      table.cell(rowspan: 3, align:horizon, [*Approach*]),
-      table.vline(stroke: .4pt),
-      table.cell(colspan: 3, rowspan: 1, align:horizon, [*COCO Retrieval*]),
-      table.vline(stroke: .4pt),
-      table.cell(rowspan: 2, align:top, [*Flickr30K Avg. R*]),
-      table.vline(stroke: .4pt),
-      table.cell(rowspan: 2, align:top, [*ImageNet classification*]),
-      [Avg. R], [AMR-I2T], [AMR-T2I], [], [],
-      table.hline(stroke: .6pt),
+      table.cell(rowspan: 3, colspan: 1, align:horizon, [*Model*]),
+      table.cell(colspan: 4, [*MSCOCO*]),
+      table.cell(colspan: 2, [Image $arrow.r$ Text]),
+      table.cell(colspan: 2, [Text $arrow.r$ Image]),
     ),
-    [Default], [55.45], [1.5], [2.0], [66.44], [*40.26*],
-    [DDP], [*59.59*], [*1.0*], [*1.04*], [*70.78*], [40.0],
+    table.hline(stroke: .4pt),
+    [SHRe @shre], table.cell(colspan: 2, [5.8]), table.cell(colspan: 2, [6.0]),
+    [$"SHRe"_T$ (ours)], table.cell(colspan: 2, [1.5]), table.cell(colspan: 2, [2.0]),
+    [$"SHRe"_T$ + DDP (ours)], table.cell(colspan: 2, [*1.0*]), table.cell(colspan: 2, [*1.04*]),
     table.hline(),
   ),
   caption: [
-    We report the average R@1, R@5, and R@10 values for image-text and text-image retrieval on the COCO and Flickr30K test sets (Avg. R).
-    Further, the average median rank (AMR) for image-to-text (I2T) and text-to-image (T2I) retrieval on COCO, and the
-    performance on CLIP-like ImageNet classification is listed.
-    DDP improves the performance of the model on the COCO and Flickr30K retrieval tasks, but not on (zero-shot) ImageNet classification.],
-)<ddp_result_comparison>
-#show table: set text(12pt)
+    Increasing the negative samples by using DDP improves the average median rank on the COCO test set.
+  ],
+)<ddp_result_amr_comparison>
 
+#show table: set text(8pt)
 #figure(
   table(
     columns: 3,
@@ -390,7 +412,7 @@ number of steps per epoch is reduced by a factor equal to the number of GPUs use
     table.hline(),
     table.header(
       [*Approach*],
-      [*Wall Clock Time / Batch (ms)*],
+      [*Wall Clock Time per Batch (ms)*],
       [*Training duration (h)*],
       table.hline(stroke: .6pt),
     ),
@@ -404,6 +426,7 @@ number of steps per epoch is reduced by a factor equal to the number of GPUs use
     is higher for the DDP approach, the total training duration is significantly lower.
   ],
 )<ddp_result_time_comparison>
+#show table: set text(11pt)
 
 ==== Shared Transformer Encoder
 We prepend the name of our approach with "Transformer" to indicate that we use a Transformer architecture for both the image and text encoder.
