@@ -1,9 +1,11 @@
 = Data Collection <data_collection_and_preparation>
-The data we need to collect has to be both unimodal and multimodal. The requirement for multimodal data is obvious: We aim
+Before we start, we first need to collect data for our experiments, which has to be both unimodal and multimodal.
+The requirement for multimodal data is obvious: We aim
 to align image and text, which requires a dataset of image-text pairs. Unimodal data is required for preliminary tests of
 classic unimodal knowledge distillation, on which we can then build. Further, we will utilize unimodal data for the evaluation
 of multimodal models on downstream tasks. After all, a multimodal model should not only excel in aligning modalities, but also
-in tasks that only involve on of the aligned modalities. This also gives us the opportunity to compare the performance of
+in tasks that only involve on of the aligned modalities (vision and language).
+This also gives us the opportunity to compare the performance of
 unimodal and multimodal distilled models on the same tasks.
 
 == Unimodal Data <unimodal_data>
@@ -25,10 +27,10 @@ This data was developed to replicate the datasets used to train GPT-2, and is al
 #footnote[#link("https://huggingface.co/datasets/Skylion007/openwebtext")[https://huggingface.co/datasets/Skylion007/openwebtext]].
 The dataset consists of raw unstructured text, without any labels, which are not necessary for our distillation process.
 It is published as 21 chunks, and we select the first 6 for training and the 7th for validation, which is around 33% of the data.
-We do not collect the full dataset, as the training data, when slicing it into sections of 192 tokens, which each slice being
-one training example, already consists of more than 2.5 billion tokens, which we consider sufficient for our purposes.
+We do not collect the full dataset, as our subset
+already consists of more than 2.5 billion tokens, which we consider sufficient for our purposes.
 Even though the data is already preprocessed and cleaned, we further preprocess it by removing empty lines and null bytes,
-which we found to be quite common and lead to problems during encoding and training, as they provide no learnable information.
+which we found to be quite common and leads to problems during encoding and training, as they provide no learnable information.
 
 For benchmarking language models, including our multimodal models, on downstream tasks, we will use the GLUE benchmark @glue.
 GLUE, short for #text(weight: "bold")[G]eneral #text(weight: "bold")[L]anguage 
@@ -46,7 +48,7 @@ Sentence classification of rotten tomatoes movie reviews into "negative" (1), "s
 *CoLA*
 
 Is a binary classification tasks to test a models understanding of grammar:
-Model should output whether a sentence is grammatically correct (label: "acceptable" -> 1) or not (label: "unacceptable" -> 0) @cola.
+A model should output whether a sentence is grammatically correct (label: "acceptable" -> 1) or not (label: "unacceptable" -> 0) @cola.
 
 *STS-B*
 
@@ -60,12 +62,12 @@ meaning whether two sentences describe the same semantic concept @mrpc.
 
 *QQP*
 
-The same as MRPC, instead of a simple sentence pair, the goal is to detect wethere two questions are semantic
+The same as MRPC, instead of a simple sentence pair, the goal is to detect whether two questions are semantic
 duplicates, i.e. ask the same thing #footnote[https://quoradata.quora.com/First-Quora-Dataset-Release-Question-Pairs].
 
 *QNLI*
 
-A binary classification task, where the model has to predict whether one sentence is the answer to a question represented by another sentence.
+A binary classification task, where the model has to predict whether a sentence is the answer to a question.
 Examples are of the form (question, sentence) @squad @glue.
 
 *RTE*
@@ -85,7 +87,7 @@ concepts not seen during training. It is therefore a better measure of generaliz
 
 A classification task, where the model has to predict whether a hypothesis can be inferred from the premise (entailment),
 contradicts the premise (contradiction), or is neutral (neutral). There a two versions available, MNLI matched and MNLI mismatched.
-Both consists of the same training dataset, but test set of MNLI mismatched consists of out-of-domain data, so sentence pairs about
+Both consists of the same training dataset, but the test set of MNLI mismatched consists of out-of-domain data, so sentence pairs about
 concepts not seen during training. It is therefore a better measure of generalization, compared to MNLI matched @mnli.
 
 *WNLI*
@@ -93,7 +95,11 @@ concepts not seen during training. It is therefore a better measure of generaliz
 A binary classification task, where the model has to predict whether a hypothesis can be inferred
 from the premise (entailment) or not (contradiction) @wnli.
 
-Concrete examples can be found in @glue_example in the Appendix.
+A concrete example for each task can be found in @glue_example. In total, we collect approximately *15.27 million* training examples,
+most of which are from OpenWebText.
+While the amount of training examples from OpenWebText is indeed correct,
+it is important to note that text data is significantly cheaper to obtain, and easier to handle, as it
+requires less disk space than image data, which is why we were able to collect that much text data without any problems.
 
 #figure(
   table(
@@ -106,15 +112,14 @@ Concrete examples can be found in @glue_example in the Appendix.
     ),
     table.hline(stroke: .4pt),
     [ImageNet-1K @imagenet], [1.28M],
-    [OpenWebText (subset) @openwebtext], [13M], 
+    [OpenWebText (subset) @openwebtext], [13M#footnote[Number was calculated with a sequence length of 256 tokens. All the
+    text we collected was split into slices of 256 tokens, and each slice was considered as one training example.]], 
     [GLUE @glue], [990K (total)],
     table.hline(stroke: .4pt),
-    [Total], [15.27M],
+    [Total], [*15.27M*],
     table.hline(),
   ),
-  caption: [Unimodal datasets and their sizes used in this work. While the amount of training examples from OpenWebText is indeed correct,
-  it is important to note that collecting text data is significantly cheaper to obtain, and requires less disk space than image data,
-  which is why we were able to collect that much text data without any problems.],
+  caption: [Unimodal datasets and their sizes used in this work.],
 )<unimodal_dataset_summary>
 
 == Multimodal Data
@@ -126,7 +131,7 @@ and a subset of both Conceptual Captions 3M and 12M.
 
 While the COCO dataset can be downloaded in its entirety from the COCO website
 #footnote[#link("https://cocodataset.org/#download")[https://cocodataset.org/#download]],
-both variants of Conceptual Captions, developed by Google, only provide urls and the caption for each image.
+both variants of Conceptual Captions, created by Google, only provide the url and caption for each image.
 This is because the images used come from a variety of sources on the internet, and have been uploaded
 by humans all over the world. The images stem from blog posts, news articles, social media, and other sources.
 Since Google does not own the rights to the images, they cannot provide them in a dedicated dataset, which is why there is
@@ -140,12 +145,9 @@ and the index of CC12M can be found in the
 corresponding GitHub repository
 #footnote[#link("https://github.com/google-research-datasets/conceptual-12m")[https://github.com/google-research-datasets/conceptual-12m]].
 
-Another popular choice for image-text pairs is the Visual Genome dataset @vg, containing high quality images and detailed annotations.
-However, we refrain from using this dataset, as we experienced unstable training during preliminary tests, a circumstance
-we will address again in the experimental part of this work.
-
 In total, we collect approximately *1TB* of data.
 
+#show table: set text(8pt)
 #figure(
   table(
     columns: 5,
@@ -154,20 +156,21 @@ In total, we collect approximately *1TB* of data.
     table.header(
       [*Dataset*],
       [*Avg. Caption Length*],
-      [$bold(\# "Captions") / bold(\# "Images")$],
-      [*\# Images*],
-      [*\# Image-Text Pairs*]
+      [*Avg. Captions per Image*],
+      [*Images*],
+      [*Image-Text Pairs*]
     ),
     table.hline(stroke: .4pt),
     [COCO @coco], [11.0], [5.0], [82,783],[566,747],
     [CC3M (subset) @cc3m], [12.0], [1.0], [1,516,133], [1,516,133],
     [CC12M (subset) @cc12m], [10.3], [1.0], [1,181,988], [1,181,988],
     table.hline(stroke: .4pt),
-    [Total], [-], [-], [2,780,904], [3,264,868],
+    [Total], [-], [-], [2,780,904], [*3,264,868*],
     table.hline(),
   ),
   caption: [Multimodal Dataset used for aligning image and text.],
 )<vl_dataset_summary>
+#show table: set text(11pt)
 
 == On Curated Datasets
 The goal of this work is to develop a multimodal model that is cheap to train and does not rely on labeled data in the end-to-end process.
@@ -186,21 +189,11 @@ themselves can be seen as labels. Single images or texts can be considered as in
 in the real world, like in books, articles, or on the internet, image-text pairs however require image and text to be paired together.
 This can be seen as less natural, as it requires a human to create the caption for an image, or vice versa, which is a form of labeling.
 The COCO dataset, for example, can be seen as labeled, as for each image a human created a caption with the specific intention
-of training Machine Learning models @coco.
+of training machine learning models @coco.
 Consequently, whether multimodal learning can be seen as self-supervised learning, as it is often referred to in the literature @vlmo @beit3 @flava,
 is debatable.
 With this in mind, creating a multimodal model that is scalable in the sense that it does not rely on labeled data, which is
 one of the most challenging aspects of AI research, is, if multimodal data is seen as labeled data, not possible.
-
-However, there are multimodal data sources that are at the very least uncurated. One example is the alt-text of images on the internet.
-Even though the alt-text is created by humans, it is not created with the intention of creating data for Machine Learning, but rather to provide
-a description of the image for visually impaired people. Consequently, the data was generated naturally as a byproduct of a different task,
-and we therefore refer to any uncurated dataset as unlabeled data in this work.
-
-This is exactly why we select both CC3M and CC12M, as they, especially CC12M, consists of in-the-wild image-text pairs from the internet @cc3m @cc12m.
-This way of collecting data and training models is therefore significantly more scalable than using curated datasets specifically created for Machine Learning,
-and ensures that our approach to multimodal models can be applied to a wide range of tasks and domains without any explicit human intervention.
-A comparison between curated and labeled samples, and in-the-wild samples can be seen in @coco_vs_cc12m below.
 
 #figure(
   image("../figures/coco_vs_cc12m.png", width: 50%),
@@ -210,6 +203,16 @@ A comparison between curated and labeled samples, and in-the-wild samples can be
   without the need for human annotation. The caveat is that the quality of the data is not guaranteed, and image-text pairs might be less correlated.
   Images and text in the figure have been taken from the COCO train set @coco and CC12M @cc12m, respectively.],
 ) <coco_vs_cc12m>
+
+However, there are multimodal data sources that are at the very least uncurated. One example is the alt-text of images on the internet.
+Even though the alt-text is created by humans, it is not created with the intention of creating data for machine learning, but rather to provide
+a description of the image for visually impaired people. Consequently, the data was generated naturally as a byproduct of a different task,
+and we therefore refer to any uncurated dataset as unlabeled data in this work.
+
+This is exactly why we select both CC3M and CC12M, as they, especially CC12M, consists of in-the-wild image-text pairs from the internet @cc3m @cc12m.
+This way of collecting data and training models is therefore significantly more scalable than using curated datasets specifically created for Machine Learning,
+and ensures that our approach to multimodal models can be applied to a wide range of tasks and domains without any explicit human intervention.
+A comparison between curated and labeled samples, and in-the-wild samples can be seen in @coco_vs_cc12m.
 
 // ==== Data Persistence
 // How to organize, store, and batch the data during training is an important aspect, as storing this much data is not trivial, and we

@@ -1,6 +1,6 @@
 = Experimental Approach
 
-In this work, we adopt an incremental experimental methodology that begins with the simplest possible approach and
+With the background in place, we adopt an incremental experimental that begins with the simplest possible approach and
 incrementally builds upon the results and knowledge gained from each step. Our primary aim is to validate
 the effectiveness of knowledge distillation (KD), which is central to our approach throughout this thesis.
 

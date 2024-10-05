@@ -1,7 +1,7 @@
 = Experiments
 == Unimodal Knowledge Distillation <unimodal_knowledge_distillation>
 To validate whether traditional unimodal knowledge distillation, an undoubtedly simpler task than multimodal knowledge distillation, even works,
-we will first conduct experiments on unimodal knowledge distillation. We will then build on the results to develop a multimodal knowledge distillation.
+we will first conduct experiments on unimodal knowledge distillation. We will then build on the results to develop multimodal knowledge distillation.
 === Vision <unimodal_kd_vision>
 
 ==== Method <unimodal_kd_data2vec2_method>
