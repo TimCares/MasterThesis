@@ -340,8 +340,7 @@ that is feasible even for researchers with limited resources. We therefore limit
 to 512. The architecture, loss, and training procedure remain the same as described in the previous sections.
 
 As shown in @ddp_result_comparison, introducing DDP with a second GPU lead to an absolute gain of more than 4
-percentage points on the COCO and Flickr30K retrieval tasks,
-while almost reaching perfect performance on the average median rank task of SHRe @shre.
+percentage points on the COCO and Flickr30K retrieval tasks.
 This underlines the importance of a large batch size for contrastive learning.
 However, we observe no improvement on the (zero-shot) ImageNet classification task.
 We hypothesize that the classification task is more dependent on the quality of the text-based class prototypes,
@@ -379,7 +378,7 @@ number of steps per epoch is reduced by a factor equal to the number of GPUs use
   table.hline(),
 ),
     caption: [
-    DDP improves the performance of the model on the COCO and Flickr30K retrieval tasks, but not on (zero-shot) ImageNet classification.]
+    DDP improves the performance of the model on the COCO and Flickr30K retrieval tasks.]
 ) <ddp_result_comparison>
 
 #figure(
@@ -400,7 +399,8 @@ number of steps per epoch is reduced by a factor equal to the number of GPUs use
     table.hline(),
   ),
   caption: [
-    Increasing the negative samples by using DDP improves the average median rank on the COCO test set.
+    Performance of the average median rank over 5 1k image-caption splits on the COCO test set.
+    Increasing the negative samples by using DDP improves the performance to nearly perfect scores (1.0).
   ],
 )<ddp_result_amr_comparison>
 
@@ -432,49 +432,49 @@ number of steps per epoch is reduced by a factor equal to the number of GPUs use
 We prepend the name of our approach with "Transformer" to indicate that we use a Transformer architecture for both the image and text encoder.
 However, this does not hold for the shared encoder, which is, like the original approach, a 3-layer MLP @shre. We now experiment with also
 replacing the shared encoder with a Transformer, leading to a fully Transformer-based model. We motivate this decision with the architecture
-of VLMo and BEiT-3, which both use Transformer layers towards the end of the model @vlmo @beit3. 
+of VLMo and BEiT-3, which both exclusively consist of Transformer layers @vlmo @beit3. 
 
-While our shared encoder would then mimic the architecture of VLMo and BEiT-3 in the sense that is uses Transformer layers that
-process both image and text representations, there is still a significant difference to those models: The upper two Transformer layers,
-which are the shared ones,
-of VLMo and BEiT-3 do not process image and text representations separately, but receive a shared representation of an image-text pair.
-This is created by simply concatenating the image and text representations, and passing them through the Transformer layers @vlmo @beit3. The input to
-such a layer $l$ is then given by:
+// While our shared encoder would then mimic the architecture of VLMo and BEiT-3 in the sense that is uses Transformer layers that
+// process both image and text representations, there is still a significant difference to those models: The upper two Transformer layers,
+// which are the shared ones,
+// of VLMo and BEiT-3 do not process image and text representations separately, but receive a shared representation of an image-text pair.
+// This is created by simply concatenating the image and text representations, and passing them through the Transformer layers @vlmo @beit3. The input to
+// such a layer $l$ is then given by:
 
-$
-bold(H)_("vw", l-1) = [bold(H)_(w, l-1); bold(H)_(v, l-1)]
-$
+// $
+// bold(H)_("vw", l-1) = [bold(H)_(w, l-1); bold(H)_(v, l-1)]
+// $
 
-This allows the Self-Attention mechanism to attend between individual image and text tokens, leading to a more fine-grained alignment.
-In contrast, our shared encoder will, just like the shared 3-layer MLP before, process image and text representations separately.
-The input will therefore either be a single
-image representation $bold(H)_(v, l-1)$, returned by the image encoder, or a single text representation $bold(H)_(w, l-1)$,
-returned by the text encoder.
+// This allows the Self-Attention mechanism to attend between individual image and text tokens, leading to a more fine-grained alignment.
+// In contrast, our shared encoder will, just like the shared 3-layer MLP before, process image and text representations separately.
+// The input will therefore either be a single
+// image representation $bold(H)_(v, l-1)$, returned by the image encoder, or a single text representation $bold(H)_(w, l-1)$,
+// returned by the text encoder.
 
-We hypothesize that our approach might be more challenging to learn, compared to VLMo and BEiT-3's concatenated strategy,
-due to the following reasons:
-
-- In VLMo and BEiT-3, the input is always a combined image-text representation, ensuring consistency for
-  the Self-Attention mechanism, which can then concentrate solely on fine-grained alignment.
-- In our case, the Self-Attention mechanism receives either an image sequence or a text sequence independently,
-  requiring it to not only perform attention but also infer the modality of the input. Since image and text inputs
-  are inherently different, this adds a layer of complexity.
+We hypothesize that learning the alignment using a Transformer for the shared encoder might be more challenging
+than learning it with an MLP. This is because the shared Transformer would, unlike the shared 3-layer MLP,
+receive the whole image/text sequence from the respective encoder, and not just the $mono(["I_CLS"])$/$mono(["I_CLS"])$ token.
+Since image and text inputs are inherently different, the self-attention in the Transformer (layers) would not only have
+to perform self-attention, but also infer the modality of the input and adjust the attention accordingly, adding a layer of complexity.
 
 Nevertheless, VLMo demonstrates that this modality-specific complexity may not be an issue.
-In VLMo, masked language modeling is performed using a Transformer whose Self-Attention weights are
+In VLMo, masked language modeling is performed using a Transformer whose self-attention weights are
 frozen and from a pretrained image model, yet the model still effectively handles text-only pretraining @vlmo.
 
-Given that VLMo can successfully leverage frozen image Self-Attention weights for text tasks,
-we believe that our approach, where the Self-Attention weights are explicitly trained to work with both
+Given that VLMo can successfully leverage frozen image self-attention weights for text tasks,
+we believe that our approach, where the self-attention weights are explicitly trained to work with both
 image and text inputs, should also be effective, if not more so.
 
+For the shared Transformer encoder, we decide to only use a single Transformer layer, as we want to keep the model size manageable.
+For comarison, VLMo and BEiT-3 use two Transformer layers for the shared encoder @vlmo @beit3.
+
 The change in the architecture does not imply a change in the training procedure, loss, or hyperparameters.
-In fact, the only thing we actually add is one Multi-Head Self-Attention layer to the shared encoder (plus the two residual connections).
+In fact, the only thing we actually add is one multi-head self-attention layer to the shared encoder (plus the two residual connections).
 Recall that we implemented the 3-layer MLP as a 2-layer MLP network
 as used in Transformer layers, and added an additional LayerNorm and linear layer on top of it
 (see @transformer_shre_architecture).
 Replacing this with a single Transformer layer means we still have the 2-layer MLP network, but now also
-add a Multi-Head Self-Attention layer before it. Since we are still predicting a probability distribution over the ImageNet classes
+add a ,ulti-head self-attention layer before it. Since we are still predicting a probability distribution over the ImageNet classes
 (the one returned by the teacher),
 which can be seen as a type of classification task,
 we still need a classification head on top of the Transformer layer to output logits for the 1000 classes. Fittingly, this is
@@ -490,8 +490,8 @@ we indicate the difference in dimensionality between the linear layers by a diff
   "../figures/comparison_shared_mlp_transformer.png"),
   caption: [
     Switching from our implementation of the shared encoder as a 3-layer MLP to a Transformer layer only corresponds to adding a
-    Multi-Head Self-Attention layer before the linear layers. The dimensionality of the linear layers remains the same.
-    On the right, layer normalization, activations, and residual connections are omitted for simplicity.
+    multi-head self-attention layer before the linear layers. The dimensionality of the linear layers remains the same.
+    On the right, layer normalization and residual connections are omitted for simplicity.
 ],
 ) <comparison_shared_mlp_transformer>
 
@@ -500,64 +500,54 @@ of the shared encoder from @transformer_shre_shared_encoder_ffn_computation and 
 following (also on the example of the text modality):
 
 $
-bold(H)^("mha")_(w,K) &= op("MHA")(op("LN")(bold(H)_(w,L_s))) + bold(H)_(w,L_s)
-$ <shre_shared_transformer_layer_mha_eq>
+bold(H)'_(w,K) &= op("MHA")(op("LN")(bold(H)_(w,L_s))) + bold(H)_(w,L_s) \
+bold(H)_(w,K) &= op("FFN")(op("LN")(bold(H)'_(w,K))) + bold(H)'_(w,K)
+$ <shre_shared_transformer_layer_eq>
 
 $
-bold(H)'_(w,K) &= op("LN")(bold(H)^("mha")_(w,K))bold(W)_1 + bold(b)_1 \
-bold(H)''_(w,K) &= op("LN")(op("GELU")(bold(H)'_(w,K)))bold(W)_2 + bold(b)_2 \
-bold(H)^("ln")_(w,K) &= op("LN")(bold(H)''_(w,K) + bold(H)^("mha")_(w,K))
-$ <shre_shared_transformer_layer_ffn_eq>
-
-$
-bold(h)'''_(w, K, mono(["T_CLS"])) &= bold(h)^("ln")_(w,K, mono(["T_CLS"]))bold(W)_3 + bold(b)_3 \
+bold(h)_(w, mono(["T_CLS"])) &= bold(h)_(w,K, mono(["T_CLS"]))bold(W)_3^T + bold(b)_3 \
 $ <shre_shared_transformer_layer_head_eq>
 
 It holds that $K=L_s+1=7$, since the shared encoder is one additional Transformer layer.
-The subscripts for the weights $bold(W)$ and biases $bold(b)$ denote to which linear layer from @comparison_shared_mlp_transformer (right)
-they belong. Correspondingly, the output of the equation where a pair of ($bold(W)_i$, $bold(b)_i$) is used, is
-also the output of the linear layer $i$.
-@shre_shared_transformer_layer_mha_eq is the usual operation of the Multi-Head Self-Attention layer known from the ViT architecture,
+@shre_shared_transformer_layer_eq is the same operation of one Transformer layer known from the ViT architecture,
 and is therefore also shown in @vit_full_forward_eq of the section on Vision Transformers (@vision_transformer).
 
-@shre_shared_transformer_layer_ffn_eq shows the operation of the Feed-Forward Network (FFN) layer of the Transformer.
-It is the same operation as defined in @transformer_shre_shared_encoder_ffn_computation, but applied pointwise on a sequence.
-We divide the operations of the FFN into three formulas, as we want to explicitly show that we extract
-the intermediate representation $bold(H)'_(w,K)$ and $bold(H)'_(v,K)$,
-and final representation $bold(H)''_(w,K)$ and $bold(H)''_(v,K)$ from the FFN.
-Both the intermediate and final representations we extract are the raw outputs from linear layer \#1 and linear layer \#2,
-without any activation function or normalization applied.
-From those representations, which are still sequences,
-we take the representation of the $mono(["T_CLS"])$ and $mono(["I_CLS"])$ token for text and image, respectively.
-Concretely, they are: $bold(h)'_(w, K, mono(["T_CLS"]))$ and $bold(h)'_(v, K, mono(["I_CLS"]))$, and
-$bold(h)''_(w, K, mono(["T_CLS"]))$ and $bold(h)''_(v, K, mono(["I_CLS"]))$. Those are then used for the contrastive loss.
-
 The operation in @shre_shared_transformer_layer_head_eq now resembles that of an actual
-classification head from the vision Transformer architecture, and is only applied on the $mono(["I_CLS"])$ or $mono(["T_CLS"])$ token.
-An important distinction we make here, compared to the original shared 3-layer MLP, is that we do not apply the contrastive loss on the output
-of the classification head $bold(h)'''_(w, K, mono(["T_CLS"]))$
-and $bold(h)'''_(v, K, mono(["I_CLS"]))$, and we explain the reasoning for this in the following.
+classification head from the vision Transformer architecture, and is only applied on the $mono(["I_CLS"])$ and $mono(["T_CLS"])$ token,
+respectively.
+Different to what was proposed by the authors of SHRe @shre, we now do *not* apply the contrastive loss on
+the output of all three linear layers (the linear layers are shown in @comparison_shared_mlp_transformer).
+Instead, we only apply it on the output of the shared Transformer layer, meaning the representations
+$bold(h)_(v, K, mono(["I_CLS"]))$ and $bold(h)_(w, K, mono(["T_CLS"]))$. We do this for the following reasons:
 
-The task of the classification head is to leverage the knowledge learned from the teacher to provide the student with guidance.
-This guidance can be described as the fact that objects, or rather the ImageNet-1K classes that describe them, can be found in both
-the image and its caption (see @shre_coco_prob_dist). The student will therefore learn that an image and its caption
-both describe the same real-world object/concepts.
-Based on this intuition, the classification head is not meant to output representations of the image or text, and should therefore not be used
-for retrieval tasks.
+We remove the contrastive loss from the classification head, as the task of the classification head is
+to leverage the knowledge learned from the teacher to provide the student with guidance.
+It does this by predicting a probability distribution over the ImageNet-1K classes once for a given image, and once for
+the image's caption.
+Both probability distributions, for the image and the caption, should be the same as the teacher's
+probability distribution for the same image.
+Based on this intuition, the classification head is not meant to output representations of the image or text,
+but only to predict the ImageNet-1K classes. It outputs logits for each class, and not a representation
+as used in retrieval tasks. Therefore, it is not meant to be used for alignment and retrieval tasks.
+Because of this, the classification head can be discared after training, as it is not needed for retrieval
+or any other downstream task anymore. It is only used during training to provide the student with guidance from the teacher.
 
-For all retrieval tasks, including CLIP-like zero-shot classification, we consequently use the representations
-$bold(h)''_(v, K, mono(["I_CLS"]))$ and $bold(h)''_(w, K, mono(["T_CLS"]))$ as final representations for image and text, respectively.
-The classification head can therefore be discared after training, as it is not needed for retrieval
-or any other downstream task. It is only used during training to provide the student with guidance from the teacher.
+We remove the contrastive loss from the intermediate linear layer (linear \#1) of the shared Transformer layer, as
+VLMo and BEiT-3 also exclusively use the _final_ representation of the shared encoder for retrieval tasks.
+Removing the requirement for alignment in the intermediate layer reduces the complexity of the task for the model,
+and gives it more freedom. Moreover, the point where the alignment is actually crucial is where the image and text
+representations are used for retrieval. Since we use the final representation of the shared Transformer layer for retrieval,
+we do not need to enforce alignment in the intermediate layer.
+
 An overview which tokens are used in which part of the training objective is shown in @transformer_shre_loss_tokens.
 
-The full contrastive loss is now:
+The full contrastive loss is now just:
 $
-cal(L)_("CL") &= \
-1/2 * (cal(L)_("CL"') &+ cal(L)_("CL"'')) = \
-1/4cal(L)_("CL"')^("i2t") &+ 1/4cal(L)_("CL"')^("t2i") + \
-1/4cal(L)_("CL"'')^("i2t") &+ 1/4cal(L)_("CL"'')^("t2i")
+cal(L)_("CL") = 1/2cal(L)_("CL")^("i2t") + 1/2cal(L)_("CL")^("t2i")
 $ <contrastive_loss_sx3hre>
+
+Both loss components work on the representations $bold(h)_(v, K, mono(["I_CLS"]))$ and $bold(h)_(w, K, mono(["T_CLS"]))$ from
+the final output of the shared Transformer layer $bold(H)_(v,K)$ and $bold(H)_(w,K)$.
 
 #figure(
   table(
@@ -575,40 +565,40 @@ $ <contrastive_loss_sx3hre>
     table.cell(rowspan: 2, align:horizon, [$cal(L)_("KD")$]), [Image], [$bold(h)'''_(v, K)$], [$bold(h)'''_(v, K, mono(["I_CLS"]))$],
       [Text], [$bold(h)'''_(w, K)$], [$bold(h)'''_(w, K, mono(["T_CLS"]))$],
     table.hline(stroke: .5pt),
-    table.cell(rowspan: 2, align:horizon, [$cal(L)_("CL"')$]), [Image], [$bold(h)'_(v, K)$], [$bold(h)'_(v, K, mono(["I_CLS"]))$],
-      [Text], [$bold(h)'_(w, K)$], [$bold(h)'_(w, K, mono(["T_CLS"]))$],
+    table.cell(rowspan: 2, align:horizon, [$cal(L)_("CL")$]), [Image], [$bold(h)'_(v, K)$], [$bold(h)_(v, K, mono(["I_CLS"]))$],
+      [Text], [$bold(h)'_(w, K)$], [$bold(h)_(w, K, mono(["T_CLS"]))$],
     table.hline(stroke: .1pt),
-    table.cell(rowspan: 2, align:horizon, [$cal(L)_("CL"'')$]), [Image], [$bold(h)''_(v, K)$], [$bold(h)''_(v, K, mono(["I_CLS"]))$],
-      [Text], [$bold(h)''_(w, K)$], [$bold(h)''_(w, K, mono(["T_CLS"]))$],
+    table.cell(rowspan: 2, align:horizon, [$cal(L)_("CL"'')$]), [Image], [$bold(h)''_(v, K)$], [-],
+      [Text], [$bold(h)''_(w, K)$], [-],
     table.hline(stroke: .1pt),
     table.cell(rowspan: 2, align:horizon, [$cal(L)_("CL"''')$]), [Image], [$bold(h)'''_(v, K)$], [-],
       [Text], [$bold(h)'''_(w, K)$], [-],
     table.hline(),
   ),
   caption: [
-    A comparison between the tokens used in the loss functions for the approach of SHRe @shre with a shared 3-layer MLP
-    and out Transformer SHRe.
-    For Transformer SHRe we do not use the contrastive loss $cal(L)_("CL"''')$.
+    A comparison between the tokens used in the loss functions for the approach of SHRe @shre (with a shared 3-layer MLP),
+    and our Transformer SHRe.
+    For Transformer SHRe we do not use the contrastive loss components $cal(L)_("CL"'')$ and $cal(L)_("CL"''')$.
   ],
 ) <transformer_shre_loss_tokens>
 
 ==== Results
 
-The influence on retrieval, when adding a shared Transformer layer and changing the representations used for retrieval,
+The influence on retrieval when adding a shared Transformer layer, and changing the representations used for retrieval,
 can be seen in @image_text_retrieval_shre_overview. This change not only outperforms
-our first two experiments in all metrics, but also FLAVA @flava in R@1 text retrieval on COCO. For other metrics on COCO, we are also
+our first two experiments in all metrics, but also FLAVA @flava in R@1 text retrieval on COCO. For other metrics on COCO we are also
 surprisingly close to FLAVA. On Flickr30K, we still lack behind FLAVA, but the gap is significantly smaller than before.
 
 We are also able to increase the performance on CLIP-like ImageNet-1K classification from 40.26% to 44.57%, and reach a perfect average median rank
 for both text and image retrieval on the COCO test set, which is 1.0. As a reference: The previous scores were 1.0 for text retrieval,
 and 1.04 for image retrieval (see @ddp_result_comparison). While this is indeed the perfect score for the average median rank,
 it is important to note that we use the _median_ rank, and a value of 1.0 therefore means that in at least half of all retrievals
-(so $gt.eq 500$) the correct pair
+(so $gt.eq 500$, since we always do retrieval on 1k subsets) the correct pair
 is the first retrieved item. This does not account for outliers, and is only applied on a small subset of 1k image-caption pairs.
-Nevertheless, this is the benchmark provided by SHRe @shre, so a perfect score is still worth mentioning. Unless there will be a decrease in performance
-on the average median rank, we will refrain from reporting it in the future, as it is not a very informative metric and we have already reached the best
+Nevertheless, this is the benchmark provided by SHRe @shre, so a perfect score is still worth mentioning.
+Unless the average median rank gets worse (meaning it increases), we will refrain from reporting it in the future, as it is not a very informative metric and we have already reached the best
 possible score.
-A visualization of the retrieved samples for captions (image retrieval) and images (text retrieval) is shown in @shre_transformer_only_ir_1k
+A visualization of the retrieved samples for candidate captions (image retrieval) and images (text retrieval) is shown in @shre_transformer_only_ir_1k
 and @shre_transformer_only_tr_1k, respectively.
 
 
@@ -637,13 +627,13 @@ and @shre_transformer_only_tr_1k, respectively.
     [FLAVA @flava], [42.74], [*76.76*], [-], [*38.38*], [*67.47*], [-], [*67.7*], [*94.0*], [-], [*65.22*], [*89.38*], [-],
     table.hline(stroke: .3pt),
     [Baseline], [37.06], [67.74], [79.7], [25.3], [54.73], [68.19], [49.9], [78.5], [88.5], [37.04], [67.34], [77.38],
-    [  \+ DDP ($arrow.t$ 4.24)], [41.88], [71.86], [83.06], [29.4], [59.3], [72.06], [56.1], [83.5], [90.7], [41.80], [71.36], [81.14],
-    [  \+ Shared $T$ ($arrow.t$ 5.68)], [*44.6*], [75.3], [85.64], [31.69], [62.1], [74.48], [58.8], [85.6], [92.4], [43.92], [74.06], [82.8],
+    [  \+ DDP ($arrow.t$ 4.23)], [41.88], [71.86], [83.06], [29.4], [59.3], [72.06], [56.1], [83.5], [90.7], [41.80], [71.36], [81.14],
+    [  \+ Shared $T$ ($arrow.t$ 6.67)], [*44.6*], [75.3], [85.64], [31.69], [62.1], [74.48], [58.8], [85.6], [92.4], [43.92], [74.06], [82.8],
     table.hline(),
   ),
   caption: [
     The overview of retrieval results on the COCO and Flickr30K test sets show significant improvements when using DDP and a shared Transformer encoder.
-    We achieve an absolute gain of almost 7% on the COCO test set, and more than 6% on the Flickr30K test set, compared to our
+    We achieve an average absolute gain of almost 7 percentage points across all metrics compared to our
     first approach, which we denote as "Baseline". We add FLAVA @flava as a reference.
   ],
 )<image_text_retrieval_shre_overview>
