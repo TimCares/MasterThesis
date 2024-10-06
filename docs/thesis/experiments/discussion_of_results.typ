@@ -42,11 +42,11 @@ Our most noteable achievements are:
   width: 50%,
   "../figures/vl_models_rank_overview.png"),
   caption: [
-    Overview of vision-language model landscape. Bubble sizes represent the number of parameters, also shown in
-    parentheses next to the model name. The number of image-text pairs used is in log scale, and the retrieval
+    Overview of vision-language model landscape. Bubble sizes represent the number of parameters (also shown in
+    parentheses next to the model name). The number of image-text pairs used is in log scale, and the retrieval
     performance is the average of the R@1 scores on COCO @coco and Flickr30k @flickr30k. We denote red bubbles as
     the direct application of a pretrained model on image-text retrieval, and blue bubbles as models that were
-    finetuned on the retrieval task after pretraining. Visual N-Grams @visual_n_grams was developed in 2016
+    finetuned on the retrieval task after pretraining. Visual N-Grams @visual_n_grams was developed in 2017
     as a first proof-of-concept for vision-language models.
 ],
 ) <vl_models_rank_overview> 

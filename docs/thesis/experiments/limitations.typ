@@ -24,7 +24,7 @@ and show that modality-specific tasks can strengthen the performance of multimod
 === Modality-Specific Bias
 Our method relies on knowledge distillation of a self-supervised *unimodal* image model as the teacher. The fact that there
 has been no incentive for the teacher to learn a representation that is independent of the image modality makes it difficult
-for the teacher to provide guidance to the student model on how to align the modalities because the teacher representations are
+for the teacher to provide guidance to the student model on how to align the modalities. This is because the teacher representations are
 not aligned and modality-agnostic themselves.
 This has repeatedly been shown when comparing the loss between image-to-image and text-to-image distillation, where the former
 is consistently lower. Interestingly, we were still able to outperform the approach of a supervised teacher, showing that
@@ -43,8 +43,8 @@ a image-specific representation (used with the self-supervised teacher), which i
 ],
 ) <kd_loss_shre_vs_ssmke>
 
-A glance at the comparison between the components of the knowledge distillation loss (KL-Divergence) when using a supervised teacher 
-also shows that this approach suffers from the same problem as when using a self-supervised teacher
+A glance at the comparison between the components of the knowledge distillation loss when using a supervised teacher 
+shows that this approach suffers from the same problem as the self-supervised teacher
 (see @kd_loss_shre_vs_ssmke). Here, the KL-Divergence
 for the image-to-image loss $cal(L)^v_"KD"$ is also consistently lower than for the text-to-image loss $cal(L)^w_"KD"$, and the loss 
 components between both approaches (Transformer SHRe and S-SMKE) generally perform very similar.
@@ -53,17 +53,17 @@ Consequently, a bias towards the teacher modality is not specific to S-SMKE, but
 when using an unimodal teacher for distilling knowledge to a multimodal model.
 
 === Fine-Grained Alignment
-S-SMKE (and SHRe) processes image and text seperately through a forward pass for the image and a forward pass
+S-SMKE (and SHRe) processes image and text seperately, by performing a forward pass for the image and a forward pass
 for the text. This is similar to CLIP @clip (see @clip_section). Because there is no attention mechanism between
-individual image patches and text tokens, both approaches miss a fine-grained alignment between the modalities.
+individual image patches and text tokens both approaches miss a fine-grained alignment between the modalities.
 Even though our model performs quite well on the retrieval task, even outperforming well-established research papers
 on some metrics, there is still room for improvement. However, we believe that there is not much more performance to gain
-for our approach. Wrong retrievals, mostly wrong image retrievals, are often still semantically
+for our approach. Wrong retrievals (mostly wrong image retrievals) are often still semantically
 similar to the query, and only differ in little (token-level) details.
 Since our representations are based on the global content of the image and text, those details are not captured in most
-cases, leading to a "false" retrieval. Examples of this can be seen with example retrievals on the full MSCOCO test set
+cases, leading to a "false" retrieval. Examples of this can be seen with retrievals on the full MSCOCO test set
 in @coco25k_retrieval_examples,
-which is the exact dataset we publish our results on (previous visualizations are based on 1k subsets as in SHRe @shre,
+which is the exact dataset we publish our retrieval results on (previous visualizations are based on the 1k subsets of SHRe @shre,
 and are therefore a simpler task since there are less possible retrieval candidates). 
 
 At this point it has to be noted that when it comes to a production-grade retrieval system, e.g. a system for searching images by text,
@@ -80,7 +80,7 @@ The sentence, so the statement about the image, often focuses on fine-grained de
 that they are captured by just global representations. Further,
 even if statements are false, then the differences between the image and the statement are often so subtle that the statement,
 on a high level,
-can still be considered as a caption for the image. If e.g. the cosine similarity between the global representations
+can still be considered as a caption for the image. Therefore, if say the cosine similarity between the global representations
 of image and statement would be used as the binary classifier, then the model would likely fail on such tasks.
 Examples of NLVR2 can be seen in @nlvr2_examples.
 
