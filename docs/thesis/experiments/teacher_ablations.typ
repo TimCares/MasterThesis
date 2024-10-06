@@ -14,7 +14,7 @@ examples of which are illustrated in @dino_cls_attn_examples. We therefore test 
 used to better align image and text, or if the features are too image-specific to be useful for the multimodal task.
 
 In both cases, we will use the contrastive target loss with a memory bank for the knowledge distillation process. As the output
-representation of the teacher we keep using the representation of the $mono(["I_CLS"])$ token, $bold(h)_(v, L_s, mono(["I_CLS"]))$.
+representation of the teacher we keep using the representation of the $mono(["I_CLS"])$ token $bold(h)_(v, L_s, mono(["I_CLS"]))$.
 
 Furthermore, we employ BEiTv2 finetuned on ImageNet-1K as a teacher model. Essentially, this is the
 same teacher used in all our experiments for S-SMKE, but with additional finetuning on ImageNet-1K after
@@ -41,8 +41,8 @@ $
 cal(L)_"S_SMKE" = cal(L)_"CL"
 $
 
-Since we now only focus on the alignment of the visual and textual features, we remove the linear layer that produced
-the representations $bold(h)'''_(v, K, mono(["I_CLS"]))$ and $bold(h)'''_(w, K, mono(["T_CLS"]))$. They were used to predict
+Since we now only focus on the alignment of the visual and textual features, we remove the linear layer (regression head) that produced
+the representations $bold(h)_(v, mono(["I_CLS"]))$ and $bold(h)_(w, mono(["T_CLS"]))$. They were used to predict
 the teacher representation $bold(h)_(v, L_s, mono(["I_CLS"]))$ using the mean squared error loss in earlier experiments, and using
 the contrastive target loss in the latest successful experiments. However, without knowledge distillation, they are no longer
 needed.
@@ -144,7 +144,7 @@ are still initialized with layers from Data2Vec2 @data2vec2 and BERT @bert, resp
 
 We show a comparison of the retrieval performance between different teacher, and the performance on
 ImageNet-1K, in @image_text_retrieval_teachers. We observe that the choice of the teacher is significant
-for the performance of the student, especially in the unimodal case. We observe a significant reduction across
+for the performance of the student. We observe a significant reduction across
 all benchmarks when using Data2Vec2 @data2vec2 as the teacher, and a slight reduction when using DINO @dino.
 For Data2Vec2, we lose up to 12 percentage points in the retrieval metrics, and 12.5 percentage points
 on ImageNet-1K CLIP-like classification, while for DINO, we lose up to 4 percentage points in the retrieval metrics, but gain
@@ -168,15 +168,16 @@ compared to Data2Vec2.
 We assume the performance with DINO is worse than with BEiTv2, because DINO
 only reaches 78.2% accuracy on ImageNet-1K when performing linear evaluation @dino,
 compared to the 80.1% of BEiTv2 @beitv2. So the quality of the representation for the $mono(["I_CLS"])$ token seems to be
-higher for BEiTv2 than for DINO.
+higher for BEiTv2 than for DINO. BEiTv2 is simply the better model.
 
 *Supervised Teacher*\
-Using a BEiTv2 finetuned on ImageNet-1K also generally leads to a drop in performance, although it is
-less pronounced than with Data2Vec2. However, we observe an increase in image retrieval from text on MSCOCO by
+Using BEiTv2 finetuned on ImageNet-1K also generally leads to a drop in performance, although it is
+less pronounced than with Data2Vec2. However, we observe an increase in image retrieval on MSCOCO by
 around 1.2 percentage points. This comparison between self-supervised and supervised teacher, which is now unbiased
-due to the same model size, reflects our previous findings that using representations from self-supervised models
-are more beneficial that probability distributions from supervised models. Consequently, our approach not only
-does not rely on labeled data in the end-to-end training process, but also leads to better performance, compared
+due to the same model size, reflects our previous findings that for our approach to vision-language learning
+using representations from self-supervised models
+is more beneficial than probability distributions from supervised models. Consequently, our approach not only
+does not rely on labeled data in the end-to-end training process, but also leads to better performance compared
 to the method proposed by the authors of SHRe @shre.
 
 *S-SMKE without Distillation*\

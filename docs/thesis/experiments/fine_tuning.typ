@@ -6,10 +6,11 @@ unimodal downstream tasks, most papers on vision-language models, with the excep
 FLAVA @flava, exclusively focus on image classification and segmentation tasks, and do not evaluate the performance on
 text classification tasks (e.g. BEiT-3 @beit3, VLMo @vlmo, and CoCa @coca).
 This is surprising, as an adequate language understanding is crucial for any multimodal model, especially
-when it comes to vision-lanuage reasoning like in NLVR2 @nlvr2 or VQAv2 @vqav2. Moreover, it is quite simple to test the language
+when it comes to vision-lanuage reasoning task like in NLVR2 @nlvr2 or VQAv2 @vqav2 (not covered here).
+Moreover, it is quite simple to test the language
 understanding of a model by evaluating it on the GLUE benchmark @glue, which is what we already did once in the
 language distillation experiments of @unimodal_kd_text.
-We therefore evaluate our best multimodal models on both image and text classification tasks.
+We therefore evaluate our best multimodal model on both image and text classification tasks.
 
 === Vision <fine_tuning_image_classification>
 
@@ -96,7 +97,7 @@ respectively. Incredibly, we observe an increase in performance, compared to Dis
 on all finetuning tasks, and a significant increase for linear evaluation over all datasets.
 
 This is unusual, as DistilData2Vec2 is an image-only model, and S-SMKE is a multimodal model.
-Single modality models usually perform better on their respective modality-specific tasks, as they only focus on one modality.
+Single modality models usually perform better on their modality-specific tasks, as they only focus on one modality.
 Even though the image encoder of S-SMKE is used for finetuning, which also technically only focuses on the image modality,
 its representations are optimized for the alignment of text and images in the shared encoder, and should therefore not be as beneficial
 for image-specific tasks as those of DistilData2Vec2.
@@ -160,7 +161,8 @@ which lies more in image-text retrieval.
 === Language <fine_tuning_text_classification>
 
 Analogue to image classification, we extract the text encoder of S-SMKE and finetune it on the GLUE benchmark @glue.
-We follow the same strategy as for the text-only distilled model: From the output $bold(H)_(w, L_s)$ of the text encoder we take
+We follow the same strategy as for the text-only distilled model F-DistilBERT:
+From the output $bold(H)_(w, L_s)$ of the text encoder we take
 the representation $bold(h)_(w, L_s, mono(["T_CLS"]))$ of the $mono(["T_CLS"])$ token, pass it through a linear pooling layer,
 the weights of which come from a pretrained BERT model, through a dropout layer with $p=0.1$, and finally through a linear classification
 layer. The pytorch pseudocode is the same as for the text-only distilled model F-DistilBERT,
@@ -232,10 +234,11 @@ cal(L)_"S-SMKE" = cal(L)_"CL"
 $
 
 This essentially means that the model is finetuned once _exclusively_ on the MSCOCO train dataset, and then evaluated
-on image-text retrieval with the MSCOCO test dataset, and the same for Flickr30K. This will strengthen the alignment of text and images
+on image-text retrieval with the MSCOCO test dataset, and the same is done for Flickr30K.
+This will strengthen the alignment of text and images
 on the respective datasets, and is a common practice in vision-language models @vlmo @beit3.
 
-We follow this strategy and finetune S-SMKE on MSCOCO and Flickr30K. We finetune the whole model, and train for only 5 epochs,
+We follow this strategy and finetune S-SMKE on MSCOCO and Flickr30K (seperately). We finetune the whole model, and train for only 5 epochs,
 as we found it to be sufficient for the model to converge. Since the quality of the results is highly dependent on the batch size,
 i.e. the number of negative samples, we increase the batch size to 1024. During pretraining, we used a batch size of 256
 per device, which resulted in a contrastive loss with 511 negative samples. For finetuning, we only use one GPU instead of two,
@@ -287,13 +290,13 @@ Especially the performance on Flickr30K is significantly increased, with image r
 on the R@1 metric. On MSCOCO, the performance is also increased, but not as much as on Flickr30K. This can be explained by the fact
 that the COCO train dataset is part of the data that we use for pretraining, so the model has already seen the data
 of COCO. Consequently, there is less room for improvement since the data is not completely new to the model.
-This is different for Flickr30K, where the model has not seen the data during pretraining, so there is much more to gain
+This is different for finetuning on Flickr30K, where the model has not seen the data during pretraining, so there is much more to gain
 from finetuning on this dataset. Overall, we outperform CLIP @clip and FLAVA @flava on all metrics in COCO, except for text retrieval
 on the R@1 metric (CLIP). On Flickr30K, CLIP still outperforms us on all metrics.
 
 It has to be noted that the retrieval results of both CLIP and FLAVA are not the result of finetuning on the respective datasets,
 but the direct application of the pretrained model on the test set @clip @flava. We did the same when we reported
-results on retrieval before, which is shown by S-SMKE#sub[CTL_MB] without *$dagger$*.
+results on retrieval before, and the results are shown by S-SMKE#sub[CTL_MB] without *$dagger$*.
 If one would finetune CLIP or FLAVA on the respective datasets,
 then both models would likely outperform S-SMKE due to their size. The goal of finetuning is *not* to claim that S-SMKE is better
 than CLIP or FLAVA, but to show that finetuning on retrieval tasks after pretraining is *beneficial* for the alignment of text and images
