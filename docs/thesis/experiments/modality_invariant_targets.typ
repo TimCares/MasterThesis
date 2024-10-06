@@ -201,13 +201,13 @@ ideal size found by MoCo @moco for contrastive learning (see @moco_vs_mb).
     [CLIP @clip], [*58.4*], [*81.5*], [88.1], [37.8], [62.4], [72.2], [*88.0*],[*98.7*], [*99.4*], [*68.7*], [*90.6*], [*95.2*],
     table.hline(stroke: .3pt),
     [S-SMKE], [51.66], [79.9], [88.66], [36.17], [66.55], [*78.28*], [64.5], [88.4], [93.0], [51.78], [78.54], [86.46],
-    [S-SMKE#sub[CTL]], [52.68], [80.56], [88.3], [36.5], [66.58], [*78.28*], [69.0], [89.2], [94.3], [51.48], [79.18], [86.66],
-    [S-SMKE#sub[CTL_MB]], [53.54], [81.1], [*89.52*], [35.65], [66.0], [77.77], [70.9], [92.1], [96.0], [52.72], [80.2], [87.46],
+    [S-SMKE#sub[CDL]], [52.68], [80.56], [88.3], [36.5], [66.58], [*78.28*], [69.0], [89.2], [94.3], [51.48], [79.18], [86.66],
+    [S-SMKE#sub[CDL_MB]], [53.54], [81.1], [*89.52*], [35.65], [66.0], [77.77], [70.9], [92.1], [96.0], [52.72], [80.2], [87.46],
     table.hline(),
   ),
   caption: [
     A contrastive distillation loss with memory bank especially improves text retrieval, while the performance on COCO image retrieval
-    degrades slightly. S-SMKE#sub[CTL] denotes the contrastive distillation loss without memory bank, and S-SMKE#sub[CTL_MB]
+    degrades slightly. S-SMKE#sub[CDL] denotes the contrastive distillation loss without memory bank, and S-SMKE#sub[CDL_MB]
     denotes the contrastive distillation loss with memory bank.
   ],
 )<image_text_retrieval_ctl_mb>
