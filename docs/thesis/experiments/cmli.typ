@@ -1,17 +1,14 @@
 === Target Cross-Modal Late Interaction <target_cross_modal_late_interaction>
 ==== Cross-Modal Late Interaction <cross_modal_late_interaction>
-Until now, we used the global text and image representations $mono(["T_CLS"])$ and $mono(["I_CLS"])$ for
+Until now, we used the global text and image representations, given by $mono(["T_CLS"])$ and $mono(["I_CLS"])$, for
 contrastive learning.
 This has the disadvantage that only global information is utilized, and fine-grained, token/patch-specific, information is not considered.
-This can make retrieval, and alignment in general, difficult, especially if real-world concepts described by an image and a text differ
-in small, yet important, details. An example of this can be seen in (TODO: vis retrievals on full coco), where multiple retrievals
+This can make retrieval difficult, especially if real-world concepts described by an image and a text differ
+in small, yet important details. An example of this can be seen in @coco25k_retrieval_examples, where multiple retrievals
 are incorrect, even though they are semantically very similar to the query. The differences between the query and the retrieved samples
-are often so small that they are not captured by the global representations. This is one of the reasons why models like BEiT-3 @beit3
-or VLMo @vlmo, which allow fine-grained alignment of text and image through cross-attention, perform better than models that only use
-global representations, like CLIP @clip and our model.
+are often so small that they are not captured by the global representations.
 To address the issue of fine-grained alignment, the authors of FILIP @filip
-introduced Cross-Modal Late Interaction (CMLI) for contrastive learning, which showed improvements in retrieval performance even for a model
-that already uses cross-attention.
+introduced Cross-Modal Late Interaction (CMLI) for contrastive learning, which led to improvements in retrieval performance.
 
 As shown in @cmli, no cosine similarity between $mono(["T_CLS"])$ and $mono(["I_CLS"])$ is computed, but instead the cosine 
 similarity between all image patches $[bold(h)_(v, l, k)]_(1 lt.eq k lt.eq N)$ and text tokens $[bold(h)_(w, l, j)]_(1 lt.eq j lt.eq M)$, 
@@ -23,7 +20,15 @@ to any token/patch, and is used to represent
 global information. We additionally exclude the end-of-sequence token ($mono(["EOS"])$), as it is not specific to any token/patch either.
 The result is the cosine similarity between all image patches and text tokens of an image-text pair.
 
-The next step is to find for each image patch $k$, the text token with the maximum cosine similarity to this image patch.
+#figure(
+  image(
+  width: 75%,
+  "../figures/cmli.png"),
+  caption: [For a token/patch, CMLI finds the timestep with the highest semantic match from the other modality. This enables the model to associate small details of image and text with each other. Notice how through the $max$-operation patches containing grass are always associated with the word "grass", and the words "sheep" and "head" are matched with the head of the sheep (associations created through $max$ are shown in (2)). The cosine similarity is then the average of all associations between an image-text pair. Figure inspired and adapted from @filip.
+  ],
+) <cmli>
+
+The next step is to find for each image patch $k$ the text token with the maximum cosine similarity to this image patch.
 
 $
 m_k^("i2t") = op("argmax", limits: #true)_(1 lt.eq j lt.eq M) [bold(h)_(v, l, k)] [bold(h)_(w, l, j)]^T
@@ -34,7 +39,7 @@ $
 m_j^("t2i") = op("argmax", limits: #true)_(1 lt.eq k lt.eq N) [bold(h)_(v, l, k)] [bold(h)_(w, l, j)]^T
 $
 
-This has an intersting effect: For each image patch, the semantically most similar text token is found, and vice versa 
+This has an interesting effect: For each image patch the semantically most similar text token is found, and vice versa 
 for each text token - the result of this operation can be seen in (2) of @cmli.
 Consequently, the model will be able to associate small details of an image with individual text tokens, and vise versa. 
 The actual cosine similarity between an image-text pair is then the average of all associations between an image patch and a text token.
@@ -55,20 +60,12 @@ image representation $bold(H)_(v, l)$. $l$ can denote any layer of the model, bu
 last layer, as the representations are most meaningful there.
 
 In contrast to the standard contrastive learning, this similarity measure is not necessarily symmetric,
-as e.g. a text token might have a maximum cosine similarity to another image patch, than the image patch that has its maximum
+as e.g. a text token might have a maximum cosine similarity to another image patch than the image patch that has its maximum
 similarity to the text token @filip.
 The process in illustrated in @cmli.
- 
-#figure(
-  image(
-  width: 75%,
-  "../figures/cmli.png"),
-  caption: [For a token/patch, CMLI finds the timestep with the highest semantic match from the other modality. This enables the model to associate small details of image and text with each other. Notice how through the $max$-operation patches containing grass are always associated with the word "grass", and the words "sheep" and "head" are matched with the head of the sheep (associations created through $max$ are shown in (2)). The cosine similarity is then the average of all associations between an image-text pair. Figure inspired and adapted from @filip.
-  ],
-) <cmli>
 
 While this approach allows for a fine-grained alignment of image and text, its practical implementation is very computationally
-and memory intensive. For standard constrastive learning, is is sufficient to compute the cosine similarity of the global representation
+and memory intensive. For standard constrastive learning is is sufficient to compute the cosine similarity of the global representation
 (cls token) between every possible image-text pair in a batch. If negative examples are gathered from all devices, then
 the number of dot products to compute is defined as $(B*P)^2$, with $B$ being the batch size per device, 
 and $P$ being the number of devices (in our case GPUs). As we use a batch size of $B=256$ per device, and use $P=2$ GPUs,
@@ -78,12 +75,12 @@ is still manageable, since we have around 2 GB of GPU memory remaining for a ste
 
 However, with CMLI, we need to compute the similarity between all possible image-text pairs, where the similarity
 for one pair requires the computation of the cosine similarity between all image patches and text tokens of the image-text pair.
-With a maximum text sequence length of 64 tokens @beit3, two of which are ignored as they are the cls and eos token,
-and an image sequence length of 196 (without cls token), the number of dot products to compute for just
-one image-text pair is $196*64=12,544$. With a batch size of 256 per device, and 2 GPUs, the number of dot products
-increases from $262,144$ to $256*12,544=6,422,528$. Even if the embedding dimension is reduced to 256, which is a simplification
-done in FILIP @filip, we need $6,422,528 * 256 * 4 "bytes" = 6.58 "GB"$ of additional GPU memory, just to store the result.
-Consequently, this approach is not feasible in our setup.
+With a maximum text sequence length of 64 tokens @beit3
+and an image sequence length of 197, the number of dot products to compute for just
+one image-text pair is $197*64=12,608$. With a batch size of 256 per device, and 2 GPUs, the number of dot products
+increases from $262,144$ to $256*2*12,608=6,455,296$. Even if the embedding dimension is reduced to 256, which is a simplification
+done in FILIP @filip, we need $6,455,296 * 256 * 4 "bytes" = 6.61 "GB"$ of additional GPU memory just to store the result.
+This is not feasible in our setup.
 
 ==== Method <target_cmli_method>
 
@@ -94,9 +91,9 @@ positive pairs is computed, which is what we call Target-CMLI.
 
 Target-CMLI is not used for contrastive learning, but rather to alleviate the problem of regressing
 patch-level information of the teacher model.
-Recall that in the current setting, which is multimodal knowledge distillation, it is merely possible
+Recall that in the current setting it is merely possible
 to regress the global representations of the teacher model, and not the patch-level information.
-This is because the teacher model only outputs patch-level predictions for the image modality, and not for the text modality.
+This is because the teacher model outputs patch-level predictions for the image modality, but not for the text modality.
 Consequently, the student model can replicate the output of the teacher model for the image modality, but not for the text modality,
 as it is not possible to assign a text token to a specific image patch.
 This is illustrated in @mm_kd_cls_token, and discussed in @multimodal_knowledge_distillation_challenges.
@@ -110,45 +107,45 @@ the selected image patch and the representation of the text token.
 
 For the patch-level image representation of the student model that means that we can now also regress the patch-level information
 of the teacher, and not only the global information. This was also possible in all previous experiments, as the order of the
-image patches does not change between student and teacher image representations, however,
+image patches does not change between student and teacher image representations. However,
 this would heavily bias the parameters of the shared Transformer block towards the image modality.
 
 The definition of the loss changes as follows:
 
 $
-cal(L)_("KD")^("i2t") = 
-op("MSE")(bold(H)'''^s_(v, K), bold(H)^t_(v, L_t)) =
-sum_(n=1)^N ||bold(h)'''^s_(v, K, n) - bold(h)^t_(v, L_t, n)||^2_2
+cal(L)_("KD")^("i2i") = 
+cal(L)_"MSE" (bold(H)^s_(v, K), bold(H)^t_(v, L_t)) =
+sum_(n=1)^N ||bold(h)^s_(v, K, n) - bold(h)^t_(v, L_t, n)||^2_2
 $
 
 For a given text representation we first need to find $m_j^("t2i")$ for each text token $j$, and then define the loss as:
 
 $
 cal(L)_("KD")^("t2i") =
-op("MSE")(bold(H)'''^s_(w, K), bold(H)^t_(v, L_t)) =
-sum_(z=1)^Z ||g(bold(h)'''^s_(w, K, z)) - g(bold(h)^t_(v, L_t, m_z^("t2i")))||^2
+cal(L)_"MSE" (bold(H)^s_(w, K), bold(H)^t_(v, L_t)) =
+sum_(z=1)^M ||g(bold(h)^s_(w, K, z)) - g(bold(h)^t_(v, L_t, m_z^("t2i")))||^2_2
 $
 
 We denote $g(dot)$ as a linear projection to reduce the dimensionality of the image representation from the teacher, and the text representation
 from the student, to 32. This is done to (1) reduce memory consumption when computing the similarity between all image patches and text tokens
-for all image-text pairs in a batch, and (2) to reduce the information that can be expressed by $g(bold(x))$. We motivate (2) by the fact
-that matching individual image patches to text tokens is a very fine-grained task, and we want to aviod having pixel-level information
+for each image-text pair, and (2) to reduce the information that can be expressed by $g(bold(x))$. We motivate (2) by the fact
+that matching individual image patches to text tokens is a very fine-grained task, and we want to avoid having pixel-level information
 in the patch representations of the teacher model, which would, despite the matching via $op("argmax")$, cause problems with predicting those
 representations, as we can't extract those pixel-level information from the text tokens.
-The total Knowledge-Distillation loss remains the same, and is the mean of the two losses:
+The total knowledge distillation loss remains the same, and is the mean of the two losses:
 
 $
 cal(L)_("KD") = 1/2 * (cal(L)_("KD")^("i2t") + cal(L)_("KD")^("t2i"))
 $
 
 We use the mean instead of the sum, as we also use the contrastive loss, and we want both losses to have the same weight.
-We find $m_k^("t2i")$ using an embedding dimension of 32, which is achieved through the same projection $g(dot)$.
+We find $m_k^("t2i")$ using an embedding dimension of 32, which is achieved through the projection $g(dot)$.
 The hidden size of the model remains at 768.
 
-What makes the implementation of Target-CMLI feasible is that we only need to compute the similarity between the positive pairs,
-and not all possible image-text pairs in a batch. This is because we only need to find the most similar image patch for each text token
-of a positive pair. For a per-device batch size of 256, Target-CMLI requires $12,544*256=3,211,264$ dot products to compute.
-With an embedding dimension of 32, just $3,211,264*32*4 "bytes" = 411 "MB"$ of additional GPU memory
+What makes the implementation of Target-CMLI feasible is that we only need to find the most similar image patch for each text token
+in a positive pair,
+and not all possible image-text pairs in a batch. For a per-device batch size of 256, Target-CMLI requires $12,608*256=3,227,648$ dot products to compute.
+With an embedding dimension of 32 just $3,211,264*32*4 "bytes" = 411 "MB"$ of additional GPU memory
 is required. This is feasible in our setup.
 
 ==== Results <target_cmli_results>
