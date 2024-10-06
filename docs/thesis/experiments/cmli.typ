@@ -177,47 +177,8 @@ on both MSCOCO and Flickr30K, while the performance on ImageNet-1K decreases by 
 #show table: set text(12pt)
 
 A look at a visualization (@t_cmli_examples) of matches between text tokens and their top-5 most similar image patches under cosine similarity
-reveals that while there are some cases where the token has the highest similarity to an actual image patch belonging the the correct
-object, the matching is far from perfect, and matches are often either completely unrelated, or scattered across almost random regions.
-A matching that would be expected from a successful approach is illustrated by the authors of FILIP @filip, and can be seen in
-@filip_cmli_examples. While the exaples of FILIP are based on CMLI for contrastive learning, and not our Target-CMLI for knowledge distillation,
-the principle of matching text tokens to image patches remains the same, and the quality of the matches is expected to be similar.
-
-In general, we observe that the patch with the highest similarity for a text token is often a patch completely unrelated to the token.
-While it is true that, thanks to self-attention, the representation of an image patch not only contains information about the patch itself,
-but also about patches it considers important, the self-attention map of the image patch with the highest similarity to a text token, which
-is the matched image patch, does not show any clear signs that it contains aggregated information from patches that are part of the object
-the text token describes. If that were the case, then the self-attention map of the matched image patch would show a clear focus on the object
-the text token describes/represents. This is illustrated in @t_cmli_examples, where for each example, the left image shows the top 5 most similar
-image patches for a text token under cosine similarity, and the right image shows the self-attention map of the image patch with the highest
-similarity to the text token, i.e. the image patch $m_j^("t2i")$ for a text token $j$.
-For the aforementioned, we observe a very inconsistent matching between text tokens and image patches. Especially examples "planes" and
-"birds" show that a mismatch is not rare.
-
-As a reference, we provide the self-attention map, w.r.t. the $mono(["I_CLS"])$ token, of the final Transformer layer
-from the self-supervised image model DINO @dino in @dino_cls_attn_examples (Appendix). We would expect the self-attention map of
-the matched image patch $m_j^("t2i")$ to the example text token $j$ (@t_cmli_examples) to be similar to that of DINO. However, this
-is not always the case.
-
-Moreover, the top 5 matched image patches are often scattered across the image, and not focused on a specific region, underlining that
-the approach does not work as intended. Instead, a result similar to that of FILIP in @filip_cmli_examples is expected, where the matched
-image patches are focused on the object the text token describes, and lie next to each other. Our results are much more similar to
-that of CLIP, also illustrated by the authors of FILIP (@filip_cmli_examples), leading us to believe that a missing cross-modal
-attention might be the reason.
-
-We suspect this, because FILIP @filip, like VLMo @vlmo and BEiT-3 @beit3, uses cross-attention to align text and image. This allows
-individual text tokens to attend to specific image patches, and vice versa, leading to e.g. text tokens to be able to "locate"
-the objects they describe in an image. Cross-Modal Late Interaction then allows to apply this "locating of the matched image patch"
-to contrastive learning and retrieval.
-
-CLIP however, like our model, does not use cross-attention, and only uses global representations for contrastive learning. Therefore,
-CLIP is not able to find relationships between individual text tokens and image patches, leading to a scattered matching, as seen in
-@filip_cmli_examples.
-
-While we do not use CMLI for contrastive learning, but for knowledge distillation, the same principles apply. Even worse, since the image patches
-that we try to match to text tokens are not even the result of the student model, but of the teacher model, the model does not have
-the possibility to somehow learn patch-level representations that are suitable for matching to text tokens.
-Consequently, there really is no guidance for the model to learn matching its text tokens to the right image patches of the teacher model.
+reveals that while there are some cases where the token has the highest similarity to an image patch that belongs the the correct
+object, the matching is far from perfect.
 
 #figure(
   image(
@@ -225,7 +186,7 @@ Consequently, there really is no guidance for the model to learn matching its te
   "../figures/t_cmli_examples.png"),
   caption: [
     Visualization of selected text tokens from the image's caption
-    and the tokens top 5 most similar image patches under cosine similarity (left). The self-attention
+    and the tokens top-5 most similar image patches under cosine similarity (left). The self-attention
     map (right) of the image patch with the highest similarity to the text token is shown next to the original image.
     We observe that matched image patches are often scattered across the image, are not part of the object the text token represents,
     and their self-attention map, indicating the composition of the token, does not always show a clear focus on the object the text token describes.
@@ -234,6 +195,41 @@ Consequently, there really is no guidance for the model to learn matching its te
 ],
 ) <t_cmli_examples>
 
+We observe that the patch with the highest similarity for a text token is often a patch completely unrelated to the token.
+While it is true that, thanks to self-attention, the representation of an image patch not only contains information about the patch itself,
+but also about patches it considers important, the self-attention map of the image patch with the highest similarity to a text token
+does not show any clear signs that it contains aggregated information from patches that are part of the object
+the text token describes. If that were the case, then the self-attention map of the matched image patch would show a clear focus on the object
+the text token describes/represents. This is illustrated in @t_cmli_examples, where the left images show the top-5 most similar
+image patches for a text token under cosine similarity, and the right image shows the self-attention map of the image patch with the highest
+similarity to the text token, i.e. the image patch $m_j^("t2i")$ for a text token $j$.
+We observe a very inconsistent matching between text tokens and image patches. Especially examples "planes" and
+"birds" show that a mismatch is not rare.
+
+As a reference, we provide the self-attention map, w.r.t. the $mono(["I_CLS"])$ token, of the final Transformer layer
+from the self-supervised image model DINO @dino in @dino_cls_attn_examples (Appendix). We would expect the self-attention map of
+the matched image patch $m_j^("t2i")$ (@t_cmli_examples) to be similar to that of DINO. However, this
+is not always the case.
+
+Moreover, the top-5 matched image patches are often scattered across the image, and not focused on a specific region, underlining that
+the approach does not work as intended. Instead, a result similar to that of FILIP in @filip_cmli_examples is expected, where the matched
+image patches are focused on the object the text token describes, and lie next to each other. Our results are much more similar to
+that of CLIP, also illustrated by the authors of FILIP (@filip_cmli_examples), leading us to believe that a missing cross-modal
+attention might be the reason.
+
+FILIP @filip, like VLMo @vlmo and BEiT-3 @beit3, uses cross-modal attention to align text and image. This allows
+_individual text tokens to attend to individual image patches_, and vice versa. A text token is then able to "locate"
+the object they describe in an image. Cross-Modal Late Interaction then applies this "locating of the matched image patch"
+to contrastive learning and retrieval.
+
+CLIP however, like our model, does not use cross-modal attention and only uses global representations for contrastive learning. Therefore,
+CLIP is not able to find relationships between individual text tokens and image patches, leading to a scattered matching, as seen in
+@filip_cmli_examples.
+
+While we do not use CMLI for contrastive learning, but for knowledge distillation, the same principles apply. Even worse, since the image patches
+that we try to match to text tokens are not even the result of the student model, but of the teacher model, the model does not have
+the possibility to somehow learn patch-level representations that are suitable for matching to text tokens.
+Consequently, there really is no guidance for the model to learn matching its text tokens to the right image patches of the teacher model.
 
 Lastly, @t_cmli_examples shows the problem based on text tokens that have a real-world meaning, and therefore a counterpart in images:
 The text token "plane" can also be present in an image as an actual plane. However, text tokens like "a", "the", and even a
@@ -245,5 +241,5 @@ $mono(["I_CLS"])$ token (see @multimodal_knowledge_distillation_challenges).
 
 To come to a conclusion, even though Target-CMLI seems to be a promising approach to alleviate the mismatch between text tokens and image patches,
 especially considering that some examples in @t_cmli_examples show a self-attention map that is focused on the object the text token describes,
-the results are far from consistent, and are constrained to only a few text tokens that have a real-world counterpart in images, and even
-this are not reliable.
+the results are far from consistent. They are constrained to only a few text tokens that have a real-world counterpart in images,
+and the matching for those tokens is not perfect to begin with.
