@@ -40,7 +40,8 @@ To prevent this, negative samples are introduced. Negative samples are other ima
 content as the original image, and the cosine similarity between the original image and these
 negative samples should therefore be minimized.
 This prevents the model from collapsing to a constant representation, as it would not minimize the cosine similarity
-between negative samples, and thus not minimize the loss. A simple yet expressive visualization can be found in @simclr_vis.
+between negative samples, and thus not minimize the loss. A simple yet expressive visualization can be found here
+#footnote[#link("https://research.google/blog/advancing-self-supervised-and-semi-supervised-learning-with-simclr/")].
 This makes self-supervised training of image models possible, and the learned representations represent the high-level semantics
 of the images, learned without the need for labels.
 

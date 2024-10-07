@@ -1,7 +1,8 @@
 == Technical Details
 === Software
 
-All implementations in this research were conducted using PyTorch @pytorch and PyTorch Lightning @pytorch_lightning.
+All implementations in this research were conducted using PyTorch @pytorch and PyTorch Lightning
+#footnote[#link("https://www.pytorchlightning.ai")].
 PyTorch Lightning is a high-level library built on top of PyTorch that provides functionalities such as checkpointing,
 logging, and distributed training. These features are particularly important for the distributed data parallel (DDP)
 training we perform (see Section @larger_batch_sizes_ddp). By leveraging PyTorch Lightning, we avoid the need

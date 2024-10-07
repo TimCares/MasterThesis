@@ -24,7 +24,7 @@ without any costs, merely requiring an account.
 
 For raw text data, used in unimodal knowledge distillation of our text model, we select OpenWebText (OWT) @openwebtext.
 This data was developed to replicate the datasets used to train GPT-2, and is also publicly available on HuggingFace
-#footnote[#link("https://huggingface.co/datasets/Skylion007/openwebtext")[https://huggingface.co/datasets/Skylion007/openwebtext]].
+#footnote[#link("https://huggingface.co/datasets/Skylion007/openwebtext")].
 The dataset consists of raw unstructured text, without any labels, which are not necessary for our distillation process.
 It is published as 21 chunks, and we select the first 6 for training and the 7th for validation, which is around 33% of the data.
 We do not collect the full dataset, as our subset
