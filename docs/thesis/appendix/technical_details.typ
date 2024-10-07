@@ -41,7 +41,7 @@ is the case for most training runs in this work. As of September 2024, the price
 is \$0.69 per GPU hour, while the price for a spot instance is just \$0.35 per GPU hour. The price for an instance increases
 proportionally with the number of GPUs used, so for us, a two-GPU instance costs \$1.38 per GPU hour.
 
-=== Cost Breakdown
+=== Cost Breakdown <cost_breakdown>
 We present a summary of the costs for training individual models in @cost_breakdown_models and the cumulative costs for pretraining, fine-tuning, data transfer, and data storage in @full_cost_breakdown. The total expenses for this thesis amount to \$1,744, which, thanks to the cost-effective GPU instances on runpod.io, is significantly lower than the estimated costs on AWS, which would
 be more than \$6,195.
 
@@ -62,7 +62,6 @@ be more than \$6,195.
     ),
     table.hline(stroke: .6pt),
     [DistilData2Vec2], [43M], [1.28M], [1$times$ RTX 4090], [6.9], [4.8], [21.1], 
-    [C-DistilData2Vec2], [43M], [1.28M], [1$times$ RTX 4090], [6.9], [4.8], [21.1],
     [F-DistilBERT], [66M], [13M], [1$times$ RTX 4090], [27], [18.6], [82.6], 
     [SHRe], [115M], [3.3M], [1$times$ RTX 4090], [13.1], [9.1], [40.1],
     [Transformer SHRe], [117M], [3.3M], [2$times$ RTX 4090], [7.7], [10.6], [47.1],

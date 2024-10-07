@@ -43,16 +43,14 @@ and we refer to @unimodal_kd_data2vec2_finetuning for more details.
     [ResNet-101 @resnet], [-], [80.1],
     [FLAVA*$dagger$* @flava], [75.54], [-],
   table.hline(stroke: .3pt),
-    [DistilData2Vec2], [56.2], [75.0],
+    [DistilData2Vec2], [#underline[71.1]], [#underline[76.1]],
     [S-SMKE*$dagger$*], [65.0], [75.5],
-    [C-DistilData2Vec2], [#underline[71.1]], [#underline[76.1]],
   table.hline(),
 ),
     caption: [
-      Using the image encoder of S-SMKE for image classification tasks leads to an increase in performance over DistilData2Vec2,
-      but a decrease in performance when making the models directly comparable using C-DistilData2Vec2.
+      Using the image encoder of S-SMKE for image classification tasks leads to a decrease in performance over DistilData2Vec2.
       *$dagger$* indicates the usage of an image encoder from vision-language models,
-      and #underline[...] indicates the best performance among distilled models,
+      underlined values indicate the best performance among distilled models,
       and bold values indicate the best performance overall.
     ]
 ) <imagenet_finetune_results_s_smke>
@@ -77,9 +75,8 @@ and we refer to @unimodal_kd_data2vec2_finetuning for more details.
     [BEiTv2 @beitv2], [*94.4*], [*98.8*], [*78.5*], [*91.1*],
     [FLAVA*$dagger$* @flava], [93.44], [-], [78.37], [-],
   table.hline(stroke: .3pt),
-    [DistilData2Vec2], [68.4], [97.0], [46.2], [85.1],
+    [DistilData2Vec2], [#underline[93.2]], [#underline[97.7]], [#underline[77.3]], [#underline[87.2]],
     [S-SMKE*$dagger$*], [89.7], [97.6], [71.3], [85.2],
-    [C-DistilData2Vec2], [#underline[93.2]], [#underline[97.7]], [#underline[77.3]], [#underline[87.2]],
   table.hline(),
 ),
   caption: [
@@ -93,66 +90,23 @@ and we refer to @unimodal_kd_data2vec2_finetuning for more details.
 
 The results on ImageNet-1K @imagenet and CIFAR-10/100 @cifar_10_100 are shown
 in @imagenet_finetune_results_s_smke and @cifar_finetune_results_s_smke,
-respectively. Incredibly, we observe an increase in performance, compared to DistilData2Vec2,
-on all finetuning tasks, and a significant increase for linear evaluation over all datasets.
+respectively. Compared to our DistilData2Vec2, we observe a decrease in performance
+on all finetuning tasks. Most relevant is the comparison on ImageNet-1K finetuning, where we achieve a top-1 accuracy of 75.5,
+which falls short by just 0.6 percentage points compared to DistilData2Vec2.
 
-This is unusual, as DistilData2Vec2 is an image-only model, and S-SMKE is a multimodal model.
+This is to be expected, as DistilData2Vec2 is an image-only model, and S-SMKE is a multimodal model.
 Single modality models usually perform better on their modality-specific tasks, as they only focus on one modality.
 Even though the image encoder of S-SMKE is used for finetuning, which also technically only focuses on the image modality,
-its representations are optimized for the alignment of text and images in the shared encoder, and should therefore not be as beneficial
+its representations are optimized for the alignment of text and images in the shared encoder, and are therefore not be as beneficial
 for image-specific tasks as those of DistilData2Vec2.
-
-However, both results of DistilData2Vec2 and S-SMKE are not directly comparable. In order to compare the two models directly,
-everything about the DistilData2Vec2 and the image encoder of S-SMKE should be the same, however,
-looking at @comparison_components_image_models, we see that S-SMKE uses a different teacher and loss function for the distillation.
-
-#show table: set text(8pt)
-#figure(
-  table(
-  columns: 4,
-  stroke: none,
-  table.hline(),
-  table.header(
-    [*Approach*],
-    [Teacher],
-    [Encoder init],
-    [Loss],
-  ),
-  table.hline(stroke: .6pt),
-    [*DistilData2Vec2*], [Data2Vec2 @data2vec2], [Data2Vec2 layer 1-6], [Data2Vec loss],
-    [*Image S-SMKE*], [BEiTv2 @beitv2], [Data2Vec2 layer 1-6], [Contrastive Target loss],
-  table.hline(),
-),
-  caption: [
-    DistilData2Vec2 and S-SMKE are not directly comparable on visual downstream tasks, as they use different teachers and loss functions.
-    "Image S-SMKE" refers to the image encoder of the trained S-SMKE model.
-  ],
-)<comparison_components_image_models>
-#show table: set text(12pt)
-
-To make both approaches directly comparable, so that we can directly see the impact of using an image encoder of a vision-language
-model on an image-only task, we conduct the following experiment:
-We distill DistilData2Vec2 again, but now train the student model with the contrastive target loss (with memory bank),
-and change the teacher to BEiTv2.
-We call this approach C-DistilData2Vec2. The only thing that differentiates C-DistilData2Vec2 from the image encoder of S-SMKE
-is that the image encoder of S-SMKE is trained for the alignment of text and images, while C-DistilData2Vec2 is only trained
-to replicate image representations. The hyperparameters and settings are the same as for DistilData2Vec2, and we refer to
-@unimodal_kd_data2vec2_finetuning for more details.
-
-The result of finetuning C-DistilData2Vec2 after the distillation
-are also shown in @imagenet_finetune_results_s_smke and @cifar_finetune_results_s_smke.
-Compared to DistilData2Vec2, we observe an
-even more pronounced increase than through the image encoder of S-SMKE. In linear evaluation, C-DistilData2Vec2 increases the performance
-by at least 15 percentage points over all benchamrks, and we even record an increase of over 25
-percentage points on CIFAR-100 linear evaluation.
-
 This experiment shows that having a unimodal image model that focuses only on image representations is better for image-specific tasks
-than using an image encoder of a vision-language model. This is exactly what we expected earlier.
+than using an image encoder of a vision-language model.
 
 The most important benchmark to consider is the performance on ImageNet-1K, where S-SMKE achieves the lowest performance among all models.
 Again, this is not surprising, as models like BEiTv2 @beitv2 and Data2Vec2 @data2vec2 are specific to images. More interesting is the
 comparison with FLAVA @flava, which is a multimodal model that also uses its image encoder for downstream image classification tasks.
-We can see that FLAVA outperforms S-SMKE on all tasks, but since the image encoder of FLAVA is a full ViT-B/16 @vit @flava model with 12 layers,
+We can see that FLAVA outperforms S-SMKE on all tasks, but since the image encoder of FLAVA is a full
+ViT-B/16 @vit @flava model with 12 layers,
 and the image encoder of S-SMKE has only 6 layers, FLAVA's results are based on a model twice as large as S-SMKE's image encoder.
 We therefore consider the performance of S-SMKE on ImageNet-1K as acceptable, even though we do not consider it as
 the strength of our model,
@@ -238,8 +192,8 @@ on image-text retrieval with the MSCOCO test dataset, and the same is done for F
 This will strengthen the alignment of text and images
 on the respective datasets, and is a common practice in vision-language models @vlmo @beit3.
 
-We follow this strategy and finetune S-SMKE on MSCOCO and Flickr30K (seperately). We finetune the whole model, and train for only 5 epochs,
-as we found it to be sufficient for the model to converge. Since the quality of the results is highly dependent on the batch size,
+We follow this strategy and finetune S-SMKE on MSCOCO and Flickr30K (seperately). We finetune the whole model, but train for only 5 epochs,
+as we found it to be sufficient for the loss to converge. Since the results are highly dependent on the batch size,
 i.e. the number of negative samples, we increase the batch size to 1024. During pretraining, we used a batch size of 256
 per device, which resulted in a contrastive loss with 511 negative samples. For finetuning, we only use one GPU instead of two,
 but switch from the RTX 4090 24GB to the A100 80GB. Even though this GPU is more expensive, it allows us to increase the batch size
@@ -278,7 +232,7 @@ The results of finetuning S-SMKE on MSCOCO and Flickr30K are shown in @image_tex
     table.hline(),
   ),
   caption: [
-    Image-text retrieval results of finetuning S-SMKE on MSCOCO and Flickr30K. We compare to FLAVA @flava and CLIP @clip.
+    Results on image-text retrieval when finetuning S-SMKE on MSCOCO and Flickr30K. We compare to FLAVA @flava and CLIP @clip.
     *$dagger$* indicates the finetuned variant of our model.
   ],
 )<image_text_retrieval_finetune>

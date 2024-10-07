@@ -136,7 +136,7 @@
   include("background/related_work/deep_aligned_representations.typ")
   include("background/related_work/clip.typ")
 
-  include("methodology/tools_and_approach.typ")
+  include("methodology/tools_and_approach.typ")  
   include("methodology/data_collection_and_preprocessing.typ")
 
   include("experiments/unimodal_knowledge_distillation.typ")

@@ -4,8 +4,8 @@ leveraging pretrained unimodal models. While our approach does not achieve state
 performance, which is not surprising given that we compare against models developed by large organizations
 such as OpenAI, Meta, and Microsoft, it demonstrates the potential of utilizing existing components
 to generate new model paradigms like multimodal models. We hope that this proof-of-concept will
-inspire other researchers to explore efficient methods for training multimodal models and models in
-general, thereby making the technology more accessible.
+inspire other researchers to explore efficient methods for training multimodal models,
+thereby making the technology more accessible.
 
 The current trend in deep learning emphasizes scaling models, data, and computational resources,
 as illustrated by OpenAI’s neural scaling laws (see @neural_scaling_law_fig). However, we believe that
@@ -25,8 +25,8 @@ advance their research and make AI more accessible.
 
 Furthermore, our work towards a general and efficient appraoch to multimodal learning, which
 has to be investigated more in future work, aims to advocate for the adoption of a philosophy centered on
-*general modality-invariant representations*, that is unless explicitly undesired for certain tasks,
-such as unimodal applications or cases where modality-specific details are crucial (e.g., image super-resolution).
+*general modality-invariant representations* (unless explicitly undesired for certain tasks,
+such as unimodal applications or cases where modality-specific details are crucial, for example in image super-resolution).
 This philosophy conveys that representations learned by a model should be independent of the modality on which they were trained.
 We believe that the ultimate goal should be to generate representations that are both detailed,
 capturing all relevant information about the input, and general, allowing for versatile use

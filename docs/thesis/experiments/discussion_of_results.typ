@@ -9,10 +9,6 @@ was designed as a *proof-of-concept* to demonstrate the feasibility of creating 
 Since we achieve reasonable performance across all tasks, and even outperforming well-known baselines on tasks like WNLI
 and COCO image retrieval, we consider our approach to be successful.
 
-Furthermore, it is not realistic to expect the proposed method to outperform the state-of-the-art methods, as they are
-larger in every aspect: parameters, data, and compute. A good impression on where S-SMKE ranks among the
-vision-language models we repeatedly compare to can be obtained from @vl_models_rank_overview.
-
 #figure(
   image(
   width: 100%,
@@ -23,15 +19,19 @@ vision-language models we repeatedly compare to can be obtained from @vl_models_
 ],
 ) <result_overview> 
 
+Furthermore, it is not realistic to expect the proposed method to outperform the state-of-the-art methods, as they are
+larger in every aspect: parameters, data, and compute. A good impression on where S-SMKE ranks among the
+vision-language models we repeatedly compare to can be obtained from @vl_models_rank_overview.
+
 Our most noteable achievements are:
 - *WNLI Finetuning:* We outperform BERT @bert and DistilBERT @distilbert (by just 0.1 percentage point) on the WNLI task, which is likely
   due to the fact that it consists of just 635 training and 71 validation examples @wnli. Our text-only model is around
   half the size of BERT, making it less prone to overfitting on such a small dataset.
-- *CIFAR-10 and CIFAR-100 Linear Evaluation:* Our specialized variant of the image-only distillation,
-  C-DistilData2Vec2, is almost on par with BEiTv2 @beitv2
+- *CIFAR-10 and CIFAR-100 Linear Evaluation:* Our image-only distilled model,
+  DistilData2Vec2, is almost on par with BEiTv2 @beitv2
   on CIFAR-10 and CIFAR-100 @cifar_10_100 linear evaluation. This is remarkable, as BEiTv2 is also twice as large as
   our model. We consider the results on both benchmarks (CIFAR-10 and CIFAR-100) as reliable, as we performed the linear
-  evaluation of BEiTv2 ourselves, using the exact same setup as for C-DistilData2Vec2.
+  evaluation of BEiTv2 ourselves, using the exact same setup as for DistilData2Vec2.
 - *COCO Image Retrieval:* S-SMKE outperforms CLIP @clip on COCO image retrieval, and the finetuned variant of S-SMKE outperforms CLIP
   on all COCO retrieval metrics. It has to be noted that CLIP was neither pretrained nor finetuned on the COCO dataset,
   so S-SMKE has an advantage here. However, considering that CLIP is a much larger model trained with over 121$times$ the data,

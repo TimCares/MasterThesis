@@ -34,7 +34,7 @@ As already mentioned in the limitations of S-SMKE (see @mm_kd_limitations), the 
 Even though this makes alignment on the level of global representations possible, it does not allow for fine-grained alignment
 of image and text on the level of individual image patches and text tokens. This is a limitation that is shared with approaches
 like CLIP @clip. This *limits* the actual application of S-SMKE to image-text retrieval, as other vision language tasks
-like image captioning, visial question answering, or visual reasoning require individual image patches
+like image captioning, visual question answering, or visual reasoning require individual image patches
 to attend to individual text tokens, and vice versa. This is only possible through cross-modal attention, which is not
 part of our approach. To ensure a wider applicability of our approach, it would be necessary to include such a cross-modal
 attention mechanism by e.g. concatenating the image and text representations and passing them through the shared Transformer
@@ -52,7 +52,7 @@ still needs to be practically demonstrated. Even though SHRe @shre has shown tha
 alignment of vision, language, and audio, the question remains whether this can also be achieved
 through an end-to-end self-supervised learning approach.
 
-To really ensure the general applicability of this approach, it would be necessary to demonstrate
+To really ensure the general applicability of our method it is necessary to demonstrate
 the presented learning paradigm with a variety of modality combinations.
 
 *Application on Many-to-Many Alignment*\
@@ -76,17 +76,16 @@ The authors show that this approach naturally leads to an alignment of audio and
 However, even though the approach is successful, the alignment of audio and text does not work as well as the alignment of image and text
 (see @shre_retrieval in the introduction of SHRe of @shre_section).
 
-Consequently to actually ensure a many-to-many alignment, it would be necessary to
+Consequently, to actually ensure a many-to-many alignment, it would be necessary to
 either collect a single dataset where all modalities form a pair (e.g. image-text-audio triplets), or to collect
 multiple datasets with each aligning two of the modalities. The latter approach has the disadvantage that for
-the alignment of $n$ modalities $2^n$ multimodal datasets, and potentially $n$ unimodal datasets, would be required.
+the alignment of $n$ modalities $(n(n-1))/2$ multimodal datasets, and potentially $n$ unimodal datasets, would be required.
 For the former approach, with an increased number of modalities, finding or
-constructing such, especially large, datasets becomes increasingly difficult.
+constructing such datasets becomes increasingly difficult.
 
 This is where the presented approach could be beneficial, as there are usually pretrained models available for
-each modality, and the approach generally requires less data. Furthermore, as previously mentioned, the approach,
-as least with a supervised teacher, has shown to be able to align multiple modalities with a transitive method (even though
-this leads to suboptimal performance).
+each modality, and the approach generally requires less data. Furthermore, SHRe @shre has demonstrated that the
+approach is able to align multiple modalities with a transitive method, although only with a supervised teacher.
 
 We therefore deem it as critical to explore the alignment of more than two modalities with an end-to-end self-supervised
-learning approach so that our philosophy of general modality-invariant representations can be fully realized.
+learning approach, so that our philosophy of general modality-invariant representations can be fully realized.
