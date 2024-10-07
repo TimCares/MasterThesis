@@ -75,7 +75,7 @@ process of CLIP is shown in @clip_fig.
   The cosine similarity between all pairs is computed and softmax-normalized to calculate the image-to-text and text-to-image loss. The final loss
   is the mean of both losses @clip.
   The example is shown with a batch size of 6. The figure does not originate from the original paper, but is a custom visualization of the concept. Image-Text pair is taken from the MSCOCO train set @coco, 
-  and do not refer to the contrastive loss of 6 pairs at the top of the figure. They are merely indicators of the intput to the model.],
+  and they do not refer to the contrastive loss of 6 pairs at the top of the figure. They are merely indicators of the input to the model.],
 ) <clip_fig>
 
 ==== Zero-Shot Image Classification <clip_zero_shot_section>

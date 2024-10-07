@@ -17,7 +17,7 @@
   )
 
   align(top, grid(
-    columns: (30mm, 1fr),
+    columns: (35mm, 1fr),
     gutter: 2 * details.fontSize,
     ..all.flatten()
   ))
@@ -44,7 +44,7 @@
     #grid(
         columns: 2,
         gutter: 1fr,
-        "Hannover, 9. October 2024" , details.author.name
+        "Hannover, October 9, 2024" , details.author.name
     ) 
   ])
 }

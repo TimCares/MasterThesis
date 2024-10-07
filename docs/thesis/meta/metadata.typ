@@ -8,7 +8,7 @@
   doubleSided: true,
   author: (
     name: "Tim Cares",
-    role: "Autor",
+    role: "Author",
     details: (
       "1717249", 
       "tim.cares@stud.hs-hannover.de"
@@ -16,7 +16,7 @@
   ),
   examiners: (
   (
-    role: "Erstprüfer",
+    role: "First Examiner",
     details: (
        "Prof. Dr. Volker Ahlers",
        "Abteilung Informatik, Fakultät IV",
@@ -27,7 +27,7 @@
     ),
   ),
   (
-    role: "Zweitprüfer",
+    role: "Second Examiner",
     details: (
        "Prof. Dr. Adrian Pigors",
        "Abteilung Informatik, Fakultät IV",
