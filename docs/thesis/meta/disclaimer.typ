@@ -24,44 +24,27 @@
 
   align(horizon,[
     #set par(justify: true)
-
-    #if details.language == "de" {[
-      Soweit nicht anders gekennzeichnet, ist dieses Werk unter einem
-      Creative-Commons-Lizenzvertrag Namensnennung 4.0 lizenziert.
-      Dies gilt nicht für Zitate und Werke, die aufgrund einer anderen Erlaubnis
-      genutzt werden.
-      Um die Bedingungen der Lizenz einzusehen, folgen Sie bitte dem Hyperlink:
-    ]} else {[
       This content is subject to the terms of a Creative Commons Attribution 4.0 
       License Agreement, unless stated otherwise. Please note that this license 
       does not apply to quotations or works that are used based on another
       license. To view the terms of the license, please click on the hyperlink
       provided.
-    ]}
 
-    _#link("https://creativecommons.org/licenses/by/4.0/deed.de")_
+    _#link("https://creativecommons.org/licenses/by/4.0/deed")_
   ])
 
   align(bottom,[
     #set par(justify: true)  
-    #if details.language == "de" {[
-      Hiermit erkläre ich, dass ich die eingereichte Arbeit selbstständig und 
-      ohne fremde Hilfe verfasst, andere als die von mir angegebenen Quellen
-      und Hilfsmittel nicht benutzt und die den benutzten Werken wörtlich oder
-      inhaltlich entnommenen Stellen als solche kenntlich gemacht habe.
-    ]} else {[
-      I hereby declare that I have written and submitted this thesis 
-      independently, without any external help or use of sources and aids other 
-      than those specifically mentioned by me. I also declare that I have not
-      taken any content from the works used without proper citation and
-      acknowledgement.
-    ]}
+      I hereby declare on oath that I have written the submitted Master's thesis
+      independently and without outside help, that I have not used any sources or aids other
+      than those I have specified and that I have marked the passages taken, either
+      literally or in terms of content, from the sources as such.
 
     #v(15mm)
     #grid(
         columns: 2,
         gutter: 1fr,
-        "Hannover, " + details.date, details.author.name
+        "Hannover, 9. October 2024" , details.author.name
     ) 
   ])
 }

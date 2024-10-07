@@ -1,6 +1,6 @@
 #let details = (
   title: "Leveraging Pretrained Unimodal Models for Efficient Vision-Language Pretraining",
-  date: "9. Oktober 2024",
+  date: "October 2024",
   language: "en",
   degree: "Master",
   field: "Applied Computer Science",
@@ -10,27 +10,31 @@
     name: "Tim Cares",
     role: "Autor",
     details: (
-      "Matrikelnummer", 
-      "Email Adresse"
+      "1717249", 
+      "tim.cares@stud.hs-hannover.de"
     ),
   ),
   examiners: (
   (
     role: "Erstprüfer",
     details: (
-       "Prof. Dr. Vorname Name",
+       "Prof. Dr. Volker Ahlers",
        "Abteilung Informatik, Fakultät IV",
        "Hochschule Hannover",
-       "Email Adresse",
+       "Ricklinger Stadtweg 120",
+       "30459 Hannover",
+       "volker.ahlers@hs-hannover.de",
     ),
   ),
   (
     role: "Zweitprüfer",
     details: (
-       "Prof. Dr. Vorname Name",
+       "Prof. Dr. Adrian Pigors",
        "Abteilung Informatik, Fakultät IV",
        "Hochschule Hannover",
-       "Email Adresse",
+       "Ricklinger Stadtweg 120",
+       "30459 Hannover",
+       "adrian.pigors@hs-hannover.de",
     ),
   ),
   ),

@@ -11,11 +11,7 @@
 
     #details.author.name
 
-    #if details.language == "de" {
-      [#details.degree\arbeit im Studiengang #details.field]
-    } else {
-      [#details.degree's thesis in #details.field]
-    }
+    Master's thesis in Applied Computer Science at Faculty IV – Wirtschaft und Informatik Hochschule Hannover
     
     #linebreak()
     #details.date

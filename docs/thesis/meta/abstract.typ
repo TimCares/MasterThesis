@@ -1,5 +1,5 @@
 #align(center)[
-  *Abstract* \
+  #heading(level: 1,numbering: none, outlined: false, "Abstract")
 Multimodal models, especially vision-language models, have gained increasing popularity
 due to their wide range of applications on both unimodal and multimodal tasks.
 However, existing approaches often require large-scale models, extensive data, and substantial compute,
