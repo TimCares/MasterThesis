@@ -1,25 +1,25 @@
 == Future Work
-*Positional Encoding*\
-We initialized our multimodal model with components from pretrained unimodal models, which were Data2Vec2 @data2vec2
-for the image encoder and BERT @bert for the text encoder. The representations of these models were they passed seperately
-through a shared Transformer encoder. However, we only briefly considered what implications this has for the shared
-Transformer encoder: We introduced a learnable token-type embedding, which is used to distinguish between both modalities
-(see @token_type_embeddings), which is especially important for the self-attention mechanism of the Transformer as the sequence
-of representations has an inherently different meaning for each modality: 1D for text and 2D for images.
+// *Positional Encoding*\
+// We initialized our multimodal model with components from pretrained unimodal models, which were Data2Vec2 @data2vec2
+// for the image encoder and BERT @bert for the text encoder. The representations of these models were they passed seperately
+// through a shared Transformer encoder. However, we only briefly considered what implications this has for the shared
+// Transformer encoder: We introduced a learnable token-type embedding, which is used to distinguish between both modalities
+// (see @token_type_embeddings), which is especially important for the self-attention mechanism of the Transformer as the sequence
+// of representations has an inherently different meaning for each modality: 1D for text and 2D for images.
 
-A part of these sequences are the positional encodings of the image and text encoder, respectively. These positional encodings
-are used to provide the Transformer with information about the position of each token in the sequence. However, the positional
-encodings of the image and text encoder are of a different type. While the positional encodings of the text encoder (BERT)
-are learnable representations for each position, so a learnable absolute positional encoding, the positional encoding of the
-image encoder (Data2Vec2) is a fixed sinusoidal positional encoding. Therefore, the shared Transformer encoder not only has
-to account for the difference between the modalities, but also for the difference in positional encodings.
-In contrast, other vision-langaue models like BEiT-3 @beit3 or VLMo @vlmo use the same positional encoding for both modalities,
-so it would also be worth investigating the impact of using the same positional encoding for both modalities.
+// A part of these sequences are the positional encodings of the image and text encoder, respectively. These positional encodings
+// are used to provide the Transformer with information about the position of each token in the sequence. However, the positional
+// encodings of the image and text encoder are of a different type. While the positional encodings of the text encoder (BERT)
+// are learnable representations for each position, so a learnable absolute positional encoding, the positional encoding of the
+// image encoder (Data2Vec2) is a fixed sinusoidal positional encoding. Therefore, the shared Transformer encoder not only has
+// to account for the difference between the modalities, but also for the difference in positional encodings.
+// In contrast, other vision-langaue models like BEiT-3 @beit3 or VLMo @vlmo use the same positional encoding for both modalities,
+// so it would also be worth investigating the impact of using the same positional encoding for both modalities.
 
-A caveat of using the same positional encoding type for both modalities is that it greatly restricts the flexibility of the
-choice of the pretrained unimodal models we use to initialize the modality-specific encoders. One would have to find
-pretrained unimodal models that all use the same positional encoding type, which becomes increasingly difficult with
-more modalities.
+// A caveat of using the same positional encoding type for both modalities is that it greatly restricts the flexibility of the
+// choice of the pretrained unimodal models we use to initialize the modality-specific encoders. One would have to find
+// pretrained unimodal models that all use the same positional encoding type, which becomes increasingly difficult with
+// more modalities.
 
 *Strengthening Unimodal Encoders*\
 Finetuning S-SMKE on unimodal downstream tasks showed that our performance is generally worse on those taks compared to the performance
