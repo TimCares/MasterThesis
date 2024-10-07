@@ -1,3 +1,4 @@
+#pagebreak()
 == Figures and Visualizations
 
 #figure(

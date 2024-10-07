@@ -167,7 +167,7 @@
   include("conclusion/impact.typ")
 
   // Appendix.
-  set heading(numbering: "A")
+  set heading(numbering: "A.1")
   counter(heading).update(0)
   set figure(placement: none)
   include("appendix/hyperparameters.typ")
