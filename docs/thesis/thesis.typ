@@ -31,7 +31,7 @@
     lang: details.language
   )
 
-  show link: set text(fill: rgb(0, 0, 255))
+  //show link: set text(fill: rgb(0, 0, 255))
   show math.equation: set text(weight: 400)
   set math.equation(numbering: "(1)")
 

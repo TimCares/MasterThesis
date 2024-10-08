@@ -10,7 +10,7 @@
     name: "Tim Cares",
     role: "Author",
     details: (
-      "Matrikelnummer: 1717249", 
+      "1717249", 
       "tim.cares@me.com"
     ),
   ),
