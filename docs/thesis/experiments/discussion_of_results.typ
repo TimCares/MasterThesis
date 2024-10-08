@@ -32,7 +32,8 @@ Our most noteable achievements are:
   on CIFAR-10 and CIFAR-100 @cifar_10_100 linear evaluation. This is remarkable, as BEiTv2 is also twice as large as
   our model. We consider the results on both benchmarks (CIFAR-10 and CIFAR-100) as reliable, as we performed the linear
   evaluation of BEiTv2 ourselves, using the exact same setup as for DistilData2Vec2.
-- *COCO Image Retrieval:* S-SMKE outperforms CLIP @clip on COCO image retrieval, and the finetuned variant of S-SMKE outperforms CLIP
+- *COCO Image Retrieval:* S-SMKE outperforms CLIP @clip on COCO image retrieval, and the finetuned variant of S-SMKE 
+  (indicated by "S-SMKE *$dagger$*") outperforms CLIP
   on all COCO retrieval metrics. It has to be noted that CLIP was neither pretrained nor finetuned on the COCO dataset,
   so S-SMKE has an advantage here. However, considering that CLIP is a much larger model trained with over 121$times$ the data,
   the result is still remarkable.

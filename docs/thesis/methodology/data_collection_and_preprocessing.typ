@@ -47,7 +47,7 @@ Sentence classification of rotten tomatoes movie reviews into "negative" (1), "s
 
 *CoLA*
 
-Is a binary classification tasks to test a models understanding of grammar:
+Is a binary classification task to test a models understanding of grammar:
 A model should output whether a sentence is grammatically correct (label: "acceptable" -> 1) or not (label: "unacceptable" -> 0) @cola.
 
 *STS-B*
@@ -57,7 +57,7 @@ The similarity score is in the interval $[0, 5] subset RR$ @stsb.
 
 *MRPC*
 
-Is a binary classification taks. The training objective is paraphrase detection,
+Is a binary classification task. The training objective is paraphrase detection,
 meaning whether two sentences describe the same semantic concept @mrpc.
 
 *QQP*

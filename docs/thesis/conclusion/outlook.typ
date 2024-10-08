@@ -1,7 +1,7 @@
 == Future Work
 // *Positional Encoding*\
 // We initialized our multimodal model with components from pretrained unimodal models, which were Data2Vec2 @data2vec2
-// for the image encoder and BERT @bert for the text encoder. The representations of these models were they passed seperately
+// for the image encoder and BERT @bert for the text encoder. The representations of these models were they passed separately
 // through a shared Transformer encoder. However, we only briefly considered what implications this has for the shared
 // Transformer encoder: We introduced a learnable token-type embedding, which is used to distinguish between both modalities
 // (see @token_type_embeddings), which is especially important for the self-attention mechanism of the Transformer as the sequence
@@ -13,7 +13,7 @@
 // are learnable representations for each position, so a learnable absolute positional encoding, the positional encoding of the
 // image encoder (Data2Vec2) is a fixed sinusoidal positional encoding. Therefore, the shared Transformer encoder not only has
 // to account for the difference between the modalities, but also for the difference in positional encodings.
-// In contrast, other vision-langaue models like BEiT-3 @beit3 or VLMo @vlmo use the same positional encoding for both modalities,
+// In contrast, other vision-language models like BEiT-3 @beit3 or VLMo @vlmo use the same positional encoding for both modalities,
 // so it would also be worth investigating the impact of using the same positional encoding for both modalities.
 
 // A caveat of using the same positional encoding type for both modalities is that it greatly restricts the flexibility of the
@@ -22,7 +22,7 @@
 // more modalities.
 
 *Strengthening Unimodal Encoders*\
-Finetuning S-SMKE on unimodal downstream tasks showed that our performance is generally worse on those taks compared to the performance
+Finetuning S-SMKE on unimodal downstream tasks showed that our performance is generally worse on those tasks compared to the performance
 of unimodal models, including our unimodal distilled models. Since this is a limitation of our approach, it is worth investigating
 how the performance of our model can be improved on unimodal tasks. 
 BEiT-3 @beit3 solves this problem by including modality-specific pretraining tasks during the training of the multimodal model,
@@ -30,7 +30,7 @@ which we find as worth investigating for our approach as well. It would be relat
 such as masked language modeling for the text encoder and masked patch prediction for the image encoder.
 
 *Fine-Grained Alignment*\
-As already mentioned in the limitations of S-SMKE (see @mm_kd_limitations), the model processes image and text seperately.
+As already mentioned in the limitations of S-SMKE (see @mm_kd_limitations), the model processes image and text separately.
 Even though this makes alignment on the level of global representations possible, it does not allow for fine-grained alignment
 of image and text on the level of individual image patches and text tokens. This is a limitation that is shared with approaches
 like CLIP @clip. This *limits* the actual application of S-SMKE to image-text retrieval, as other vision language tasks

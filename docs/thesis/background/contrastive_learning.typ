@@ -16,7 +16,7 @@ small (or moderate) changes in pixel-level information. This is achieved by augm
 rotating, or flipping it. Provided the augmentation is not too drastic (e.g. the crop size too large),
 the high-level semantics of the image will remain the same after augmentation, even though pixel-level information do not.
 The goal of the image model is then to maximize the cosine similarity between the global representations of two 
-augmented versions of the same image. In Transformers, the global representation is usually the $mono(["I_CLS"])$ token retuned
+augmented versions of the same image. In Transformers, the global representation is usually the $mono(["I_CLS"])$ token returned
 by the final layer of the model, which is a vector that can be compared with the $mono(["I_CLS"])$ token of another image
 using the cosine similarity. 
 The augmented versions are often referred to as different _views_ of the same image @simsiam, as shown in @image_views.
@@ -82,7 +82,7 @@ from the output of the final layer $bold(H)_(v, L)$ and $bold(H)_(w, L)$, which 
 For the resulting batch of image and text representations
 ${bold(h)_((v, L, mono(["I_CLS"])), k), bold(h)_((w, L, mono(["T_CLS"])), k)}_(k=1)^B$, where $B$ is the batch size,
 the cosine similarity between all possible image-text pairs is computed. The cosine similarity between two
-vecotrs $bold(a)$ and $bold(b)$ is given by:
+vectors $bold(a)$ and $bold(b)$ is given by:
 
 $
 cos(bold(a), bold(b)) = (bold(a) bold(b)^T) / (||bold(a)||_2 * ||bold(b)||_2) = bold(a)/(||bold(a)||_2) bold(b)^T/(||bold(b)||_2)
@@ -164,7 +164,7 @@ thought of as _finding the correct caption for an image among all captions in th
   image("../figures/itc.png"),
   caption: [Contrastive Learning is performed using matrix multiplication of normalized representations (1), and the result
   is matrix $bold(L)$ described in @contrastive_logits. The diagonal of the resulting matrix contains
-  the cosine similarity between positive samples. The softmax operation along the rows yields a probabilty distribution for
+  the cosine similarity between positive samples. The softmax operation along the rows yields a probability distribution for
   each image over all captions, and the softmax operation along the columns vice versa (2). The cross-entropy loss is
   then used to calculate the loss for the distributions. The final loss is the mean of both losses.
   Image-text pairs in the figure have been taken from the COCO train set @coco.],

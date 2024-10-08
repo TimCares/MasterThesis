@@ -1,7 +1,7 @@
 #set math.equation(numbering: "(1)")
 == Knowledge Distillation <knowledge_distillation>
 
-Training large deep learning models is computationally expensive, and therefore finanically infeasible for researchers outside
+Training large deep learning models is computationally expensive, and therefore financially infeasible for researchers outside
 of large corporations. Models often require more than 500 million parameters to achieve state-of-the-art (SOTA) performance, and training
 those models requires a lot of computational resources, e.g. GPUs, time and data. For example, CoCa, a vision model
 reaching SOTA performance of 91% validation accuracy on ImageNet-1K @imagenet, has 2.1 billion parameters, and was trained on more than
@@ -48,9 +48,9 @@ The loss function typically used in response-based KD is the KL-Divergence, intr
 two probability distributions. The mathematical formulation is as follows:
 Let $f(dot)$ be the teacher model, $g(dot)$ the student model, and $bold(x)$ the input sample of the modalitiy used, e.g. an image.
 We define $bold(u)=g(bold(x))$ and $bold(z)=f(bold(x))$ as the output of the teacher and student model, respectively.
-Those are the logits, and for a classification task of e.g. 1000 classes, vectores of length 1000 ($bold(u) in RR^1000 and bold(z) in RR^1000$).
+Those are the logits, and for a classification task of e.g. 1000 classes, vectors of length 1000 ($bold(u) in RR^1000 and bold(z) in RR^1000$).
 A best practice is to divide the logits by a temperature parameter $tau$, before applying the softmax function @kd @kd_survey, which
-smooothes the probability distribution further, as illustrated in @prob_dist_kd.
+smoothens the probability distribution further, as illustrated in @prob_dist_kd.
 
 #figure(
   image("../figures/prob_dist_kd.png"),

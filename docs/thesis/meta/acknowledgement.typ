@@ -1,8 +1,8 @@
 #let acknowledgement() = {
 
-  // --- Acknowledgements ---
+  // --- Acknowledgments ---
   [
-    #heading(level: 1,numbering: none, outlined: false, "Acknowledgements")
+    #heading(level: 1,numbering: none, outlined: false, "Acknowledgments")
     I would like to express my gratitude to my supervisor, Professor Volker Ahlers, for his support and advice throughout the
     research presented in this thesis. I am especially thankful for his openness to my proposal for the topic of this thesis,
     which allowed me to explore a field I am passionate about. I would also like to thank my second examiner, Professor Adrian Pigors,

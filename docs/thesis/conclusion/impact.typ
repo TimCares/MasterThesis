@@ -23,7 +23,7 @@ models such as FLAVA, Data2Vec, BERT, and BEiT-3. We believe that transparency i
 which is why we, like others, publish our entire codebase. By doing so, we aim to help others
 advance their research and make AI more accessible.
 
-Furthermore, our work towards a general and efficient appraoch to multimodal learning, which
+Furthermore, our work towards a general and efficient approach to multimodal learning, which
 has to be investigated more in future work, aims to advocate for the adoption of a philosophy centered on
 *general modality-invariant representations* (unless explicitly undesired for certain tasks,
 such as unimodal applications or cases where modality-specific details are crucial, for example in image super-resolution).

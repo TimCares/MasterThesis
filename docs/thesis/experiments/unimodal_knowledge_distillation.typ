@@ -122,7 +122,7 @@ There are some peaks in the training loss, which are likely due to a high learni
 why do not investigate them further.
 As we do not have access to any other metric than the MSE loss during training, we have to evaluate the student by finetuning
 on downstream tasks, which follows in the next section. This will answer whether the distillation actually yields a model
-competetive in performance to the teacher model, and if the knowledge transfer was successful.
+competitive in performance to the teacher model, and if the knowledge transfer was successful.
 
 
 #figure(
@@ -400,7 +400,7 @@ for the student model.
 
 In general, a sequence length of 256 is acceptable, as most of the GLUE tasks rarely have examples that
 exceed this length. If an example is longer than 256 tokens, it is truncated to the first 256 tokens. If an example
-consists of a sentence pair, both sentences are tuncated equally, so that the total length of the sequence is 256.
+consists of a sentence pair, both sentences are truncated equally, so that the total length of the sequence is 256.
 
 Second, if the task consists of sentence pairs, we add a special token-type embedding to each token before
 the positional encoding is added. This, together with the
@@ -449,7 +449,7 @@ are shown in @distil_d2v2_glue_results, and we observe a similar performance to 
 All scores are based on the dev sets of the respective tasks, as the test datasets, if available, usually do not provide labels.
 
 We are able
-to retain 96.7% of the performance of BERT, which is almost the same as the 96.8% of DistilBERT. Noteably, we outperform
+to retain 96.7% of the performance of BERT, which is almost the same as the 96.8% of DistilBERT. Notably, we outperform
 DistilBERT on the RTE @rte task by more than 7 percentage points, and even record the best score of all methods
 we compare to on WNLI @wnli.
 The latter is most likely due to the fact that WNLI is a very small dataset, with 635 training and

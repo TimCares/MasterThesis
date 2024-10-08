@@ -3,7 +3,7 @@
 While we previously introduced concepts to train smaller models in a cost-efficient way, we
 now introduce the architecture of the models used in this work. We will exclusively make
 use of the Transformer architecture @transformer, which has been shown to be highly effective
-across vision @beit and language @bert. Consequtively, we will also define the interpretation of
+across vision @beit and language @bert. Consequently, we will also define the interpretation of
 image and text in the context of the Transformer.
 
 === Language Transformer <language_transformer>
@@ -11,7 +11,7 @@ image and text in the context of the Transformer.
 In Transformers, text is represented as a sequence of discrete tokens, which are, as described in word2vec @word2vec,
 embedded into D-dimensional vectors using an embedding matrix.
 A single token $i$, being a (sub)word like "hell", "hello", "a", is represented as $bold(e)^w_i in RR^D$, which is the embedding of the token
-resulting from the embedding matrix. A text or sentence is represented as a sequence of $M$ token embeddings/represenations
+resulting from the embedding matrix. A text or sentence is represented as a sequence of $M$ token embeddings/representations
 $bold(E)_w = [bold(e)^w_1, bold(e)^w_2, ..., bold(e)^w_M] in RR^(M times D)$. $w$ denotes the modality being text.
 
 In addition, each sequence is prepended
@@ -24,7 +24,7 @@ $
 bold(E)_w = [bold(e)^w_mono(["T_CLS"]), bold(e)^w_1, bold(e)^w_2, ..., bold(e)^w_M, bold(e)^w_mono(["T_SEP"])] in RR^((M+2) times D)
 $
 
-The sequence length $M$ is not fixed, but is usuall set to a specific value when training a Transformer model, a popular choice being
+The sequence length $M$ is not fixed, but is usually set to a specific value when training a Transformer model, a popular choice being
 $M+2 = 512$.
 
 As will be explained later, unlike RNNs, Transformers do not process a sequence step by step, but all at once. As a result,
@@ -120,7 +120,7 @@ which led to its widespread adoption especially in Large Language Models (LLMs) 
 the potential of this architecture beyond text. This exploration led to the development of the vision Transformer (ViT) @vit,
 marking a significant shift in computer vision.
 
-Diffent from traditional Convolutional Neural Networks (CNNs), which have been the dominant architecture in computer vision 
+Different from traditional Convolutional Neural Networks (CNNs), which have been the dominant architecture in computer vision 
 before the ViT, the ViT processes images as 1D sequences of patches, instead of 2D grids of pixels.
 
 We define an image as a 3-dimensional tensor $bold(v) in RR^(C times H times W)$. Throughout this work, we will exclusively
@@ -174,7 +174,7 @@ For downstream tasks like classification, the ViT follows the procedure of the o
 of the $mono(["I_CLS"])$ token to a classification head, which is a single linear (i.e. feed-forward)
 layer @vit (see @transformer_classification_head).
 
-With the introducion of the vision Transformer came the division into three different model variants, each having the same architecture
+With the introduction of the vision Transformer came the division into three different model variants, each having the same architecture
 but different scales. The smallest model is the ViT-B/16, followed by the ViT-L/16. The largest model is the ViT-H/14. The number
 of layers $L$ and the hidden size $D$ are different for each variant, and the ViT-B/16 has $L=12$ layers and $D=768$ hidden dim, the ViT-L/16
 has $L=24$ layers and $D=1024$ hidden dim, and the ViT-H/14 has $L=32$ layers and $D=1280$ hidden dim @vit. 
@@ -198,9 +198,9 @@ of e.g. the $mono(["I_CLS"])$ and $mono(["T_CLS"])$ token, of a concept should b
 no matter if is expressed through image or text, which is also called alignment.
 However, in most existing models this is not the case. These models are typically unimodal, meaning they process only one modality,
 making alignment of multiple modalities impossible.
-A naive approach would be to pass an image into an image model, and its caption into a (seperate) text model. Even though the generated representations
+A naive approach would be to pass an image into an image model, and its caption into a (separate) text model. Even though the generated representations
 describe the same concept, they will not be the same, as both models are not related to each other.
-Each model will have a seperate latent space, as there has been no incentive for the models to learn a representation that
+Each model will have a separate latent space, as there has been no incentive for the models to learn a representation that
 is aligned across modalities (@different_latent_spaces), resulting in different representations for the same concept.
 While it is possible to compare the representations of two unimodal models, e.g. through cosine similarity,
 a similarity close to 1 (the maximum) does not necessarily mean that the concepts expressed in the representations are the same.
@@ -248,7 +248,7 @@ The loss function is usually the contrastive loss, and its implementation for vi
   width: 75%,
   "../figures/multimodal_model.png"),
   caption: [An abstract illustration of a vision-language model. Image and text are first passed through unimodal
-  Transformer encoders, the cls tokens are extracted and passed seperately into the MLP that maps the
+  Transformer encoders, the cls tokens are extracted and passed separately into the MLP that maps the
   modality-specific representations into a common representation space.
   A contrastive loss ensures the alignment and repulsion of similar and dissimilar concepts, respectively. We indicate this through
   purple arrows.],
@@ -258,9 +258,9 @@ When it comes to the actual implementation of multimodal models, Transformers ar
 both vision and language, and even other modalities not covered in this work, like audio. Furthermore, both the language and vision
 Transformer require their input to be a sequence of embeddings, which makes alignment more straightforward: For each unimodal encoder
 of a multimodal (vision-language) model one distinct Transformer can be used, and the output of an unimodal encoder, which is the respective
-cls token ($mono(["I_CLS"])$ or $mono(["T_CLS"])$) can then be passed (seperately) to a shared encoder, which can be implemented as a simple
+cls token ($mono(["I_CLS"])$ or $mono(["T_CLS"])$) can then be passed (separately) to a shared encoder, which can be implemented as a simple
 feed forward network (MLP).
 The output of the shared encoder is then still _one_ representation for the image, and _one_ for the text. However,
-both represenations will be close to each other under cosine similarity, which is useful
+both representations will be close to each other under cosine similarity, which is useful
 for multimodal tasks like image-text retrieval, introduced in @image_text_retrieval. An abstract illustration of a vision-language model
 with Transformer encoders and a shared encoder MLP is shown in @multimodal_model.

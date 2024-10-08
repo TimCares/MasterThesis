@@ -6,7 +6,7 @@ unimodal downstream tasks, most papers on vision-language models, with the excep
 FLAVA @flava, exclusively focus on image classification and segmentation tasks, and do not evaluate the performance on
 text classification tasks (e.g. BEiT-3 @beit3, VLMo @vlmo, and CoCa @coca).
 This is surprising, as an adequate language understanding is crucial for any multimodal model, especially
-when it comes to vision-lanuage reasoning task like in NLVR2 @nlvr2 or VQAv2 @vqav2 (not covered here).
+when it comes to vision-language reasoning task like in NLVR2 @nlvr2 or VQAv2 @vqav2 (not covered here).
 Moreover, it is quite simple to test the language
 understanding of a model by evaluating it on the GLUE benchmark @glue, which is what we already did once in the
 language distillation experiments of @unimodal_kd_text.
@@ -164,7 +164,7 @@ for more details, and to @distil_bert_glue_finetuning_hyperparameters for the hy
     Results of finetuning the text encoder of S-SMKE on the GLUE benchmark @glue. We compare to unimodal, unimodal distilled, and multimodal models, where the latter use their text encoder for finetuning.
     $dagger$ indicates the best performance among unimodal models, underlined values indicate the best performance among unimodal distilled models,
     and $dagger.double$ indicates the best performance among multimodal models. Bold values indicate the best performance overall.
-    Note that the score for FLAVA and CLIP are not directly comparible with others, as both works do not publish results
+    Note that the score for FLAVA and CLIP are not directly comparable with others, as both works do not publish results
     on WNLI @wnli. CLIP generally does not publish results on GLUE directly, so we take the results reported by th authors of FLAVA @flava.
   ],
 )<s_smke_glue_results>
@@ -174,7 +174,7 @@ The results, displayed in @s_smke_glue_results, show that we lose more than 16 p
 our F-DistilBERT, and even more compared to the original BERT model. While the reason for this decrease lies again in the fact that
 the text encoder of S-SMKE is optimized for the alignment of text and images, and not for text-specific tasks, it certainly does not
 explain the performance on CoLA @cola, which is the lowest among all models (14.2).
-While we continously perform worse than FLAVA @flava, which again uses a text encoder with twice the number of layers of our text
+While we continuously perform worse than FLAVA @flava, which again uses a text encoder with twice the number of layers of our text
 encoder, S-SMKE outperforms CLIP @clip in all tasks, with the exception of CoLA.
 A visually more appealing version of @s_smke_glue_results is shown when discussing all results in @discussion_of_results.
 
@@ -192,7 +192,7 @@ on image-text retrieval with the MSCOCO test dataset, and the same is done for F
 This will strengthen the alignment of text and images
 on the respective datasets, and is a common practice in vision-language models @vlmo @beit3.
 
-We follow this strategy and finetune S-SMKE on MSCOCO and Flickr30K (seperately). We finetune the whole model, but train for only 5 epochs,
+We follow this strategy and finetune S-SMKE on MSCOCO and Flickr30K (separately). We finetune the whole model, but train for only 5 epochs,
 as we found it to be sufficient for the loss to converge. Since the results are highly dependent on the batch size,
 i.e. the number of negative samples, we increase the batch size to 1024. During pretraining, we used a batch size of 256
 per device, which resulted in a contrastive loss with 511 negative samples. For finetuning, we only use one GPU instead of two,

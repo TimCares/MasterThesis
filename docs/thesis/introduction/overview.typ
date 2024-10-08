@@ -16,7 +16,7 @@ We continue by exploring relevant approaches to multimodal models, including the
 We present all datasets used in this work, explaining their collection processes and providing detailed descriptions where necessary.
 Technical details regarding hardware, software, and costs are provided in the appendix to ensure reproducibility.
 
-Here, we also provide additional detials on how we set up our experiments, and how we proceed with our research.
+Here, we also provide additional details on how we set up our experiments, and how we proceed with our research.
 
 *Experiments*\
 #h(1cm)*Unimodal Knowledge Distillation*\
@@ -40,6 +40,11 @@ presented in an iterative and incremental manner. Sections such as "Token-Type E
 Throughout these sections, we repeatedly evaluate our approach on various multimodal benchmarks
 and compare it with other state-of-the-art multimodal methods.
 
+#h(1cm)*Teacher Ablation Studies*\
+Here we conduct ablation studies on the impact of different teacher models on the performance of our approach. This will
+provide insights on if our method can be viewed as a general approach to efficient multimodal training or if it is
+specific to the models that we use.
+
 #h(1cm)*Evaluation on Unimodal Benchmarks*\
 With our final approach established, we evaluate its performance on unimodal image and text benchmarks,
 directly comparing it to the unimodal distilled models from @unimodal_knowledge_distillation.
@@ -47,15 +52,10 @@ This evaluation is crucial for determining whether the multimodal models not onl
 modalities but also perform effectively on unimodal tasks.
 Demonstrating parity or superiority would suggest that our multimodal models can serve as replacements for the earlier unimodal models.
 
-#h(1cm)*Teacher Ablation Studies*\
-Here we conduct ablation studies on the impact of different teacher models on the performance of our approach. This will
-provide insights on if our method can be viewed as a general approach to efficient multimodal training or if it is
-specific to the models that we use.
-
 #h(1cm)*Limitations and Insights*\
 It follows an evaluation of the limitations of our approach, in which we highlight shortcomings and provide insights
 into potential improvements.
 
-#h(1cm)*Discussiuon, Conclusion, Outlook, and Impact*\
+*Discussiuon, Conclusion, Outlook, and Impact*\
 Finally, we discuss the results of our work, providing insights into the implications of our findings.
 We provide an outlook on future research and discuss the potential impact of our contributions on multimodal representation learning.

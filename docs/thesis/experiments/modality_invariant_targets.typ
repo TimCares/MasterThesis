@@ -26,7 +26,7 @@ $ <kd_loss_mse_2>
 ) <kd_loss_comparison>
 
 ==== Contrastive Loss <contrastive_target_loss>
-We identify the MSE loss, used as a criterion for knowledge distillation, as unfavourable, as it enforces the student representation of the caption
+We identify the MSE loss, used as a criterion for knowledge distillation, as unfavorable, as it enforces the student representation of the caption
 $bold(h)^s_(w, mono(["T_CLS"]))$ to be the same as the teacher representation of the image $bold(h)^t_(v, L_t, mono(["I_CLS"]))$. 
 
 Recall that the student representation shown above is used to predict the teacher representation of the image, and it _not_ used
@@ -154,7 +154,7 @@ leads to a significant performance drop, as the representations were inconsisten
 Fortunately, the contrastive distillation loss does not suffer from outdated representations. This is because the representations we compare the
 student representation to are from the teacher. The teacher's weights are frozen during training, meaning that the teacher's representations
 are consistent over the entire training process. Therefore, all negative examples that are used in the contrastive distillation loss are consistent
-with each other, meaning we can savely use a simple memory bank to store the teacher representations from previous batches.
+with each other, meaning we can safely use a simple memory bank to store the teacher representations from previous batches.
 Workarounds like a momentum encoder (@momentum_encoder) or proximal regularization of the features (@original_memory_bank) are not necessary.
 
 The formulation of the loss does not change, but only the concatenated teacher representations.

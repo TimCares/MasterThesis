@@ -10,7 +10,7 @@ batch sizes exceeding 256 (per device) lead to out-of-memory (OOM) errors on the
 
 // Although adding more GPUs to our setup is costly, the training time will be reduced proportionally to
 // the number of GPUs used. For example, using two GPUs instead of one halves the training time. This is
-// because DDP shardes the whole training dataset between all devices, such that each device processes a
+// because DDP shades the whole training dataset between all devices, such that each device processes a
 // different part of the dataset @pytorch_ddp (already mentioned in @larger_batch_sizes_ddp about DDP).
 // From a cost perspective, this is acceptable, however, we decide against this approach, because we
 // want to keep the number of GPUs manageable. Moreover, going with more GPUs would make the success
@@ -35,7 +35,7 @@ Implementing this approach actually requires to maintain two distinct memory ban
 This is because we need to store old image representations (1), and old text representations (2).
 
 Illustrated in @mb_results, we observed a significant drop in performance, and the resulting model is not usable. The accuracy on ImageNet-1K is 0.001%, and therefore corresponds to a random classification (1000 classes).
-This suggests that the model did not learn anything useful, so simply increasing the number of negative examples via a memory bank does not help in learning richer represenations.
+This suggests that the model did not learn anything useful, so simply increasing the number of negative examples via a memory bank does not help in learning richer representations.
 
 #figure(
   table(
@@ -69,7 +69,7 @@ case the cosine similarity, can then provide the model with a meaning of distanc
 in our case image and text, representations.
 
 However, when using a memory bank most negative examples come from previous batches that were stored in the memory bank.
-As the model's weights constantly change, especially at the beginning of training, there is a continous shift in the representation space.
+As the model's weights constantly change, especially at the beginning of training, there is a continuous shift in the representation space.
 This shift is so pronounced that even representations from the immediate previous steps differ significantly from the current representations,
 and a similarity measure will not provide meaningful information to the model.
 To demonstrate, say we generate a representation

@@ -1,5 +1,5 @@
 #let cover(details) = {
-  set page(numbering: none)
+  set page(numbering: none, margin: {(x: 25mm, y: 35mm)})
 
   image("../figures/wordmark_black.png", width: 20%)
 

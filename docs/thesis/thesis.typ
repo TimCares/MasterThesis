@@ -48,7 +48,8 @@
   // ============================================================================
 
   cover(details)
-
+  pagebreak()
+  pagebreak()
   set page(numbering: "I", number-align: left)
   counter(page).update(1) 
 

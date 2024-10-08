@@ -12,10 +12,10 @@ What makes our approach different from SHRe is that we use a language Transforme
 a vision Transformer as the image encoder, bringing us closer to a unified architecture.
 In contrast, SHRe uses 2D convolutions and 1D convolutions for the image and text, respectively. For now, the shared encoder remains
 a 3-layer MLP as in SHRe @shre. Since the output of the image and text encoder is a sequence of features, but we use a normal MLP as the shared encoder,
-we have to reduce the sequence of features to a single represenation. This is done by taking the representation of the $mono(["I_CLS"])$
+we have to reduce the sequence of features to a single representation. This is done by taking the representation of the $mono(["I_CLS"])$
 and $mono(["T_CLS"])$
 token from the image and text encoder, respectively, and aligns with our first implementation of a multimodal model shown in @multimodal_model.
-This represenation, namely $bold(h)_(v, L_s, mono(["I_CLS"]))$
+This representation, namely $bold(h)_(v, L_s, mono(["I_CLS"]))$
 and $bold(h)_(w, L_s, mono(["T_CLS"]))$, is then passed to the shared encoder, which produces the final multimodal representations.
 Here, $L_s$ denotes the number of Transformer layers in the image and text encoder, respectively, which is
 defined as $L_s=6$.
@@ -137,7 +137,7 @@ Let's break this down: The prime ($prime$) symbol defines on which outputs
 from the shared encoder (@transformer_shre_shared_encoder_ffn_computation and @transformer_shre_shared_encoder_head_computation)
 the contrastive loss is applied. Since we have three linear
 layers in our shared encoder, and we want to enforce alignment in the whole shared encoder,
-we apply the contrastive loss on all three layers, but seperately.
+we apply the contrastive loss on all three layers, but separately.
 The superscripts $"i2t"$ and $"t2i"$ denote if we apply the contrastive loss
 from image to text or from text to image, and should already be known from 
 when we introduced vision-language contrast (@vision_language_contrast). To sum up, we apply the contrastive loss on all
@@ -312,7 +312,7 @@ as we run out of memory with our current GPU setup (1 $times$ NVIDIA RTX 4090).
 
 To overcome this limitation, we utilize Distributed Data Parallel (DDP) @pytorch_ddp, which allows us to train our model on multiple GPUs.
 Each GPU has its own replica (copy) of the model, and for a single forward pass each GPU processes a different batch of the data.
-The forward pass and backward pass are then computed on each GPU seperately, based on the mini-batch of data it received. The resulting
+The forward pass and backward pass are then computed on each GPU separately, based on the mini-batch of data it received. The resulting
 gradients for each replica are then aggregated across all GPUs/replicas, and each replica updates its weights based on the aggregated gradients.
 We are therefore able to increase the batch size by the number of GPUs we use, and update the weights of the model based on gradients
 that have been computed on a larger batch size than a single model received in a forward pass @pytorch_ddp. An illustration of DDP with 2 GPUs
@@ -332,7 +332,7 @@ is done in parallel, and the number of steps per epoch is reduced by a factor eq
 Even though the time required for training the model will not exactly be reduced by the factor of the number of GPUs used, as the distributed
 communication between the GPUs introduces overhead, it is still significantly faster than training on a single GPU. From a cost perspective,
 multiple GPUs are obviously more expensive than a single GPU, but the time saved by using DDP outweighs the increased cost to some extent.
-This is especially important considering that we can traing more models in a shorter amount of time, which allows us to iterate faster.
+This is especially important considering that we can train more models in a shorter amount of time, which allows us to iterate faster.
 
 While it is tempting, also from a technical perspective, to use as many GPUs as possible, we refrain from doing so. This is because
 we do not want to make the success of our approach too dependent on the hardware we use. After all, the goal is to develop an approach
@@ -466,7 +466,7 @@ we believe that our approach, where the self-attention weights are explicitly tr
 image and text inputs, should also be effective, if not more so.
 
 For the shared Transformer encoder, we decide to only use a single Transformer layer, as we want to keep the model size manageable.
-For comarison, VLMo and BEiT-3 use two Transformer layers for the shared encoder @vlmo @beit3.
+For comparison, VLMo and BEiT-3 use two Transformer layers for the shared encoder @vlmo @beit3.
 
 The change in the architecture does not imply a change in the training procedure, loss, or hyperparameters.
 In fact, the only thing we actually add is one multi-head self-attention layer to the shared encoder (plus the two residual connections).
@@ -474,7 +474,7 @@ Recall that we implemented the 3-layer MLP as a 2-layer MLP network
 as used in Transformer layers, and added an additional LayerNorm and linear layer on top of it
 (see @transformer_shre_architecture).
 Replacing this with a single Transformer layer means we still have the 2-layer MLP network, but now also
-add a ,ulti-head self-attention layer before it. Since we are still predicting a probability distribution over the ImageNet classes
+add a ,multi-head self-attention layer before it. Since we are still predicting a probability distribution over the ImageNet classes
 (the one returned by the teacher),
 which can be seen as a type of classification task,
 we still need a classification head on top of the Transformer layer to output logits for the 1000 classes. Fittingly, this is
@@ -529,7 +529,7 @@ probability distribution for the same image.
 Based on this intuition, the classification head is not meant to output representations of the image or text,
 but only to predict the ImageNet-1K classes. It outputs logits for each class, and not a representation
 as used in retrieval tasks. Therefore, it is not meant to be used for alignment and retrieval tasks.
-Because of this, the classification head can be discared after training, as it is not needed for retrieval
+Because of this, the classification head can be discarded after training, as it is not needed for retrieval
 or any other downstream task anymore. It is only used during training to provide the student with guidance from the teacher.
 
 We remove the contrastive loss from the intermediate linear layer (linear \#1) of the shared Transformer layer, as
@@ -562,8 +562,8 @@ the final output of the shared Transformer layer $bold(H)_(v,K)$ and $bold(H)_(w
       [*Transformer SHRe*],
       table.hline(stroke: .6pt),
     ),
-    table.cell(rowspan: 2, align:horizon, [$cal(L)_("KD")$]), [Image], [$bold(h)'''_(v, K)$], [$bold(h)'''_(v, K, mono(["I_CLS"]))$],
-      [Text], [$bold(h)'''_(w, K)$], [$bold(h)'''_(w, K, mono(["T_CLS"]))$],
+    table.cell(rowspan: 2, align:horizon, [$cal(L)_("KD")$]), [Image], [$bold(h)'''_(v, K)$], [$bold(h)_(v, mono(["I_CLS"]))$],
+      [Text], [$bold(h)'''_(w, K)$], [$bold(h)_(w, mono(["T_CLS"]))$],
     table.hline(stroke: .5pt),
     table.cell(rowspan: 2, align:horizon, [$cal(L)_("CL")$]), [Image], [$bold(h)'_(v, K)$], [$bold(h)_(v, K, mono(["I_CLS"]))$],
       [Text], [$bold(h)'_(w, K)$], [$bold(h)_(w, K, mono(["T_CLS"]))$],

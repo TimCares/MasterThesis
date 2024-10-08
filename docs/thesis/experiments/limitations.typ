@@ -39,7 +39,7 @@ a image-specific representation (used with the self-supervised teacher), which i
   caption: [
     Both approaches, the supervised as well as the self-supervised (ours), show that the image component is
     consistently lower than the text component of the knowledge distillation loss. Moreover, the loss behavior
-    troughout the training process is very similar between both approaches, although the loss functions are different.
+    throughout the training process is very similar between both approaches, although the loss functions are different.
 ],
 ) <kd_loss_shre_vs_ssmke>
 
@@ -53,7 +53,7 @@ Consequently, a bias towards the teacher modality is not specific to S-SMKE, but
 when using an unimodal teacher for distilling knowledge to a multimodal model.
 
 === Fine-Grained Alignment
-S-SMKE (and SHRe) processes image and text seperately, by performing a forward pass for the image and a forward pass
+S-SMKE (and SHRe) processes image and text separately, by performing a forward pass for the image and a forward pass
 for the text. This is similar to CLIP @clip (see @clip_section). Because there is no attention mechanism between
 individual image patches and text tokens both approaches miss a fine-grained alignment between the modalities.
 Even though our model performs quite well on the retrieval task, even outperforming well-established research papers

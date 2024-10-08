@@ -24,7 +24,7 @@ The result is the cosine similarity between all image patches and text tokens of
   image(
   width: 75%,
   "../figures/cmli.png"),
-  caption: [For a token/patch, CMLI finds the timestep with the highest semantic match from the other modality. This enables the model to associate small details of image and text with each other. Notice how through the $max$-operation patches containing grass are always associated with the word "grass", and the words "sheep" and "head" are matched with the head of the sheep (associations created through $max$ are shown in (2)). The cosine similarity is then the average of all associations between an image-text pair. Figure inspired and adapted from @filip.
+  caption: [For a token/patch, CMLI finds the time step with the highest semantic match from the other modality. This enables the model to associate small details of image and text with each other. Notice how through the $max$-operation patches containing grass are always associated with the word "grass", and the words "sheep" and "head" are matched with the head of the sheep (associations created through $max$ are shown in (2)). The cosine similarity is then the average of all associations between an image-text pair. Figure inspired and adapted from @filip.
   ],
 ) <cmli>
 
@@ -65,7 +65,7 @@ similarity to the text token @filip.
 The process in illustrated in @cmli.
 
 While this approach allows for a fine-grained alignment of image and text, its practical implementation is very computationally
-and memory intensive. For standard constrastive learning is is sufficient to compute the cosine similarity of the global representation
+and memory intensive. For standard contrastive learning is is sufficient to compute the cosine similarity of the global representation
 (cls token) between every possible image-text pair in a batch. If negative examples are gathered from all devices, then
 the number of dot products to compute is defined as $(B*P)^2$, with $B$ being the batch size per device, 
 and $P$ being the number of devices (in our case GPUs). As we use a batch size of $B=256$ per device, and use $P=2$ GPUs,
@@ -233,7 +233,7 @@ Consequently, there really is no guidance for the model to learn matching its te
 
 Lastly, @t_cmli_examples shows the problem based on text tokens that have a real-world meaning, and therefore a counterpart in images:
 The text token "plane" can also be present in an image as an actual plane. However, text tokens like "a", "the", and even a
-full stop ".", which is a valid token, are also matched to image patches. They are merely fill words or grammatic nuances in a sentence,
+full stop ".", which is a valid token, are also matched to image patches. They are merely fill words or grammatical nuances in a sentence,
 and do not carry any semantic information that can be mapped to an image patch. Because CMLI works over all text tokens, 
 and only few text tokens actually have an object-level counterpart in images, like "plane", most of the matchings between text tokens
 and image patches are not meaningful to begin with. Recall that this was one of the reasons why we decided to only regress the teacher's

@@ -10,8 +10,8 @@
     name: "Tim Cares",
     role: "Author",
     details: (
-      "1717249", 
-      "tim.cares@stud.hs-hannover.de"
+      "Matrikelnummer: 1717249", 
+      "tim.cares@me.com"
     ),
   ),
   examiners: (

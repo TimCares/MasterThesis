@@ -16,7 +16,7 @@ cal(L)_("MSE")(bold(y), bold(hat(y))) = ||bold(y)- bold(hat(y))||_2^2 = frac(1, 
 $ <mean_squared_error>
 
 === Kullback-Leibler Divergence <kl_divergence_section>
-The kullback-keibler divergence (KL-Divergence) is used to measure the difference between two probability distributions.
+The Kullback-Leibler divergence (KL-Divergence) is used to measure the difference between two probability distributions.
 Specifically, in the context of machine learning, we are comparing a predicted probability distribution $bold(q) in RR^C$
 with a target distribution $bold(p) in RR^C$.
 Since we are using the KL-Divergence in the context of classification tasks, which are

@@ -2,7 +2,7 @@
 == Motivation
 Supervised Learning has been the fundamental technique for
 training deep learning models since the development of the backpropagation
-algorithm. This is not surprising, as it provides a model with clear, domain-specific learning signals, making it is the most
+algorithm. This is not surprising, as it provides a model with clear, domain-specific learning signals, making it the most
 direct and efficient way to solve problems or learn specific tasks.
 
 However, the development of artificial intelligence using labeled

@@ -43,7 +43,7 @@ This parameter is used to control the smoothness of the softmax function, and is
 scalar applied element-wise to the cosine similarities, which should be
 a familiar concept from knowledge distillation.
 
-In knowledge distillation, the temperature was introduced as a tunable hyperparameter @kd_survey @shre.
+In knowledge distillation, the temperature was introduced as a tuneable hyperparameter @kd_survey @shre.
 However, in CLIP it is a learnable parameter that is optimized during training, just like any other parameter in the model,
 eliminating the need for manual tuning. The temperature $t$ is optimized in log-space, which is why the actual temperature
 by which logits are scaled, is given by $exp(t)$ @clip.

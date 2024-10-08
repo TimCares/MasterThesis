@@ -1,7 +1,7 @@
 == Teacher Ablation Studies <teacher_ablations>
 In this section we will investigate how sensitive our approach is to teachers different from BEiTv2 @beitv2, and
 we will test if a teacher is needed at all. 
-To avoid repretition, we will
+To avoid repetition, we will
 will first introduce the individual ablations, and then present the results at the end of this section.
 
 === Different Teachers
