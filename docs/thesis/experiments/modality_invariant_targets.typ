@@ -3,7 +3,7 @@ Throughout the previous experiments we have seen that the misalignment between i
 of the teacher. While we are already exceeding the performance of the supervised teacher by predicting the $mono(["I_CLS"])$
 token of the teacher, there is still room for improvement.
 A glance at the loss $cal(L)_"KD"$, which is still the one without Target-CMLI (defined again in @kd_loss_mse_2 for ease of access),
-shows that the loss for the image features is clearly lower than that for the text features. This indicates that the $mono(["I_CLS"])$
+shows that the loss for the image features is clearly lower than that for the text features (see @kd_loss_comparison). This indicates that the $mono(["I_CLS"])$
 token of the teacher still contains
 image-specific information. If that were not the case, the loss for both components, i.e. $cal(L)^v_"KD"$ and $cal(L)^w_"KD"$, would be similar.
 Consequently, we aim to introduce a modality-invariant target loss that is less affected by the image-specific information in the $mono(["I_CLS"])$ token of the teacher.
