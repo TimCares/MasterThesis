@@ -53,6 +53,17 @@ ensures that the temperature is always positive, since $exp(t)$ always returns a
 contribute to greater numerical stability (the logarithm grows at a low rate), resulting in less drastic changes in the
 temperature during optimization and thereby making training more stable.
 
+#figure(
+  image(
+  width: 75%,
+  "../../figures/clip.png"),
+  caption: [Illustration of CLIP training. A batch of image-text pairs is passed through the model and embedded into a shared latent space.
+  The cosine similarity between all pairs is computed and softmax-normalized to calculate the image-to-text and text-to-image loss. The final loss
+  is the mean of both losses @clip.
+  The example is shown with a batch size of 6. The figure does not originate from the original paper, but is a custom visualization of the concept. Image-Text pair is taken from the MSCOCO train set @coco, 
+  and they do not refer to the contrastive loss of 6 pairs at the top of the figure. They are merely indicators of the input to the model.],
+) <clip_fig>
+
 In the matrix $bold(L)$, the cosine similarity between image $i$ and text $j$ in the batch is denoted by $L_(i,j)$,
 where the diagonal elements contain the similarity for positive pairs. To maximize the similarity between positive pairs $(i, i)$,
 and minimize the similarity between negative pairs $(i, j)$, with $i eq.not j$, cross-entropy loss is yet again.
@@ -66,17 +77,6 @@ CLIP only relies *only* on contrastive learning to train a vision-language model
 a high batch size to achieve good results.
 The authors use a very large batch size of 32,768 @clip. An abstract illustration of the end-to-end training
 process of CLIP is shown in @clip_fig.
-
-#figure(
-  image(
-  width: 75%,
-  "../../figures/clip.png"),
-  caption: [Illustration of CLIP training. A batch of image-text pairs is passed through the model and embedded into a shared latent space.
-  The cosine similarity between all pairs is computed and softmax-normalized to calculate the image-to-text and text-to-image loss. The final loss
-  is the mean of both losses @clip.
-  The example is shown with a batch size of 6. The figure does not originate from the original paper, but is a custom visualization of the concept. Image-Text pair is taken from the MSCOCO train set @coco, 
-  and they do not refer to the contrastive loss of 6 pairs at the top of the figure. They are merely indicators of the input to the model.],
-) <clip_fig>
 
 ==== Zero-Shot Image Classification <clip_zero_shot_section>
 
