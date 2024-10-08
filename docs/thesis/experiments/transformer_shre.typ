@@ -565,7 +565,7 @@ the final output of the shared Transformer layer $bold(H)_(v,K)$ and $bold(H)_(w
     table.cell(rowspan: 2, align:horizon, [$cal(L)_("KD")$]), [Image], [$bold(h)'''_(v, K)$], [$bold(h)_(v, mono(["I_CLS"]))$],
       [Text], [$bold(h)'''_(w, K)$], [$bold(h)_(w, mono(["T_CLS"]))$],
     table.hline(stroke: .5pt),
-    table.cell(rowspan: 2, align:horizon, [$cal(L)_("CL")$]), [Image], [$bold(h)'_(v, K)$], [$bold(h)_(v, K, mono(["I_CLS"]))$],
+    table.cell(rowspan: 2, align:horizon, [$cal(L)_("CL"')$/$cal(L)_("CL")$]), [Image], [$bold(h)'_(v, K)$], [$bold(h)_(v, K, mono(["I_CLS"]))$],
       [Text], [$bold(h)'_(w, K)$], [$bold(h)_(w, K, mono(["T_CLS"]))$],
     table.hline(stroke: .1pt),
     table.cell(rowspan: 2, align:horizon, [$cal(L)_("CL"'')$]), [Image], [$bold(h)''_(v, K)$], [-],
