@@ -7,6 +7,8 @@ from models import MODEL_REGISTRY
 from modules import ClipLoss
 import json
 from transformers.optimization import get_cosine_schedule_with_warmup
+from omegaconf import open_dict, OmegaConf
+from .Sx3HRe import Sx3HReConfig
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +19,10 @@ class RetrievalLightningModule(L.LightningModule):
         self.cfg = cfg
 
         pretrained_args = torch.load(self.cfg.pretrained.model_path)['hyper_parameters']['cfg']
-        if 'dropout' in self.cfg:
-            pretrained_args['model']['dropout'] = self.cfg.dropout
+        current_config = OmegaConf.structured(Sx3HReConfig)
+        with open_dict(pretrained_args):
+            pretrained_args.model = OmegaConf.merge(current_config, pretrained_args.model)
+            pretrained_args.model.dropout = self.cfg.dropout
         
         model_cls:LightningModule = MODEL_REGISTRY[self.cfg.pretrained.model_name]['module']
         self.module = model_cls.load_from_checkpoint(self.cfg.pretrained.model_path, strict=False, cfg=pretrained_args)

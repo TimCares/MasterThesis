@@ -16,7 +16,8 @@ class RetrievalCallback(Callback):
     @torch.no_grad()
     @rank_zero_only
     def on_validation_start(self, trainer, pl_module, **kwargs) -> None:
-        result = zero_shot_retrieval(pl_module.module.model, self.datamodule.val_dataloader(), pl_module.device)
+        self.datamodule.setup('test')
+        result = zero_shot_retrieval(pl_module.module.model, self.datamodule.test_dataloader(), pl_module.device)
 
         pl_module.log(
             f"val/{self.name}",
