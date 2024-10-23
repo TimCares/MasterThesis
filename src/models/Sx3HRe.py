@@ -34,12 +34,12 @@ class Sx3HRePreTrainingLightningModule(L.LightningModule):
         sd_name = beit2_kwargs.pop("model_name")
         beit_path = os.path.join(sd_path, sd_name)
 
-        self.teacher:VisionTransformerForMaskedImageModeling = load_beit2_teacher(
-            sd_path=beit_path,
-            **beit2_kwargs,
-        )
-        self.teacher.norm = nn.Identity()
-        freeze_module(self.teacher)
+        # self.teacher:VisionTransformerForMaskedImageModeling = load_beit2_teacher(
+        #     sd_path=beit_path,
+        #     **beit2_kwargs,
+        # )
+        # self.teacher.norm = nn.Identity()
+        # freeze_module(self.teacher)
 
         self.logit_scale_target = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
@@ -243,7 +243,6 @@ class Sx3HReConfig():
 
     embed_dim: int = 768
     depth: int = 6
-    dropout: float = 0.0
 
 class Sx3HRe(nn.Module):
     def __init__(self,
@@ -263,7 +262,7 @@ class Sx3HRe(nn.Module):
             qkv_bias=True,
             init_values=0.2,
             norm_layer=make_layer_norm,
-            proj_drop=self.cfg.dropout,
+            proj_drop=0,
         )
 
         self.fc_norm = make_layer_norm(self.cfg.embed_dim)

@@ -26,12 +26,11 @@ class BaseDataset(torch.utils.data.Dataset):
         self.data_path = data_path
         self.split = split
 
-        self.tokenizer:BertTokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+        self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
         self.pad_token_id = self.tokenizer.pad_token_id
         self.cls_token_id = self.tokenizer.cls_token_id
         self.sep_token_id = self.tokenizer.sep_token_id
         self.mask_token_id = self.tokenizer.mask_token_id
-        self.unk_token_id = self.tokenizer.unk_token_id
 
     def load(self):
         raise NotImplementedError
@@ -292,13 +291,16 @@ class BaseImageText(ImageDataset):
         self.text_token_mask_prob = text_token_mask_prob
         self.path_to_data = None
 
-        BeitTransformsArgs = namedtuple('BeitTransformsArgs', ['imagenet_default_mean_and_std', 'input_size',
-                                        'second_input_size', 'min_crop_scale', 'train_interpolation',
-                                        'second_interpolation',],)
-        transforms_args = BeitTransformsArgs(imagenet_default_mean_and_std=True, input_size=224, second_input_size=None,
-                                             min_crop_scale=0.9, train_interpolation='bicubic', second_interpolation='bicubic')
-        
-        self.transform_teacher = DataAugmentationForBEiT(transforms_args)
+        from torchvision.transforms import v2 as transforms
+        import PIL
+        self.transform_raw = transforms.Compose(
+            [
+                transforms.ToImage(),
+                transforms.ToDtype(torch.uint8, scale=True),
+                transforms.Resize((224, 224), interpolation=PIL.Image.BICUBIC),
+                transforms.ToDtype(torch.float32, scale=True),
+            ]
+        )
         
     @property
     def modality(self) -> Modality:
@@ -332,7 +334,7 @@ class BaseImageText(ImageDataset):
 
     def _get_image(self, image_path: str):
         image = self.loader(image_path)
-        return self.transform(image), self.transform_teacher(image)
+        return self.transform(image), self.transform_raw(image)
 
     def _get_text_segment(self, text_segment, max_len=None):
         assert isinstance(text_segment, list)
@@ -360,9 +362,9 @@ class BaseImageText(ImageDataset):
     def _get_image_text_example(self, index: int, data: dict):
         item = self.items[index]
         img_path = item["image_path"]
-        img, img_teacher = self._get_image(img_path)
+        img, img_raw = self._get_image(img_path)
         data["image"] = img
-        data["image_teacher"] = img_teacher
+        data["image_raw"] = img_raw
         data["id"] = item["id"]
 
         text_segment = item["text"]
@@ -384,8 +386,6 @@ class BaseImageText(ImageDataset):
             batch_tensors['masked_text'] = batch_tensors['text'].clone()
             batch_tensors['masked_text'][batch_tensors['mask_labels'].bool()] = self.mask_token_id
             batch_tensors['targets'][~batch_tensors['mask_labels'].bool()] = -100
-
-            batch_tensors['mlm_padding_mask'] = batch_tensors['padding_mask'].long() | batch_tensors['mask_labels'].long()
         return batch_tensors
     
 
