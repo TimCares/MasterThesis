@@ -1,4 +1,4 @@
-\begin{thebibliography}{9}
+\begin{thebibliography}{14}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -10,6 +10,15 @@ Yusuf Aytar, Carl Vondrick, and Antonio Torralba.
 \newblock See, hear, and read: Deep aligned representations.
 \newblock \emph{CoRR}, abs/1706.00932, 2017.
 \newblock URL \url{http://arxiv.org/abs/1706.00932}.
+
+\bibitem[Baevski et~al.(2023)Baevski, Babu, Hsu, and Auli]{data2vec2}
+Alexei Baevski, Arun Babu, Wei{-}Ning Hsu, and Michael Auli.
+\newblock Efficient self-supervised learning with contextualized target
+  representations for vision, speech and language.
+\newblock In Andreas Krause, Emma Brunskill, Kyunghyun Cho, Barbara Engelhardt,
+  Sivan Sabato, and Jonathan Scarlett (eds.), \emph{International Conference on
+  Machine Learning}, volume 202, pp.\  1416--1429, Honolulu, Hawaii, USA, July
+  2023.
 
 \bibitem[Bao et~al.(2022)Bao, Wang, Dong, Liu, Mohammed, Aggarwal, Som, Piao,
   and Wei]{vlmo}
@@ -29,6 +38,27 @@ Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova.
   \emph{Proceedings of the 2019 Conference of the North {A}merican Chapter of
   the Association for Computational Linguistics: Human Language Technologies},
   volume~1, pp.\  4171--4186, Minneapolis, Minnesota, June 2019.
+
+\bibitem[Dosovitskiy et~al.(2021)Dosovitskiy, Beyer, Kolesnikov, Weissenborn,
+  Zhai, Unterthiner, Dehghani, Minderer, Heigold, Gelly, Uszkoreit, and
+  Houlsby]{vit}
+Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn,
+  Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg
+  Heigold, Sylvain Gelly, Jakob Uszkoreit, and Neil Houlsby.
+\newblock An image is worth 16x16 words: Transformers for image recognition at
+  scale.
+\newblock In \emph{9th International Conference on Learning Representations}.
+  OpenReview.net, May 2021.
+\newblock URL \url{https://openreview.net/forum?id=YicbFdNTTy}.
+
+\bibitem[Lin et~al.(2014)Lin, Maire, Belongie, Hays, Perona, Ramanan,
+  Doll{\'a}r, and Zitnick]{coco}
+Tsung-Yi Lin, Michael Maire, Serge Belongie, James Hays, Pietro Perona, Deva
+  Ramanan, Piotr Doll{\'a}r, and C.~Lawrence Zitnick.
+\newblock Microsoft coco: Common objects in context.
+\newblock In David Fleet, Tomas Pajdla, Bernt Schiele, and Tinne Tuytelaars
+  (eds.), \emph{Computer Vision -- ECCV 2014}, pp.\  740--755, 2014.
+\newblock ISBN 978-3-319-10602-1.
 
 \bibitem[Radford et~al.(2021)Radford, Kim, Hallacy, Ramesh, Goh, Agarwal,
   Sastry, Askell, Mishkin, Clark, Krueger, and Sutskever]{clip}
@@ -58,6 +88,16 @@ Amanpreet Singh, Ronghang Hu, Vedanuj Goswami, Guillaume Couairon, Wojciech
 \newblock In \emph{IEEE/CVF Conference on Computer Vision and Pattern
   Recognition}, pp.\  15617--15629, 2021.
 
+\bibitem[Vaswani et~al.(2017)Vaswani, Shazeer, Parmar, Uszkoreit, Jones, Gomez,
+  Kaiser, and Polosukhin]{transformer}
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones,
+  Aidan~N. Gomez, \L{}ukasz Kaiser, and Illia Polosukhin.
+\newblock Attention is all you need.
+\newblock In \emph{Proceedings of the 31st International Conference on Neural
+  Information Processing Systems}, NIPS'17, pp.\  6000--6010, Red Hook, NY,
+  USA, 2017. Curran Associates Inc.
+\newblock ISBN 9781510860964.
+
 \bibitem[Wang et~al.(2023)Wang, Bao, Dong, Bjorck, Peng, Liu, Aggarwal,
   Mohammed, Singhal, Som, and Wei]{beit3}
 Wenhui Wang, Hangbo Bao, Li~Dong, Johan Bjorck, Zhiliang Peng, Qiang Liu, Kriti
@@ -74,6 +114,13 @@ Lewei Yao, Runhui Huang, Lu~Hou, Guansong Lu, Minzhe Niu, Hang Xu, Xiaodan
 \newblock {FILIP}: Fine-grained interactive language-image pre-training.
 \newblock In \emph{International Conference on Learning Representations}, 2022.
 \newblock URL \url{https://openreview.net/forum?id=cpDhcsEDC2}.
+
+\bibitem[Young et~al.(2014)Young, Lai, Hodosh, and Hockenmaier]{flickr30k}
+Peter Young, Alice Lai, Micah Hodosh, and Julia Hockenmaier.
+\newblock From image descriptions to visual denotations: New similarity metrics
+  for semantic inference over event descriptions.
+\newblock \emph{Transactions of the Association for Computational Linguistics},
+  2:\penalty0 67--78, February 2014.
 
 \bibitem[Yu et~al.(2022)Yu, Wang, Vasudevan, Yeung, Seyedhosseini, and
   Wu]{coca}

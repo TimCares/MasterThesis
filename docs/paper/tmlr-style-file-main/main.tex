@@ -40,13 +40,33 @@
 \maketitle
 
 \begin{abstract}
-Multimodal models, especially vision-language models, have gained increasing popularity due to their wide range of applications, and show impressive performance especially on retrieval tasks. However, existing approaches often require large-scale models, extensive data, and substantial computational resources, limiting their accessibility for smaller research groups and individuals. We address this issue by introducing an efficient self-supervised vision-language model for image-text retrieval that is significantly cheaper to train and smaller in size. We leverage pretrained unimodal encoders and introduce a randomly initialized shared encoder to align representations using a contrastive loss function. A self-supervised image model is employed for simultaneous knowledge distillation, guiding the alignment through high-level image representations. While not reaching SOTA performance, our approach demonstrates competitive performance with popular vision-language models like CLIP and FLAVA on retrieval tasks, outperforming them on certain metrics while using only 0.75\% of the data used by CLIP and 4.3\% by FLAVA. These findings underscore the potential for designing efficient multimodal retrieval systems, and therefore lay the foundation for future research on financially accessible models, promoting broader participation in multimodal learning. To promote transparency and facilitate further research, we have made our code for training and evaluating our model publicly available.
+Multimodal models, especially vision-language models, have gained increasing popularity due to their wide range of applications,
+and show impressive performance especially on retrieval tasks. However, existing approaches often require large-scale models,
+extensive data, and substantial computational resources, limiting their accessibility for smaller research groups and individuals.
+We address this issue by introducing an efficient self-supervised vision-language model for image-text retrieval that is significantly
+cheaper to train and smaller in size. We leverage pretrained unimodal encoders and introduce a randomly initialized shared encoder to align
+representations using a contrastive loss function. A self-supervised image model is employed for simultaneous knowledge distillation,
+guiding the alignment through high-level image representations. While not reaching SOTA performance, our approach demonstrates competitive
+performance with popular vision-language models like CLIP and FLAVA on retrieval tasks, outperforming them on certain metrics while using
+only 0.75\% of the data used by CLIP and 4.3\% by FLAVA. These findings underscore the potential for designing efficient multimodal retrieval
+systems, and therefore lay the foundation for future research on financially accessible models, promoting broader participation in multimodal
+learning. To promote transparency and facilitate further research, we have made our code for training and evaluating our model publicly available.
 \end{abstract}
 
 \section{Introduction}
-Existing vision-language models have seen a significant increase in parameter count and training data, namely image-text pairs. Along with emerging pretraining objectives like a large-scale contrastive loss (cite clip, coca, vlmo) and especially masked vision-language modeling (cite beit-3, flava) those models have reached near perfect score on the widely used benchmarks MSCOCO (cite) and Flickr30K (cite) for image-text retrieval. While there is the risk that samples from these benchmarks may end up in the training data of those approaches, due to their large-scale training datasets, their ability to connect real-world concepts across image and text remains remarkable.
+Existing vision-language models have seen a significant increase in parameter count and training data, namely image-text pairs.
+Along with emerging pretraining objectives like a large-scale contrastive loss (cite clip, coca, vlmo) and especially masked
+vision-language modeling (cite beit-3, flava) those models have reached near perfect score on the widely used benchmarks MSCOCO
+(cite) and Flickr30K (cite) for image-text retrieval. While there is the risk that samples from these benchmarks may end up in
+the training data of those approaches, due to their large-scale training datasets, their ability to connect real-world concepts
+across image and text remains remarkable.
 
-However, with an increase in parameters and training data, the resources (mainly costs through accelerators) to train these models can only be covered by large companies. For example CLIP (cite) has been trained on 400 million image-text pairs, and the largest model has 428 (cite huggingface) million parameters. Based on our estimate (footnote) a reproduction of this model would cost more than 77 thousand dollars to train. For approaches where we are able to estimate the costs based on the information published by the authors, we observe a similar trend: VLMo (cite) costs more than 9 thousand dollars to train, and CoCa (cite) even more than 350 thousand dollars.
+However, with an increase in parameters and training data, the resources (mainly costs through accelerators) to train these models
+can only be covered by large companies. For example CLIP (cite) has been trained on 400 million image-text pairs, and the largest
+model has 428 (cite huggingface) million parameters. Based on our estimate (footnote) a reproduction of this model would cost more
+than 77 thousand dollars to train. For approaches where we are able to estimate the costs based on the information published by
+the authors, we observe a similar trend: VLMo (cite) costs more than 9 thousand dollars to train, and CoCa (cite) even more than
+350 thousand dollars.
 
 In this paper, we propose a method similar to that of \citet{shre}, and leverage pretrained unimodal models to 
 
@@ -55,23 +75,107 @@ Our contributions are as follows:
 \item We show that using pretrained image and text components can reduce the training costs for image-text retrieval models dramatically.
 \item We demonstrate that a contrastive loss with a low batch size yields a surprising good performance.
 \item Using a self-supervised vision model as the teacher for knowledge distillation leads to better performance than a supervised vision model.
-\item An approach characterised by a fully end-to-end self-supervised training on uncurated image-text data.
+\item An approach characterized by a fully end-to-end self-supervised training on uncurated image-text data.
 \end{itemize}
 
 \section{Related work}
 
-\textbf{Knowledge Distillation for guidance.} This paper is motivated by the work of \citet{shre}, which train a multimodal model for the alignment of image, text, and audio. The authors use a supervised vision model as a teacher, which provides a probability distribution over the ImageNet-1K \citep{imagenet} classes. Because \citet{shre} use image-text and image-audio pairs, the multimodal (student) model can predict the probability distribution over the ImageNet-1K \citep{imagenet} classes when receiving the same image as the teacher, and most importantly the text and audio of the image-text and image-audio pair respectively. The intuition is that since image and text (or image and audio) contain the same semantic content, the ImageNet-1K \citep{imagenet} classes of the image should also describe the content of the corresponding text (audio). An example of this (for the paper relevant) image-text pairs can be seen in TODO in the Appendix. Predicting the probability distribution for an image, and an additional ranking loss, leads to an alignment between image, text, and audio, which can be exploited to perform cross-modal retrieval.
+\textbf{Knowledge Distillation for guidance.} This paper is motivated by the work of \citet{shre}, which train a multimodal model
+for the alignment of image, text, and audio. The authors use a supervised vision model as a teacher, which provides a probability
+distribution over the ImageNet-1K \citep{imagenet} classes. Because \citet{shre} use image-text and image-audio pairs, the multimodal
+(student) model can predict the probability distribution over the ImageNet-1K \citep{imagenet} classes when receiving the same image
+as the teacher, and most importantly the text and audio of the image-text and image-audio pair respectively. The intuition is that since
+image and text (or image and audio) contain the same semantic content, the ImageNet-1K \citep{imagenet} classes of the image should also
+describe the content of the corresponding text (audio). An example of this (for the paper relevant) image-text pairs can be seen in TODO
+in the Appendix. Predicting the probability distribution for an image, and an additional ranking loss, leads to an alignment between image,
+text, and audio, which can be exploited to perform cross-modal retrieval.
 
 \textbf{Contrastive learning for image-text alignment.}
-OpenAI's CLIP \citep{clip} was the first model which exclusively relied on a large scale contrastive loss to align image and text. The authors showed that with sufficient amount of data and a large batch size that the contrastive loss leads to a strong alignment between image and text. This lead to a wide spread adoption of contrastive learning with large batch sizes in vision-language pretraining, and has become the de-facto standard to align image and text (\citet{coca}; \citet{vlmo}; \citet{flava}; \citet{filip}), and has only recently been shown to not be essential for models upwards of a billion parameters \citep{beit3}.
+OpenAI's CLIP \citep{clip} was the first model which exclusively relied on a large scale contrastive loss to align image and text.
+The authors showed that with sufficient amount of data and a large batch size the contrastive loss leads to a strong alignment
+between image and text. This lead to a widespread adoption of contrastive learning with large batch sizes in vision-language
+pretraining, and has become the de-facto standard to align image and text (\citet{coca}; \citet{vlmo}; \citet{flava}; \citet{filip}),
+and has only recently been shown to not be essential for models upwards of a billion parameters \citep{beit3}.
 
-\textbf{Bootstrapping by pretrained initialization.} A well-known practice is to use the weights of models (pre-)trained on tasks similar to the target tasks to reduce data requirements and speed up convergence. Since vision-language models usually have parameters exclusively responsible for image and text, it makes sense to initialize these parts of the model with weights from pretrained image and text models, respectively. This is a practice adopted by \cite{vlmo} and \cite{flava}, and both approaches showed significant improvements compared to a random initialization. While the selection for pretrained language models to initialize the text components of the vision-language model naturally falls to self-supervised trained language models like BERT \citep{bert}, since masked language modeling leads to a strong understanding of text, one should proceed with care when selecting the right vision model for initialization. It is tempting to use supervised vision models, as they still lead to superior performance compared to self-supervised vision models. However, when using a vision model trained with labeled data the end-to-end process is not fully self-supervised anymore, and can therefore considered as "cheating". It is because of this that using only self-supervised components for the initialization is essential.
+\textbf{Bootstrapping by pretrained initialization.} A well-known practice is to use the weights of models (pre-)trained on tasks
+similar to the target tasks to reduce data requirements and speed up convergence. Since vision-language models usually have parameters
+exclusively responsible for image and text, it makes sense to initialize these parts of the model with weights from pretrained image and
+text models, respectively. This is a practice adopted by \cite{vlmo} and \cite{flava}, and both approaches showed significant improvements
+compared to a random initialization. While the selection for pretrained language models to initialize the text components of the vision-language
+model naturally falls to self-supervised trained language models like BERT \citep{bert}, since masked language modeling leads to a strong
+understanding of text, one should proceed with care when selecting the right vision model for initialization. It is tempting to use
+supervised vision models, as they still lead to superior performance compared to self-supervised vision models. However, when using
+a vision model trained with labeled data the end-to-end process is not fully self-supervised anymore, and can therefore be considered as
+"cheating". It is because of this that using only self-supervised components for the initialization is essential.
 
 \section{Method}
+Our method is characterized by three main concepts: self-supervised knowledge distillation, contrastive learning, and the initialization. All
+three concepts are, in order, inspired by the related works presented in the previous section. Before we present the details of our method,
+we first establish criteria our approach fulfills and why we believe these criteria are important.
 \subsection{Criteria}
+\textbf{End-to-end self-supervised.} We believe that a fully self-supervised training process is essential, as this (1) allows to scale up our
+method if desired (even though this is not the focus of this paper), because we do not rely on labeled data, and (2) we can perform a fair
+comparison with existing approaches to image-text retrieval. The latter is important because, as already mentioned in the previous section,
+using supervised models for initialization can be considered as cheating. Even if our training process is self-supervised, the use of
+(pre-)trained supervised components for initialization turns the whole (end-to-end) process into a supervised one. Whether image-text pairs
+can be considered as labeled data is a matter of debate, and we discuss this in Appendix \ref{curated_data}.
+
+\textbf{Independence to pretrained vision-language components.} Perhaps the most important criterion is that our method is independent of
+pretrained vision-language components. We build our method as if the paradigm of vision-language models does not exist, and only rely on
+pretrained unimodal models. This is important because it allows for a fair comparison with existing approaches, and our results would otherwise
+most likely be the result of the pretrained vision-language components. Again, this can be considered as cheating and would drastically reduce
+the significance of our results.
+
+\textbf{Efficiency.} The primary goal of our method is to reduce the costs of (pre-)training image-text retrieval models. Therefore, an
+obvious criterion is that our method is efficient in terms of parameter count, training data, and computational resources. It follows that
+our method should be significantly cheaper to train than existing approaches.
+
+\textbf{Performance.} While the primary goal of our method is to reduce the costs of training image-text retrieval models, we still aim to
+achieve competitive performance with existing approaches, for example CLIP \citep{clip}. However, since this work is \textbf{fully self-funded}
+and not backed by a large enterprise or research institution, we do not aim to reach state-of-the-art performance. Instead, the goal is to
+demonstrate that it is possible to achieve somewhat competitive performance with a fraction of the costs. What will come apparent when we
+present our results is that we neither reach the state-of-the-art performance on MSCOCO \citep{coco} and Flickr30K \citep{flickr30k}
+retrieval, as currently\footnote{As of September 2024.} held by BEiT-3 \citep{beit3}, nor do we aim to do so.
+
+\subsection{Architecture and Initialization}
+Our vision-language model consists of three components: a pretrained image encoder, a pretrained text encoder, and a randomly initialized
+shared encoder.
+The latter has to be randomly initialized to fulfill the criterion of independence to pretrained vision-language components.
+As their name suggests, the image encoder is responsible for encoding images, and the text encoder is responsible for encoding text.
+Therefore, they are specific to their respective modality, and we can therefore initialize them with pretrained unimodal models.
+For the image encoder, we use the pretrained Data2Vec2 \citep{data2vec2} image model, and for the text encoder, we use the pretrained
+BERT base \citep{bert} model. Since each of these models is a 12-layer Transformer \citep{transformer}, which already has 86 million
+parameters, we only take the first 6 layers of each model to reduce the parameter count. Using other strategies like every second layer
+(e.g. 1, 3, 5, ...) leads to a worse performance in preliminary experiments. Note that both models have been trained self-supervised on
+image and text data, respectively, and therefore fulfill our criteria defined in the previous section. To keep the parameter count manageable,
+the shared encoder is merely a single Transformer layer and follows the ViT \citep{vit} architecture. An overview of the architecture can
+be seen in Figure TODO.
+
+\textbf{Text Representation.} Each caption/text is tokenized according to the BERT base uncased tokenizer \citep{bert} and token ids are converted
+to embeddings using the BERT base model. The input $\textbf{H}^{s}_{0, w} \in \mathbb{R}^{M+2\times D}$ to the
+cropped BERT base model (our text encoder) is the sequence
+of token embeddings summed element-wise with the positional embeddings $\textbf{T}_{pos} \in \mathbb{R}^{M+2\times D}$ of BERT.
+
+\[
+\textbf{H}^{s}_{0, w} = [\textbf{h}^{s}_{0, w, \text{\texttt{[T\_CLS]}}}, \textbf{h}^{s}_{0, w, 1}, ..., \textbf{h}^{s}_{0, w, M}, \textbf{h}^{s}_{0, w, \text{\texttt{[T\_SEP]}}}] + \textbf{T}_{pos}
+\]
+
+Here the superscript $s$ denotes that the representation stems from the student model, which will later be important for knowledge distillation.
+The subscript for a single token is of the form <layer, modality, token>, where $0$ denotes the input to the first layer of the BERT base model.
+Correspondingly $1$ denotes the output of the first layer and
+therefore the input to the second layer, and so on. The subscript $w$ denotes the text modality.
+Inspired by \citet{beit3}, we set the maximum sequence length $M$ to 64 for efficiency, which means that we
+only utilize the first 64 pretraining positional embeddings of the BERT model. The special tokens \texttt{[T\_CLS]} and \texttt{[T\_SEP]}
+are taken directly from the BERT base model and are also pretrained. 
+The notation is inspired by \citet{vlmo}.
+
 \subsection{Contrastive Learning}
+An approach central, but not unique to our approach is the use of a contrastive loss to align image and text. We use the contrastive loss
+as presented by \citet{clip}, and follow the approach of \citet{vlmo} by gathering negative examples from all GPUs to increase the
+effectiveness of the contrastive loss.
+
 \subsection{Self-Supervised Knowledge Distillation}
-\subsection{Initialization}
+
 
 
 \section{Results}
@@ -80,6 +184,7 @@ OpenAI's CLIP \citep{clip} was the first model which exclusively relied on a lar
 \subsection{Text Classification}
 \subsection{Ablation Studies}
 \section{Limitations and Future Work}
+- mome arch
 \section{Conclusion}
 
 
@@ -96,6 +201,6 @@ OpenAI's CLIP \citep{clip} was the first model which exclusively relied on a lar
 
 \appendix
 \section{Appendix}
-You may include other additional sections here.
+\subsection{Discussion on Curated Data} \label{curated_data}
 
 \end{document}
