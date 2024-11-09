@@ -1,0 +1,87 @@
+\begin{thebibliography}{9}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Aytar et~al.(2017)Aytar, Vondrick, and Torralba]{shre}
+Yusuf Aytar, Carl Vondrick, and Antonio Torralba.
+\newblock See, hear, and read: Deep aligned representations.
+\newblock \emph{CoRR}, abs/1706.00932, 2017.
+\newblock URL \url{http://arxiv.org/abs/1706.00932}.
+
+\bibitem[Bao et~al.(2022)Bao, Wang, Dong, Liu, Mohammed, Aggarwal, Som, Piao,
+  and Wei]{vlmo}
+Hangbo Bao, Wenhui Wang, Li~Dong, Qiang Liu, Owais~Khan Mohammed, Kriti
+  Aggarwal, Subhojit Som, Songhao Piao, and Furu Wei.
+\newblock Vlmo: Unified vision-language pre-training with
+  mixture-of-modality-experts.
+\newblock In S.~Koyejo, S.~Mohamed, A.~Agarwal, D.~Belgrave, K.~Cho, and A.~Oh
+  (eds.), \emph{Advances in Neural Information Processing Systems}, volume~35,
+  pp.\  32897--32912. Curran Associates, Inc., 2022.
+
+\bibitem[Devlin et~al.(2019)Devlin, Chang, Lee, and Toutanova]{bert}
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova.
+\newblock {BERT}: Pre-training of deep bidirectional transformers for language
+  understanding.
+\newblock In Jill Burstein, Christy Doran, and Thamar Solorio (eds.),
+  \emph{Proceedings of the 2019 Conference of the North {A}merican Chapter of
+  the Association for Computational Linguistics: Human Language Technologies},
+  volume~1, pp.\  4171--4186, Minneapolis, Minnesota, June 2019.
+
+\bibitem[Radford et~al.(2021)Radford, Kim, Hallacy, Ramesh, Goh, Agarwal,
+  Sastry, Askell, Mishkin, Clark, Krueger, and Sutskever]{clip}
+Alec Radford, Jong~Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh,
+  Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark,
+  Gretchen Krueger, and Ilya Sutskever.
+\newblock Learning transferable visual models from natural language
+  supervision.
+\newblock In Marina Meila and Tong Zhang (eds.), \emph{Proceedings of the 38th
+  International Conference on Machine Learning}, volume 139, pp.\  8748--8763,
+  2021.
+
+\bibitem[Russakovsky et~al.(2015)Russakovsky, Deng, Su, Krause, Satheesh, Ma,
+  Huang, Karpathy, Khosla, Bernstein, Berg, and Fei-Fei]{imagenet}
+Olga Russakovsky, Jia Deng, Hao Su, Jonathan Krause, Sanjeev Satheesh, Sean Ma,
+  Zhiheng Huang, Andrej Karpathy, Aditya Khosla, Michael Bernstein,
+  Alexander~C. Berg, and Li~Fei-Fei.
+\newblock {ImageNet Large Scale Visual Recognition Challenge}.
+\newblock \emph{International Journal of Computer Vision (IJCV)}, 115\penalty0
+  (3):\penalty0 211--252, 2015.
+
+\bibitem[Singh et~al.(2021)Singh, Hu, Goswami, Couairon, Galuba, Rohrbach, and
+  Kiela]{flava}
+Amanpreet Singh, Ronghang Hu, Vedanuj Goswami, Guillaume Couairon, Wojciech
+  Galuba, Marcus Rohrbach, and Douwe Kiela.
+\newblock Flava: A foundational language and vision alignment model.
+\newblock In \emph{IEEE/CVF Conference on Computer Vision and Pattern
+  Recognition}, pp.\  15617--15629, 2021.
+
+\bibitem[Wang et~al.(2023)Wang, Bao, Dong, Bjorck, Peng, Liu, Aggarwal,
+  Mohammed, Singhal, Som, and Wei]{beit3}
+Wenhui Wang, Hangbo Bao, Li~Dong, Johan Bjorck, Zhiliang Peng, Qiang Liu, Kriti
+  Aggarwal, Owais~Khan Mohammed, Saksham Singhal, Subhojit Som, and Furu Wei.
+\newblock Image as a foreign language: Beit pretraining for vision and
+  vision-language tasks.
+\newblock In \emph{IEEE/CVF Conference on Computer Vision and Pattern
+  Recognition}, pp.\  19175--19186, 2023.
+
+\bibitem[Yao et~al.(2022)Yao, Huang, Hou, Lu, Niu, Xu, Liang, Li, Jiang, and
+  Xu]{filip}
+Lewei Yao, Runhui Huang, Lu~Hou, Guansong Lu, Minzhe Niu, Hang Xu, Xiaodan
+  Liang, Zhenguo Li, Xin Jiang, and Chunjing Xu.
+\newblock {FILIP}: Fine-grained interactive language-image pre-training.
+\newblock In \emph{International Conference on Learning Representations}, 2022.
+\newblock URL \url{https://openreview.net/forum?id=cpDhcsEDC2}.
+
+\bibitem[Yu et~al.(2022)Yu, Wang, Vasudevan, Yeung, Seyedhosseini, and
+  Wu]{coca}
+Jiahui Yu, Zirui Wang, Vijay Vasudevan, Legg Yeung, Mojtaba Seyedhosseini, and
+  Yonghui Wu.
+\newblock Coca: Contrastive captioners are image-text foundation models.
+\newblock \emph{Transactions on Machine Learning Research}, 2022.
+\newblock ISSN 2835-8856.
+\newblock URL \url{https://openreview.net/forum?id=Ee277P3AYC}.
+
+\end{thebibliography}
