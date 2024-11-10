@@ -154,10 +154,10 @@ be seen in Figure TODO.
 \textbf{Text Representation.} Each caption/text is tokenized according to the BERT base uncased tokenizer \citep{bert} and token ids are converted
 to embeddings using the BERT base model. The input $\textbf{H}^{s}_{0, w} \in \mathbb{R}^{M+2\times D}$ to the
 cropped BERT base model (our text encoder) is the sequence
-of token embeddings summed element-wise with the positional embeddings $\textbf{T}_{pos} \in \mathbb{R}^{M+2\times D}$ of BERT.
+of token embeddings summed element-wise with the positional embeddings $\textbf{T}^{pos}_{w} \in \mathbb{R}^{M+2\times D}$ of BERT.
 
 \[
-\textbf{H}^{s}_{0, w} = [\textbf{h}^{s}_{0, w, \text{\texttt{[T\_CLS]}}}, \textbf{h}^{s}_{0, w, 1}, ..., \textbf{h}^{s}_{0, w, M}, \textbf{h}^{s}_{0, w, \text{\texttt{[T\_SEP]}}}] + \textbf{T}_{pos}
+\textbf{H}^{s}_{0, w} = [\textbf{h}^{s}_{0, w, \text{\texttt{[T\_CLS]}}}, \textbf{h}^{s}_{0, w, 1}, ..., \textbf{h}^{s}_{0, w, M}, \textbf{h}^{s}_{0, w, \text{\texttt{[T\_SEP]}}}] + \textbf{T}^{pos}_{w}
 \]
 
 Here the superscript $s$ denotes that the representation stems from the student model, which will later be important for knowledge distillation.
@@ -169,14 +169,77 @@ only utilize the first 64 pretraining positional embeddings of the BERT model. T
 are taken directly from the BERT base model and are also pretrained. 
 The notation is inspired by \citet{vlmo}.
 
+\textbf{Image Representation.} Each image $\mathbf{x} \in \mathbb{R}^{H\times W\times C}$ is patchified, flattened, and each resulting patch
+is projected into a $D$-dimensional embedding according to \citep{vit}. The parameter used for the patch projection stem directly from the
+pretrained Data2Vec2 \citep{data2vec2} image model. Since we make use of the ViT-B/16 architecture \citep{vit}, $D$ equals 768, which
+also holds for the BERT base model. In all our experiments the image resolution is set to $224\times 224$ pixels. Similar to the text
+representation, we define the image representation $\textbf{H}^{s}_{0, v} \in \mathbb{R}^{N+1\times D}$ as:
+
+\[
+\textbf{H}^{s}_{0, v} = [\textbf{h}^{s}_{0, v, \text{\texttt{[I\_CLS]}}}, \textbf{h}^{s}_{0, v, 1}, ..., \textbf{h}^{s}_{0, v, N}] + \textbf{T}^{pos}_{v}
+\]
+
+Here, the subscript $v$ denotes the image modality, and $N$ is the number of patches. The special token \texttt{[I\_CLS]} is taken directly
+from the Data2Vec2 \citep{data2vec2} image model and is also pretrained. The positional embeddings $\textbf{T}^{pos}_{v} \in \mathbb{R}^{N+1\times D}$ are sinusoidal.
+
+\textbf{Forward Pass} Let our cropped BERT base model be denoted by $f_{w}(\cdot)$, the cropped Data2Vec2 image model by $f_{v}(\cdot)$, and the shared
+encoder by $f_{s}(\cdot)$. Each image representation $\textbf{H}^{s}_{0, v}$ and text representation $\textbf{H}^{s}_{0, w}$ is first passed through
+the pretrained image and text encoder, respectively.
+
+\[
+\textbf{H}^{s}_{L, v} = f_{v}(\textbf{H}^{s}_{0, v}) \quad \text{and} \quad \textbf{H}^{s}_{L, w} = f_{w}(\textbf{H}^{s}_{0, w})
+\]
+
+Since both encoders have 6 layers, it holds that $L=6$. After being passed through the encoders, the representations
+are passed separately through the shared encoder.
+
+\[
+\textbf{H}^{s}_{K, v} = f_{s}(\textbf{H}^{s}_{L, v}) \quad \text{and} \quad \textbf{H}^{s}_{K, w} = f_{s}(\textbf{H}^{s}_{L, w})
+\]
+
+Again, this is just one Transformer layer, so $K=L+1=7$. The final representations for image and text are the representations
+of the \texttt{[I\_CLS]} and \texttt{[T\_CLS]} tokens. They are denoted by $\textbf{h}^{s}_{K, v, \text{\texttt{[I\_CLS]}}}$ and
+$\textbf{h}^{s}_{K, w, \text{\texttt{[T\_CLS]}}}$, respectively.
+
 \subsection{Contrastive Learning}
 An approach central, but not unique to our approach is the use of a contrastive loss to align image and text. We use the contrastive loss
 as presented by \citet{clip}, and follow the approach of \citet{vlmo} by gathering negative examples from all GPUs to increase the
-effectiveness of the contrastive loss.
+effectiveness of the contrastive loss. We use the representations $\textbf{h}^{s}_{K, v, \text{\texttt{[I\_CLS]}}}$ and
+$\textbf{h}^{s}_{K, w, \text{\texttt{[T\_CLS]}}}$ for image and text, respectively, which are normalized before computing the cosine similarity
+between all possible pairs of image and text in the current batch. For equations that formulate the contrastive loss, we refer to \citet{vlmo}.
 
 \subsection{Self-Supervised Knowledge Distillation}
+What makes our approach unique is the use of knowledge distillation to guide the alignment between image and text. 
+We use BEiTv2 \citep{beitv2} as the teacher model. For each image-text pair in a batch, we pass the image to BEiTv2
+and extract the representations of the \texttt{[I\_CLS]} token, denoted by
+$\textbf{h}^{t}_{K, v, \text{\texttt{[I\_CLS]}}}$, from the last layer. Since BEiTv2 acts as the teacher model, we add the subscript $t$ to the
+representation.
+
+\textbf{Contrastive Distillation.} Unlike \cite{shre}, our teacher is self-supervised, so we cannot use the kl-divergence loss on the probability
+distributions of the ImageNet-1K \citep{imagenet} classes. Instead, we perform a contrastive loss between the student and teacher representations.
+Let $f_{p}(\cdot)$ denote a projection head, which is a single linear layer. The image representations and text representations,
+created by our vision-language, are passed through the projection head and normalized.
+
+\[
+\textbf{z}^{s}_{v} = ||f_{p}(\textbf{h}^{s}_{K, v, \text{\texttt{[I\_CLS]}}})||_2 \quad \text{and} \quad \textbf{z}^{s}_{w} = ||f_{p}(\textbf{h}^{s}_{K, w, \text{\texttt{[T\_CLS]}}})||_2
+\]
+
+We then perform the contrastive loss once between the image representations of the student $\textbf{z}^{s}_{v}$ and teacher $\textbf{z}^{t}_{v}$,
+and once between the text representations of the student $\textbf{z}^{s}_{w}$ and the image representations of the teacher $\textbf{z}^{t}_{w}$.
 
 
+\textbf{Memory Bank.}
+
+Note that we use a self-supervised vision teacher model in order to fulfill both the criteria of
+being self-supervised and independent of pretrained vision-language components.
+
+The final training objective is given by:
+
+\[
+\min \mathcal{L}_{cl} + \mathcal{L}_{kd}
+\]
+
+\subsection{Pretraining Setup}
 
 \section{Results}
 \subsection{Image-Text Retrieval}
