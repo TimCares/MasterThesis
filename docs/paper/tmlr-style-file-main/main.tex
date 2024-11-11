@@ -152,9 +152,9 @@ the shared encoder is merely a single Transformer layer and follows the ViT \cit
 be seen in Figure TODO.
 
 \textbf{Text Representation.} Each caption/text is tokenized according to the BERT base uncased tokenizer \citep{bert} and token ids are converted
-to embeddings using the BERT base model. The input $\textbf{H}^{s}_{0, w} \in \mathbb{R}^{M+2\times D}$ to the
+to embeddings using the BERT base model. The input $\textbf{H}^{s}_{0, w} \in \mathbb{R}^{(M+2)\times D}$ to the
 cropped BERT base model (our text encoder) is the sequence
-of token embeddings summed element-wise with the positional embeddings $\textbf{T}^{pos}_{w} \in \mathbb{R}^{M+2\times D}$ of BERT.
+of token embeddings summed element-wise with the positional embeddings $\textbf{T}^{pos}_{w} \in \mathbb{R}^{(M+2)\times D}$ of BERT.
 
 \[
 \textbf{H}^{s}_{0, w} = [\textbf{h}^{s}_{0, w, \text{\texttt{[T\_CLS]}}}, \textbf{h}^{s}_{0, w, 1}, ..., \textbf{h}^{s}_{0, w, M}, \textbf{h}^{s}_{0, w, \text{\texttt{[T\_SEP]}}}] + \textbf{T}^{pos}_{w}
@@ -173,14 +173,14 @@ The notation is inspired by \citet{vlmo}.
 is projected into a $D$-dimensional embedding according to \citep{vit}. The parameter used for the patch projection stem directly from the
 pretrained Data2Vec2 \citep{data2vec2} image model. Since we make use of the ViT-B/16 architecture \citep{vit}, $D$ equals 768, which
 also holds for the BERT base model. In all our experiments the image resolution is set to $224\times 224$ pixels. Similar to the text
-representation, we define the image representation $\textbf{H}^{s}_{0, v} \in \mathbb{R}^{N+1\times D}$ as:
+representation, we define the image representation $\textbf{H}^{s}_{0, v} \in \mathbb{R}^{(N+1)\times D}$ as:
 
 \[
 \textbf{H}^{s}_{0, v} = [\textbf{h}^{s}_{0, v, \text{\texttt{[I\_CLS]}}}, \textbf{h}^{s}_{0, v, 1}, ..., \textbf{h}^{s}_{0, v, N}] + \textbf{T}^{pos}_{v}
 \]
 
 Here, the subscript $v$ denotes the image modality, and $N$ is the number of patches. The special token \texttt{[I\_CLS]} is taken directly
-from the Data2Vec2 \citep{data2vec2} image model and is also pretrained. The positional embeddings $\textbf{T}^{pos}_{v} \in \mathbb{R}^{N+1\times D}$ are sinusoidal.
+from the Data2Vec2 \citep{data2vec2} image model and is also pretrained. The positional embeddings $\textbf{T}^{pos}_{v} \in \mathbb{R}^{(N+1)\times D}$ are sinusoidal.
 
 \textbf{Forward Pass} Let our cropped BERT base model be denoted by $f_{w}(\cdot)$, the cropped Data2Vec2 image model by $f_{v}(\cdot)$, and the shared
 encoder by $f_{s}(\cdot)$. Each image representation $\textbf{H}^{s}_{0, v}$ and text representation $\textbf{H}^{s}_{0, w}$ is first passed through
@@ -206,18 +206,32 @@ An approach central, but not unique to our approach is the use of a contrastive 
 as presented by \citet{clip}, and follow the approach of \citet{vlmo} by gathering negative examples from all GPUs to increase the
 effectiveness of the contrastive loss. We use the representations $\textbf{h}^{s}_{K, v, \text{\texttt{[I\_CLS]}}}$ and
 $\textbf{h}^{s}_{K, w, \text{\texttt{[T\_CLS]}}}$ for image and text, respectively, which are normalized before computing the cosine similarity
-between all possible pairs of image and text in the current batch. For equations that formulate the contrastive loss, we refer to \citet{vlmo}.
+between all possible pairs of image and text in the current batch. To formulate the contrastive loss, let $\textbf{u}^{v}_{i}$ denote the
+image representation $\textbf{h}^{s}_{K, v, \text{\texttt{[I\_CLS]}}}$ of the $i$-th image in the current batch, and $\textbf{u}^{w}_{j}$ the
+text representation $\textbf{h}^{s}_{K, w, \text{\texttt{[T\_CLS]}}}$ of the $j$-th text in the current batch. The contrastive loss is then given by:
+
+\[
+s^{i2t}_{i,j} = \textbf{u}^{v}_{i} (\textbf{u}^{w}_{j})^T, \quad s^{t2i}_{j,i} = \textbf{u}^{v}_{j} (\textbf{u}^{w}_{i})^T
+\]
+
+\[
+- log \frac{exp(s^{i2t}_{i,j}/\tau)}{\sum_{b=1}^{B'} exp(s^{i2t}_{i,b}/\tau)}
+- log \frac{exp(s^{t2i}_{j,i}/\tau)}{\sum_{b=1}^{B'} exp(s^{t2i}_{j,b}/\tau)}
+\]
 
 \subsection{Self-Supervised Knowledge Distillation}
 What makes our approach unique is the use of knowledge distillation to guide the alignment between image and text. 
 We use BEiTv2 \citep{beitv2} as the teacher model. For each image-text pair in a batch, we pass the image to BEiTv2
 and extract the representations of the \texttt{[I\_CLS]} token, denoted by
-$\textbf{h}^{t}_{K, v, \text{\texttt{[I\_CLS]}}}$, from the last layer. Since BEiTv2 acts as the teacher model, we add the subscript $t$ to the
+$\textbf{h}^{t}_{L_{s}, v, \text{\texttt{[I\_CLS]}}}$, from the last layer. Since BEiTv2 acts as the teacher model, we add the subscript $t$ to the
 representation.
+
+Note that we use a self-supervised vision teacher model in order to fulfill both the criteria of
+being self-supervised and independent of pretrained vision-language components.
 
 \textbf{Contrastive Distillation.} Unlike \cite{shre}, our teacher is self-supervised, so we cannot use the kl-divergence loss on the probability
 distributions of the ImageNet-1K \citep{imagenet} classes. Instead, we perform a contrastive loss between the student and teacher representations.
-Let $f_{p}(\cdot)$ denote a projection head, which is a single linear layer. The image representations and text representations,
+Let $f_{p}(\cdot)$ denote a projection head, which is a single linear layer. The image and text representations,
 created by our vision-language, are passed through the projection head and normalized.
 
 \[
@@ -228,10 +242,12 @@ We then perform the contrastive loss once between the image representations of t
 and once between the text representations of the student $\textbf{z}^{s}_{w}$ and the image representations of the teacher $\textbf{z}^{t}_{w}$.
 
 
-\textbf{Memory Bank.}
-
-Note that we use a self-supervised vision teacher model in order to fulfill both the criteria of
-being self-supervised and independent of pretrained vision-language components.
+\textbf{Memory Bank.} Since we use the contrastive loss, whose results are highly dependent on the batch size \citep{moco},
+we use a memory bank to store the representations of the teacher model. This increases the number of negative examples.
+The memory bank is updated after each step by
+dequeuing the oldest batch, and replacing it with the batch of current representations. Usually, this type of memory bank is
+susceptible to inconsistent representations, as the representations come from different steps. However, since the negative examples
+stem from the teacher model, which remains frozen during training, this is not an issue.
 
 The final training objective is given by:
 
@@ -240,6 +256,18 @@ The final training objective is given by:
 \]
 
 \subsection{Pretraining Setup}
+We pretrain our model on the Conceptual Captions 12M dataset \citep{cc12m}. Since the dataset consist of 12 million image-text pairs,
+and we want to keep the training time as short as possible to minimize costs, we pretrain for just one epoch.
+For the reasoning why we choose this dataset, we refer to Appendix \ref{curated_data}.
+For data augmentation on the images, we apply
+a random resized crop, followed by a random horizontal flip. All images are resized to $224\times 224$ pixels. Our pretrained
+components, as well as the randomly initialized shared encoder, have a hidden size of 768 and 12 attention heads. We use the AdamW
+optimizer with cosine learning schedule and warmup for 10\% of the steps.
+
+We train on two NVIDIA RTX 4090 cards with a batch size of 256, which is the maximum batch size that fits into the memory of a single GPU.
+Since we gather the negative examples from all GPUs we effectively have a contrastive loss with a batch size of 512. For the contrastive
+distillation, we follow \citet{moco} and \citet{albef} by using a memory bank of size 65536.
+Detailed hyperparameters are shown in Table TODO.
 
 \section{Results}
 \subsection{Image-Text Retrieval}
@@ -265,5 +293,7 @@ The final training objective is given by:
 \appendix
 \section{Appendix}
 \subsection{Discussion on Curated Data} \label{curated_data}
+
+\subsection{Technical Details}
 
 \end{document}

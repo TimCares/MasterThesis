@@ -1,4 +1,4 @@
-\begin{thebibliography}{15}
+\begin{thebibliography}{18}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -30,6 +30,14 @@ Hangbo Bao, Wenhui Wang, Li~Dong, Qiang Liu, Owais~Khan Mohammed, Kriti
   (eds.), \emph{Advances in Neural Information Processing Systems}, volume~35,
   pp.\  32897--32912. Curran Associates, Inc., 2022.
 
+\bibitem[Changpinyo et~al.(2021)Changpinyo, Sharma, Ding, and Soricut]{cc12m}
+Soravit Changpinyo, Piyush Sharma, Nan Ding, and Radu Soricut.
+\newblock Conceptual 12m: Pushing web-scale image-text pre-training to
+  recognize long-tail visual concepts.
+\newblock In \emph{2021 IEEE/CVF Conference on Computer Vision and Pattern
+  Recognition (CVPR)}, pp.\  3557--3567, Los Alamitos, CA, USA, jun 2021. IEEE
+  Computer Vision Foundation.
+
 \bibitem[Devlin et~al.(2019)Devlin, Chang, Lee, and Toutanova]{bert}
 Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova.
 \newblock {BERT}: Pre-training of deep bidirectional transformers for language
@@ -50,6 +58,23 @@ Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn,
 \newblock In \emph{9th International Conference on Learning Representations}.
   OpenReview.net, May 2021.
 \newblock URL \url{https://openreview.net/forum?id=YicbFdNTTy}.
+
+\bibitem[He et~al.(2020)He, Fan, Wu, Xie, and Girshick]{moco}
+K.~He, H.~Fan, Y.~Wu, S.~Xie, and R.~Girshick.
+\newblock Momentum contrast for unsupervised visual representation learning.
+\newblock In \emph{2020 IEEE/CVF Conference on Computer Vision and Pattern
+  Recognition (CVPR)}, pp.\  9726--9735, Los Alamitos, CA, USA, jun 2020. IEEE
+  Computer Society.
+
+\bibitem[Li et~al.(2021)Li, Selvaraju, Gotmare, Joty, Xiong, and Hoi]{albef}
+Junnan Li, Ramprasaath~R. Selvaraju, Akhilesh~D. Gotmare, Shafiq Joty, Caiming
+  Xiong, and Steven~C.H. Hoi.
+\newblock Align before fuse: vision and language representation learning with
+  momentum distillation.
+\newblock In \emph{Proceedings of the 35th International Conference on Neural
+  Information Processing Systems}, NIPS '21, pp.\  9694–9705, Red Hook, NY,
+  USA, 2021. Curran Associates Inc.
+\newblock ISBN 9781713845393.
 
 \bibitem[Lin et~al.(2014)Lin, Maire, Belongie, Hays, Perona, Ramanan,
   Doll{\'a}r, and Zitnick]{coco}
